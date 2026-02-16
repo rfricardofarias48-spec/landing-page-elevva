@@ -2,10 +2,7 @@
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-// CHAVE PAGAMENTO POR USO (PAY-AS-YOU-GO) - ALTA CAPACIDADE
-const API_KEY = "AIzaSyC4ck5oaFDCAS-TIeqoK__OQhOkf403xpI";
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const analysisSchema: Schema = {
   type: Type.OBJECT,
@@ -67,13 +64,18 @@ const analysisSchema: Schema = {
 
 function cleanJsonString(text: string): string {
   if (!text) return "{}";
+  // Remove markdown code blocks e espaços extras
   let cleaned = text.trim();
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+  
+  // Tenta encontrar o JSON válido mais externo
   const firstBrace = cleaned.indexOf('{');
   const lastBrace = cleaned.lastIndexOf('}');
+  
   if (firstBrace !== -1 && lastBrace !== -1) {
     cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
+  
   return cleaned;
 }
 
@@ -86,45 +88,31 @@ export const analyzeResume = async (
 ): Promise<AnalysisResult> => {
   
   const prompt = `
-    Você é um Recrutador Técnico Sênior (Headhunter) EXTREMAMENTE CRÍTICO, CÉTICO e RIGOROSO.
-    
     DADOS DA VAGA:
-    - Título Exato: "${jobTitle}"
-    - Requisitos Obrigatórios: "${criteria}"
+    Cargo: "${jobTitle}"
+    Requisitos: "${criteria}"
     
-    REGRAS DE OURO PARA PONTUAÇÃO (MATCH SCORE):
-    1. EXPERIÊNCIA EXATA É OBRIGATÓRIA PARA NOTAS ALTAS:
-       - Se o candidato NÃO trabalhou em um cargo com título IGUAL ou SINÔNIMO DIRETO da vaga, a nota MÁXIMA é 6.5.
-       - Exemplo: Se a vaga é "Ajudante de Carga e Descarga" e o candidato foi "Auxiliar de Produção", a nota NÃO PODE passar de 6.5, mesmo que as tarefas sejam parecidas. Isso é experiência correlata, não direta.
+    INSTRUÇÕES DE ANÁLISE (SEJA RIGOROSO):
+    1. MATCH SCORE (0-10):
+       - 9.0-10.0: Experiência EXATA no cargo + Requisitos.
+       - 0.0-6.5: Se o cargo atual/anterior NÃO for igual ou sinônimo direto (Ex: "Auxiliar" para vaga de "Operador"). Experiência correlata NÃO conta como experiência exata.
     
-    2. ESCALA DE NOTAS (SEJA SEVERO):
-       - 9.0 a 10.0: O candidato JÁ ATUOU EXATAMENTE no cargo solicitado por mais de 2 anos E tem todos os requisitos.
-       - 7.0 a 8.9: O candidato JÁ ATUOU no cargo solicitado, mas por pouco tempo ou falta algum requisito secundário.
-       - 5.0 a 6.9: O candidato NUNCA atuou no cargo, mas tem experiência em áreas próximas (Ex: Produção p/ Logística).
-       - 0.0 a 4.9: Sem experiência relevante.
-
-    3. ANÁLISE:
-       - No 'summary': Se ele não tem o cargo exato, comece a frase dizendo: "O candidato não possui experiência direta como ${jobTitle}...".
-       - No 'cons': Cite explicitamente a falta de experiência no título da vaga como ponto negativo principal.
-
-    4. CÁLCULO DE TEMPO DE EXPERIÊNCIA (RIGOR MÁXIMO):
-       - O campo 'yearsExperience' deve somar APENAS o tempo em cargos que são IDÊNTICOS ao título da vaga.
-       - VETO TOTAL a cargos correlatos. Ex: Se a vaga é "Motorista", experiência de "Ajudante de Motorista" conta como ZERO.
-       - VETO TOTAL a áreas próximas. Ex: "Auxiliar de Produção" para vaga de "Carga e Descarga" conta como ZERO.
-       - Se o candidato não tem experiência EXATA no título, 'yearsExperience' deve ser "Sem experiência direta".
-
-    Analise o PDF em anexo e retorne APENAS o JSON.
+    2. EXTRAÇÃO:
+       - Resuma a experiência focando APENAS no que é relevante para "${jobTitle}".
+       - Se não tiver experiência exata, deixe claro no resumo.
+    
+    Analise o PDF e retorne JSON.
   `;
 
-  // MODELOS OTIMIZADOS PARA VELOCIDADE (SPEED FIRST)
-  // Gemini 3 Flash Preview é atualmente o estado da arte em velocidade
+  // LISTA DE MODELOS OTIMIZADA PARA VELOCIDADE (SPEED FIRST)
+  // Gemini 3 Flash Preview é prioridade absoluta
   const modelsToTry = [
     "gemini-3-flash-preview", 
-    "gemini-2.5-flash",
+    "gemini-2.0-flash-exp",
     "gemini-1.5-flash"
   ];
 
-  // Configuração de segurança permissiva para currículos
+  // Configuração de segurança permissiva para evitar falsos positivos em currículos
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -145,8 +133,8 @@ export const analyzeResume = async (
         config: {
           responseMimeType: "application/json",
           responseSchema: analysisSchema,
-          temperature: 0.1, // Leve aumento para evitar bloqueios de repetição, mas mantendo determinismo
-          topK: 20, // Otimização de performance: reduz espaço de busca
+          temperature: 0.1, // Baixa temperatura para determinismo e velocidade
+          topK: 20,
           safetySettings: safetySettings
         },
       });
@@ -154,22 +142,31 @@ export const analyzeResume = async (
       const text = response.text;
       if (!text) throw new Error("Resposta vazia da IA");
       
-      const parsed = JSON.parse(cleanJsonString(text)) as AnalysisResult;
+      const cleanedText = cleanJsonString(text);
+      const parsed = JSON.parse(cleanedText) as AnalysisResult;
       
-      // Validação básica
-      if (!parsed.candidateName) parsed.candidateName = "Candidato (Nome não encontrado)";
+      // Sanitização básica
+      if (!parsed.candidateName) parsed.candidateName = "Candidato (Nome não identificado)";
       
       return parsed;
 
     } catch (error: any) {
       const isRateLimit = error.status === 429 || (error.message && error.message.includes("429"));
+      
       if (isRateLimit) {
-         console.warn(`Rate limit hit for ${modelName}, waiting briefly...`);
-         // Delay curto progressivo
-         await sleep(1000); 
-         continue;
+         console.warn(`Rate limit hit for ${modelName}.`);
+         // Se for o último modelo, falha. Se não, espera um pouco e tenta o próximo.
+         if (modelName !== modelsToTry[modelsToTry.length - 1]) {
+             await sleep(1500); 
+             continue; 
+         }
       }
+      
+      // Se não for rate limit, mas for erro de parse ou outro, tenta o próximo modelo (fallback)
       console.warn(`Erro no modelo ${modelName}:`, error);
+      if (modelName !== modelsToTry[modelsToTry.length - 1]) {
+          continue;
+      }
     }
   }
 
@@ -181,9 +178,9 @@ export const analyzeResume = async (
     city: "-",
     neighborhood: "-",
     phoneNumbers: [],
-    summary: "A IA não conseguiu processar este arquivo. Verifique se o PDF contém texto selecionável (não é apenas uma imagem) ou se o arquivo não está corrompido.",
+    summary: "O arquivo não pôde ser processado. Verifique se é um PDF válido com texto selecionável.",
     pros: [],
-    cons: ["Arquivo ilegível ou erro de conexão com a IA"],
+    cons: ["Falha de processamento ou arquivo corrompido"],
     workHistory: []
   };
 };

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { AdminUserProfile, Announcement, PlanType } from '../types';
@@ -6,11 +5,11 @@ import {
   Users, Shield, Calendar, CreditCard, Search, Activity, Briefcase, 
   Loader2, ArrowUpRight, Ban, CheckCircle2, X, Phone, User, Mail, 
   Zap, Star, Crown, LogOut, LayoutDashboard, DollarSign, TrendingUp, 
-  FileText, PieChart, BarChart3, AlertCircle, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, ChevronLeft, ChevronRight, Clock, UserX, MessageCircle
+  FileText, PieChart, BarChart3, AlertCircle, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, ChevronLeft, ChevronRight, Clock, UserX, MessageCircle, Wallet, Lock, Database, Copy, ToggleRight
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
-type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS';
+type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE';
 
 interface AdminJob {
   id: string;
@@ -19,7 +18,7 @@ interface AdminJob {
   candidates_count: number;
   owner_name: string;
   owner_email: string;
-  status: 'ACTIVE' | 'CLOSED'; // Simulado
+  status: 'ACTIVE' | 'CLOSED'; 
 }
 
 export const AdminDashboard: React.FC = () => {
@@ -45,6 +44,9 @@ export const AdminDashboard: React.FC = () => {
 
   // State Financeiro
   const [financeDate, setFinanceDate] = useState(new Date());
+
+  // State Database Tab
+  const [sqlTab, setSqlTab] = useState<'FIX_ALL' | 'CRON' | 'NEW_FEATURES'>('FIX_ALL');
 
   useEffect(() => {
     fetchData();
@@ -74,7 +76,7 @@ export const AdminDashboard: React.FC = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (adsError && adsError.code !== '42P01') { // Ignora erro de tabela inexistente se script não rodou
+      if (adsError && adsError.code !== '42P01') { 
           console.error("Erro ao buscar anúncios:", adsError);
       }
 
@@ -92,7 +94,7 @@ export const AdminDashboard: React.FC = () => {
             created_at: u.created_at,
             jobs_count: userJobs.length,
             resume_usage: u.resume_usage || 0,
-            last_active: u.updated_at || u.created_at, // Fallback para data de update como "último acesso"
+            last_active: u.updated_at || u.created_at, 
             subscription_status: u.subscription_status
           };
       });
@@ -224,7 +226,7 @@ export const AdminDashboard: React.FC = () => {
 
       } catch (err: any) {
           console.error("Erro ao postar anúncio:", err);
-          alert("Erro ao postar anúncio: " + err.message + "\n\nVerifique se rodou o Script V22.");
+          alert("Erro ao postar anúncio: " + err.message);
       } finally {
           setIsPostingAd(false);
       }
@@ -248,16 +250,6 @@ export const AdminDashboard: React.FC = () => {
 
   // --- LÓGICA FINANCEIRA ---
   
-  const handleMonthChange = (direction: 'prev' | 'next') => {
-      const newDate = new Date(financeDate);
-      if (direction === 'prev') {
-          newDate.setMonth(newDate.getMonth() - 1);
-      } else {
-          newDate.setMonth(newDate.getMonth() + 1);
-      }
-      setFinanceDate(newDate);
-  };
-
   const getFinancialData = () => {
       // Filtrar usuários que existiam até o final do mês selecionado
       const targetMonthEnd = new Date(financeDate.getFullYear(), financeDate.getMonth() + 1, 0);
@@ -270,11 +262,12 @@ export const AdminDashboard: React.FC = () => {
       const stats = {
           FREE: { count: 0, price: 0, revenue: 0 },
           MENSAL: { count: 0, price: 329.90, revenue: 0 },
-          TRIMESTRAL: { count: 0, price: 329.90, revenue: 0 },
+          TRIMESTRAL: { count: 0, price: 329.90, revenue: 0 }, // Legado ou futuro
           ANUAL: { count: 0, price: 289.90, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
-          payingUsers: 0
+          payingUsers: 0,
+          totalResumeUsage: 0 
       };
 
       historicalUsers.forEach(u => {
@@ -284,6 +277,8 @@ export const AdminDashboard: React.FC = () => {
               // @ts-ignore
               stats[u.plan].revenue += stats[u.plan].price;
           }
+          // Soma uso de currículos
+          stats.totalResumeUsage += (u.resume_usage || 0);
       });
 
       stats.payingUsers = stats.MENSAL.count + stats.TRIMESTRAL.count + stats.ANUAL.count;
@@ -291,6 +286,170 @@ export const AdminDashboard: React.FC = () => {
 
       return stats;
   };
+
+  // --- SQL SCRIPTS ---
+  const fixAllSql = `
+-- --- SCRIPT V26: CORREÇÃO DE UPLOAD PÚBLICO E POLÍTICAS ---
+
+-- 1. CORREÇÃO CRÍTICA: PERMITIR CANDIDATOS ANÔNIMOS (SEM USER_ID)
+-- Isso resolve o erro: null value in column "user_id" violates not-null constraint
+ALTER TABLE public.candidates ALTER COLUMN user_id DROP NOT NULL;
+
+-- 2. PERMISSÕES EXPLÍCITAS (GRANT)
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON TABLE public.candidates TO anon, authenticated;
+GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
+GRANT ALL ON TABLE public.announcements TO anon, authenticated;
+
+-- 3. POLÍTICAS DE CANDIDATOS (RLS) - RESET TOTAL
+ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
+
+-- Remove políticas antigas para evitar erro "policy already exists"
+DROP POLICY IF EXISTS "Public Insert Candidates" ON public.candidates;
+DROP POLICY IF EXISTS "Enable insert for anon" ON public.candidates;
+DROP POLICY IF EXISTS "Enable insert for authenticated" ON public.candidates;
+DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
+DROP POLICY IF EXISTS "Enable select for all" ON public.candidates;
+
+-- Cria política unificada para permitir INSERT de qualquer um
+CREATE POLICY "Enable insert for all" ON public.candidates 
+FOR INSERT TO anon, authenticated 
+WITH CHECK (true);
+
+-- Permite leitura para mostrar status/confirmação
+CREATE POLICY "Enable select for all" ON public.candidates 
+FOR SELECT TO anon, authenticated 
+USING (true);
+
+-- 4. POLÍTICAS DE VAGAS (JOBS)
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
+CREATE POLICY "Enable read access for all" ON public.jobs 
+FOR SELECT TO anon, authenticated 
+USING (true);
+
+-- PERMITIR UPDATE PARA O DONO DA VAGA (ESSENCIAL PARA PAUSAR/AUTO-ANÁLISE)
+DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
+CREATE POLICY "Enable update for owners" ON public.jobs 
+FOR UPDATE TO authenticated 
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- 5. STORAGE (Bucket 'resumes')
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('resumes', 'resumes', true)
+ON CONFLICT (id) DO NOTHING;
+
+GRANT ALL ON SCHEMA storage TO anon, authenticated;
+GRANT ALL ON TABLE storage.objects TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public Upload Resumes" ON storage.objects;
+DROP POLICY IF EXISTS "Give anon insert access" ON storage.objects;
+DROP POLICY IF EXISTS "Public Read Resumes" ON storage.objects;
+
+CREATE POLICY "Give anon insert access" ON storage.objects 
+FOR INSERT TO anon, authenticated 
+WITH CHECK (bucket_id = 'resumes');
+
+CREATE POLICY "Public Read Resumes" ON storage.objects 
+FOR SELECT TO anon, authenticated 
+USING (bucket_id = 'resumes');
+
+-- 6. ANÚNCIOS (Correção do erro 42710)
+CREATE TABLE IF NOT EXISTS public.announcements (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    title text NOT NULL,
+    link_url text,
+    image_path text NOT NULL,
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
+);
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public View Announcements" ON public.announcements;
+CREATE POLICY "Public View Announcements" ON public.announcements 
+FOR SELECT TO anon, authenticated 
+USING (true);
+
+GRANT ALL ON TABLE public.announcements TO anon, authenticated;
+
+-- 7. LINKS CURTOS
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'jobs_short_code_key') THEN
+        ALTER TABLE public.jobs ADD CONSTRAINT jobs_short_code_key UNIQUE (short_code);
+    END IF;
+END $$;
+
+COMMIT;
+  `.trim();
+
+  const cronSql = `
+-- --- SCRIPT V27: AUTOMAÇÃO DE LIMPEZA (10 DIAS) ---
+-- Requer extensão pg_cron ativada no dashboard do Supabase (Database -> Extensions)
+
+-- 1. Ativa a extensão (se permitido)
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- 2. Cria a função de limpeza
+CREATE OR REPLACE FUNCTION delete_expired_candidates() RETURNS void AS $$
+BEGIN
+  -- Deleta candidatos criados há mais de 10 dias
+  -- Nota: O trigger de storage deve limpar o arquivo se configurado, 
+  -- caso contrário, a limpeza é apenas lógica no banco.
+  DELETE FROM public.candidates 
+  WHERE created_at < NOW() - INTERVAL '10 days';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Agenda a execução para todo dia às 03:00 AM
+SELECT cron.schedule(
+  'cleanup_resumes', -- nome do job
+  '0 3 * * *',       -- cron expression (03:00 am daily)
+  $$SELECT delete_expired_candidates()$$
+);
+
+-- Para verificar se agendou: SELECT * FROM cron.job;
+`.trim();
+
+  const featuresSql = `
+-- --- SCRIPT V28: CORREÇÃO DE PERMISSÕES PARA NOVAS FUNÇÕES ---
+
+-- 1. Adiciona as colunas necessárias se não existirem
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
+
+-- 2. CORREÇÃO DE PERMISSÃO: Permite que o usuário ATUALIZE suas próprias vagas
+-- Sem isso, ao tentar ativar "Auto Análise" ou "Pausar", o Supabase retorna erro.
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
+
+CREATE POLICY "Enable update for owners" ON public.jobs 
+FOR UPDATE TO authenticated 
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- Garante que o Supabase recarregue o schema
+NOTIFY pgrst, 'reload config';
+  `.trim();
+
+  const getSql = () => {
+      switch(sqlTab) {
+          case 'CRON': return cronSql;
+          case 'NEW_FEATURES': return featuresSql;
+          default: return fixAllSql;
+      }
+  };
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(getSql());
+    alert("Script copiado! Execute no SQL Editor do Supabase.");
+  };
+
+  // --- RENDERS ---
 
   const renderSidebar = () => (
     <div className="w-64 bg-white border-r border-zinc-200 flex flex-col fixed left-0 top-0 bottom-0 z-50">
@@ -300,35 +459,20 @@ export const AdminDashboard: React.FC = () => {
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-            <button 
-                onClick={() => setCurrentView('OVERVIEW')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'OVERVIEW' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}
-            >
+            <button onClick={() => setCurrentView('OVERVIEW')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'OVERVIEW' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <LayoutDashboard className="w-5 h-5" /> Visão Geral
             </button>
-            <button 
-                onClick={() => setCurrentView('USERS')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'USERS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}
-            >
+            <button onClick={() => setCurrentView('USERS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'USERS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Users className="w-5 h-5" /> Usuários
             </button>
-            <button 
-                onClick={() => setCurrentView('ADS')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'ADS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}
-            >
+            <button onClick={() => setCurrentView('ADS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'ADS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Megaphone className="w-5 h-5" /> Anúncios
             </button>
-            <button 
-                onClick={() => setCurrentView('FINANCE')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'FINANCE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}
-            >
+            <button onClick={() => setCurrentView('FINANCE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'FINANCE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <DollarSign className="w-5 h-5" /> Faturamento
             </button>
-            <button 
-                onClick={() => setCurrentView('CANCELLATIONS')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CANCELLATIONS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}
-            >
-                <UserX className="w-5 h-5" /> Cancelamentos
+            <button onClick={() => setCurrentView('DATABASE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'DATABASE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <Database className="w-5 h-5" /> Banco de Dados
             </button>
         </nav>
 
@@ -338,6 +482,57 @@ export const AdminDashboard: React.FC = () => {
             </button>
         </div>
     </div>
+  );
+
+  const renderDatabase = () => (
+      <div className="space-y-6 animate-fade-in h-full flex flex-col">
+          <div>
+              <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Banco de Dados</h2>
+              <p className="text-zinc-500 font-medium">Scripts de manutenção e atualizações do Supabase.</p>
+          </div>
+
+          <div className="flex-1 bg-zinc-900 rounded-[2rem] border border-zinc-700 shadow-xl overflow-hidden flex flex-col">
+              {/* Header do Terminal */}
+              <div className="bg-zinc-950 p-6 border-b border-zinc-800 flex justify-between items-center">
+                  <div className="flex gap-4">
+                      <button 
+                        onClick={() => setSqlTab('FIX_ALL')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${sqlTab === 'FIX_ALL' ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                      >
+                          <Database className="w-4 h-4" /> Script V26 (Geral)
+                      </button>
+                      <button 
+                        onClick={() => setSqlTab('NEW_FEATURES')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${sqlTab === 'NEW_FEATURES' ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                      >
+                          <ToggleRight className="w-4 h-4" /> Script V28 (Permissões)
+                      </button>
+                      <button 
+                        onClick={() => setSqlTab('CRON')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${sqlTab === 'CRON' ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                      >
+                          <Clock className="w-4 h-4" /> Script V27 (Limpeza)
+                      </button>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                      <button onClick={handleCopySql} className="text-white hover:text-emerald-400 flex items-center gap-2 text-xs font-bold bg-zinc-800 px-3 py-2 rounded-lg hover:bg-zinc-700 transition-all">
+                          <Copy className="w-4 h-4" /> Copiar SQL
+                      </button>
+                      <a href="https://supabase.com/dashboard/project/_/sql/new" target="_blank" rel="noreferrer" className="text-white hover:text-emerald-400 flex items-center gap-2 text-xs font-bold bg-zinc-800 px-3 py-2 rounded-lg hover:bg-zinc-700 transition-all">
+                          Abrir Supabase <ExternalLink className="w-4 h-4" />
+                      </a>
+                  </div>
+              </div>
+
+              {/* Code Content */}
+              <div className="flex-1 overflow-auto p-6 bg-[#1e1e1e] custom-scrollbar">
+                  <pre className="text-zinc-300 font-mono text-sm leading-relaxed whitespace-pre-wrap selection:bg-emerald-500/30">
+                      {getSql()}
+                  </pre>
+              </div>
+          </div>
+      </div>
   );
 
   const renderOverview = () => {
@@ -353,7 +548,7 @@ export const AdminDashboard: React.FC = () => {
             <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-zinc-100 rounded-2xl"><Users className="w-6 h-6 text-zinc-900"/></div>
-                    <span className="text-emerald-500 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1"><TrendingUp className="w-3 h-3"/> +12%</span>
+                    <span className="text-emerald-500 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1"><TrendingUp className="w-3 h-3"/> +{users.length}</span>
                 </div>
                 <h3 className="text-4xl font-black text-zinc-900">{users.length}</h3>
                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Total de Usuários</p>
@@ -377,7 +572,7 @@ export const AdminDashboard: React.FC = () => {
                     <div className="p-3 bg-zinc-900 rounded-2xl"><DollarSign className="w-6 h-6 text-[#CCF300]"/></div>
                 </div>
                 <h3 className="text-4xl font-black text-white">R$ {currentFinancials.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">MRR Atual</p>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">MRR Atual (Estimado)</p>
             </div>
         </div>
     </div>
@@ -491,41 +686,42 @@ export const AdminDashboard: React.FC = () => {
                               </div>
                           </div>
                           <div className="p-5">
-                              <h4 className="font-black text-lg leading-tight mb-2 text-zinc-900 line-clamp-2">
-                                  {newAdTitle || "Título do seu anúncio aparecerá aqui"}
+                              <h4 className="font-black text-lg text-zinc-900 leading-tight mb-2 line-clamp-2">
+                                  {newAdTitle || 'Título do Anúncio'}
                               </h4>
-                              {newAdLink && (
-                                  <div className="text-[10px] font-bold text-blue-600 truncate flex items-center gap-1">
-                                      <ExternalLink className="w-3 h-3"/> {newAdLink}
-                                  </div>
-                              )}
+                              <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 uppercase tracking-wide">
+                                  Saiba mais <ExternalLink className="w-3 h-3" />
+                              </div>
                           </div>
                       </div>
                   </div>
 
-                  {/* LISTA DE ATIVOS */}
-                  <div className="bg-white rounded-[2rem] p-6 border border-zinc-200 flex-1 overflow-y-auto custom-scrollbar">
-                      <h3 className="text-sm font-black text-zinc-900 mb-4 uppercase tracking-widest sticky top-0 bg-white pb-2 border-b border-zinc-100">Anúncios Ativos ({ads.length})</h3>
-                      <div className="space-y-3">
+                  {/* LISTA DE ANÚNCIOS */}
+                  <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                      <h3 className="text-lg font-black text-zinc-900 mb-4 sticky top-0 bg-white/80 backdrop-blur py-2 z-10 flex items-center gap-2">
+                          <Megaphone className="w-5 h-5"/> Ativos ({ads.length})
+                      </h3>
+                      <div className="space-y-4">
+                          {ads.length === 0 && (
+                              <p className="text-zinc-400 text-sm font-medium text-center py-8">Nenhum anúncio ativo.</p>
+                          )}
                           {ads.map(ad => (
-                              <div key={ad.id} className="flex items-center gap-4 p-3 bg-zinc-50 rounded-xl border border-zinc-100 hover:border-zinc-300 transition-colors group">
-                                  <img src={ad.imageUrl} className="w-12 h-12 rounded-lg object-cover bg-zinc-200" alt="Thumb" />
+                              <div key={ad.id} className="flex gap-4 p-4 border border-zinc-200 rounded-xl hover:border-black transition-all group bg-white">
+                                  <img src={ad.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover bg-zinc-100 border border-zinc-100" />
                                   <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-bold text-zinc-900 truncate">{ad.title}</p>
-                                      <div className="flex gap-1 mt-1 flex-wrap">
+                                      <h4 className="font-bold text-zinc-900 text-sm truncate">{ad.title}</h4>
+                                      <p className="text-xs text-zinc-500 truncate">{ad.linkUrl || 'Sem link'}</p>
+                                      <div className="flex gap-1 mt-2">
                                           {ad.targetPlans.map(p => (
-                                              <span key={p} className="text-[8px] bg-zinc-200 text-zinc-600 px-1.5 py-0.5 rounded font-bold">{p[0]}</span>
+                                              <span key={p} className="text-[9px] bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded font-bold">{p}</span>
                                           ))}
                                       </div>
                                   </div>
-                                  <button onClick={() => handleDeleteAd(ad.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                  <button onClick={() => handleDeleteAd(ad.id)} className="text-zinc-300 hover:text-red-500 transition-colors self-start">
                                       <Trash2 className="w-4 h-4" />
                                   </button>
                               </div>
                           ))}
-                          {ads.length === 0 && (
-                              <p className="text-center text-zinc-400 text-xs py-4">Nenhum anúncio ativo.</p>
-                          )}
                       </div>
                   </div>
               </div>
@@ -533,407 +729,191 @@ export const AdminDashboard: React.FC = () => {
       </div>
   );
 
-  const renderUsersTable = () => {
-    const filteredUsers = users.filter(u => 
-        u.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    const totalFree = users.filter(u => u.plan === 'FREE').length;
-    const totalPaid = users.filter(u => u.plan !== 'FREE').length;
-
-    return (
-        <div className="space-y-6 animate-fade-in">
-             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Usuários</h2>
-                    <p className="text-zinc-500 font-medium">Gerenciamento de base e acessos</p>
-                </div>
-                
-                {/* Contadores no Header */}
-                <div className="flex items-center gap-4">
-                    <div className="px-5 py-2.5 bg-zinc-100 rounded-2xl border border-zinc-200 flex flex-col items-center min-w-[120px]">
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Cadastros Free</span>
-                        <p className="text-2xl font-black text-zinc-900 leading-none mt-1">{totalFree}</p>
-                    </div>
-                    <div className="px-5 py-2.5 bg-black text-white rounded-2xl border border-black flex flex-col items-center min-w-[120px] shadow-lg">
-                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Cadastros Pagos</span>
-                        <p className="text-2xl font-black text-[#CCF300] leading-none mt-1">{totalPaid}</p>
-                    </div>
-                </div>
-
-                <div className="relative w-72">
-                  <Search className="w-4 h-4 absolute left-3 top-3.5 text-zinc-400" />
-                  <input 
-                    type="text" 
-                    placeholder="Buscar usuários..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-white border border-zinc-200 rounded-xl py-3 pl-10 pr-4 text-sm text-zinc-900 font-medium focus:border-black focus:ring-0 outline-none transition-all"
-                  />
-              </div>
-            </div>
-
-            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-zinc-50 text-zinc-400 text-[10px] font-bold uppercase tracking-widest border-b border-zinc-100">
-                            <th className="p-5 pl-8">Usuário</th>
-                            <th className="p-5">Plano</th>
-                            <th className="p-5 whitespace-nowrap">Data Cadastro</th>
-                            <th className="p-5 whitespace-nowrap">Últ. Acesso</th>
-                            <th className="p-5 text-center">Currículos</th>
-                            <th className="p-5 text-center">Vagas</th>
-                            <th className="p-5 text-center">Status</th>
-                            <th className="p-5 text-right pr-8">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100">
-                        {filteredUsers.map((u) => (
-                            <tr key={u.id} className="hover:bg-zinc-50 transition-colors">
-                                <td className="p-5 pl-8">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-sm ${u.role === 'ADMIN' ? 'bg-red-50 border-red-100 text-red-500' : 'bg-white border-zinc-200 text-zinc-400'}`}>
-                                            {u.role === 'ADMIN' ? <Shield className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                                        </div>
-                                        <div>
-                                            <div className="text-sm font-bold text-zinc-900">{u.name || 'Sem nome'}</div>
-                                            <div className="text-xs text-zinc-500 font-medium">{u.email}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="p-5">
-                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${u.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500 border-zinc-200' : 'bg-black text-[#CCF300] border-black'}`}>
-                                        {u.plan}
-                                    </span>
-                                </td>
-                                <td className="p-5 text-xs font-bold text-zinc-600">
-                                    {new Date(u.created_at).toLocaleDateString('pt-BR')}
-                                </td>
-                                <td className="p-5 text-xs font-bold text-zinc-600">
-                                    <div className="flex items-center gap-1.5">
-                                        <Clock className="w-3 h-3 text-zinc-400" />
-                                        {u.last_active ? new Date(u.last_active).toLocaleDateString('pt-BR') : '-'}
-                                    </div>
-                                </td>
-                                <td className="p-5 text-center text-sm font-bold text-zinc-700">{u.resume_usage}</td>
-                                <td className="p-5 text-center text-sm font-bold text-zinc-700">{u.jobs_count}</td>
-                                <td className="p-5 text-center">
-                                    {u.status === 'BLOCKED' ? (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-100"><Ban className="w-3 h-3" /> SUSPENSO</span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100"><CheckCircle2 className="w-3 h-3" /> ATIVO</span>
-                                    )}
-                                </td>
-                                <td className="p-5 pr-8 text-right">
-                                    <button onClick={() => setSelectedUser(u)} className="text-zinc-400 hover:text-black transition-colors"><ArrowUpRight className="w-5 h-5" /></button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-  };
-
-  const renderCancellations = () => {
-      // Filtrar usuários com status cancelado, past_due ou que não renovaram
-      const cancelledUsers = users.filter(u => 
-          (u.subscription_status === 'canceled' || u.subscription_status === 'past_due') &&
-          (u.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-           u.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+  const renderUsersList = () => {
+      const filteredUsers = users.filter(u => 
+          u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          u.email.toLowerCase().includes(searchTerm.toLowerCase())
       );
+
+      // Calcular totais
+      const totalFree = users.filter(u => u.plan === 'FREE').length;
+      const totalPaid = users.filter(u => u.plan !== 'FREE').length;
 
       return (
           <div className="space-y-6 animate-fade-in">
-               <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center">
                   <div>
-                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Cancelamentos</h2>
-                      <p className="text-zinc-500 font-medium">Usuários que não renovaram o plano.</p>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Usuários</h2>
+                      <p className="text-zinc-500 font-medium">Gerencie o acesso à plataforma.</p>
                   </div>
-                  <div className="relative w-72">
-                    <Search className="w-4 h-4 absolute left-3 top-3.5 text-zinc-400" />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar..." 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full bg-white border border-zinc-200 rounded-xl py-3 pl-10 pr-4 text-sm text-zinc-900 font-medium focus:border-black focus:ring-0 outline-none transition-all"
-                    />
-                </div>
+                  
+                  {/* Resumo Rápido */}
+                  <div className="flex gap-4">
+                      <div className="bg-white border border-zinc-200 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Free</span>
+                          <span className="text-lg font-black text-zinc-900">{totalFree}</span>
+                      </div>
+                      <div className="bg-black text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Pagos</span>
+                          <span className="text-lg font-black text-[#CCF300]">{totalPaid}</span>
+                      </div>
+                  </div>
+
+                  <div className="relative">
+                      <Search className="w-5 h-5 absolute left-4 top-3.5 text-zinc-400" />
+                      <input 
+                          type="text" 
+                          placeholder="Buscar nome ou email..." 
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-12 pr-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:border-black focus:ring-0 outline-none w-64 md:w-80 shadow-sm"
+                      />
+                  </div>
               </div>
 
               <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
-                  {cancelledUsers.length === 0 ? (
-                      <div className="p-12 text-center text-zinc-400">
-                          <UserX className="w-12 h-12 mx-auto mb-4 text-zinc-300" />
-                          <p className="font-bold text-sm">Nenhum cancelamento encontrado.</p>
-                      </div>
-                  ) : (
-                      <table className="w-full text-left border-collapse">
-                          <thead>
-                              <tr className="bg-zinc-50 text-zinc-400 text-[10px] font-bold uppercase tracking-widest border-b border-zinc-100">
-                                  <th className="p-5 pl-8">Candidato</th>
-                                  <th className="p-5">Contato</th>
-                                  <th className="p-5">Status Financeiro</th>
-                                  <th className="p-5">Último Acesso</th>
-                                  <th className="p-5 text-right pr-8">Ações</th>
-                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-100">
-                              {cancelledUsers.map((u) => (
-                                  <tr key={u.id} className="hover:bg-zinc-50 transition-colors">
-                                      <td className="p-5 pl-8">
-                                          <div className="flex items-center gap-3">
-                                              <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center text-red-500 font-bold border border-red-100">
-                                                  {u.name?.charAt(0) || u.email.charAt(0).toUpperCase()}
-                                              </div>
-                                              <div>
-                                                  <div className="text-sm font-bold text-zinc-900">{u.name || 'Sem nome'}</div>
-                                                  <div className="text-xs text-zinc-500 font-medium">{u.email}</div>
-                                              </div>
+                  <table className="w-full text-left border-collapse">
+                      <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
+                          <tr>
+                              <th className="p-6">Usuário</th>
+                              <th className="p-6">Plano</th>
+                              <th className="p-6">Cadastro</th>
+                              <th className="p-6">Último Acesso</th>
+                              <th className="p-6">Uso</th>
+                              <th className="p-6">Status</th>
+                              <th className="p-6 text-right">Ações</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-50 text-sm">
+                          {filteredUsers.map(user => (
+                              <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
+                                  <td className="p-6">
+                                      <div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div>
+                                      <div className="text-xs text-zinc-500">{user.email}</div>
+                                  </td>
+                                  <td className="p-6">
+                                      <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ANUAL' ? 'bg-[#CCF300] text-black' : user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>
+                                          {user.plan}
+                                      </span>
+                                  </td>
+                                  <td className="p-6">
+                                      <span className="text-xs font-bold text-zinc-500">
+                                          {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                                      </span>
+                                  </td>
+                                  <td className="p-6">
+                                      <span className="text-xs font-bold text-zinc-500">
+                                          {user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}
+                                      </span>
+                                  </td>
+                                  <td className="p-6">
+                                      <div className="flex items-center gap-2">
+                                          <div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                                              <div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div>
                                           </div>
-                                      </td>
-                                      <td className="p-5">
-                                          {u.phone ? (
-                                              <div className="flex items-center gap-2">
-                                                  <span className="text-sm font-bold text-zinc-700">{u.phone}</span>
-                                                  <a 
-                                                      href={`https://wa.me/55${u.phone.replace(/\D/g, '')}`} 
-                                                      target="_blank" 
-                                                      rel="noreferrer"
-                                                      className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-colors"
-                                                      title="Chamar no WhatsApp"
-                                                  >
-                                                      <MessageCircle className="w-3.5 h-3.5" />
-                                                  </a>
-                                              </div>
-                                          ) : (
-                                              <span className="text-xs text-zinc-400 font-medium">Não informado</span>
-                                          )}
-                                      </td>
-                                      <td className="p-5">
-                                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${u.subscription_status === 'canceled' ? 'bg-zinc-100 text-zinc-500 border-zinc-200' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                              {u.subscription_status === 'canceled' ? 'Cancelado' : 'Pagamento Pendente'}
-                                          </span>
-                                      </td>
-                                      <td className="p-5 text-sm font-bold text-zinc-600">
-                                          {u.last_active ? new Date(u.last_active).toLocaleDateString('pt-BR') : '-'}
-                                      </td>
-                                      <td className="p-5 pr-8 text-right">
-                                          <button onClick={() => setSelectedUser(u)} className="text-zinc-400 hover:text-black transition-colors"><ArrowUpRight className="w-5 h-5" /></button>
-                                      </td>
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                  )}
+                                          <span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span>
+                                      </div>
+                                  </td>
+                                  <td className="p-6">
+                                      {user.status === 'BLOCKED' ? (
+                                          <span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>
+                                      ) : (
+                                          <span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>
+                                      )}
+                                  </td>
+                                  <td className="p-6 text-right">
+                                      <button onClick={() => setSelectedUser(user)} className="text-zinc-400 hover:text-black font-bold text-xs underline">
+                                          Detalhes
+                                      </button>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
               </div>
           </div>
       );
   };
 
-  const renderFinance = () => {
-      const financeData = getFinancialData();
-      
-      const formatCurrency = (val: number) => 
-          val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
+  if (loading) {
       return (
-      <div className="space-y-8 animate-fade-in">
-         {/* Header com Navegação */}
-         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-                <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Faturamento</h2>
-                <p className="text-zinc-500 font-medium">Relatório financeiro mensal</p>
-            </div>
-            
-            <div className="bg-white border border-zinc-200 rounded-xl p-1 flex items-center shadow-sm">
-                <button onClick={() => handleMonthChange('prev')} className="p-2 hover:bg-zinc-100 rounded-lg transition-colors">
-                    <ChevronLeft className="w-5 h-5 text-zinc-600" />
-                </button>
-                <div className="px-6 font-black text-zinc-900 w-48 text-center uppercase tracking-wide text-sm">
-                    {financeDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                </div>
-                <button onClick={() => handleMonthChange('next')} className="p-2 hover:bg-zinc-100 rounded-lg transition-colors">
-                    <ChevronRight className="w-5 h-5 text-zinc-600" />
-                </button>
-            </div>
-         </div>
-
-         {/* Cards de Resumo */}
-         <div className="bg-black rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
-             <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-900 rounded-full blur-3xl opacity-50 -mr-20 -mt-20"></div>
-             
-             <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-10">
-                 {/* Card 1: Faturamento Total */}
-                 <div>
-                     <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">Faturamento Esperado</p>
-                     <h3 className="text-6xl font-black tracking-tighter text-[#CCF300]">{formatCurrency(financeData.totalRevenue)}</h3>
-                     <p className="text-zinc-400 text-sm font-bold mt-2 flex items-center gap-1">
-                         Referente a {financeDate.toLocaleDateString('pt-BR', { month: 'long' })}
-                     </p>
-                 </div>
-
-                 {/* Card 2: Total de Usuários */}
-                 <div className="bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800 flex flex-col justify-center">
-                     <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                         <Users className="w-4 h-4"/> Total de Usuários
-                     </p>
-                     <p className="text-4xl font-black text-white">{financeData.totalUsers}</p>
-                     <p className="text-zinc-500 text-xs font-medium mt-1">Cadastrados até o fim do mês</p>
-                 </div>
-
-                 {/* Card 3: Assinantes Pagos */}
-                 <div className="bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800 flex flex-col justify-center">
-                     <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                         <Crown className="w-4 h-4 text-[#CCF300]"/> Assinantes Pagos
-                     </p>
-                     <p className="text-4xl font-black text-white">{financeData.payingUsers}</p>
-                     <p className="text-zinc-500 text-xs font-medium mt-1">Planos Mensal e Anual</p>
-                 </div>
-             </div>
-         </div>
-
-         {/* Tabela de Detalhamento */}
-         <div className="bg-white border border-zinc-200 rounded-[2rem] p-8 shadow-sm">
-            <h4 className="font-bold text-lg mb-6 flex items-center gap-2 text-zinc-900">
-                <BarChart3 className="w-5 h-5"/> Detalhamento por Plano
-            </h4>
-            
-            <div className="overflow-hidden rounded-xl border border-zinc-100">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest">
-                            <th className="p-4">Plano</th>
-                            <th className="p-4 text-right">Preço Unit.</th>
-                            <th className="p-4 text-center">Qtd. Assinantes</th>
-                            <th className="p-4 text-right">Faturamento Estimado</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-50 font-medium text-sm">
-                        {/* Linha FREE */}
-                        <tr className="hover:bg-zinc-50 transition-colors">
-                            <td className="p-4">
-                                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-zinc-100 text-zinc-600 font-bold text-xs">
-                                    FREE
-                                </span>
-                            </td>
-                            <td className="p-4 text-right text-zinc-500">Grátis</td>
-                            <td className="p-4 text-center font-bold">{financeData.FREE.count}</td>
-                            <td className="p-4 text-right text-zinc-400">-</td>
-                        </tr>
-
-                        {/* Linha MENSAL */}
-                        <tr className="hover:bg-zinc-50 transition-colors">
-                            <td className="p-4">
-                                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-black text-white font-bold text-xs">
-                                    MENSAL
-                                </span>
-                            </td>
-                            <td className="p-4 text-right">{formatCurrency(financeData.MENSAL.price)}</td>
-                            <td className="p-4 text-center font-bold">{financeData.MENSAL.count}</td>
-                            <td className="p-4 text-right font-bold text-emerald-600">{formatCurrency(financeData.MENSAL.revenue)}</td>
-                        </tr>
-
-                        {/* Linha ANUAL */}
-                        <tr className="hover:bg-zinc-50 transition-colors">
-                            <td className="p-4">
-                                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#CCF300] text-black font-bold text-xs border border-black">
-                                    ANUAL
-                                </span>
-                            </td>
-                            <td className="p-4 text-right">{formatCurrency(financeData.ANUAL.price)}/mês</td>
-                            <td className="p-4 text-center font-bold">{financeData.ANUAL.count}</td>
-                            <td className="p-4 text-right font-bold text-emerald-600">{formatCurrency(financeData.ANUAL.revenue)}</td>
-                        </tr>
-                        
-                        {/* Rodapé Totais */}
-                        <tr className="bg-zinc-50">
-                            <td className="p-4 font-black uppercase text-xs">Total Geral</td>
-                            <td className="p-4"></td>
-                            <td className="p-4 text-center font-black">{financeData.totalUsers}</td>
-                            <td className="p-4 text-right font-black text-lg">{formatCurrency(financeData.totalRevenue)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            
-            <div className="mt-4 flex items-start gap-2 bg-amber-50 p-3 rounded-xl border border-amber-100">
-                <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-700 leading-relaxed">
-                    <strong>Nota sobre dados históricos:</strong> O cálculo baseia-se na data de criação dos usuários ativos. 
-                    Cancelamentos passados não são deduzidos retroativamente nesta visualização simplificada.
-                </p>
-            </div>
-         </div>
-      </div>
+          <div className="h-screen flex items-center justify-center bg-zinc-50">
+              <Loader2 className="w-10 h-10 animate-spin text-black" />
+          </div>
       );
-  };
+  }
 
   return (
-    <div className="flex w-full h-screen bg-zinc-50 font-sans text-zinc-900 overflow-hidden">
-      {renderSidebar()}
-      
-      <main className="flex-1 ml-64 overflow-y-auto custom-scrollbar p-8">
-         {loading ? (
-             <div className="flex flex-col items-center justify-center h-full text-zinc-400 gap-4">
-                 <Loader2 className="w-10 h-10 animate-spin text-black" />
-                 <span className="font-bold text-sm uppercase tracking-widest">Carregando Admin...</span>
-             </div>
-         ) : (
-             <>
-                {currentView === 'OVERVIEW' && renderOverview()}
-                {currentView === 'USERS' && renderUsersTable()}
-                {currentView === 'ADS' && renderAdsManager()}
-                {currentView === 'FINANCE' && renderFinance()}
-                {currentView === 'CANCELLATIONS' && renderCancellations()}
-             </>
-         )}
-      </main>
+    <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 flex">
+        {renderSidebar()}
+        
+        <main className="flex-1 ml-64 p-8 overflow-y-auto h-screen">
+            {currentView === 'OVERVIEW' && renderOverview()}
+            {currentView === 'USERS' && renderUsersList()}
+            {currentView === 'ADS' && renderAdsManager()}
+            {currentView === 'FINANCE' && renderOverview()} {/* Reutilizando overview para financeiro simplificado */}
+            {currentView === 'DATABASE' && renderDatabase()}
+            {currentView === 'CANCELLATIONS' && (
+                <div className="text-center py-20">
+                    <UserX className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-zinc-900">Em Desenvolvimento</h3>
+                    <p className="text-zinc-500">Módulo de cancelamentos em breve.</p>
+                </div>
+            )}
+        </main>
 
-      {/* Modal de Detalhes do Usuário */}
-      {selectedUser && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-md p-4 animate-fade-in">
-                <div className="bg-white border border-zinc-200 rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden relative">
-                    <div className="p-8 border-b border-zinc-100 flex justify-between items-start bg-zinc-50">
-                        <div className="flex items-center gap-4">
-                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-sm ${selectedUser.status === 'BLOCKED' ? 'bg-red-50 border-red-100' : 'bg-sky-50 border-sky-100'}`}>
-                                <User className={`w-6 h-6 ${selectedUser.status === 'BLOCKED' ? 'text-red-500' : 'text-sky-500'}`} />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-extrabold text-zinc-900 tracking-tight">{selectedUser.name || 'Nome não cadastrado'}</h3>
-                                <p className="text-zinc-500 text-sm flex items-center gap-1.5 font-medium mt-0.5"><Mail className="w-3.5 h-3.5"/> {selectedUser.email}</p>
-                            </div>
+        {/* USER DETAILS MODAL */}
+        {selectedUser && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative">
+                    <button onClick={() => setSelectedUser(null)} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+                    
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-16 h-16 bg-zinc-100 rounded-2xl flex items-center justify-center text-2xl font-black text-zinc-400">
+                            {selectedUser.name?.charAt(0) || selectedUser.email.charAt(0).toUpperCase()}
                         </div>
-                        <button onClick={() => setSelectedUser(null)} className="text-zinc-400 hover:text-black p-2 bg-white rounded-xl border border-zinc-200 hover:border-zinc-300 transition-all"><X className="w-5 h-5"/></button>
+                        <div>
+                            <h3 className="text-2xl font-black text-zinc-900 leading-none">{selectedUser.name || 'Sem nome'}</h3>
+                            <p className="text-zinc-500 font-medium text-sm mt-1">{selectedUser.email}</p>
+                        </div>
                     </div>
 
-                    <div className="p-8 space-y-6">
+                    <div className="space-y-6">
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
-                                <label className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">Telefone</label>
-                                <div className="text-zinc-900 font-bold text-sm flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-zinc-400" />{selectedUser.phone || 'N/A'}</div>
+                            <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
+                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Plano Atual</p>
+                                <p className="text-lg font-black text-zinc-900">{selectedUser.plan}</p>
                             </div>
-                            <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
-                                <label className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">Plano</label>
-                                <div className="text-zinc-900 font-bold text-sm flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-zinc-400" />{selectedUser.plan}</div>
+                            <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
+                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Vagas Criadas</p>
+                                <p className="text-lg font-black text-zinc-900">{selectedUser.jobs_count}</p>
                             </div>
                         </div>
-                        <div className={`rounded-2xl border p-5 ${selectedUser.status === 'BLOCKED' ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                            <div className="flex justify-between items-center mb-4">
-                                <span className="text-xs font-bold uppercase text-zinc-500">Status</span>
-                                {selectedUser.status === 'BLOCKED' ? <span className="text-xs font-bold text-red-600 bg-white px-2 py-0.5 rounded border border-red-100">SUSPENSO</span> : <span className="text-xs font-bold text-emerald-600 bg-white px-2 py-0.5 rounded border border-emerald-100">ATIVO</span>}
+
+                        <div className="p-4 rounded-xl border border-zinc-200 bg-white">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-bold text-zinc-500">Uso de Currículos</span>
+                                <span className="text-xs font-black text-zinc-900">{selectedUser.resume_usage} processados</span>
                             </div>
-                            <button onClick={() => handleToggleBlock(selectedUser)} disabled={actionLoading} className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-lg ${selectedUser.status === 'BLOCKED' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
-                               {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : (selectedUser.status === 'BLOCKED' ? 'Reativar Acesso' : 'Bloquear Usuário')}
+                            <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden">
+                                <div className="bg-black h-full rounded-full" style={{ width: `${Math.min(100, selectedUser.resume_usage / 100 * 100)}%`}}></div>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-zinc-100 flex gap-3">
+                            <button 
+                                onClick={() => handleToggleBlock(selectedUser)}
+                                disabled={actionLoading}
+                                className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${selectedUser.status === 'BLOCKED' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}
+                            >
+                                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (selectedUser.status === 'BLOCKED' ? <CheckCircle2 className="w-4 h-4"/> : <Ban className="w-4 h-4"/>)}
+                                {selectedUser.status === 'BLOCKED' ? 'Desbloquear Conta' : 'Bloquear Acesso'}
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-      )}
+        )}
     </div>
   );
 };

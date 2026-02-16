@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './services/supabaseClient';
 import { analyzeResume } from './services/geminiService';
@@ -14,7 +13,7 @@ import { SqlSetupModal } from './components/SqlSetupModal';
 import { 
   Plus, LogOut, Search, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, Share2, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink
+  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles
 } from 'lucide-react';
 
 const INFINITE_PAY_LINKS = {
@@ -24,13 +23,53 @@ const INFINITE_PAY_LINKS = {
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'BILLING' | 'SETTINGS';
 
+// Helper function moved outside to be accessible by effects
+const mapCandidateFromDB = (c: any): Candidate => ({
+  id: c.id,
+  file: new File([], c.filename || 'currículo.pdf'), // Placeholder file object
+  fileName: c.filename,
+  filePath: c.file_path,
+  status: c.status as CandidateStatus,
+  result: c.analysis_result,
+  isSelected: c.is_selected
+});
+
+const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
+  <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in font-sans">
+    <div className="bg-white rounded-[2rem] w-full max-w-2xl p-8 shadow-2xl relative animate-slide-up border-4 border-black">
+        <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 hover:border-black text-slate-400 hover:text-black">
+            <X className="w-5 h-5"/>
+        </button>
+        <h2 className="text-3xl font-black text-slate-900 mb-6 tracking-tighter">{title}</h2>
+        <div className="space-y-4 text-sm font-medium text-slate-600 overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
+            <p className="font-bold text-slate-900">1. Introdução</p>
+            <p>Bem-vindo ao VeloRH. Ao utilizar nossa plataforma, você concorda com os termos descritos abaixo.</p>
+            
+            <p className="font-bold text-slate-900 mt-4">2. Dados e Privacidade</p>
+            <p>Respeitamos a LGPD. Seus dados são utilizados apenas para fins de recrutamento e seleção, processados de forma segura e confidencial.</p>
+            
+            <p className="font-bold text-slate-900 mt-4">3. Responsabilidades</p>
+            <p>O VeloRH atua como facilitador tecnológico. A responsabilidade pela seleção final dos candidatos é exclusiva da empresa anunciante.</p>
+            
+            <p className="mt-4 text-xs text-slate-400 uppercase font-bold">Última atualização: {new Date().toLocaleDateString()}</p>
+        </div>
+        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+            <button onClick={onClose} className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] transition-all border-2 border-black">
+                Entendido
+            </button>
+        </div>
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
   // --- STATE ---
   const [user, setUser] = useState<User | null>(null);
+  const [isOAuthUser, setIsOAuthUser] = useState(false); // Detecta se é login Google
   const [loading, setLoading] = useState(true);
   
   const [view, setView] = useState<ViewState>('DASHBOARD');
-  const [currentTab, setCurrentTab] = useState<UserTab>('JOBS');
+  const [currentTab, setCurrentTab] = useState<UserTab>('OVERVIEW');
   
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
@@ -44,7 +83,18 @@ const App: React.FC = () => {
   const [showReport, setShowReport] = useState(false);
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
+  // Name Update Modal State
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [tempName, setTempName] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+
+  // Recovery Password Modal State
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoveryPassword, setRecoveryPassword] = useState('');
+  const [isSavingRecovery, setIsSavingRecovery] = useState(false);
+
   // Legal Modals
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -64,42 +114,206 @@ const App: React.FC = () => {
     timeTaken: null
   });
 
-  // Public Upload
+  // Public Upload State
   const [publicUploadJobId, setPublicUploadJobId] = useState<string | null>(null);
-  const [publicJobTitle, setPublicJobTitle] = useState<string>('');
+  // Guardamos informações extras para auto-análise e pausa
+  const [publicJobData, setPublicJobData] = useState<{ title: string; criteria?: string; autoAnalyze?: boolean; isPaused?: boolean }>({ title: '' });
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- REALTIME SUBSCRIPTION ---
+  useEffect(() => {
+    if (!user) return;
+
+    // Escuta mudanças na tabela 'candidates' para atualizar a tela em tempo real
+    const channel = supabase
+      .channel('realtime-candidates')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'candidates' },
+        (payload) => {
+          const newRecord = payload.new;
+          
+          // Atualiza a lista de Jobs globalmente
+          setJobs(currentJobs => {
+              // Verifica se a vaga pertence a este usuário
+              const jobExists = currentJobs.some(j => j.id === newRecord.job_id);
+              if (!jobExists) return currentJobs;
+
+              const newCandidate = mapCandidateFromDB(newRecord);
+              
+              return currentJobs.map(j => {
+                  if (j.id === newRecord.job_id) {
+                      // Evita duplicatas se já tivermos adicionado (ex: upload manual)
+                      if (j.candidates.some(c => c.id === newCandidate.id)) return j;
+                      return { ...j, candidates: [newCandidate, ...j.candidates] };
+                  }
+                  return j;
+              });
+          });
+
+          // Atualiza a Vaga Ativa se ela estiver aberta na tela
+          setActiveJob(currentActive => {
+              if (currentActive && currentActive.id === newRecord.job_id) {
+                   const newCandidate = mapCandidateFromDB(newRecord);
+                   if (currentActive.candidates.some(c => c.id === newCandidate.id)) return currentActive;
+                   return { ...currentActive, candidates: [newCandidate, ...currentActive.candidates] };
+              }
+              return currentActive;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   // --- INIT & AUTH ---
   useEffect(() => {
-    checkSession();
-    
-    // Check URL for public upload
-    // Case 1: Legacy ?uploadJobId=XYZ
+    // Timeout de segurança: Se o Supabase não responder em 10s, para o loading
+    const safetyTimer = setTimeout(() => {
+        if (loading) {
+            console.warn("Auth check timed out - forcing loading stop");
+            setLoading(false);
+        }
+    }, 10000);
+
+    // 1. Configura ouvinte de autenticação (Melhor para OAuth/Google Login)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        // DETECTA EVENTO DE RECUPERAÇÃO DE SENHA
+        if (event === 'PASSWORD_RECOVERY') {
+            setShowRecoveryModal(true);
+        }
+
+        if (session) {
+             // Limpa a hash da URL (token) para deixar limpo e evitar erros de roteamento
+             if (window.location.hash && window.location.hash.includes('access_token')) {
+                 window.history.replaceState(null, '', window.location.pathname);
+             }
+             
+             // Detecta se o usuário fez login com Google (provider)
+             const providers = session.user.app_metadata.providers || [];
+             if (providers.includes('google')) {
+                 setIsOAuthUser(true);
+             } else {
+                 setIsOAuthUser(false);
+             }
+             
+             // Se tiver sessão, busca o perfil.
+             fetchUserProfile(session.user.id, session.user.email!);
+        } else {
+             // Se não tiver sessão (logout ou inicial), para o loading
+             setLoading(false);
+             setUser(null);
+             setJobs([]);
+             setView('DASHBOARD');
+             setIsOAuthUser(false);
+        }
+    });
+
+    // 2. CHECK FOR OAUTH ERRORS (Novo)
     const params = new URLSearchParams(window.location.search);
-    const legacyUploadId = params.get('uploadJobId');
+    const error = params.get('error');
+    const errorCode = params.get('error_code');
+    const errorDesc = params.get('error_description');
+
+    if (error) {
+        console.error("OAuth Error Detected:", error, errorCode, errorDesc);
+        
+        // Tratamento específico para o erro de 'bad_oauth_state' que ocorre quando há mismatch de porta
+        if (errorCode === 'bad_oauth_state' || errorDesc?.includes('state')) {
+            alert(
+                "Atenção: Erro de Configuração de Login\n\n" +
+                "O Google redirecionou para uma porta diferente da que você iniciou.\n" +
+                "Isso geralmente acontece quando o Supabase está configurado para 'localhost:3000' mas você está usando 'localhost:5173'.\n\n" +
+                "SOLUÇÃO:\n" +
+                "1. Vá ao painel do Supabase > Authentication > URL Configuration.\n" +
+                "2. Mude o 'Site URL' para http://localhost:5173\n" +
+                "3. Adicione http://localhost:5173 na lista de Redirect URLs."
+            );
+        } else {
+            alert(`Erro no Login: ${errorDesc || error}. Tente novamente.`);
+        }
+        // Limpa a URL para não ficar mostrando o erro
+        window.history.replaceState(null, '', window.location.pathname);
+    }
     
-    // Case 2: Short Code /12345
+    // 3. Lógica de Upload Público (URL Checks)
+    const legacyUploadId = params.get('uploadJobId');
+    const hash = window.location.hash;
+    const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
     const path = window.location.pathname;
-    const shortCodeMatch = path.match(/^\/(\d{5})$/);
+    const pathMatch = path.match(/^\/(\d{5,6})$/);
 
     if (legacyUploadId) {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
         setView('PUBLIC_UPLOAD');
-    } else if (shortCodeMatch) {
-        const code = shortCodeMatch[1];
+    } else if (hashMatch) {
+        const code = hashMatch[1];
+        fetchPublicJobByCode(code);
+    } else if (pathMatch) {
+        const code = pathMatch[1];
         fetchPublicJobByCode(code);
     }
+    
+    // Limpeza na desmontagem
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
-  const checkSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      await fetchUserProfile(session.user.id, session.user.email!);
-    } else {
-      setLoading(false);
+  // --- RETENTION POLICY CLEANUP ---
+  const runDataRetentionCleanup = async (userId: string) => {
+    // Apaga currículos com mais de 10 dias
+    const RETENTION_DAYS = 10;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - RETENTION_DAYS);
+    const cutoffISO = cutoffDate.toISOString();
+
+    try {
+        // 1. Identificar currículos antigos
+        // Nota: Precisamos selecionar apenas os candidatos que TEM file_path
+        const { data: oldCandidates, error } = await supabase
+            .from('candidates')
+            .select('id, file_path, created_at')
+            .lt('created_at', cutoffISO)
+            .not('file_path', 'is', null);
+
+        if (error) {
+            console.error("Erro ao verificar retenção:", error);
+            return;
+        }
+
+        if (oldCandidates && oldCandidates.length > 0) {
+            console.log(`🧹 Iniciando limpeza de ${oldCandidates.length} currículos expirados (>10 dias)...`);
+
+            // 2. Apagar Arquivos do Storage
+            const filesToRemove = oldCandidates.map(c => c.file_path).filter(Boolean);
+            if (filesToRemove.length > 0) {
+                const { error: storageError } = await supabase.storage
+                    .from('resumes')
+                    .remove(filesToRemove);
+                
+                if (storageError) console.error("Erro ao limpar storage:", storageError);
+            }
+
+            // 3. Apagar Registros do Banco
+            const idsToRemove = oldCandidates.map(c => c.id);
+            const { error: dbError } = await supabase
+                .from('candidates')
+                .delete()
+                .in('id', idsToRemove);
+
+            if (dbError) console.error("Erro ao limpar DB:", dbError);
+            else console.log("✅ Limpeza de retenção concluída com sucesso.");
+        }
+    } catch (err) {
+        console.error("Falha no processo de limpeza automática:", err);
     }
   };
 
@@ -107,9 +321,24 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
+      // --- SEGURANÇA: VERIFICA BLOQUEIO DE CONTA ---
+      if (data && data.status === 'BLOCKED') {
+          console.warn("Usuário bloqueado tentando acessar:", email);
+          await supabase.auth.signOut();
+          setUser(null);
+          setLoading(false);
+          alert("Acesso Negado: Sua conta foi suspensa temporariamente. Entre em contato com o suporte.");
+          return; // Interrompe o carregamento
+      }
+      // ---------------------------------------------
+
       if (error && error.code !== 'PGRST116') {
         console.error("Erro ao buscar perfil:", error);
       }
+      
+      const dbName = data?.name;
+      // VERIFICAÇÃO DE NOME: Se não existir, for vazio ou igual ao placeholder "Usuário"
+      const needsNameUpdate = !dbName || dbName.trim() === '' || dbName === 'Usuário';
 
       const profile = data ? {
         ...data,
@@ -120,18 +349,55 @@ const App: React.FC = () => {
         name: 'Usuário',
         plan: 'FREE',
         job_limit: 3,
-        resume_limit: 25, // NOVO LIMITE PADRÃO
+        resume_limit: 25, 
         resume_usage: 0,
         role: 'USER'
       };
 
       setUser(profile);
-      await fetchJobs(userId);
-      await fetchAnnouncements(); // Buscar Anúncios
+      
+      // Se precisar atualizar o nome e não for Admin (admins podem pular)
+      if (needsNameUpdate && profile.role !== 'ADMIN') {
+          setShowNameModal(true);
+      }
+      
+      // Inicia processos paralelos
+      await Promise.all([
+          fetchJobs(userId),
+          fetchAnnouncements(),
+          runDataRetentionCleanup(userId) // Executa limpeza ao carregar
+      ]);
+
     } catch (error) {
       console.error("Erro no fluxo de perfil:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!user || !tempName.trim()) {
+        alert("Por favor, digite seu Nome e Sobrenome.");
+        return;
+    }
+    
+    setIsSavingName(true);
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .update({ name: tempName })
+            .eq('id', user.id);
+            
+        if (error) throw error;
+        
+        // Atualiza estado local
+        setUser({ ...user, name: tempName });
+        setShowNameModal(false);
+    } catch (err: any) {
+        console.error("Erro ao salvar nome:", err);
+        alert("Erro ao salvar: " + err.message);
+    } finally {
+        setIsSavingName(false);
     }
   };
 
@@ -144,27 +410,61 @@ const App: React.FC = () => {
             password: pass,
             options: { data: { name, phone } }
         });
+
+        // Tratamento de Erros de Cadastro
+        if (result.error) {
+            if (result.error.message.includes("security purposes") || result.error.status === 429) {
+                return { success: false, error: "Muitas tentativas recentes. Aguarde 60 segundos antes de tentar novamente." };
+            }
+            if (result.error.message.includes("User already registered")) {
+                return { success: false, error: "Este email já possui cadastro. Tente fazer login." };
+            }
+            return { success: false, error: result.error.message };
+        }
+
         if (result.data.user) {
-           // Create profile
-           await supabase.from('profiles').insert([{
-             id: result.data.user.id,
-             email,
-             name: name || 'Usuário',
-             phone,
-             plan: 'FREE',
-             job_limit: 3,
-             resume_limit: 25, // NOVO LIMITE PADRÃO
-             resume_usage: 0
-           }]);
-           await fetchUserProfile(result.data.user.id, email);
+           // Verifica se a sessão existe (Email Confirmation: OFF) ou não (Email Confirmation: ON)
+           if (result.data.session) {
+               // Usuário logado. Cria/Atualiza perfil. 
+               // Usamos UPSERT para evitar erros se o cadastro falhou parcialmente antes.
+               const { error: profileError } = await supabase.from('profiles').upsert([{
+                 id: result.data.user.id,
+                 email,
+                 name: name || 'Usuário',
+                 phone,
+                 plan: 'FREE',
+                 job_limit: 3,
+                 resume_limit: 25, 
+                 resume_usage: 0,
+                 role: 'USER'
+               }], { onConflict: 'id' });
+               
+               if (profileError) {
+                   console.error("Erro ao criar perfil:", profileError);
+                   // Não retornamos erro aqui pois a Auth foi criada.
+               }
+           } else {
+               // Usuário criado, mas aguardando confirmação de email.
+               return { success: true, message: "Cadastro realizado! Verifique seu email para confirmar a conta antes de entrar." };
+           }
+
+           // fetchUserProfile será chamado pelo onAuthStateChange listener
            return { success: true };
         }
       } else {
         result = await supabase.auth.signInWithPassword({ email, password: pass });
+        
+        // --- SEGURANÇA IMEDIATA NO LOGIN ---
         if (result.data.user) {
-            await fetchUserProfile(result.data.user.id, email);
-            return { success: true };
+             const { data: profile } = await supabase.from('profiles').select('status').eq('id', result.data.user.id).single();
+             if (profile && profile.status === 'BLOCKED') {
+                 await supabase.auth.signOut();
+                 return { success: false, error: "Acesso negado: Sua conta foi suspensa." };
+             }
+             // Note: fetchUserProfile will be called by onAuthStateChange listener as backup
+             return { success: true };
         }
+        // -----------------------------------
       }
       return { success: false, error: result.error?.message };
     } catch (e: any) {
@@ -172,11 +472,71 @@ const App: React.FC = () => {
     }
   };
 
+  const handleResetPassword = async (email: string) => {
+    try {
+        // Redireciona para a home, onde o usuário estará logado e poderá alterar a senha em Settings
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin
+        });
+
+        if (error) {
+            // Tratamento de Rate Limit no Reset
+            if (error.message.includes("security purposes") || error.status === 429) {
+                 return { success: false, error: "Muitas solicitações. Aguarde 60 segundos." };
+            }
+            return { success: false, error: error.message };
+        }
+
+        return { success: true, message: "Link enviado! Verifique seu email (inclusive SPAM)." };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+  };
+
+  const handleSetNewPassword = async () => {
+    if (recoveryPassword.length < 6) {
+        alert("A senha deve ter pelo menos 6 caracteres.");
+        return;
+    }
+    
+    setIsSavingRecovery(true);
+    try {
+        // Atualiza a senha do usuário LOGADO (Magic Link já fez o login)
+        const { error } = await supabase.auth.updateUser({ password: recoveryPassword });
+        
+        if (error) throw error;
+        
+        alert("Senha redefinida com sucesso!");
+        setShowRecoveryModal(false);
+        setRecoveryPassword('');
+        // Opcional: Redirecionar para dashboard ou apenas fechar modal
+    } catch (error: any) {
+        alert("Erro ao redefinir senha: " + error.message);
+    } finally {
+        setIsSavingRecovery(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        // Tenta usar a origem atual para redirecionamento
+        // ATENÇÃO: Se estiver rodando em localhost:5173, certifique-se de que essa URL
+        // está adicionada no painel do Supabase > Auth > Redirect URLs
+        redirectTo: window.location.origin 
+      }
+    });
+
+    if (error) {
+      console.error("Erro Google Login:", error);
+      throw error;
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    setJobs([]);
-    setView('DASHBOARD');
+    // onAuthStateChange will handle state cleanup
   };
 
   // --- DATA FETCHING ---
@@ -199,6 +559,14 @@ const App: React.FC = () => {
     }));
 
     setJobs(formattedJobs);
+    
+    // Se estiver visualizando uma vaga, atualiza ela também
+    if (activeJob) {
+        const updatedActive = formattedJobs.find(j => j.id === activeJob.id);
+        if (updatedActive) {
+            setActiveJob(updatedActive);
+        }
+    }
   };
 
   const fetchAnnouncements = async () => {
@@ -226,15 +594,27 @@ const App: React.FC = () => {
   };
 
   const fetchPublicJobTitle = async (id: string) => {
-      const { data } = await supabase.from('jobs').select('title').eq('id', id).single();
-      if (data) setPublicJobTitle(data.title);
+      const { data } = await supabase.from('jobs').select('title, criteria, auto_analyze, is_paused').eq('id', id).single();
+      if (data) {
+          setPublicJobData({ 
+              title: data.title, 
+              criteria: data.criteria, 
+              autoAnalyze: data.auto_analyze, 
+              isPaused: data.is_paused 
+          });
+      }
   };
 
   const fetchPublicJobByCode = async (code: string) => {
-      const { data, error } = await supabase.from('jobs').select('id, title').eq('short_code', code).single();
+      const { data, error } = await supabase.from('jobs').select('id, title, criteria, auto_analyze, is_paused').eq('short_code', code).single();
       if (data) {
           setPublicUploadJobId(data.id);
-          setPublicJobTitle(data.title);
+          setPublicJobData({ 
+              title: data.title, 
+              criteria: data.criteria, 
+              autoAnalyze: data.auto_analyze, 
+              isPaused: data.is_paused 
+          });
           setView('PUBLIC_UPLOAD');
       } else {
           console.error("Vaga não encontrada para o código:", code);
@@ -243,20 +623,20 @@ const App: React.FC = () => {
       }
   };
 
-  const mapCandidateFromDB = (c: any): Candidate => ({
-    id: c.id,
-    file: new File([], c.filename || 'currículo.pdf'), // Placeholder file object
-    fileName: c.filename,
-    filePath: c.file_path,
-    status: c.status as CandidateStatus,
-    result: c.analysis_result,
-    isSelected: c.is_selected
-  });
-
   // --- ACTIONS ---
   
   const generateShortCode = () => {
-      return Math.floor(10000 + Math.random() * 90000).toString();
+      // Gera um código de 6 dígitos entre 100000 e 999999
+      return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  const handleRefresh = async () => {
+      if (!user) return;
+      setIsRefreshing(true);
+      await fetchJobs(user.id);
+      
+      // Simula um delay mínimo para feedback visual se a resposta for muito rápida
+      setTimeout(() => setIsRefreshing(false), 800);
   };
 
   const handleJobFormSubmit = async (e: React.FormEvent) => {
@@ -277,7 +657,7 @@ const App: React.FC = () => {
               setActiveJob(prev => prev ? { ...prev, title, description, criteria } : null);
           }
       } else if (user) {
-          // Geração de Código Curto
+          // Geração de Código Curto de 6 dígitos
           const shortCode = generateShortCode();
           
           const { data, error } = await supabase
@@ -296,7 +676,7 @@ const App: React.FC = () => {
               console.error("Erro ao criar vaga:", error);
               // Fallback para erro de coluna: tenta criar sem short_code (compatibilidade)
               if (error.message?.includes('short_code')) {
-                   alert("Atenção: Seu banco de dados precisa ser atualizado para suportar links curtos. Vá em Configurações > Banco de Dados.");
+                   alert("Atenção: Para ativar os links curtos (6 números), atualize seu banco de dados em Configurações > Banco de Dados > Script V23.");
               }
               return;
           }
@@ -329,25 +709,37 @@ const App: React.FC = () => {
   };
 
   const handleChangePassword = async () => {
-    if (!currentPassword) { alert("Digite a senha atual."); return; }
-    if (newPassword.length < 6) { alert("Senha muito curta."); return; }
+    // Se não for OAuth (Google), exige senha atual
+    if (!isOAuthUser && !currentPassword) { 
+        alert("Digite a senha atual."); 
+        return; 
+    }
+    
+    if (newPassword.length < 6) { 
+        alert("Senha muito curta (mínimo 6 caracteres)."); 
+        return; 
+    }
     
     setChangingPassword(true);
-    // Verificar senha atual tentando login
-    const { error: loginError } = await supabase.auth.signInWithPassword({ email: user?.email || '', password: currentPassword });
     
-    if (loginError) {
-        alert("Senha atual incorreta.");
-        setChangingPassword(false);
-        return;
+    // Se for email/senha padrão, verifica a senha atual antes de trocar
+    if (!isOAuthUser) {
+        const { error: loginError } = await supabase.auth.signInWithPassword({ email: user?.email || '', password: currentPassword });
+        
+        if (loginError) {
+            alert("Senha atual incorreta.");
+            setChangingPassword(false);
+            return;
+        }
     }
 
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setChangingPassword(false);
     
-    if (error) alert("Erro ao atualizar senha: " + error.message);
-    else {
-        alert("Senha alterada com sucesso!");
+    if (error) {
+        alert("Erro ao atualizar senha: " + error.message);
+    } else {
+        alert(isOAuthUser ? "Senha definida com sucesso! Agora você pode entrar com email e senha." : "Senha alterada com sucesso!");
         setCurrentPassword('');
         setNewPassword('');
     }
@@ -387,6 +779,7 @@ const App: React.FC = () => {
   };
 
   // FUNÇÃO CRÍTICA: Remove caracteres que quebram o upload do Supabase/Storage
+  // Adicionado tratamento de caracteres especiais para evitar erros de URL
   const sanitizeFileName = (name: string) => {
     return name
       .normalize('NFD') // Separa acentos
@@ -504,14 +897,44 @@ const App: React.FC = () => {
               
               if (uploadError) throw uploadError;
 
-              const { error: dbError } = await supabase.from('candidates').insert([{
+              const initialStatus = 'PENDING';
+
+              const { data: insertedCandidate, error: dbError } = await supabase.from('candidates').insert([{
                   job_id: publicUploadJobId,
                   filename: file.name,
                   file_path: uploadData.path,
-                  status: 'PENDING'
-              }]);
+                  status: initialStatus
+              }]).select().single();
 
               if (dbError) throw dbError;
+
+              // --- AUTO ANALYZE LOGIC ---
+              if (publicJobData.autoAnalyze && publicJobData.criteria && insertedCandidate) {
+                  try {
+                      // 1. Converter arquivo para base64
+                      const base64 = await fileToBase64(file);
+                      
+                      // 2. Chamar IA
+                      // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
+                      await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
+                      
+                      const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
+                      
+                      // 3. Salvar Resultado
+                      await supabase.from('candidates')
+                          .update({ 
+                              status: 'COMPLETED',
+                              analysis_result: result,
+                              match_score: result.matchScore 
+                          })
+                          .eq('id', insertedCandidate.id);
+                          
+                  } catch (analyzeErr) {
+                      console.error("Erro na auto-análise:", analyzeErr);
+                      // Se falhar, deixa como PENDING ou ERROR? Melhor ERROR para o recrutador ver.
+                      await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
+                  }
+              }
           }
       }
   };
@@ -814,6 +1237,9 @@ const App: React.FC = () => {
   );
   };
 
+  // ... (Billing and Settings render functions remain unchanged)
+  // ...
+
   const renderBilling = () => (
       <div className="space-y-12 animate-fade-in max-w-6xl mx-auto font-sans p-4">
           <div>
@@ -975,40 +1401,54 @@ const App: React.FC = () => {
 
          <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-200 shadow-sm">
              <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><Lock className="w-5 h-5"/> Segurança</h3>
-             <div className="space-y-4 max-w-lg">
-                 <div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Senha Atual</label>
-                     <input 
-                       type="password" 
-                       value={currentPassword}
-                       onChange={(e) => setCurrentPassword(e.target.value)}
-                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
-                     />
+             
+             {isOAuthUser && (
+                 <div className="bg-blue-50 text-blue-700 p-4 rounded-xl mb-6 text-xs font-bold border border-blue-100 flex items-center gap-2">
+                     <ShieldCheck className="w-4 h-4" />
+                     Sua conta está vinculada ao Google. Você pode definir uma senha abaixo para também acessar via email.
                  </div>
+             )}
+
+             <div className="space-y-4 max-w-lg">
+                 {!isOAuthUser && (
+                     <div>
+                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Senha Atual</label>
+                         <input 
+                           type="password" 
+                           value={currentPassword}
+                           onChange={(e) => setSearchTerm(e.target.value)}
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
+                         />
+                     </div>
+                 )}
                  <div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nova Senha</label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">{isOAuthUser ? 'Nova Senha' : 'Nova Senha'}</label>
                      <input 
                        type="password" 
                        value={newPassword}
                        onChange={(e) => setNewPassword(e.target.value)}
+                       placeholder={isOAuthUser ? "Crie uma senha segura" : ""}
                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
                      />
                  </div>
                  <div className="pt-2">
                     <button onClick={handleChangePassword} disabled={changingPassword} className="bg-white text-black border-2 border-slate-200 hover:border-black px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50">
-                        {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Key className="w-4 h-4" />} Alterar Senha
+                        {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Key className="w-4 h-4" />} {isOAuthUser ? 'Definir Senha' : 'Alterar Senha'}
                     </button>
                  </div>
              </div>
          </div>
 
-         <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-200 shadow-sm">
-             <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><Database className="w-5 h-5"/> Banco de Dados</h3>
-             <p className="text-sm text-slate-500 font-bold mb-4">Se estiver com problemas de upload ou permissão, use o script de correção.</p>
-             <button onClick={() => setShowSqlModal(true)} className="bg-white text-black border-2 border-slate-200 hover:border-black px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2">
-                 <Settings className="w-4 h-4" /> Abrir Script V22
-             </button>
-         </div>
+         {/* Exibe apenas para ADMIN */}
+         {user?.role === 'ADMIN' && (
+             <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-200 shadow-sm">
+                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><Database className="w-5 h-5"/> Banco de Dados</h3>
+                 <p className="text-sm text-slate-500 font-bold mb-4">Se estiver com problemas de upload ou permissão, use o script de correção.</p>
+                 <button onClick={() => setShowSqlModal(true)} className="bg-white text-black border-2 border-slate-200 hover:border-black px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2">
+                     <Settings className="w-4 h-4" /> Abrir Script V27
+                 </button>
+             </div>
+         )}
     </div>
   );
 
@@ -1018,13 +1458,14 @@ const App: React.FC = () => {
   if (view === 'PUBLIC_UPLOAD') {
       return (
           <PublicUploadScreen 
-            jobTitle={publicJobTitle}
+            jobTitle={publicJobData.title}
+            isPaused={publicJobData.isPaused}
             onUpload={handlePublicUpload}
             onBack={() => {
                 setPublicUploadJobId(null);
                 setView(user ? 'DASHBOARD' : 'DASHBOARD');
-                // Remove o código curto da URL sem recarregar a página
                 window.history.pushState({}, '', '/');
+                if (user) fetchJobs(user.id); // Força atualização ao voltar do preview
             }}
           />
       );
@@ -1042,12 +1483,21 @@ const App: React.FC = () => {
   // Auth
   if (!user) {
       return (
-          <LoginScreen 
-            onLogin={handleLogin}
-            onGoogleLogin={async () => { /* Implement Google Auth if needed */ }}
-            onShowTerms={() => setShowTerms(true)}
-            onShowPrivacy={() => setShowPrivacy(true)}
-          />
+          <>
+            <LoginScreen 
+                onLogin={handleLogin}
+                onGoogleLogin={handleGoogleLogin}
+                onResetPassword={handleResetPassword}
+                onShowTerms={() => setShowTerms(true)}
+                onShowPrivacy={() => setShowPrivacy(true)}
+            />
+            {showTerms && (
+                <LegalModal title="Termos de Uso" onClose={() => setShowTerms(false)} />
+            )}
+            {showPrivacy && (
+                <LegalModal title="Política de Privacidade" onClose={() => setShowPrivacy(false)} />
+            )}
+          </>
       );
   }
 
@@ -1065,6 +1515,14 @@ const App: React.FC = () => {
 
   const handleOpenShareModal = () => {
       if (activeJob) setShowShareModal(true);
+  };
+
+  // Helper para atualizar job localmente no modal de share
+  const handleJobUpdate = (updatedJob: Job) => {
+      setJobs(prev => prev.map(j => j.id === updatedJob.id ? updatedJob : j));
+      if (activeJob?.id === updatedJob.id) {
+          setActiveJob(updatedJob);
+      }
   };
 
   return (
@@ -1139,23 +1597,35 @@ const App: React.FC = () => {
         
         {/* VIEW: DASHBOARD (Includes TABS) */}
         {view === 'DASHBOARD' && (
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
                {currentTab === 'JOBS' && (
                    <>
-                       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 animate-fade-in">
+                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
                           <div>
-                              <h1 className="text-3xl font-black text-slate-900 tracking-tighter">Painel de Vagas</h1>
-                              <p className="text-slate-500 font-bold mt-1">Gerencie seus processos seletivos.</p>
+                              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Painel de Vagas</h1>
+                              <p className="text-slate-500 font-bold mt-1 text-sm">Gerencie seus processos seletivos.</p>
                           </div>
-                          <button 
-                            onClick={() => { setShowCreateModal(true); setIsEditing(false); }}
-                            className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black transition-all"
-                          >
-                             <Plus className="w-5 h-5" /> Nova Vaga
-                          </button>
+                          
+                          <div className="flex gap-3 w-full md:w-auto">
+                              <button 
+                                onClick={handleRefresh}
+                                className="flex-1 md:flex-none justify-center bg-white hover:bg-slate-50 text-black px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-2 border-2 border-slate-200 transition-all hover:border-black active:scale-95"
+                                title="Atualizar Lista de Vagas"
+                              >
+                                 <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} /> 
+                                 <span className="hidden md:inline">Atualizar Lista</span>
+                              </button>
+
+                              <button 
+                                onClick={() => { setShowCreateModal(true); setIsEditing(false); }}
+                                className="flex-1 md:flex-none justify-center bg-black text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black transition-all"
+                              >
+                                 <Plus className="w-5 h-5" /> Nova Vaga
+                              </button>
+                          </div>
                        </div>
                        
                        {jobs.length === 0 ? (
@@ -1167,7 +1637,7 @@ const App: React.FC = () => {
                                <p className="text-sm">Clique em "Nova Vaga" para começar.</p>
                            </div>
                        ) : (
-                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-slide-up">
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 animate-slide-up pb-24 md:pb-0">
                                {jobs.map(job => (
                                    <JobCard 
                                       key={job.id} 
@@ -1188,7 +1658,7 @@ const App: React.FC = () => {
 
         {/* VIEW: JOB DETAILS */}
         {view === 'JOB_DETAILS' && activeJob && (
-           <div className="w-full h-full flex flex-col animate-fade-in relative p-8">
+           <div className="w-full h-full flex flex-col animate-fade-in relative p-4 md:p-8">
             <div className="bg-slate-50 rounded-[2.5rem] p-8 mb-8 border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row justify-between items-center relative overflow-hidden transition-all shrink-0">
                <div className="relative z-10 flex items-center gap-8 w-full md:w-auto">
                  <button onClick={() => setView('DASHBOARD')} className="group p-4 rounded-2xl bg-black hover:bg-zinc-900 text-white border-2 border-black transition-all duration-300 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-none hover:translate-y-1 flex items-center justify-center">
@@ -1196,8 +1666,9 @@ const App: React.FC = () => {
                  </button>
                  <div>
                     <div className="flex items-center gap-4">
-                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight truncate max-w-[300px] md:max-w-md" title={activeJob.title}>{activeJob.title}</h1>
+                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight truncate max-w-[200px] md:max-w-md" title={activeJob.title}>{activeJob.title}</h1>
                         <button onClick={() => handleEditJobSetup(activeJob)} className="p-2 text-slate-300 hover:text-black bg-transparent hover:bg-slate-200 rounded-xl transition-all" title="Editar vaga"><Pencil className="w-5 h-5" /></button>
+                        <button onClick={handleRefresh} className="p-2 text-slate-300 hover:text-black bg-transparent hover:bg-slate-200 rounded-xl transition-all" title="Atualizar dados"><RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} /></button>
                     </div>
                     <div className="flex items-center gap-4 mt-3 ml-1">
                       <p className="text-slate-500 text-sm font-bold">{activeJob.candidates.length} Currículos</p>
@@ -1207,16 +1678,16 @@ const App: React.FC = () => {
                     </div>
                  </div>
                </div>
-               <div className="relative z-10 flex gap-3 mt-6 md:mt-0 w-full md:w-auto justify-end">
+               <div className="relative z-10 flex gap-2 md:gap-3 mt-6 md:mt-0 w-full md:w-auto justify-start md:justify-end overflow-x-auto pb-2 md:pb-0 custom-scrollbar md:custom-scrollbar-none">
                  <input type="file" multiple accept="application/pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
                  
-                 <button onClick={handleOpenShareModal} className="bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-5 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none"><Share2 className="w-5 h-5 mr-2 text-black"/> Link</button>
+                 <button onClick={handleOpenShareModal} className="bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-5 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none whitespace-nowrap"><Share2 className="w-5 h-5 mr-2 text-black"/> Link</button>
                  
                  {activeJob.candidates.some(c=>c.isSelected) && (
-                   <button onClick={()=>setShowReport(true)} className="bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
+                   <button onClick={()=>setShowReport(true)} className="bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
                  )}
                  
-                 <button onClick={()=>fileInputRef.current?.click()} className="bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>
+                 <button onClick={()=>fileInputRef.current?.click()} className="bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>
                  
                  {activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
                    <button onClick={runAnalysis} className="bg-[#CCF300] hover:bg-[#bce000] text-black border-2 border-black px-8 py-4 rounded-xl font-black text-sm flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
@@ -1283,7 +1754,7 @@ const App: React.FC = () => {
                   <div className="mb-8">
                       {/* Icone: Fundo Preto, Icone Lime */}
                       <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-xl transform -rotate-3 border-2 border-black">
-                          <BriefcaseIcon className="w-8 h-8 text-[#CCF300]" />
+                          <Briefcase className="w-8 h-8 text-[#CCF300]" />
                       </div>
                       <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">{isEditing ? 'Editar Vaga' : 'Nova Vaga'}</h2>
                       <p className="text-slate-500 font-bold text-sm">Defina os critérios para a IA analisar.</p>
@@ -1318,6 +1789,7 @@ const App: React.FC = () => {
           <ShareLinkModal 
              job={activeJob}
              onClose={() => setShowShareModal(false)}
+             onUpdateJob={handleJobUpdate}
           />
       )}
 
@@ -1333,6 +1805,82 @@ const App: React.FC = () => {
       {/* SQL SETUP MODAL */}
       {showSqlModal && (
           <SqlSetupModal onClose={() => setShowSqlModal(false)} />
+      )}
+
+      {/* ... (Existing modals remain unchanged) */}
+      
+      {/* NAME UPDATE MODAL (FORCE UPDATE) */}
+      {showNameModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+              <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl relative animate-slide-up border-4 border-black text-center">
+                  
+                  <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] border-4 border-white">
+                      <Sparkles className="w-10 h-10 text-[#CCF300]" />
+                  </div>
+
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Bem-vindo(a)!</h2>
+                  <p className="text-slate-500 font-bold text-sm mb-8">Para começarmos, como podemos te chamar?</p>
+
+                  <div className="space-y-4">
+                      <div className="relative group text-left">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nome e Sobrenome</label>
+                          <input 
+                              type="text" 
+                              value={tempName}
+                              onChange={(e) => setTempName(e.target.value)}
+                              placeholder="Ex: Ana Silva"
+                              className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium placeholder:text-slate-400"
+                              autoFocus
+                          />
+                      </div>
+
+                      <button 
+                          onClick={handleSaveName}
+                          disabled={isSavingName || !tempName.trim()}
+                          className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black disabled:opacity-70 disabled:transform-none"
+                      >
+                          {isSavingName ? <Loader2 className="w-5 h-5 animate-spin"/> : "Começar Agora"}
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* PASSWORD RECOVERY MODAL */}
+      {showRecoveryModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+              <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl relative animate-slide-up border-4 border-black text-center">
+                  
+                  <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] border-4 border-white">
+                      <Key className="w-10 h-10 text-[#CCF300]" />
+                  </div>
+
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Redefinir Senha</h2>
+                  <p className="text-slate-500 font-bold text-sm mb-8">Digite sua nova senha de acesso.</p>
+
+                  <div className="space-y-4">
+                      <div className="relative group text-left">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nova Senha</label>
+                          <input 
+                              type="password" 
+                              value={recoveryPassword}
+                              onChange={(e) => setRecoveryPassword(e.target.value)}
+                              placeholder="Mínimo 6 caracteres"
+                              className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium placeholder:text-slate-400"
+                              autoFocus
+                          />
+                      </div>
+
+                      <button 
+                          onClick={handleSetNewPassword}
+                          disabled={isSavingRecovery || !recoveryPassword}
+                          className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black disabled:opacity-70 disabled:transform-none"
+                      >
+                          {isSavingRecovery ? <Loader2 className="w-5 h-5 animate-spin"/> : "Salvar Nova Senha"}
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
 
       {/* LEGAL MODALS */}
@@ -1378,69 +1926,5 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-// --- SIMPLE LEGAL MODAL ---
-const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => {
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden relative border border-slate-200">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-200">
-                            <ShieldCheck className="w-5 h-5 text-slate-900" />
-                        </div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{title}</h2>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500"/></button>
-                </div>
-                
-                <div className="p-8 overflow-y-auto custom-scrollbar">
-                    <div className="prose prose-sm prose-slate max-w-none">
-                        <p className="font-bold text-slate-900 mb-4">Última atualização: {new Date().toLocaleDateString()}</p>
-                        <p>
-                            Este é um documento legal padrão para o uso da plataforma Elevva. Ao utilizar nossos serviços de análise de currículos com Inteligência Artificial, você concorda com o processamento de dados conforme descrito abaixo.
-                        </p>
-                        
-                        <h4 className="font-black text-slate-900 mt-6 mb-2">1. Coleta de Dados</h4>
-                        <p>
-                            Coletamos apenas os dados necessários para a prestação do serviço, incluindo nome, email e os arquivos de currículo (PDF) enviados para análise. Estes dados são processados temporariamente pelos nossos algoritmos de IA.
-                        </p>
-
-                        <h4 className="font-black text-slate-900 mt-6 mb-2">2. Uso da Inteligência Artificial</h4>
-                        <p>
-                            Utilizamos modelos de IA (Google Gemini) para processar e extrair informações dos currículos. Embora nos esforcemos pela máxima precisão, a análise automatizada pode conter imprecisões e deve servir como ferramenta de apoio à decisão humana, não como substituto total.
-                        </p>
-
-                        <h4 className="font-black text-slate-900 mt-6 mb-2">3. Privacidade e Segurança</h4>
-                        <p>
-                            Levamos a segurança a sério. Seus dados são armazenados de forma segura e não são vendidos a terceiros. Os candidatos têm direito de solicitar a exclusão de seus dados a qualquer momento através do contato com o recrutador responsável.
-                        </p>
-                        
-                        <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl mt-6 flex gap-3">
-                            <FileWarning className="w-5 h-5 text-amber-500 shrink-0" />
-                            <p className="text-xs font-bold text-amber-700 leading-relaxed">
-                                Importante: Ao fazer upload de currículos de terceiros, você declara ter autorização ou base legal (como legítimo interesse) para processar esses dados pessoais no contexto de um processo seletivo.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="p-6 border-t border-slate-100 bg-slate-50 text-right">
-                    <button onClick={onClose} className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-900 transition-all shadow-lg">
-                        Entendi e Concordo
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// Helper Component for Icon in Modal (avoiding conflict)
-const BriefcaseIcon = (props: any) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
-        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-    </svg>
-);
 
 export default App;

@@ -47,6 +47,8 @@ export interface Job {
   isPinned?: boolean; // Novo campo para destacar a vaga
   ownerEmail?: string; // NOVO: Email do dono da vaga (visível apenas para admin)
   short_code?: string; // NOVO: Código de 5 dígitos para link curto
+  auto_analyze?: boolean; // NOVO: Analisar automaticamente ao receber upload
+  is_paused?: boolean; // NOVO: Impedir novos uploads
 }
 
 export type PlanType = 'FREE' | 'MENSAL' | 'TRIMESTRAL' | 'ANUAL';

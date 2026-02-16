@@ -1,14 +1,14 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { CheckCircle2, ArrowLeft, FileText, Loader2, ShieldCheck, AlertTriangle, X, ArrowUp, CloudUpload, User, Phone, Send, Briefcase, Zap } from 'lucide-react';
+import { CheckCircle2, ArrowLeft, FileText, Loader2, ShieldCheck, AlertTriangle, X, ArrowUp, CloudUpload, User, Phone, Send, Briefcase, Zap, PauseCircle } from 'lucide-react';
 
 interface Props {
   jobTitle: string;
+  isPaused?: boolean;
   onUpload: (files: File[]) => Promise<void>;
   onBack: () => void;
 }
 
-export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack }) => {
+export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUpload, onBack }) => {
   // Estados do Formulário
   const [candidateName, setCandidateName] = useState('');
   const [candidatePhone, setCandidatePhone] = useState('');
@@ -19,11 +19,12 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [hasApplied, setHasApplied] = useState(false);
   
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const honeypotRef = useRef<HTMLInputElement>(null); // Campo armadilha para robôs
+  const honeypotRef = useRef<HTMLInputElement>(null);
 
   // CONSTANTES DE SEGURANÇA
   const MAX_FILE_SIZE_MB = 5;
@@ -43,23 +44,18 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
   }, [STORAGE_KEY]);
 
   const validateFile = (file: File): string | null => {
-      // 2. Segurança de Arquivos
-      // Validação de Extensão e MIME Type
       if (file.type !== 'application/pdf') {
           return "Apenas arquivos PDF são permitidos para segurança.";
       }
-      
-      // Validação de Tamanho (Max 5MB)
       if (file.size > MAX_FILE_SIZE_BYTES) {
           return `O arquivo é muito grande. O limite máximo é de ${MAX_FILE_SIZE_MB}MB.`;
       }
-
       return null;
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!hasApplied) setIsDragging(true);
+    if (!hasApplied && !isPaused) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -71,7 +67,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
     e.preventDefault();
     setIsDragging(false);
     
-    if (hasApplied) return;
+    if (hasApplied || isPaused) return;
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
@@ -102,17 +98,15 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
     }
   };
 
-  // Máscara simples de telefone
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '');
     if (value.length > 11) value = value.slice(0, 11);
     
-    // Formatação visual (XX) XXXXX-XXXX
     if (value.length > 2) {
         value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
     }
     if (value.length > 9) {
-        value = `${value.slice(0, 9)}-${value.slice(9)}`; // Adjust dash position based on length
+        value = `${value.slice(0, 9)}-${value.slice(9)}`;
     }
     setCandidatePhone(value);
   };
@@ -120,25 +114,25 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorDetails(null);
 
-    // 3. Proteção contra Robôs (Honeypot)
+    // Proteção contra Robôs (Honeypot)
     if (honeypotRef.current && honeypotRef.current.value !== '') {
         console.warn("Bot detectado via Honeypot");
-        // Simula sucesso para enganar o bot, mas não envia nada
         setSuccess(true);
         return;
     }
 
-    if (hasApplied) return;
+    if (hasApplied || isPaused) return;
 
-    // 1. Validação de Nome Completo (Frontend)
+    // Validação de Nome
     const nameParts = candidateName.trim().split(/\s+/);
     if (nameParts.length < 2 || candidateName.trim().length < 8) {
         setError("Por favor, insira seu nome completo (Nome e Sobrenome).");
         return;
     }
 
-    // Validação de Telefone (Mínimo 10 dígitos: DDD + 8 números)
+    // Validação de Telefone
     const cleanPhone = candidatePhone.replace(/\D/g, '');
     if (cleanPhone.length < 10) {
         setError("Por favor, insira um telefone válido com DDD.");
@@ -153,15 +147,34 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
     setUploading(true);
 
     try {
-        // Envia o arquivo
         await onUpload([selectedFile]);
         
         // Marca como aplicado no LocalStorage
         localStorage.setItem(STORAGE_KEY, Date.now().toString());
         
         setSuccess(true);
-    } catch (err) {
-        setError("Erro ao enviar currículo. Tente novamente.");
+    } catch (err: any) {
+        console.error("Erro detalhado no upload:", err);
+        
+        let msg = "Erro ao enviar currículo.";
+        let details = err.message || JSON.stringify(err);
+        
+        if (err.message) {
+            if (err.message.includes("row-level security")) {
+                msg = "Erro de permissão no servidor.";
+                details = "O sistema bloqueou o envio. Peça ao recrutador para executar o 'Script V26'.";
+            } else if (err.message.includes("violates not-null constraint") && err.message.includes("user_id")) {
+                msg = "Erro de configuração do banco de dados.";
+                details = "O servidor exige login para enviar. Peça ao recrutador para rodar o 'Script V26' para corrigir.";
+            } else if (err.message.includes("storage")) {
+                msg = "Erro no armazenamento do arquivo.";
+            } else if (err.message.includes("duplicate")) {
+                msg = "Este arquivo já parece ter sido enviado.";
+            }
+        }
+        
+        setError(msg);
+        setErrorDetails(details);
     } finally {
         setUploading(false);
     }
@@ -169,10 +182,8 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
 
   if (success) {
     return (
-      <div className="min-h-screen bg-white text-zinc-900 flex flex-col items-center justify-center p-6 animate-fade-in font-jakarta relative overflow-hidden">
-        {/* Background Grid */}
-        <div className="absolute inset-0 z-0 h-full w-full bg-white bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-
+      <div className="min-h-screen bg-slate-50 text-zinc-900 flex flex-col items-center justify-center p-6 animate-fade-in font-jakarta relative overflow-hidden">
+        
         <div className="w-full max-w-md text-center relative z-10">
            <div className="w-24 h-24 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_-10px_rgba(16,185,129,0.3)] animate-slide-up border border-emerald-200">
              <CheckCircle2 className="w-12 h-12 text-emerald-500" />
@@ -196,14 +207,8 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
   }
 
   return (
-    <div className="h-screen bg-white flex flex-col font-sans text-zinc-900 selection:bg-zinc-200 selection:text-black overflow-hidden relative">
+    <div className="h-screen bg-slate-50 flex flex-col font-sans text-zinc-900 selection:bg-zinc-200 selection:text-black overflow-hidden relative">
       
-      {/* Background Grid Pattern */}
-      <div className="absolute inset-0 z-0 h-full w-full bg-white bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-      
-      {/* Luz de fundo suave */}
-      <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-blue-50/30 to-transparent pointer-events-none z-0"></div>
-
       {/* Header Compacto */}
       <div className="w-full py-4 px-6 md:px-12 flex justify-between items-center absolute top-0 left-0 z-50">
         <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-16 md:h-20 w-auto object-contain select-none drop-shadow-sm" />
@@ -236,6 +241,17 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
                          </div>
                          <h3 className="text-lg font-bold text-zinc-900">Candidatura Enviada</h3>
                          <p className="text-zinc-500 mt-1 text-sm">Você já enviou um currículo para esta vaga recentemente.</p>
+                         <p className="text-xs text-zinc-400 mt-4">Para segurança, aguarde 24h para tentar novamente.</p>
+                    </div>
+                ) : isPaused ? (
+                    <div className="text-center py-12 animate-fade-in">
+                         <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-zinc-200">
+                            <PauseCircle className="w-8 h-8 text-zinc-400" />
+                         </div>
+                         <h3 className="text-xl font-bold text-zinc-900 mb-2">Vaga Pausada</h3>
+                         <p className="text-zinc-500 text-sm max-w-xs mx-auto leading-relaxed">
+                             O recrutador pausou o recebimento de novos currículos para esta posição temporariamente.
+                         </p>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
@@ -308,7 +324,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
                             >
                                 <input 
                                     type="file" 
-                                    ref={fileInputRef}
+                                    ref={fileInputRef} 
                                     className="hidden" 
                                     accept="application/pdf"
                                     onChange={handleFileSelect}
@@ -349,9 +365,14 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, onUpload, onBack
                         </div>
 
                         {error && (
-                            <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-center gap-3 animate-fade-in text-red-600">
-                                <AlertTriangle className="w-4 h-4 shrink-0" />
-                                <p className="text-xs font-bold leading-tight">{error}</p>
+                            <div className="bg-red-50 border border-red-100 rounded-xl p-3 animate-fade-in text-red-600 flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                                    <p className="text-xs font-bold leading-tight">{error}</p>
+                                </div>
+                                {errorDetails && (
+                                    <p className="text-[10px] font-mono ml-6 opacity-70 break-all">{errorDetails}</p>
+                                )}
                             </div>
                         )}
 
