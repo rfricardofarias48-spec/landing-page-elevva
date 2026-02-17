@@ -4,18 +4,20 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Carrega variáveis de ambiente
+  // Carrega todas as variáveis de ambiente (o terceiro parâmetro '' carrega tudo, não só VITE_)
   const env = loadEnv(mode, (process as any).cwd(), '');
 
   return {
     plugins: [react()],
     define: {
-      // Garante que 'process.env' existe vazio para evitar "process is not defined"
-      'process.env': {},
-      // Injeta as variáveis específicas
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
-      'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL),
-      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY),
+      // Define process.env como um objeto contendo EXPLICITAMENTE as chaves necessárias.
+      // Isso evita conflitos onde 'process.env': {} anula as chaves específicas.
+      'process.env': JSON.stringify({
+        API_KEY: env.API_KEY || process.env.API_KEY || "",
+        VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "",
+        VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "",
+        NODE_ENV: process.env.NODE_ENV || 'development',
+      }),
     },
     build: {
       chunkSizeWarningLimit: 3000, 

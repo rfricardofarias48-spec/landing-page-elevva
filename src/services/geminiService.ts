@@ -91,6 +91,7 @@ export const analyzeResume = async (
   // 1. Verificação de Segurança da API Key (Runtime)
   // Isso impede que o app trave inteiramente se a chave estiver faltando.
   const apiKey = process.env.API_KEY;
+  
   if (!apiKey || apiKey.trim() === '') {
       console.error("CRITICAL ERROR: API_KEY is missing in environment variables.");
       return {
@@ -100,14 +101,14 @@ export const analyzeResume = async (
         city: "-",
         neighborhood: "-",
         phoneNumbers: [],
-        summary: "A chave de API do Google (Gemini) não foi configurada na Vercel. Por favor, adicione a variável de ambiente 'API_KEY' nas configurações do projeto.",
+        summary: "A chave de API do Google (Gemini) não foi detectada. Se estiver rodando localmente, verifique se o arquivo .env contendo API_KEY está na raiz do projeto. Se estiver na Vercel, adicione a Environment Variable 'API_KEY'.",
         pros: [],
         cons: ["Contate o administrador do sistema"],
         workHistory: []
       };
   }
 
-  // Inicializa o cliente APENAS quando a função é chamada
+  // Inicializa o cliente APENAS quando a função é chamada e temos certeza que a chave existe
   const ai = new GoogleGenAI({ apiKey });
 
   // Tratamento para vagas de teste ou títulos muito curtos
