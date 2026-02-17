@@ -1,7 +1,9 @@
+
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// NOTA: A inicialização global foi removida para evitar que o app quebre ao carregar
+// se a API Key não estiver presente. Agora a verificação é feita no momento do uso.
 
 const analysisSchema: Schema = {
   type: Type.OBJECT,
@@ -86,6 +88,28 @@ export const analyzeResume = async (
   criteria: string
 ): Promise<AnalysisResult> => {
   
+  // 1. Verificação de Segurança da API Key (Runtime)
+  // Isso impede que o app trave inteiramente se a chave estiver faltando.
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey.trim() === '') {
+      console.error("CRITICAL ERROR: API_KEY is missing in environment variables.");
+      return {
+        candidateName: "Erro de Configuração",
+        matchScore: 0,
+        yearsExperience: "-",
+        city: "-",
+        neighborhood: "-",
+        phoneNumbers: [],
+        summary: "A chave de API do Google (Gemini) não foi configurada na Vercel. Por favor, adicione a variável de ambiente 'API_KEY' nas configurações do projeto.",
+        pros: [],
+        cons: ["Contate o administrador do sistema"],
+        workHistory: []
+      };
+  }
+
+  // Inicializa o cliente APENAS quando a função é chamada
+  const ai = new GoogleGenAI({ apiKey });
+
   // Tratamento para vagas de teste ou títulos muito curtos
   const isGenericJob = !jobTitle || jobTitle.length < 3 || ['teste', 'test', 'vaga', 'geral', 'admin'].includes(jobTitle.toLowerCase());
   
@@ -163,8 +187,6 @@ export const analyzeResume = async (
       if (!parsed.candidateName) parsed.candidateName = "Candidato (Nome não identificado)";
       
       // --- FALLBACK DE SEGURANÇA CONTRA NOTA ZERO ---
-      // Se a IA der nota baixa (< 3) mas o candidato tiver experiência detectada, forçamos uma nota mínima.
-      // Isso corrige o erro de "nota zero" para candidatos trabalhadores fora da área exata.
       const hasExperience = parsed.workHistory && parsed.workHistory.length > 0;
       const experienceText = parsed.yearsExperience ? parsed.yearsExperience.toLowerCase() : '';
       const notZeroExp = !experienceText.includes('sem experiência') && !experienceText.includes('nunca trabalhou');
@@ -172,8 +194,6 @@ export const analyzeResume = async (
       if ((parsed.matchScore < 3.0) && (hasExperience || notZeroExp)) {
           // Nota de corte para "Tem experiência mas não é da área"
           parsed.matchScore = 4.5; 
-          
-          // Ajusta o resumo para explicar a nota ajustada
           if (!parsed.summary.includes("nota")) {
              parsed.summary += " (Nota ajustada baseada no histórico profissional pregresso e soft skills identificadas).";
           }
