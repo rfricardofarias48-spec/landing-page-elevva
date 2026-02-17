@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, Link as LinkIcon, Globe, AlertTriangle, PauseCircle, PlayCircle, Ban } from 'lucide-react';
 import { Job } from '../types';
@@ -19,11 +18,12 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   const [updating, setUpdating] = useState(false);
 
   // Gera o link curto se existir, senão usa o fallback antigo
+  // Remove slash final do origin se existir para evitar //
   const origin = window.location.origin.replace(/\/$/, '');
   
-  // ATUALIZAÇÃO: Links Super Curtos (4 dígitos)
+  // ATUALIZAÇÃO IMPORTANTE: Usando Query Param (?v=) para evitar problemas de hash com autenticação
   const shareUrl = job.short_code 
-      ? `${origin}/#${job.short_code}`
+      ? `${origin}/?v=${job.short_code}`
       : `${origin}/?uploadJobId=${job.id}`;
 
   useEffect(() => {
@@ -129,78 +129,4 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                     <div>
                         <h4 className="text-amber-700 font-bold text-xs uppercase mb-1">Modo de Pré-visualização</h4>
                         <p className="text-amber-600 text-xs font-medium leading-relaxed">
-                            Este link não funcionará externamente porque você está em ambiente local/blob. Publique o app para usar.
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            {/* OPÇÕES AVANÇADAS */}
-            <div>
-                {/* Pause Toggle */}
-                <button 
-                    type="button"
-                    onClick={togglePause}
-                    disabled={updating}
-                    className={`relative p-5 rounded-[1.5rem] border-2 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group h-36 flex flex-col justify-between w-full ${
-                        !isPaused 
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-[4px_4px_0px_0px_rgba(16,185,129,0.4)]'
-                        : 'bg-red-50 border-red-200 text-red-900 shadow-sm hover:border-red-300'
-                    }`}
-                >
-                    <div className="flex items-start justify-between w-full">
-                        <div className={`p-3 rounded-2xl transition-colors ${!isPaused ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
-                            {!isPaused ? <PlayCircle className="w-6 h-6 fill-current" /> : <PauseCircle className="w-6 h-6" />}
-                        </div>
-                        
-                        {/* Custom Toggle */}
-                        <div className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 flex items-center ${!isPaused ? 'bg-emerald-500' : 'bg-red-200'}`}>
-                            <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${!isPaused ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <p className={`text-xs font-black uppercase tracking-widest mb-1.5 ${!isPaused ? 'text-emerald-700' : 'text-red-700'}`}>
-                            {!isPaused ? 'Link Ativo' : 'Link Pausado'}
-                        </p>
-                        <p className={`text-[10px] font-bold leading-relaxed ${!isPaused ? 'text-emerald-800/70' : 'text-red-800/60'}`}>
-                            {!isPaused ? 'Candidatos podem enviar currículos.' : 'Envios suspensos temporariamente.'}
-                        </p>
-                    </div>
-                </button>
-            </div>
-
-            <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-1">Link Público (4 Dígitos)</label>
-                <div className="flex gap-2">
-                    <div className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-mono truncate flex items-center gap-3 text-slate-600 font-bold shadow-sm">
-                        <Globe className="w-4 h-4 shrink-0 text-slate-400" />
-                        <span className="truncate">{shareUrl}</span>
-                    </div>
-                    <button 
-                        onClick={handleCopy}
-                        className={`px-6 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-none border-2 border-black ${copied ? 'bg-[#CCF300] text-black' : 'bg-black text-white hover:bg-slate-900'}`}
-                    >
-                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {copied ? 'Copiado' : 'Copiar'}
-                    </button>
-                </div>
-                {!isBlobOrLocal && !job.short_code && (
-                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-1 animate-pulse">
-                        * Atualizando para link curto...
-                    </p>
-                )}
-            </div>
-        </div>
-        
-        <div className="bg-slate-50 p-4 text-center border-t-2 border-slate-100">
-             <div className="flex items-center justify-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
-                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Powered by</span>
-                <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-4 w-auto" />
-             </div>
-        </div>
-
-      </div>
-    </div>
-  );
-};
+                            Este link não funcionará externamente porque você está em ambiente local/blob. Publique o

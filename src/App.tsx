@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './services/supabaseClient';
 import { analyzeResume } from './services/geminiService';
@@ -42,12 +41,13 @@ const isPublicRoute = () => {
     const path = window.location.pathname;
     
     // Verifica se existe QUALQUER coisa relevante na URL que indique acesso a vaga
-    // Aceita 4 ou mais dígitos no Hash ou Path
+    // Aceita parametro 'v' (short code), 'uploadJobId' (legacy), ou Hash/Path numérico
+    const hasVParam = !!params.get('v');
+    const hasLegacyParam = !!params.get('uploadJobId');
     const hasHash = /#\/?\d{4,}/.test(hash); 
-    const hasParam = !!params.get('uploadJobId');
     const hasPathId = /^\/\d{4,}/.test(path);
     
-    return hasHash || hasParam || hasPathId;
+    return hasVParam || hasLegacyParam || hasHash || hasPathId;
 };
 
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
@@ -265,43 +265,34 @@ export const App: React.FC = () => {
 
     if (error) {
         console.error("OAuth Error Detected:", error, errorCode, errorDesc);
-        
-        // Tratamento específico para o erro de 'bad_oauth_state' que ocorre quando há mismatch de porta
-        if (errorCode === 'bad_oauth_state' || errorDesc?.includes('state')) {
-            alert(
-                "Atenção: Erro de Configuração de Login\n\n" +
-                "O Google redirecionou para uma porta diferente da que você iniciou.\n" +
-                "Isso geralmente acontece quando o Supabase está configurado para 'localhost:3000' mas você está usando 'localhost:5173'.\n\n" +
-                "SOLUÇÃO:\n" +
-                "1. Vá ao painel do Supabase > Authentication > URL Configuration.\n" +
-                "2. Mude o 'Site URL' para http://localhost:5173\n" +
-                "3. Adicione http://localhost:5173 na lista de Redirect URLs."
-            );
-        } else {
-            alert(`Erro no Login: ${errorDesc || error}. Tente novamente.`);
-        }
+        alert(`Erro no Login: ${errorDesc || error}. Tente novamente.`);
         // Limpa a URL para não ficar mostrando o erro
         window.history.replaceState(null, '', window.location.pathname);
     }
     
     // 3. Lógica de Upload Público (URL Checks - Execução Imediata)
     const legacyUploadId = params.get('uploadJobId');
+    const vParam = params.get('v'); // NOVA ESTRATÉGIA: QUERY PARAM ?v=1234
     const hash = window.location.hash;
-    // Regex ajustada para 4 a 6 dígitos (Suporte a links super curtos)
     const hashMatch = hash.match(/^#\/?(\d{4,6})$/);
     const path = window.location.pathname;
     const pathMatch = path.match(/^\/(\d{4,6})$/);
 
-    // Prioriza configuração da rota pública para garantir que os dados da vaga sejam carregados
-    if (legacyUploadId) {
+    if (vParam) {
+        // Prioridade 1: Query Param ?v=XXXX (Mais estável)
+        setView('PUBLIC_UPLOAD');
+        fetchPublicJobByCode(vParam);
+    } else if (legacyUploadId) {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
         setView('PUBLIC_UPLOAD');
     } else if (hashMatch) {
+        // Fallback: Hash #XXXX
         const code = hashMatch[1];
         setView('PUBLIC_UPLOAD');
         fetchPublicJobByCode(code);
     } else if (pathMatch) {
+        // Fallback: Path /XXXX
         const code = pathMatch[1];
         setView('PUBLIC_UPLOAD');
         fetchPublicJobByCode(code);
@@ -662,7 +653,6 @@ export const App: React.FC = () => {
               autoAnalyze: data.auto_analyze, 
               isPaused: data.is_paused 
           });
-          // Se a view não for pública ainda, força.
           setView('PUBLIC_UPLOAD');
       } else {
           console.error("Vaga não encontrada para o código:", code);
@@ -675,8 +665,8 @@ export const App: React.FC = () => {
   // --- ACTIONS ---
   
   const generateShortCode = () => {
-      // Gera um código de 4 dígitos entre 1000 e 9999 (mais curto)
-      return Math.floor(1000 + Math.random() * 9000).toString();
+      // Gera um código de 6 dígitos entre 100000 e 999999
+      return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
   const handleRefresh = async () => {
@@ -706,7 +696,7 @@ export const App: React.FC = () => {
               setActiveJob(prev => prev ? { ...prev, title, description, criteria } : null);
           }
       } else if (user) {
-          // Geração de Código Curto de 4 dígitos
+          // Geração de Código Curto de 6 dígitos
           const shortCode = generateShortCode();
           
           const { data, error } = await supabase
@@ -725,7 +715,7 @@ export const App: React.FC = () => {
               console.error("Erro ao criar vaga:", error);
               // Fallback para erro de coluna: tenta criar sem short_code (compatibilidade)
               if (error.message?.includes('short_code')) {
-                   alert("Atenção: Para ativar os links curtos, atualize seu banco de dados em Configurações > Banco de Dados > Script V32.");
+                   alert("Atenção: Para ativar os links curtos (6 números), atualize seu banco de dados em Configurações > Banco de Dados > Script V23.");
               }
               return;
           }
