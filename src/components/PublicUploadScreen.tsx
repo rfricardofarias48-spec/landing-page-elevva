@@ -151,10 +151,10 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
         if (err.message) {
             if (err.message.includes("row-level security")) {
                 msg = "Erro de permissão no servidor.";
-                details = "O sistema bloqueou o envio. Peça ao recrutador para executar o 'Script V30'.";
+                details = "O sistema bloqueou o envio. Peça ao recrutador para executar o 'Script V31'.";
             } else if (err.message.includes("violates not-null constraint") && err.message.includes("user_id")) {
                 msg = "Erro de configuração do banco de dados.";
-                details = "O servidor exige login para enviar. Peça ao recrutador para rodar o 'Script V30' para corrigir.";
+                details = "O servidor exige login para enviar. Peça ao recrutador para rodar o 'Script V31' para corrigir.";
             } else if (err.message.includes("storage")) {
                 msg = "Erro no armazenamento do arquivo.";
             } else if (err.message.includes("duplicate")) {

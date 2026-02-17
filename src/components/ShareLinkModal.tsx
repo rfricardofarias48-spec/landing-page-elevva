@@ -41,10 +41,10 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
       const isPermissionError = err.message?.includes("policy") || err.code === '42501';
       
       let errorMsg = "Erro desconhecido.";
-      if (isStructureError) errorMsg = "Faltam colunas na tabela.";
+      if (isStructureError) errorMsg = "O banco de dados não encontrou a coluna.";
       if (isPermissionError) errorMsg = "Permissão negada.";
 
-      alert(`Atenção: O banco de dados precisa de manutenção.\n\nMotivo: ${errorMsg}\nDetalhe: ${err.message}\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V30.`);
+      alert(`Atenção: O banco de dados precisa de uma atualização de cache.\n\nMotivo: ${errorMsg}\nDetalhe: ${err.message}\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V31.`);
   };
 
   const toggleAutoAnalyze = async () => {
