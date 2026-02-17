@@ -86,7 +86,6 @@ export const analyzeResume = async (
 ): Promise<AnalysisResult> => {
   
   // 1. Verificação de Segurança (Runtime)
-  // O Vite injeta process.env.API_KEY como uma string constante durante o build.
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey.length < 10) {
@@ -106,6 +105,7 @@ export const analyzeResume = async (
   }
 
   // Inicializa o cliente APENAS agora que temos certeza da chave e estamos dentro da função assíncrona
+  // Isso previne que o app quebre no carregamento inicial se a chave estiver vazia
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
