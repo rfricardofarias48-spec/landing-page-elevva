@@ -1,7 +1,9 @@
+
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-// Schema de resposta esperado da IA
+// NÃO inicialize o 'ai' aqui fora. Isso causa erro se a chave não estiver pronta ao carregar a página.
+
 const analysisSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -11,11 +13,11 @@ const analysisSchema: Schema = {
     },
     matchScore: {
       type: Type.NUMBER,
-      description: "Nota de 0.0 a 10.0. AVALIAÇÃO COMPORTAMENTAL E TÉCNICA. Se o candidato tem histórico de trabalho, a nota mínima é 3.0.",
+      description: "Nota de 0.0 a 10.0. SE NÃO TIVER EXPERIÊNCIA NO CARGO EXATO, A NOTA MÁXIMA É 6.0.",
     },
     yearsExperience: {
       type: Type.STRING,
-      description: "Tempo TOTAL de experiência profissional somada. Se zero ou não encontrado, retorne 'Sem experiência'.",
+      description: "Tempo TOTAL de experiência ESTRITAMENTE no cargo solicitado. Ignore funções correlatas. Se zero, retorne 'Sem experiência'.",
     },
     city: {
       type: Type.STRING,
@@ -32,17 +34,17 @@ const analysisSchema: Schema = {
     },
     summary: {
       type: Type.STRING,
-      description: "Resumo focando em: Estabilidade, Cargos Anteriores e Potencial para a vaga atual.",
+      description: "Análise técnica detalhada (aprox. 400 caracteres). Deve justificar a nota. Se a nota for baixa por falta de experiência exata, diga isso explicitamente.",
     },
     pros: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: "3 pontos fortes (Hard Skills, Soft Skills, Estabilidade, Distância, etc).",
+      description: "3 pontos fortes técnicos específicos (Hard Skills) que atendem à vaga.",
     },
     cons: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: "3 pontos de atenção.",
+      description: "3 pontos de atenção técnicos (Falta de experiência no cargo exato é o principal ponto de atenção).",
     },
     workHistory: {
       type: Type.ARRAY,
@@ -62,18 +64,13 @@ const analysisSchema: Schema = {
 
 function cleanJsonString(text: string): string {
   if (!text) return "{}";
-  // Remove markdown code blocks e espaços extras
   let cleaned = text.trim();
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
-  
-  // Tenta encontrar o JSON válido mais externo
   const firstBrace = cleaned.indexOf('{');
   const lastBrace = cleaned.lastIndexOf('}');
-  
   if (firstBrace !== -1 && lastBrace !== -1) {
     cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
-  
   return cleaned;
 }
 
@@ -85,12 +82,12 @@ export const analyzeResume = async (
   criteria: string
 ): Promise<AnalysisResult> => {
   
-  // 1. Verificação de Segurança da API Key (Runtime)
-  // Verifica se a chave foi injetada corretamente pelo Vite
-  const apiKey = process.env.API_KEY;
+  // 1. Verificação de Segurança (Runtime)
+  // Tenta pegar de process.env (injetado pelo Vite) ou import.meta.env (padrão Vite)
+  const apiKey = process.env.API_KEY || (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.API_KEY;
   
   if (!apiKey || apiKey.trim() === '') {
-      console.error("CRITICAL ERROR: API_KEY is missing in environment variables.");
+      console.error("ERRO CRÍTICO: Chave de API não encontrada.");
       return {
         candidateName: "Erro de Configuração",
         matchScore: 0,
@@ -98,50 +95,31 @@ export const analyzeResume = async (
         city: "-",
         neighborhood: "-",
         phoneNumbers: [],
-        summary: "A chave de API do Google (Gemini) não foi detectada. Se estiver rodando localmente, verifique se o arquivo .env contendo API_KEY está na raiz do projeto. Se estiver na Vercel, adicione a Environment Variable 'API_KEY'.",
+        summary: "A chave de API do Google (Gemini) não foi detectada. Verifique se o arquivo .env contendo 'API_KEY' está na raiz do projeto e reinicie o servidor.",
         pros: [],
-        cons: ["Contate o administrador do sistema"],
+        cons: ["Chave API_KEY ausente ou vazia"],
         workHistory: []
       };
   }
 
-  // Inicializa o cliente APENAS quando a função é chamada e temos certeza que a chave existe
+  // Inicializa o cliente APENAS agora que temos certeza da chave
   const ai = new GoogleGenAI({ apiKey });
 
-  // Tratamento para vagas de teste ou títulos muito curtos
-  const isGenericJob = !jobTitle || jobTitle.length < 3 || ['teste', 'test', 'vaga', 'geral', 'admin'].includes(jobTitle.toLowerCase());
-  
-  const safeTitle = isGenericJob ? "Profissional (Análise Geral)" : jobTitle;
-  const safeCriteria = isGenericJob 
-    ? "Avalie a qualidade do currículo, estabilidade profissional, clareza e soft skills." 
-    : criteria;
-
   const prompt = `
-    VOCÊ É UM RECRUTADOR HUMANO E SENSATO.
+    DADOS DA VAGA:
+    Cargo: "${jobTitle}"
+    Requisitos: "${criteria}"
     
-    ANALISE O CURRÍCULO PARA: "${safeTitle}"
-    CONTEXTO: "${safeCriteria}"
+    INSTRUÇÕES DE ANÁLISE (SEJA RIGOROSO):
+    1. MATCH SCORE (0-10):
+       - 9.0-10.0: Experiência EXATA no cargo + Requisitos.
+       - 0.0-6.5: Se o cargo atual/anterior NÃO for igual ou sinônimo direto (Ex: "Auxiliar" para vaga de "Operador"). Experiência correlata NÃO conta como experiência exata.
     
-    SUA MISSÃO: DAR UMA NOTA JUSTA (0 a 10).
+    2. EXTRAÇÃO:
+       - Resuma a experiência focando APENAS no que é relevante para "${jobTitle}".
+       - Se não tiver experiência exata, deixe claro no resumo.
     
-    REGRAS DE PONTUAÇÃO (MATCH SCORE):
-    1. **NOTA 0.0 A 2.9 (REJEIÇÃO)**: 
-       - APENAS para currículos ilegíveis, em branco, ou candidatos sem NENHUMA experiência profissional (primeiro emprego sem curso).
-    
-    2. **NOTA 3.0 A 5.9 (POTENCIAL / TRANSIÇÃO)**:
-       - Candidato tem experiência de trabalho (ex: Operacional, Vendas), mas em área diferente da vaga.
-       - TEM VALOR: Mostra responsabilidade, pontualidade e soft skills. NÃO DÊ ZERO.
-    
-    3. **NOTA 6.0 A 8.5 (BOM CANDIDATO)**:
-       - Tem experiência correlata ou skills transferíveis.
-       - Ex: "Auxiliar Administrativo" aplicando para "Financeiro".
-    
-    4. **NOTA 8.6 A 10.0 (EXCELENTE)**:
-       - Experiência exata no cargo e atende todos os requisitos.
-
-    ATENÇÃO: Se a vaga for "teste" ou genérica, baseie a nota na qualidade geral do profissional (tempo de casa nas empresas anteriores conta muito pontos).
-
-    Retorne APENAS o JSON.
+    Analise o PDF e retorne JSON.
   `;
 
   const modelsToTry = [
@@ -169,7 +147,7 @@ export const analyzeResume = async (
         config: {
           responseMimeType: "application/json",
           responseSchema: analysisSchema,
-          temperature: 0.2, 
+          temperature: 0.1,
           topK: 20,
           safetySettings: safetySettings
         },
@@ -181,21 +159,7 @@ export const analyzeResume = async (
       const cleanedText = cleanJsonString(text);
       const parsed = JSON.parse(cleanedText) as AnalysisResult;
       
-      // Sanitização básica
       if (!parsed.candidateName) parsed.candidateName = "Candidato (Nome não identificado)";
-      
-      // --- FALLBACK DE SEGURANÇA CONTRA NOTA ZERO ---
-      const hasExperience = parsed.workHistory && parsed.workHistory.length > 0;
-      const experienceText = parsed.yearsExperience ? parsed.yearsExperience.toLowerCase() : '';
-      const notZeroExp = !experienceText.includes('sem experiência') && !experienceText.includes('nunca trabalhou');
-
-      if ((parsed.matchScore < 3.0) && (hasExperience || notZeroExp)) {
-          // Nota de corte para "Tem experiência mas não é da área"
-          parsed.matchScore = 4.5; 
-          if (!parsed.summary.includes("nota")) {
-             parsed.summary += " (Nota ajustada baseada no histórico profissional pregresso e soft skills identificadas).";
-          }
-      }
       
       return parsed;
 
@@ -224,9 +188,9 @@ export const analyzeResume = async (
     city: "-",
     neighborhood: "-",
     phoneNumbers: [],
-    summary: "O arquivo não pôde ser processado. Verifique se é um PDF válido com texto selecionável.",
+    summary: "O arquivo não pôde ser processado pela IA. Tente novamente mais tarde.",
     pros: [],
-    cons: ["Falha de processamento ou arquivo corrompido"],
+    cons: ["Falha de processamento"],
     workHistory: []
   };
 };
