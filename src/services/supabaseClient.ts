@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Tenta pegar das variáveis de ambiente (Vercel/GitHub Secrets)
+// O Vite substitui process.env.VAR pelo valor real durante o build
 const envUrl = process.env.VITE_SUPABASE_URL;
 const envKey = process.env.VITE_SUPABASE_ANON_KEY;
 
@@ -15,8 +16,13 @@ const supabaseKey = envKey && envKey.length > 0 ? envKey : localKey;
 
 export const isConfigured = supabaseUrl && supabaseKey;
 
+// Logs de diagnóstico (Visíveis no Console do Navegador - F12)
+console.log(`[Supabase] Inicializando cliente...`);
+if (!envUrl) console.log("[Supabase] Usando chaves locais (Hardcoded). Configure as variáveis de ambiente na Vercel para produção.");
+else console.log("[Supabase] Usando variáveis de ambiente da Vercel.");
+
 if (!isConfigured) {
-  console.warn("Supabase credentials missing. Check your .env file or Vercel Environment Variables.");
+  console.error("[Supabase] ERRO CRÍTICO: Credenciais ausentes. O app não funcionará corretamente.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
