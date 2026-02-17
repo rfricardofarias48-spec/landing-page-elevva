@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Link as LinkIcon, Globe, AlertTriangle, PauseCircle, PlayCircle, Zap } from 'lucide-react';
+import { X, Copy, Check, Link as LinkIcon, Globe, AlertTriangle, PauseCircle, PlayCircle, Zap, Ban } from 'lucide-react';
 import { Job } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -23,7 +23,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   // Remove slash final do origin se existir para evitar //
   const origin = window.location.origin.replace(/\/$/, '');
   
-  // ATUALIZAÇÃO IMPORTANTE: Usando Hash (#) para evitar erro 404 em servidores sem configuração SPA
+  // Usando Hash (#) para evitar erro 404 em servidores sem configuração SPA
   const shareUrl = job.short_code 
       ? `${origin}/#${job.short_code}`
       : `${origin}/?uploadJobId=${job.id}`;
@@ -109,7 +109,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
            </div>
            
            <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Link de Candidatura</h2>
-           <p className="text-slate-500 font-bold text-sm">Compartilhe este link para receber currículos.</p>
+           <p className="text-slate-500 font-bold text-sm">Gerencie como os candidatos acessam esta vaga.</p>
         </div>
 
         <div className="px-8 space-y-6 pb-8">
@@ -159,7 +159,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                             Análise Automática
                         </p>
                         <p className={`text-[10px] font-bold leading-relaxed ${autoAnalyze ? 'text-zinc-400' : 'text-slate-400'}`}>
-                            {autoAnalyze ? 'IA processa e ranqueia cada currículo recebido.' : 'Análise manual (sob demanda).'}
+                            {autoAnalyze ? 'IA analisa instantaneamente após o upload.' : 'Padrão: Você analisa manualmente.'}
                         </p>
                     </div>
                 </button>
@@ -177,7 +177,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                 >
                     <div className="flex items-start justify-between w-full">
                         <div className={`p-3 rounded-2xl transition-colors ${!isPaused ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
-                            {!isPaused ? <PlayCircle className="w-6 h-6 fill-current" /> : <PauseCircle className="w-6 h-6" />}
+                            {!isPaused ? <PlayCircle className="w-6 h-6 fill-current" /> : <Ban className="w-6 h-6" />}
                         </div>
                         
                         {/* Custom Toggle */}
@@ -188,10 +188,10 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                     
                     <div>
                         <p className={`text-xs font-black uppercase tracking-widest mb-1.5 ${!isPaused ? 'text-emerald-700' : 'text-red-700'}`}>
-                            {!isPaused ? 'Link Ativo' : 'Link Pausado'}
+                            {!isPaused ? 'Recebendo CVs' : 'Vaga Encerrada'}
                         </p>
                         <p className={`text-[10px] font-bold leading-relaxed ${!isPaused ? 'text-emerald-800/70' : 'text-red-800/60'}`}>
-                            {!isPaused ? 'Candidatos podem enviar currículos.' : 'Envios suspensos temporariamente.'}
+                            {!isPaused ? 'Candidatos podem enviar currículos.' : 'Link bloqueado. Ninguém pode enviar.'}
                         </p>
                     </div>
                 </button>

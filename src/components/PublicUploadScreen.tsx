@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { CheckCircle2, ArrowLeft, FileText, Loader2, ShieldCheck, AlertTriangle, X, ArrowUp, CloudUpload, User, Phone, Send, Briefcase, Zap, PauseCircle } from 'lucide-react';
+import { CheckCircle2, ArrowLeft, FileText, Loader2, ShieldCheck, AlertTriangle, X, ArrowUp, CloudUpload, User, Phone, Send, Briefcase, Zap, Ban, Lock } from 'lucide-react';
 
 interface Props {
   jobTitle: string;
@@ -245,14 +245,18 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                          <p className="text-xs text-zinc-400 mt-4">Para segurança, aguarde 24h para tentar novamente.</p>
                     </div>
                 ) : isPaused ? (
-                    <div className="text-center py-12 animate-fade-in">
-                         <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-zinc-200">
-                            <PauseCircle className="w-8 h-8 text-zinc-400" />
+                    <div className="text-center py-12 animate-fade-in relative overflow-hidden rounded-xl">
+                         <div className="w-20 h-20 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg relative z-10">
+                            <Lock className="w-8 h-8 text-zinc-400" />
                          </div>
-                         <h3 className="text-xl font-bold text-zinc-900 mb-2">Vaga Pausada</h3>
-                         <p className="text-zinc-500 text-sm max-w-xs mx-auto leading-relaxed">
-                             O recrutador pausou o recebimento de novos currículos para esta posição temporariamente.
+                         <h3 className="text-2xl font-black text-zinc-900 mb-2 tracking-tight">Processo Encerrado</h3>
+                         <p className="text-zinc-500 text-sm font-bold max-w-xs mx-auto leading-relaxed mb-8">
+                             Esta vaga já foi preenchida ou o período de inscrições foi encerrado pelo recrutador.
                          </p>
+                         <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-4 inline-flex items-center gap-3">
+                             <Ban className="w-4 h-4 text-zinc-400" />
+                             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Upload Bloqueado</span>
+                         </div>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
@@ -385,7 +389,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                                 {uploading ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin text-zinc-300" />
-                                        <span className="text-xs tracking-widest uppercase">Enviando...</span>
+                                        <span className="text-xs tracking-widest uppercase">Processando...</span>
                                     </>
                                 ) : (
                                     <>

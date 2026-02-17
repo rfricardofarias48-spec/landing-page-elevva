@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './services/supabaseClient';
 import { analyzeResume } from './services/geminiService';
@@ -62,7 +63,7 @@ const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, o
   </div>
 );
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   // --- STATE ---
   const [user, setUser] = useState<User | null>(null);
   const [isOAuthUser, setIsOAuthUser] = useState(false); // Detecta se é login Google
@@ -923,19 +924,19 @@ const App: React.FC = () => {
 
               if (dbError) throw dbError;
 
-              // --- AUTO ANALYZE LOGIC ---
+              // --- AUTO ANALYZE LOGIC (IMMEDIATE) ---
               if (publicJobData.autoAnalyze && publicJobData.criteria && insertedCandidate) {
                   try {
                       // 1. Converter arquivo para base64
                       const base64 = await fileToBase64(file);
                       
-                      // 2. Chamar IA
-                      // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
+                      // 2. Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
                       await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
                       
+                      // 3. Chamar IA
                       const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
                       
-                      // 3. Salvar Resultado
+                      // 4. Salvar Resultado (COMPLETED)
                       await supabase.from('candidates')
                           .update({ 
                               status: 'COMPLETED',
@@ -946,7 +947,7 @@ const App: React.FC = () => {
                           
                   } catch (analyzeErr) {
                       console.error("Erro na auto-análise:", analyzeErr);
-                      // Se falhar, deixa como PENDING ou ERROR? Melhor ERROR para o recrutador ver.
+                      // Se falhar a análise, deixa como ERROR
                       await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
                   }
               }
@@ -1939,5 +1940,3 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-export default App;
