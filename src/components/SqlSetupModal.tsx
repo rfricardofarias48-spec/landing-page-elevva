@@ -7,102 +7,80 @@ interface Props {
 }
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'FIX_ALL' | 'CRON' | 'NEW_FEATURES'>('FIX_ALL');
+  const [activeTab, setActiveTab] = useState<'FIX_ALL' | 'CRON' | 'NEW_FEATURES'>('NEW_FEATURES');
 
   const fixAllSql = `
--- --- SCRIPT V26: CORREÇÃO DE UPLOAD PÚBLICO E POLÍTICAS ---
+-- --- SCRIPT V26: SETUP GERAL DE TABELAS E PERMISSÕES ---
 
--- 1. CORREÇÃO CRÍTICA: PERMITIR CANDIDATOS ANÔNIMOS (SEM USER_ID)
--- Isso resolve o erro: null value in column "user_id" violates not-null constraint
-ALTER TABLE public.candidates ALTER COLUMN user_id DROP NOT NULL;
+-- 1. CRIAÇÃO DE TABELAS (SE NÃO EXISTIREM)
+CREATE TABLE IF NOT EXISTS public.jobs (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    title text NOT NULL,
+    description text,
+    criteria text,
+    short_code text UNIQUE,
+    created_at timestamptz DEFAULT now(),
+    isPinned boolean DEFAULT false,
+    auto_analyze boolean DEFAULT false,
+    is_paused boolean DEFAULT false
+);
 
--- 2. PERMISSÕES EXPLÍCITAS (GRANT)
+CREATE TABLE IF NOT EXISTS public.candidates (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    job_id uuid REFERENCES public.jobs ON DELETE CASCADE,
+    user_id uuid REFERENCES auth.users, -- Pode ser nulo (candidato anônimo)
+    filename text NOT NULL,
+    file_path text NOT NULL,
+    status text DEFAULT 'PENDING',
+    analysis_result jsonb,
+    match_score numeric,
+    is_selected boolean DEFAULT false,
+    created_at timestamptz DEFAULT now()
+);
+
+-- 2. PERMISSÕES BÁSICAS
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON TABLE public.candidates TO anon, authenticated;
-GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
-GRANT ALL ON TABLE public.announcements TO anon, authenticated;
+GRANT ALL ON TABLE public.jobs TO anon, authenticated;
 
--- 3. POLÍTICAS DE CANDIDATOS (RLS) - RESET TOTAL
-ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
-
--- Remove políticas antigas para evitar erro "policy already exists"
-DROP POLICY IF EXISTS "Public Insert Candidates" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for anon" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for authenticated" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
-DROP POLICY IF EXISTS "Enable select for all" ON public.candidates;
-
--- Cria política unificada para permitir INSERT de qualquer um
-CREATE POLICY "Enable insert for all" ON public.candidates 
-FOR INSERT TO anon, authenticated 
-WITH CHECK (true);
-
--- Permite leitura para mostrar status/confirmação
-CREATE POLICY "Enable select for all" ON public.candidates 
-FOR SELECT TO anon, authenticated 
-USING (true);
-
--- 4. POLÍTICAS DE VAGAS (JOBS)
-ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
-CREATE POLICY "Enable read access for all" ON public.jobs 
-FOR SELECT TO anon, authenticated 
-USING (true);
-
--- PERMITIR UPDATE PARA O DONO DA VAGA (ESSENCIAL PARA PAUSAR/AUTO-ANÁLISE)
-DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
-CREATE POLICY "Enable update for owners" ON public.jobs 
-FOR UPDATE TO authenticated 
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
-
--- 5. STORAGE (Bucket 'resumes')
+-- 3. STORAGE (Bucket 'resumes')
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('resumes', 'resumes', true)
 ON CONFLICT (id) DO NOTHING;
 
-GRANT ALL ON SCHEMA storage TO anon, authenticated;
-GRANT ALL ON TABLE storage.objects TO anon, authenticated;
+CREATE POLICY "Give anon insert access" ON storage.objects FOR INSERT TO anon, authenticated WITH CHECK (bucket_id = 'resumes');
+CREATE POLICY "Public Read Resumes" ON storage.objects FOR SELECT TO anon, authenticated USING (bucket_id = 'resumes');
 
-DROP POLICY IF EXISTS "Public Upload Resumes" ON storage.objects;
-DROP POLICY IF EXISTS "Give anon insert access" ON storage.objects;
-DROP POLICY IF EXISTS "Public Read Resumes" ON storage.objects;
+-- 4. POLÍTICAS DE SEGURANÇA (RLS)
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Give anon insert access" ON storage.objects 
-FOR INSERT TO anon, authenticated 
-WITH CHECK (bucket_id = 'resumes');
+-- Jobs: Leitura pública, Escrita apenas dono
+DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
+CREATE POLICY "Enable read access for all" ON public.jobs FOR SELECT TO anon, authenticated USING (true);
 
-CREATE POLICY "Public Read Resumes" ON storage.objects 
-FOR SELECT TO anon, authenticated 
-USING (bucket_id = 'resumes');
+DROP POLICY IF EXISTS "Enable insert for authenticated" ON public.jobs;
+CREATE POLICY "Enable insert for authenticated" ON public.jobs FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 
--- 6. ANÚNCIOS (Correção do erro 42710)
-CREATE TABLE IF NOT EXISTS public.announcements (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    title text NOT NULL,
-    link_url text,
-    image_path text NOT NULL,
-    is_active boolean DEFAULT true,
-    created_at timestamptz DEFAULT now(),
-    target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
-);
-ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
+CREATE POLICY "Enable update for owners" ON public.jobs FOR UPDATE TO authenticated USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Public View Announcements" ON public.announcements;
-CREATE POLICY "Public View Announcements" ON public.announcements 
-FOR SELECT TO anon, authenticated 
-USING (true);
+DROP POLICY IF EXISTS "Enable delete for owners" ON public.jobs;
+CREATE POLICY "Enable delete for owners" ON public.jobs FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
-GRANT ALL ON TABLE public.announcements TO anon, authenticated;
+-- Candidates: Insert público, Leitura pública (para status) ou restrita
+DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
+CREATE POLICY "Enable insert for all" ON public.candidates FOR INSERT TO anon, authenticated WITH CHECK (true);
 
--- 7. LINKS CURTOS
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'jobs_short_code_key') THEN
-        ALTER TABLE public.jobs ADD CONSTRAINT jobs_short_code_key UNIQUE (short_code);
-    END IF;
-END $$;
+DROP POLICY IF EXISTS "Enable select for all" ON public.candidates;
+CREATE POLICY "Enable select for all" ON public.candidates FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Enable update for owners" ON public.candidates;
+CREATE POLICY "Enable update for owners" ON public.candidates FOR UPDATE TO authenticated USING (true); 
+
+DROP POLICY IF EXISTS "Enable delete for owners" ON public.candidates;
+CREATE POLICY "Enable delete for owners" ON public.candidates FOR DELETE TO authenticated USING (true);
 
 COMMIT;
   `.trim();
@@ -118,8 +96,6 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE OR REPLACE FUNCTION delete_expired_candidates() RETURNS void AS $$
 BEGIN
   -- Deleta candidatos criados há mais de 10 dias
-  -- Nota: O trigger de storage deve limpar o arquivo se configurado, 
-  -- caso contrário, a limpeza é apenas lógica no banco.
   DELETE FROM public.candidates 
   WHERE created_at < NOW() - INTERVAL '10 days';
 END;
@@ -131,19 +107,42 @@ SELECT cron.schedule(
   '0 3 * * *',       -- cron expression (03:00 am daily)
   $$SELECT delete_expired_candidates()$$
 );
-
--- Para verificar se agendou: SELECT * FROM cron.job;
 `.trim();
 
   const featuresSql = `
--- --- SCRIPT V28: CORREÇÃO DE PERMISSÕES PARA NOVAS FUNÇÕES ---
+-- --- SCRIPT V28: CORREÇÃO COMPLETA (CRIAÇÃO DE TABELAS + COLUNAS) ---
 
--- 1. Adiciona as colunas necessárias se não existirem
+-- 1. Cria a tabela de Vagas (Jobs) se ela não existir (Resolve erro 42P01)
+CREATE TABLE IF NOT EXISTS public.jobs (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    title text NOT NULL,
+    description text,
+    criteria text,
+    short_code text UNIQUE,
+    created_at timestamptz DEFAULT now(),
+    isPinned boolean DEFAULT false
+);
+
+-- 2. Adiciona as colunas para as novas funções (se não existirem)
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
 
--- 2. CORREÇÃO DE PERMISSÃO: Permite que o usuário ATUALIZE suas próprias vagas
--- Sem isso, ao tentar ativar "Auto Análise" ou "Pausar", o Supabase retorna erro.
+-- 3. Cria a tabela de Candidatos se não existir
+CREATE TABLE IF NOT EXISTS public.candidates (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    job_id uuid REFERENCES public.jobs ON DELETE CASCADE,
+    user_id uuid REFERENCES auth.users,
+    filename text NOT NULL,
+    file_path text NOT NULL,
+    status text DEFAULT 'PENDING',
+    analysis_result jsonb,
+    match_score numeric,
+    is_selected boolean DEFAULT false,
+    created_at timestamptz DEFAULT now()
+);
+
+-- 4. Atualiza Permissões (RLS) para permitir que você ATIVE/DESATIVE as funções
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
@@ -153,7 +152,13 @@ FOR UPDATE TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
--- Garante que o Supabase recarregue o schema
+-- Permite leitura pública (necessário para quem vai enviar currículo)
+DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
+CREATE POLICY "Enable read access for all" ON public.jobs 
+FOR SELECT TO anon, authenticated 
+USING (true);
+
+-- Garante que o Supabase recarregue a estrutura
 NOTIFY pgrst, 'reload config';
   `.trim();
 
@@ -181,8 +186,8 @@ NOTIFY pgrst, 'reload config';
                   <Database className="w-6 h-6 text-emerald-500" />
                </div>
                <div>
-                 <h2 className="text-xl font-bold text-white">Scripts de Manutenção</h2>
-                 <p className="text-zinc-400 text-sm">Atualizações de banco de dados.</p>
+                 <h2 className="text-xl font-bold text-white">Scripts de Banco de Dados</h2>
+                 <p className="text-zinc-400 text-sm">Execute para criar tabelas e corrigir erros.</p>
                </div>
              </div>
              <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
@@ -190,16 +195,16 @@ NOTIFY pgrst, 'reload config';
           
           <div className="flex px-6 gap-6 mt-2 overflow-x-auto">
             <button 
-              onClick={() => setActiveTab('FIX_ALL')}
-              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ALL' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-            >
-              <Database className="w-4 h-4" /> Script V26 (Geral)
-            </button>
-            <button 
               onClick={() => setActiveTab('NEW_FEATURES')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'NEW_FEATURES' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <ToggleRight className="w-4 h-4" /> Script V28 (Correção)
+              <ToggleRight className="w-4 h-4" /> Script V28 (Correção Completa)
+            </button>
+            <button 
+              onClick={() => setActiveTab('FIX_ALL')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ALL' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <Database className="w-4 h-4" /> Script V26 (Setup Inicial)
             </button>
             <button 
               onClick={() => setActiveTab('CRON')}

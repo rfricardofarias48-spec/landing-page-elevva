@@ -389,7 +389,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                                 {uploading ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin text-zinc-300" />
-                                        <span className="text-xs tracking-widest uppercase">Processando...</span>
+                                        <span className="text-xs tracking-widest uppercase">Enviando...</span>
                                     </>
                                 ) : (
                                     <>
