@@ -42,7 +42,7 @@ const isPublicRoute = () => {
     const path = window.location.pathname;
     
     // Verifica se existe QUALQUER coisa relevante na URL que indique acesso a vaga
-    // #12345 (5 dígitos), ?uploadJobId=..., ou /12345
+    // Aceita qualquer ID numérico na URL
     const hasHash = hash.length > 1; // Apenas # não conta
     const hasParam = !!params.get('uploadJobId');
     const hasPathId = path.length > 1 && /^\/\d+/.test(path);
@@ -248,11 +248,11 @@ export const App: React.FC = () => {
              setIsOAuthUser(false);
              
              // VERIFICAÇÃO CRÍTICA: Só redireciona para Dashboard se NÃO for rota pública
-             // Isso impede que quem está enviando currículo caia no login
+             // Isso impede que quem está enviando currículo caia no login (loop infinito)
              if (!isPublicRoute()) {
                  setView('DASHBOARD');
              } else {
-                 // Garante que a view permaneça PUBLIC_UPLOAD
+                 // Mantém a view pública se estiver em uma rota de upload
                  setView('PUBLIC_UPLOAD');
              }
         }
@@ -288,10 +288,10 @@ export const App: React.FC = () => {
     // 3. Lógica de Upload Público (URL Checks - Execução Imediata)
     const legacyUploadId = params.get('uploadJobId');
     const hash = window.location.hash;
-    // Regex ajustada para 5 ou 6 dígitos
-    const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
+    // Regex ajustada para 4 a 6 dígitos (Suporte a links super curtos)
+    const hashMatch = hash.match(/^#\/?(\d{4,6})$/);
     const path = window.location.pathname;
-    const pathMatch = path.match(/^\/(\d{5,6})$/);
+    const pathMatch = path.match(/^\/(\d{4,6})$/);
 
     // Prioriza configuração da rota pública para garantir que os dados da vaga sejam carregados
     if (legacyUploadId) {
@@ -676,8 +676,8 @@ export const App: React.FC = () => {
   // --- ACTIONS ---
   
   const generateShortCode = () => {
-      // Gera um código de 5 dígitos entre 10000 e 99999 (mais curto)
-      return Math.floor(10000 + Math.random() * 90000).toString();
+      // Gera um código de 4 dígitos entre 1000 e 9999 (mais curto possível)
+      return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
   const handleRefresh = async () => {
@@ -707,7 +707,7 @@ export const App: React.FC = () => {
               setActiveJob(prev => prev ? { ...prev, title, description, criteria } : null);
           }
       } else if (user) {
-          // Geração de Código Curto de 5 dígitos
+          // Geração de Código Curto de 4 dígitos
           const shortCode = generateShortCode();
           
           const { data, error } = await supabase
