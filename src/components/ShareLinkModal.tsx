@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Link as LinkIcon, Globe, AlertTriangle, PauseCircle, PlayCircle, Zap, Ban } from 'lucide-react';
+import { X, Copy, Check, Link as LinkIcon, Globe, AlertTriangle, PauseCircle, PlayCircle, Ban } from 'lucide-react';
 import { Job } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -14,7 +14,6 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   const [copied, setCopied] = useState(false);
   const [isBlobOrLocal, setIsBlobOrLocal] = useState(false);
   
-  const [autoAnalyze, setAutoAnalyze] = useState(job.auto_analyze || false);
   const [isPaused, setIsPaused] = useState(job.is_paused || false);
   const [updating, setUpdating] = useState(false);
 
@@ -41,31 +40,10 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
       const isPermissionError = err.message?.includes("policy") || err.code === '42501';
       
       let errorMsg = "Erro desconhecido.";
-      if (isStructureError) errorMsg = "O banco de dados não encontrou a coluna.";
+      if (isStructureError) errorMsg = "O banco de dados precisa de manutenção.";
       if (isPermissionError) errorMsg = "Permissão negada.";
 
-      alert(`Atenção: O banco de dados precisa de uma atualização de cache.\n\nMotivo: ${errorMsg}\nDetalhe: ${err.message}\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V31.`);
-  };
-
-  const toggleAutoAnalyze = async () => {
-      setUpdating(true);
-      const newValue = !autoAnalyze;
-      setAutoAnalyze(newValue); 
-      
-      try {
-          const { error } = await supabase
-            .from('jobs')
-            .update({ auto_analyze: newValue })
-            .eq('id', job.id);
-            
-          if (error) throw error;
-          if (onUpdateJob) onUpdateJob({ ...job, auto_analyze: newValue });
-      } catch (err: any) {
-          setAutoAnalyze(!newValue); 
-          handleDbError(err);
-      } finally {
-          setUpdating(false);
-      }
+      alert(`Atenção: ${errorMsg}\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V32.`);
   };
 
   const togglePause = async () => {
@@ -124,35 +102,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button 
-                    type="button"
-                    onClick={toggleAutoAnalyze}
-                    disabled={updating}
-                    className={`relative p-5 rounded-[1.5rem] border-2 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group h-36 flex flex-col justify-between ${
-                        autoAnalyze 
-                        ? 'bg-black border-black text-white shadow-[4px_4px_0px_0px_rgba(204,243,0,1)]' 
-                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 shadow-sm'
-                    }`}
-                >
-                    <div className="flex items-start justify-between w-full">
-                        <div className={`p-3 rounded-2xl transition-colors ${autoAnalyze ? 'bg-white/10 text-[#CCF300]' : 'bg-slate-100 text-slate-400'}`}>
-                            <Zap className="w-6 h-6" fill={autoAnalyze ? "currentColor" : "none"} />
-                        </div>
-                        <div className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 flex items-center ${autoAnalyze ? 'bg-[#CCF300]' : 'bg-slate-200'}`}>
-                            <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${autoAnalyze ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                        </div>
-                    </div>
-                    <div>
-                        <p className={`text-xs font-black uppercase tracking-widest mb-1.5 ${autoAnalyze ? 'text-[#CCF300]' : 'text-slate-900'}`}>
-                            Análise Automática
-                        </p>
-                        <p className={`text-[10px] font-bold leading-relaxed ${autoAnalyze ? 'text-zinc-400' : 'text-slate-400'}`}>
-                            {autoAnalyze ? 'IA analisa instantaneamente após o upload.' : 'Padrão: Você analisa manualmente.'}
-                        </p>
-                    </div>
-                </button>
-
+            <div className="grid grid-cols-1 gap-4">
                 <button 
                     type="button"
                     onClick={togglePause}

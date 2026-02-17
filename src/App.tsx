@@ -258,6 +258,7 @@ export const App: React.FC = () => {
     }
     
     // 3. Lógica de Upload Público (URL Checks)
+    // IMPORTANT: Check URL BEFORE checking auth to allow public access
     const legacyUploadId = params.get('uploadJobId');
     const hash = window.location.hash;
     const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
@@ -1131,6 +1132,58 @@ export const App: React.FC = () => {
 
   // --- RENDERING HELPERS ---
 
+  // Public Upload View - MOVED TO TOP to bypass login check for anonymous uploads
+  if (view === 'PUBLIC_UPLOAD') {
+      return (
+          <PublicUploadScreen 
+            jobTitle={publicJobData.title}
+            isPaused={publicJobData.isPaused}
+            onUpload={handlePublicUpload}
+            onBack={() => {
+                setPublicUploadJobId(null);
+                setView(user ? 'DASHBOARD' : 'DASHBOARD');
+                window.history.pushState({}, '', '/');
+                if (user) fetchJobs(user.id); // Força atualização ao voltar do preview
+            }}
+          />
+      );
+  }
+
+  // Loading
+  if (loading) {
+      return (
+          <div className="h-screen flex items-center justify-center bg-white">
+              <Loader2 className="w-10 h-10 animate-spin text-black" />
+          </div>
+      );
+  }
+
+  // Auth
+  if (!user) {
+      return (
+          <>
+            <LoginScreen 
+                onLogin={handleLogin}
+                onGoogleLogin={handleGoogleLogin}
+                onResetPassword={handleResetPassword}
+                onShowTerms={() => setShowTerms(true)}
+                onShowPrivacy={() => setShowPrivacy(true)}
+            />
+            {showTerms && (
+                <LegalModal title="Termos de Uso" onClose={() => setShowTerms(false)} />
+            )}
+            {showPrivacy && (
+                <LegalModal title="Política de Privacidade" onClose={() => setShowPrivacy(false)} />
+            )}
+          </>
+      );
+  }
+
+  // Admin
+  if (user.role === 'ADMIN' && view === 'DASHBOARD') { 
+      return <AdminDashboard />;
+  }
+
   const renderOverview = () => {
       // Filtrar Anúncios baseados no plano do usuário
       const visibleAnnouncements = announcements.filter(ad => {
@@ -1466,58 +1519,6 @@ export const App: React.FC = () => {
   );
 
   // --- MAIN RENDER (User Dashboard / Details) ---
-  
-  // Public Upload View
-  if (view === 'PUBLIC_UPLOAD') {
-      return (
-          <PublicUploadScreen 
-            jobTitle={publicJobData.title}
-            isPaused={publicJobData.isPaused}
-            onUpload={handlePublicUpload}
-            onBack={() => {
-                setPublicUploadJobId(null);
-                setView(user ? 'DASHBOARD' : 'DASHBOARD');
-                window.history.pushState({}, '', '/');
-                if (user) fetchJobs(user.id); // Força atualização ao voltar do preview
-            }}
-          />
-      );
-  }
-
-  // Loading
-  if (loading) {
-      return (
-          <div className="h-screen flex items-center justify-center bg-white">
-              <Loader2 className="w-10 h-10 animate-spin text-black" />
-          </div>
-      );
-  }
-
-  // Auth
-  if (!user) {
-      return (
-          <>
-            <LoginScreen 
-                onLogin={handleLogin}
-                onGoogleLogin={handleGoogleLogin}
-                onResetPassword={handleResetPassword}
-                onShowTerms={() => setShowTerms(true)}
-                onShowPrivacy={() => setShowPrivacy(true)}
-            />
-            {showTerms && (
-                <LegalModal title="Termos de Uso" onClose={() => setShowTerms(false)} />
-            )}
-            {showPrivacy && (
-                <LegalModal title="Política de Privacidade" onClose={() => setShowPrivacy(false)} />
-            )}
-          </>
-      );
-  }
-
-  // Admin
-  if (user.role === 'ADMIN' && view === 'DASHBOARD') { 
-      return <AdminDashboard />;
-  }
   
   // Main App Helpers
   const handleEditJobSetup = (job: Job) => {

@@ -10,13 +10,12 @@ export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'FIX_ALL' | 'CRON' | 'NEW_FEATURES'>('NEW_FEATURES');
 
   const fixAllSql = `
--- --- SCRIPT V31: SOLUÇÃO DE CACHE E COLUNAS ---
--- Execute para corrigir o erro "Could not find column in schema cache"
+-- --- SCRIPT V32: CORREÇÃO DE COLUNAS BÁSICAS (PAUSE & LINK) ---
+-- Execute este script para garantir que a pausa de upload funcione.
 
 BEGIN;
 
--- 1. Adiciona colunas se faltarem (Garantia)
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
+-- 1. Garante colunas essenciais
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
 
@@ -28,7 +27,7 @@ BEGIN
     END IF;
 END $$;
 
--- 3. Reset de Políticas de Update (Garante permissão)
+-- 3. Garante permissão de atualização para o dono da vaga
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
 
@@ -37,7 +36,7 @@ FOR UPDATE TO authenticated
 USING (auth.uid() = user_id) 
 WITH CHECK (auth.uid() = user_id);
 
--- 4. O PASSO MAIS IMPORTANTE: Forçar recarga do cache da API
+-- 4. Recarrega o cache
 NOTIFY pgrst, 'reload config';
 
 COMMIT;
@@ -99,13 +98,13 @@ SELECT cron.schedule(
               onClick={() => setActiveTab('NEW_FEATURES')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'NEW_FEATURES' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Wrench className="w-4 h-4" /> Script V31 (Correção Cache)
+              <Wrench className="w-4 h-4" /> Script V32 (Correção Final)
             </button>
             <button 
               onClick={() => setActiveTab('FIX_ALL')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ALL' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Database className="w-4 h-4" /> Backup V30
+              <Database className="w-4 h-4" /> Backup V31
             </button>
             <button 
               onClick={() => setActiveTab('CRON')}
