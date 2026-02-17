@@ -2,9 +2,7 @@
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-// NOTA: A inicialização global foi removida para evitar que o app quebre ao carregar
-// se a API Key não estiver presente. Agora a verificação é feita no momento do uso.
-
+// Schema de resposta esperado da IA
 const analysisSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -89,7 +87,6 @@ export const analyzeResume = async (
 ): Promise<AnalysisResult> => {
   
   // 1. Verificação de Segurança da API Key (Runtime)
-  // Isso impede que o app trave inteiramente se a chave estiver faltando.
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey.trim() === '') {

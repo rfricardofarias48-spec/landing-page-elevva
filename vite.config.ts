@@ -1,23 +1,21 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Carrega todas as variáveis de ambiente (o terceiro parâmetro '' carrega tudo, não só VITE_)
+  // Carrega todas as variáveis de ambiente do diretório atual.
+  // O terceiro parâmetro '' garante que carregamos envs sem prefixo VITE_ (como API_KEY)
   const env = loadEnv(mode, (process as any).cwd(), '');
 
   return {
     plugins: [react()],
     define: {
-      // Define process.env como um objeto contendo EXPLICITAMENTE as chaves necessárias.
-      // Isso evita conflitos onde 'process.env': {} anula as chaves específicas.
-      'process.env': JSON.stringify({
-        API_KEY: env.API_KEY || process.env.API_KEY || "",
-        VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "",
-        VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "",
-        NODE_ENV: process.env.NODE_ENV || 'development',
-      }),
+      // Definição Granular: Substitui ocorrências explícitas no código.
+      // Isso é mais seguro que substituir o objeto process.env inteiro.
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || ""),
+      'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || ""),
+      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""),
+      'process.env.NODE_ENV': JSON.stringify(mode),
     },
     build: {
       chunkSizeWarningLimit: 3000, 
