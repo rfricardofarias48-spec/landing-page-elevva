@@ -12,11 +12,11 @@ const analysisSchema: Schema = {
     },
     matchScore: {
       type: Type.NUMBER,
-      description: "Nota de 0.0 a 10.0. SE NÃO TIVER EXPERIÊNCIA NO CARGO EXATO, A NOTA MÁXIMA É 6.0.",
+      description: "Nota de 0.0 a 10.0. AVALIAÇÃO COMPORTAMENTAL E TÉCNICA. Se o candidato tem histórico de trabalho, a nota mínima é 3.0.",
     },
     yearsExperience: {
       type: Type.STRING,
-      description: "Tempo TOTAL de experiência ESTRITAMENTE no cargo solicitado. Ignore funções correlatas. Se zero, retorne 'Sem experiência'.",
+      description: "Tempo TOTAL de experiência profissional somada. Se zero ou não encontrado, retorne 'Sem experiência'.",
     },
     city: {
       type: Type.STRING,
@@ -33,17 +33,17 @@ const analysisSchema: Schema = {
     },
     summary: {
       type: Type.STRING,
-      description: "Análise técnica detalhada (aprox. 400 caracteres). Deve justificar a nota. Se a nota for baixa por falta de experiência exata, diga isso explicitamente.",
+      description: "Resumo focando em: Estabilidade, Cargos Anteriores e Potencial para a vaga atual.",
     },
     pros: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: "3 pontos fortes técnicos específicos (Hard Skills) que atendem à vaga.",
+      description: "3 pontos fortes (Hard Skills, Soft Skills, Estabilidade, Distância, etc).",
     },
     cons: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: "3 pontos de atenção técnicos (Falta de experiência no cargo exato é o principal ponto de atenção).",
+      description: "3 pontos de atenção.",
     },
     workHistory: {
       type: Type.ARRAY,
@@ -86,31 +86,47 @@ export const analyzeResume = async (
   criteria: string
 ): Promise<AnalysisResult> => {
   
+  // Tratamento para vagas de teste ou títulos muito curtos
+  const isGenericJob = !jobTitle || jobTitle.length < 3 || ['teste', 'test', 'vaga', 'geral', 'admin'].includes(jobTitle.toLowerCase());
+  
+  const safeTitle = isGenericJob ? "Profissional (Análise Geral)" : jobTitle;
+  const safeCriteria = isGenericJob 
+    ? "Avalie a qualidade do currículo, estabilidade profissional, clareza e soft skills." 
+    : criteria;
+
   const prompt = `
-    DADOS DA VAGA:
-    Cargo: "${jobTitle}"
-    Requisitos: "${criteria}"
+    VOCÊ É UM RECRUTADOR HUMANO E SENSATO.
     
-    INSTRUÇÕES DE ANÁLISE (SEJA RIGOROSO):
-    1. MATCH SCORE (0-10):
-       - 9.0-10.0: Experiência EXATA no cargo + Requisitos.
-       - 0.0-6.5: Se o cargo atual/anterior NÃO for igual ou sinônimo direto (Ex: "Auxiliar" para vaga de "Operador"). Experiência correlata NÃO conta como experiência exata.
+    ANALISE O CURRÍCULO PARA: "${safeTitle}"
+    CONTEXTO: "${safeCriteria}"
     
-    2. EXTRAÇÃO:
-       - Resuma a experiência focando APENAS no que é relevante para "${jobTitle}".
-       - Se não tiver experiência exata, deixe claro no resumo.
+    SUA MISSÃO: DAR UMA NOTA JUSTA (0 a 10).
     
-    Analise o PDF e retorne JSON.
+    REGRAS DE PONTUAÇÃO (MATCH SCORE):
+    1. **NOTA 0.0 A 2.9 (REJEIÇÃO)**: 
+       - APENAS para currículos ilegíveis, em branco, ou candidatos sem NENHUMA experiência profissional (primeiro emprego sem curso).
+    
+    2. **NOTA 3.0 A 5.9 (POTENCIAL / TRANSIÇÃO)**:
+       - Candidato tem experiência de trabalho (ex: Operacional, Vendas), mas em área diferente da vaga.
+       - TEM VALOR: Mostra responsabilidade, pontualidade e soft skills. NÃO DÊ ZERO.
+    
+    3. **NOTA 6.0 A 8.5 (BOM CANDIDATO)**:
+       - Tem experiência correlata ou skills transferíveis.
+       - Ex: "Auxiliar Administrativo" aplicando para "Financeiro".
+    
+    4. **NOTA 8.6 A 10.0 (EXCELENTE)**:
+       - Experiência exata no cargo e atende todos os requisitos.
+
+    ATENÇÃO: Se a vaga for "teste" ou genérica, baseie a nota na qualidade geral do profissional (tempo de casa nas empresas anteriores conta muito pontos).
+
+    Retorne APENAS o JSON.
   `;
 
-  // LISTA DE MODELOS OTIMIZADA PARA VELOCIDADE (SPEED FIRST)
-  // Gemini 3 Flash Preview é prioridade absoluta
   const modelsToTry = [
     "gemini-3-flash-preview", 
     "gemini-2.0-flash-exp"
   ];
 
-  // Configuração de segurança permissiva para evitar falsos positivos em currículos
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -131,7 +147,7 @@ export const analyzeResume = async (
         config: {
           responseMimeType: "application/json",
           responseSchema: analysisSchema,
-          temperature: 0.1, // Baixa temperatura para determinismo e velocidade
+          temperature: 0.2, 
           topK: 20,
           safetySettings: safetySettings
         },
@@ -146,6 +162,23 @@ export const analyzeResume = async (
       // Sanitização básica
       if (!parsed.candidateName) parsed.candidateName = "Candidato (Nome não identificado)";
       
+      // --- FALLBACK DE SEGURANÇA CONTRA NOTA ZERO ---
+      // Se a IA der nota baixa (< 3) mas o candidato tiver experiência detectada, forçamos uma nota mínima.
+      // Isso corrige o erro de "nota zero" para candidatos trabalhadores fora da área exata.
+      const hasExperience = parsed.workHistory && parsed.workHistory.length > 0;
+      const experienceText = parsed.yearsExperience ? parsed.yearsExperience.toLowerCase() : '';
+      const notZeroExp = !experienceText.includes('sem experiência') && !experienceText.includes('nunca trabalhou');
+
+      if ((parsed.matchScore < 3.0) && (hasExperience || notZeroExp)) {
+          // Nota de corte para "Tem experiência mas não é da área"
+          parsed.matchScore = 4.5; 
+          
+          // Ajusta o resumo para explicar a nota ajustada
+          if (!parsed.summary.includes("nota")) {
+             parsed.summary += " (Nota ajustada baseada no histórico profissional pregresso e soft skills identificadas).";
+          }
+      }
+      
       return parsed;
 
     } catch (error: any) {
@@ -153,14 +186,12 @@ export const analyzeResume = async (
       
       if (isRateLimit) {
          console.warn(`Rate limit hit for ${modelName}.`);
-         // Se for o último modelo, falha. Se não, espera um pouco e tenta o próximo.
          if (modelName !== modelsToTry[modelsToTry.length - 1]) {
              await sleep(1500); 
              continue; 
          }
       }
       
-      // Se não for rate limit, mas for erro de parse ou outro, tenta o próximo modelo (fallback)
       console.warn(`Erro no modelo ${modelName}:`, error);
       if (modelName !== modelsToTry[modelsToTry.length - 1]) {
           continue;
@@ -168,7 +199,6 @@ export const analyzeResume = async (
     }
   }
 
-  // Fallback final de erro
   return {
     candidateName: "Erro na Análise",
     matchScore: 0,

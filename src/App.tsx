@@ -1252,9 +1252,6 @@ const App: React.FC = () => {
   );
   };
 
-  // ... (Billing and Settings render functions remain unchanged)
-  // ...
-
   const renderBilling = () => (
       <div className="space-y-12 animate-fade-in max-w-6xl mx-auto font-sans p-4">
           <div>
@@ -1674,7 +1671,7 @@ const App: React.FC = () => {
         {/* VIEW: JOB DETAILS */}
         {view === 'JOB_DETAILS' && activeJob && (
            <div className="w-full h-full flex flex-col animate-fade-in relative p-4 md:p-8">
-            <div className="bg-slate-50 rounded-[2.5rem] p-8 mb-8 border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-6 md:gap-4">
+            <div className="bg-slate-50 rounded-[2.5rem] p-8 mb-8 border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-6 md:gap-8">
                <div className="relative z-10 flex items-center gap-6 w-full md:flex-1 min-w-0">
                  <button onClick={() => setView('DASHBOARD')} className="group p-4 rounded-2xl bg-black hover:bg-zinc-900 text-white border-2 border-black transition-all duration-300 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-none hover:translate-y-1 flex items-center justify-center shrink-0">
                    <ArrowLeft className="w-5 h-5 text-[#CCF300] transition-colors" />
@@ -1703,7 +1700,7 @@ const App: React.FC = () => {
                    <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
                  )}
                  
-                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>
+                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>
                  
                  {activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
                    <button onClick={runAnalysis} className="flex-none bg-[#CCF300] hover:bg-[#bce000] text-black border-2 border-black px-8 py-4 rounded-xl font-black text-sm flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>

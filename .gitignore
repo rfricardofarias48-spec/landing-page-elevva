@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
 dist
 dist-ssr
@@ -18,7 +19,18 @@ dist-ssr
 .idea
 .DS_Store
 *.suo
-*.ntvs*
+*.ntvs
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables (SEGURANÇA: Nunca suba isso para o GitHub)
+.env
+.env.*
+!.env.example
+
+# Testing
+coverage
+
+# Vercel
+.vercel

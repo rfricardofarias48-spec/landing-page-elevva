@@ -5,7 +5,7 @@ import {
   Users, Shield, Calendar, CreditCard, Search, Activity, Briefcase, 
   Loader2, ArrowUpRight, Ban, CheckCircle2, X, Phone, User, Mail, 
   Zap, Star, Crown, LogOut, LayoutDashboard, DollarSign, TrendingUp, 
-  FileText, PieChart, BarChart3, AlertCircle, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, ChevronLeft, ChevronRight, Clock, UserX, MessageCircle, Wallet, Lock, Database, Copy, ToggleRight
+  FileText, PieChart, BarChart3, AlertCircle, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, ChevronLeft, ChevronRight, Clock, UserX, MessageCircle, Wallet, Lock, Database, Copy, ToggleRight, ArrowDownRight, Percent
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -579,6 +579,190 @@ NOTIFY pgrst, 'reload config';
     );
   };
 
+  const renderFinance = () => {
+      const stats = getFinancialData();
+      const arpu = stats.payingUsers > 0 ? stats.totalRevenue / stats.payingUsers : 0;
+      
+      // Simulação de transações recentes (pegando os usuários pagantes mais recentes)
+      const recentTransactions = users
+          .filter(u => u.plan !== 'FREE')
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 5);
+
+      return (
+          <div className="space-y-8 animate-fade-in pb-12">
+              <div className="flex justify-between items-end">
+                  <div>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Faturamento</h2>
+                      <p className="text-zinc-500 font-medium">Gestão financeira e métricas de receita.</p>
+                  </div>
+                  <div className="bg-white px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-500 shadow-sm flex items-center gap-2">
+                      <Calendar className="w-4 h-4"/>
+                      {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  </div>
+              </div>
+
+              {/* KPIS PRINCIPAIS */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* MRR CARD - BLACK */}
+                  <div className="bg-black text-white p-8 rounded-[2.5rem] border border-zinc-800 shadow-xl relative overflow-hidden group">
+                      <div className="relative z-10">
+                          <div className="flex justify-between items-start mb-6">
+                              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
+                                  <Wallet className="w-6 h-6 text-[#CCF300]"/>
+                              </div>
+                              <span className="text-[#CCF300] bg-[#CCF300]/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#CCF300]/20">
+                                  Mensal
+                              </span>
+                          </div>
+                          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">MRR (Receita Recorrente)</p>
+                          <h3 className="text-5xl font-black text-white tracking-tighter mb-2">
+                              R$ {stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </h3>
+                          <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mt-4">
+                              <TrendingUp className="w-4 h-4 text-emerald-500" />
+                              <span className="text-emerald-500">Projeção Anual:</span> 
+                              R$ {(stats.totalRevenue * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                      </div>
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-800/30 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                  </div>
+
+                  {/* PAYING USERS CARD */}
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
+                      <div>
+                          <div className="flex justify-between items-start mb-6">
+                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
+                                  <CreditCard className="w-6 h-6 text-zinc-900"/>
+                              </div>
+                          </div>
+                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Assinantes Ativos</p>
+                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
+                              {stats.payingUsers}
+                          </h3>
+                      </div>
+                      <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden mt-6">
+                          <div className="bg-black h-full rounded-full" style={{ width: `${(stats.payingUsers / (stats.totalUsers || 1)) * 100}%` }}></div>
+                      </div>
+                      <p className="text-[10px] font-bold text-zinc-400 mt-2 text-right">
+                          {((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}% da base total
+                      </p>
+                  </div>
+
+                  {/* ARPU CARD */}
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
+                      <div>
+                          <div className="flex justify-between items-start mb-6">
+                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
+                                  <Percent className="w-6 h-6 text-zinc-900"/>
+                              </div>
+                          </div>
+                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Ticket Médio (ARPU)</p>
+                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
+                              R$ {arpu.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                          </h3>
+                      </div>
+                      <div className="flex gap-2 mt-6">
+                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 border border-emerald-100">
+                              <ArrowUpRight className="w-3 h-3" /> Saudável
+                          </span>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* BREAKDOWN DE PLANOS */}
+                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8">
+                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
+                          <PieChart className="w-5 h-5"/> Distribuição de Receita
+                      </h3>
+                      
+                      <div className="space-y-6">
+                          {/* Mensal */}
+                          <div>
+                              <div className="flex justify-between items-end mb-2">
+                                  <div>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Mensal</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 329,90 / mês</span>
+                                  </div>
+                                  <div className="text-right">
+                                      <span className="text-lg font-black text-zinc-900">{stats.MENSAL.count}</span>
+                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
+                                  </div>
+                              </div>
+                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
+                                  <div className="bg-zinc-900 h-full rounded-full" style={{ width: `${(stats.MENSAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                              </div>
+                          </div>
+
+                          {/* Anual */}
+                          <div>
+                              <div className="flex justify-between items-end mb-2">
+                                  <div>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Anual</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 289,90 / mês (Cobrado anualmente)</span>
+                                  </div>
+                                  <div className="text-right">
+                                      <span className="text-lg font-black text-zinc-900">{stats.ANUAL.count}</span>
+                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
+                                  </div>
+                              </div>
+                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
+                                  <div className="bg-[#CCF300] h-full rounded-full" style={{ width: `${(stats.ANUAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="mt-8 pt-6 border-t border-zinc-100 flex justify-between items-center text-xs font-bold text-zinc-500">
+                          <span>Total Free: <strong className="text-zinc-900">{stats.FREE.count}</strong></span>
+                          <span>Conversão: <strong className="text-zinc-900">{((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}%</strong></span>
+                      </div>
+                  </div>
+
+                  {/* TRANSAÇÕES RECENTES (SIMULADO VIA USERS) */}
+                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8 flex flex-col">
+                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
+                          <Activity className="w-5 h-5"/> Últimas Conversões
+                      </h3>
+                      
+                      <div className="flex-1 overflow-auto custom-scrollbar">
+                          {recentTransactions.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center h-full text-zinc-400 py-10">
+                                  <Ban className="w-8 h-8 mb-2 opacity-50" />
+                                  <p className="text-xs font-bold uppercase">Nenhuma venda recente</p>
+                              </div>
+                          ) : (
+                              <div className="space-y-4">
+                                  {recentTransactions.map(user => (
+                                      <div key={user.id} className="flex items-center justify-between p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 hover:bg-zinc-50 transition-colors">
+                                          <div className="flex items-center gap-3">
+                                              <div className="w-10 h-10 rounded-full bg-white border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold">
+                                                  {user.name?.charAt(0)}
+                                              </div>
+                                              <div>
+                                                  <p className="text-sm font-bold text-zinc-900">{user.name}</p>
+                                                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{user.plan}</p>
+                                              </div>
+                                          </div>
+                                          <div className="text-right">
+                                              <p className="text-sm font-black text-emerald-600">
+                                                  + R$ {user.plan === 'ANUAL' ? '289,90' : '329,90'}
+                                              </p>
+                                              <p className="text-[10px] text-zinc-400">
+                                                  {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                                              </p>
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   const renderAdsManager = () => (
       <div className="space-y-8 animate-fade-in h-[calc(100vh-140px)] flex flex-col">
           <div>
@@ -851,7 +1035,7 @@ NOTIFY pgrst, 'reload config';
             {currentView === 'OVERVIEW' && renderOverview()}
             {currentView === 'USERS' && renderUsersList()}
             {currentView === 'ADS' && renderAdsManager()}
-            {currentView === 'FINANCE' && renderOverview()} {/* Reutilizando overview para financeiro simplificado */}
+            {currentView === 'FINANCE' && renderFinance()} 
             {currentView === 'DATABASE' && renderDatabase()}
             {currentView === 'CANCELLATIONS' && (
                 <div className="text-center py-20">
