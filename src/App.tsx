@@ -42,10 +42,10 @@ const isPublicRoute = () => {
     const path = window.location.pathname;
     
     // Verifica se existe QUALQUER coisa relevante na URL que indique acesso a vaga
-    // Aceita qualquer ID numérico na URL
-    const hasHash = hash.length > 1; // Apenas # não conta
+    // Aceita 4 ou mais dígitos no Hash ou Path
+    const hasHash = /#\/?\d{4,}/.test(hash); 
     const hasParam = !!params.get('uploadJobId');
-    const hasPathId = path.length > 1 && /^\/\d+/.test(path);
+    const hasPathId = /^\/\d{4,}/.test(path);
     
     return hasHash || hasParam || hasPathId;
 };
@@ -249,11 +249,10 @@ export const App: React.FC = () => {
              
              // VERIFICAÇÃO CRÍTICA: Só redireciona para Dashboard se NÃO for rota pública
              // Isso impede que quem está enviando currículo caia no login (loop infinito)
-             if (!isPublicRoute()) {
-                 setView('DASHBOARD');
-             } else {
-                 // Mantém a view pública se estiver em uma rota de upload
+             if (isPublicRoute()) {
                  setView('PUBLIC_UPLOAD');
+             } else {
+                 setView('DASHBOARD');
              }
         }
     });
@@ -676,7 +675,7 @@ export const App: React.FC = () => {
   // --- ACTIONS ---
   
   const generateShortCode = () => {
-      // Gera um código de 4 dígitos entre 1000 e 9999 (mais curto possível)
+      // Gera um código de 4 dígitos entre 1000 e 9999 (mais curto)
       return Math.floor(1000 + Math.random() * 9000).toString();
   };
 
