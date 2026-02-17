@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Link as LinkIcon, Globe, AlertTriangle, PauseCircle, PlayCircle, Ban } from 'lucide-react';
+import { X, Copy, Check, Link as LinkIcon, Globe, AlertTriangle } from 'lucide-react';
 import { Job } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -12,16 +12,11 @@ interface Props {
 export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) => {
   const [copied, setCopied] = useState(false);
   const [isBlobOrLocal, setIsBlobOrLocal] = useState(false);
-  
-  // Local states for toggles
-  const [isPaused, setIsPaused] = useState(job.is_paused || false);
-  const [updating, setUpdating] = useState(false);
 
   // Gera o link curto se existir, senão usa o fallback antigo
-  // Remove slash final do origin se existir para evitar //
   const origin = window.location.origin.replace(/\/$/, '');
   
-  // ATUALIZAÇÃO IMPORTANTE: Usando Query Param (?v=) para evitar problemas de hash com autenticação
+  // Usando Query Param (?v=) para evitar problemas de hash com autenticação
   const shareUrl = job.short_code 
       ? `${origin}/?v=${job.short_code}`
       : `${origin}/?uploadJobId=${job.id}`;
@@ -78,28 +73,6 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
     }
   };
 
-  const togglePause = async () => {
-      setUpdating(true);
-      const newValue = !isPaused;
-      setIsPaused(newValue); // Optimistic UI
-      
-      try {
-          const { error } = await supabase
-            .from('jobs')
-            .update({ is_paused: newValue })
-            .eq('id', job.id);
-            
-          if (error) throw error;
-          if (onUpdateJob) onUpdateJob({ ...job, is_paused: newValue });
-      } catch (err: any) {
-          console.error("Erro ao atualizar is_paused:", err);
-          setIsPaused(!newValue); // Revert
-          alert("Erro ao salvar: " + (err.message || "Verifique sua conexão."));
-      } finally {
-          setUpdating(false);
-      }
-  };
-
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in font-sans">
       <div className="bg-white border-2 border-black rounded-[2.5rem] w-full max-w-lg shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden relative animate-slide-up">
@@ -129,4 +102,44 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                     <div>
                         <h4 className="text-amber-700 font-bold text-xs uppercase mb-1">Modo de Pré-visualização</h4>
                         <p className="text-amber-600 text-xs font-medium leading-relaxed">
-                            Este link não funcionará externamente porque você está em ambiente local/blob. Publique o
+                            Este link não funcionará externamente porque você está em ambiente local/blob. Publique o app para usar.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-1">Link Público</label>
+                <div className="flex gap-2">
+                    <div className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-mono truncate flex items-center gap-3 text-slate-600 font-bold shadow-sm">
+                        <Globe className="w-4 h-4 shrink-0 text-slate-400" />
+                        <span className="truncate">{shareUrl}</span>
+                    </div>
+                    <button 
+                        onClick={handleCopy}
+                        className={`px-6 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-none border-2 border-black ${copied ? 'bg-[#CCF300] text-black' : 'bg-black text-white hover:bg-slate-900'}`}
+                    >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        {copied ? 'Copiado' : 'Copiar'}
+                    </button>
+                </div>
+                {!isBlobOrLocal && !job.short_code && (
+                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-1">
+                        * Link legado (longo). Novas vagas terão links curtos.
+                    </p>
+                )}
+            </div>
+        </div>
+        
+        {/* Footer Brand */}
+        <div className="bg-slate-50 p-4 text-center border-t-2 border-slate-100">
+             <div className="flex items-center justify-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
+                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Powered by</span>
+                <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-4 w-auto" />
+             </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
