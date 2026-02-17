@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Wrench } from 'lucide-react';
 
@@ -9,34 +8,40 @@ interface Props {
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'FIX_ALL' | 'CRON' | 'NEW_FEATURES'>('NEW_FEATURES');
 
+  // SCRIPT V33: FOCA EXCLUSIVAMENTE NA PERMISSÃO PÚBLICA DE LEITURA
   const fixAllSql = `
--- --- SCRIPT V32: CORREÇÃO DE COLUNAS BÁSICAS (PAUSE & LINK) ---
--- Execute este script para garantir que a pausa de upload funcione.
+-- --- SCRIPT V33: CORREÇÃO DEFINITIVA DE LINK PÚBLICO ---
+-- Execute este script para permitir que candidatos acessem o link da vaga.
 
 BEGIN;
 
--- 1. Garante colunas essenciais
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
-
--- 2. Adiciona constraint UNIQUE no short_code de forma segura
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'jobs_short_code_key') THEN
-        ALTER TABLE public.jobs ADD CONSTRAINT jobs_short_code_key UNIQUE (short_code);
-    END IF;
-END $$;
-
--- 3. Garante permissão de atualização para o dono da vaga
+-- 1. Garante que RLS está ativo
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
 
+-- 2. Remove políticas antigas de leitura para evitar conflito
+DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
+DROP POLICY IF EXISTS "Public Read Jobs" ON public.jobs;
+
+-- 3. CRIA A POLÍTICA CORRETA DE LEITURA PÚBLICA
+-- Permite que 'anon' (não logado) e 'authenticated' leiam as vagas
+CREATE POLICY "Enable read access for all" ON public.jobs 
+FOR SELECT 
+TO anon, authenticated 
+USING (true);
+
+-- 4. Garante permissão de atualização para o dono (para pausar/editar)
+DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
 CREATE POLICY "Enable update for owners" ON public.jobs 
 FOR UPDATE TO authenticated 
 USING (auth.uid() = user_id) 
 WITH CHECK (auth.uid() = user_id);
 
--- 4. Recarrega o cache
+-- 5. Garante colunas essenciais
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
+
+-- 6. Recarrega permissões
+GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
 NOTIFY pgrst, 'reload config';
 
 COMMIT;
@@ -98,7 +103,7 @@ SELECT cron.schedule(
               onClick={() => setActiveTab('NEW_FEATURES')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'NEW_FEATURES' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Wrench className="w-4 h-4" /> Script V32 (Correção Final)
+              <Wrench className="w-4 h-4" /> Script V33 (Correção Link)
             </button>
             <button 
               onClick={() => setActiveTab('FIX_ALL')}

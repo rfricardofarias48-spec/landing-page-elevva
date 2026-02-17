@@ -13,7 +13,7 @@ import { SqlSetupModal } from './components/SqlSetupModal';
 import { 
   Plus, LogOut, Search, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, Share2, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles
+  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles, AlertTriangle
 } from 'lucide-react';
 
 const INFINITE_PAY_LINKS = {
@@ -138,6 +138,8 @@ export const App: React.FC = () => {
   const [publicUploadJobId, setPublicUploadJobId] = useState<string | null>(null);
   // Guardamos informações extras para auto-análise e pausa
   const [publicJobData, setPublicJobData] = useState<{ title: string; criteria?: string; autoAnalyze?: boolean; isPaused?: boolean }>({ title: '' });
+  // NOVO: Estado de erro para link público (evita redirect)
+  const [publicFetchError, setPublicFetchError] = useState<string | null>(null);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -644,7 +646,9 @@ export const App: React.FC = () => {
   };
 
   const fetchPublicJobByCode = async (code: string) => {
+      // CORREÇÃO: Tratamento de erro robusto. Se falhar, NÃO REDIRECIONA, mas mostra erro.
       const { data, error } = await supabase.from('jobs').select('id, title, criteria, auto_analyze, is_paused').eq('short_code', code).single();
+      
       if (data) {
           setPublicUploadJobId(data.id);
           setPublicJobData({ 
@@ -653,12 +657,13 @@ export const App: React.FC = () => {
               autoAnalyze: data.auto_analyze, 
               isPaused: data.is_paused 
           });
+          setPublicFetchError(null);
           setView('PUBLIC_UPLOAD');
       } else {
-          console.error("Vaga não encontrada para o código:", code);
-          // Redireciona para home apenas se não encontrar
-          window.history.pushState({}, '', '/');
-          setView('DASHBOARD');
+          console.error("Vaga não encontrada para o código:", code, error);
+          // DEFINE ESTADO DE ERRO VISUAL AO INVÉS DE REDIRECIONAR
+          setPublicFetchError(error?.message === 'JSON object requested, multiple (or no) rows returned' ? 'Link inválido ou vaga não encontrada.' : 'Erro de permissão. Peça ao recrutador para executar o Script V33.');
+          setView('PUBLIC_UPLOAD'); // Mantém na view pública para mostrar o erro
       }
   };
 
@@ -1276,6 +1281,9 @@ export const App: React.FC = () => {
   );
   };
 
+  // ... (Billing and Settings render functions remain unchanged)
+  // ...
+
   const renderBilling = () => (
       <div className="space-y-12 animate-fade-in max-w-6xl mx-auto font-sans p-4">
           <div>
@@ -1493,6 +1501,29 @@ export const App: React.FC = () => {
   // Public Upload View - MOVED TO TOP to bypass login check for anonymous uploads
   // CRITICAL: Ensure view logic is robust
   if (view === 'PUBLIC_UPLOAD') {
+      // Exibe erro amigável em vez de redirecionar se a vaga não for encontrada
+      if (publicFetchError) {
+          return (
+              <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center font-sans">
+                  <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border-2 border-slate-200 max-w-md w-full animate-slide-up">
+                      <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-red-100">
+                          <AlertTriangle className="w-10 h-10 text-red-500" />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Ops! Algo deu errado.</h2>
+                      <p className="text-slate-500 font-bold text-sm mb-8 leading-relaxed">
+                          {publicFetchError}
+                      </p>
+                      <button 
+                        onClick={() => window.location.href = '/'} 
+                        className="w-full bg-black text-white font-black py-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all border-2 border-black"
+                      >
+                          Ir para Home
+                      </button>
+                  </div>
+              </div>
+          );
+      }
+
       return (
           <PublicUploadScreen 
             jobTitle={publicJobData.title}
@@ -1500,6 +1531,7 @@ export const App: React.FC = () => {
             onUpload={handlePublicUpload}
             onBack={() => {
                 setPublicUploadJobId(null);
+                setPublicFetchError(null);
                 // Clear URL hash/params
                 window.history.pushState({}, '', '/');
                 
@@ -1729,7 +1761,7 @@ export const App: React.FC = () => {
                  <button onClick={handleOpenShareModal} className="flex-none bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-5 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none whitespace-nowrap"><Share2 className="w-5 h-5 mr-2 text-black"/> Link</button>
                  
                  {activeJob.candidates.some(c=>c.isSelected) && (
-                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
+                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
                  )}
                  
                  <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>
