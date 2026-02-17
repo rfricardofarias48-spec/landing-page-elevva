@@ -2,8 +2,7 @@
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-// NÃO inicialize o 'ai' aqui fora. Isso causa erro se a chave não estiver pronta ao carregar a página.
-
+// Schema de resposta esperado
 const analysisSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -62,15 +61,19 @@ const analysisSchema: Schema = {
   required: ["candidateName", "matchScore", "summary", "city", "neighborhood", "phoneNumbers", "pros", "cons", "workHistory"],
 };
 
+// Função auxiliar para limpar JSON que venha com markdown ```json ... ```
 function cleanJsonString(text: string): string {
   if (!text) return "{}";
   let cleaned = text.trim();
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+  
   const firstBrace = cleaned.indexOf('{');
   const lastBrace = cleaned.lastIndexOf('}');
+  
   if (firstBrace !== -1 && lastBrace !== -1) {
     cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
+  
   return cleaned;
 }
 
@@ -83,11 +86,11 @@ export const analyzeResume = async (
 ): Promise<AnalysisResult> => {
   
   // 1. Verificação de Segurança (Runtime)
-  // Tenta pegar de process.env (injetado pelo Vite) ou import.meta.env (padrão Vite)
-  const apiKey = process.env.API_KEY || (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.API_KEY;
+  // O Vite injeta process.env.API_KEY como uma string constante durante o build.
+  const apiKey = process.env.API_KEY;
   
-  if (!apiKey || apiKey.trim() === '') {
-      console.error("ERRO CRÍTICO: Chave de API não encontrada.");
+  if (!apiKey || apiKey.length < 10) {
+      console.error("ERRO CRÍTICO: Chave de API não encontrada ou inválida.", { keyLength: apiKey?.length });
       return {
         candidateName: "Erro de Configuração",
         matchScore: 0,
@@ -95,14 +98,14 @@ export const analyzeResume = async (
         city: "-",
         neighborhood: "-",
         phoneNumbers: [],
-        summary: "A chave de API do Google (Gemini) não foi detectada. Verifique se o arquivo .env contendo 'API_KEY' está na raiz do projeto e reinicie o servidor.",
+        summary: "ERRO: A chave de API não foi detectada no código. Se você acabou de configurar na Vercel, vá em 'Deployments', clique nos três pontinhos e selecione 'Redeploy' para que as alterações tenham efeito.",
         pros: [],
-        cons: ["Chave API_KEY ausente ou vazia"],
+        cons: ["Chave de API ausente", "Necessário Redeploy na Vercel"],
         workHistory: []
       };
   }
 
-  // Inicializa o cliente APENAS agora que temos certeza da chave
+  // Inicializa o cliente APENAS agora que temos certeza da chave e estamos dentro da função assíncrona
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
@@ -122,8 +125,9 @@ export const analyzeResume = async (
     Analise o PDF e retorne JSON.
   `;
 
+  // Modelo principal: Gemini 3 Flash Preview (Rápido e Inteligente)
   const modelsToTry = [
-    "gemini-3-flash-preview", 
+    "gemini-3-flash-preview",
     "gemini-2.0-flash-exp"
   ];
 
@@ -147,7 +151,7 @@ export const analyzeResume = async (
         config: {
           responseMimeType: "application/json",
           responseSchema: analysisSchema,
-          temperature: 0.1,
+          temperature: 0.1, // Baixa temperatura para determinismo
           topK: 20,
           safetySettings: safetySettings
         },
@@ -159,6 +163,7 @@ export const analyzeResume = async (
       const cleanedText = cleanJsonString(text);
       const parsed = JSON.parse(cleanedText) as AnalysisResult;
       
+      // Sanitização básica
       if (!parsed.candidateName) parsed.candidateName = "Candidato (Nome não identificado)";
       
       return parsed;
@@ -168,6 +173,7 @@ export const analyzeResume = async (
       
       if (isRateLimit) {
          console.warn(`Rate limit hit for ${modelName}.`);
+         // Se for o último modelo, falha. Se não, espera um pouco e tenta o próximo.
          if (modelName !== modelsToTry[modelsToTry.length - 1]) {
              await sleep(1500); 
              continue; 
@@ -181,6 +187,7 @@ export const analyzeResume = async (
     }
   }
 
+  // Fallback final de erro
   return {
     candidateName: "Erro na Análise",
     matchScore: 0,
@@ -188,9 +195,9 @@ export const analyzeResume = async (
     city: "-",
     neighborhood: "-",
     phoneNumbers: [],
-    summary: "O arquivo não pôde ser processado pela IA. Tente novamente mais tarde.",
+    summary: "O arquivo não pôde ser processado. Verifique se é um PDF válido com texto selecionável ou se a chave de API está ativa.",
     pros: [],
-    cons: ["Falha de processamento"],
+    cons: ["Falha de processamento ou arquivo corrompido"],
     workHistory: []
   };
 };

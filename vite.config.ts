@@ -1,4 +1,3 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -6,31 +5,29 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   // Carrega variáveis de ambiente do diretório atual
   // O terceiro parâmetro '' garante que carregamos envs sem prefixo VITE_ (como API_KEY)
-  // Cast process to any to avoid TypeScript error regarding missing 'cwd' property in some environments
   const env = loadEnv(mode, (process as any).cwd(), '');
 
-  // Tenta encontrar a chave em várias variações comuns
-  const apiKey = env.API_KEY || env.VITE_API_KEY || env.GOOGLE_API_KEY || env.VITE_GOOGLE_API_KEY || process.env.API_KEY || "";
+  // Tenta encontrar a chave em todas as variações possíveis (Vercel, Local, Prefixo VITE)
+  const apiKey = env.VITE_API_KEY || env.API_KEY || env.GOOGLE_API_KEY || process.env.VITE_API_KEY || process.env.API_KEY || "";
 
-  // Log para debug no terminal (não aparece no navegador)
+  // Log para debug no terminal de build (Vercel Logs)
   if (apiKey) {
-    console.log('\x1b[32m%s\x1b[0m', '✓ API Key do Gemini detectada com sucesso.');
+    console.log('\x1b[32m%s\x1b[0m', '✓ API Key do Gemini detectada e injetada no build.');
   } else {
-    console.log('\x1b[33m%s\x1b[0m', '⚠ Nenhuma API Key encontrada. Configure API_KEY no seu arquivo .env');
+    console.log('\x1b[33m%s\x1b[0m', '⚠ AVISO: Nenhuma API Key encontrada durante o build. O app pode falhar em produção.');
   }
 
   return {
     plugins: [react()],
     define: {
-      // Define process.env.API_KEY globalmente para o código do navegador
+      // Define a chave globalmente para o navegador de forma segura
+      // Isso permite acessar tanto via process.env.API_KEY quanto import.meta.env.VITE_API_KEY
       'process.env.API_KEY': JSON.stringify(apiKey),
+      'import.meta.env.VITE_API_KEY': JSON.stringify(apiKey),
+      
+      // Definições do Supabase
       'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || ""),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""),
-      // Fallback para evitar erro 'process is not defined'
-      'process.env': JSON.stringify({ 
-         NODE_ENV: mode,
-         API_KEY: apiKey
-      }),
     },
     build: {
       chunkSizeWarningLimit: 3000, 
