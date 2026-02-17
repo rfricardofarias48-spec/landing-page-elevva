@@ -40,8 +40,13 @@ const isPublicRoute = () => {
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
     const path = window.location.pathname;
-    // Aceita qualquer hash com números (ex: #123456) ou params uploadJobId
-    return !!(params.get('uploadJobId') || hash.match(/#\d+/) || path.match(/\/\d+/));
+    // Verifica se existe QUALQUER coisa relevante na URL que indique acesso a vaga
+    // #123456, ?uploadJobId=..., ou /123456
+    const hasHash = hash.length > 1; // Apenas # não conta
+    const hasParam = !!params.get('uploadJobId');
+    const hasPathId = path.length > 1 && /^\/\d+/.test(path);
+    
+    return hasHash || hasParam || hasPathId;
 };
 
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
@@ -80,6 +85,7 @@ export const App: React.FC = () => {
   
   // INICIALIZAÇÃO PREGUIÇOSA (LAZY STATE) PARA DETECTAR URL ANTES DO RENDER
   const [view, setView] = useState<ViewState>(() => {
+      // Se for rota pública, inicializa direto no upload
       return isPublicRoute() ? 'PUBLIC_UPLOAD' : 'DASHBOARD';
   });
 
@@ -240,10 +246,13 @@ export const App: React.FC = () => {
              setJobs([]);
              setIsOAuthUser(false);
              
-             // SE NÃO FOR ROTA PÚBLICA, vai pro Dashboard (Login)
              // SE FOR ROTA PÚBLICA, MANTÉM (PUBLIC_UPLOAD)
+             // Só muda para Dashboard se NÃO for pública.
+             // A verificação deve ser feita AGORA, não baseada no estado anterior.
              if (!isPublicRoute()) {
                  setView('DASHBOARD');
+             } else {
+                 setView('PUBLIC_UPLOAD'); // Força manter na rota pública se aplicável
              }
         }
     });
@@ -288,7 +297,6 @@ export const App: React.FC = () => {
         setView('PUBLIC_UPLOAD');
     } else if (hashMatch) {
         const code = hashMatch[1];
-        // Define view antes de buscar para evitar flash
         setView('PUBLIC_UPLOAD');
         fetchPublicJobByCode(code);
     } else if (pathMatch) {
@@ -1491,6 +1499,8 @@ export const App: React.FC = () => {
   // --- MAIN RENDER (User Dashboard / Details) ---
   
   // Public Upload View
+  // Public Upload View - MOVED TO TOP to bypass login check for anonymous uploads
+  // CRITICAL: Ensure view logic is robust
   if (view === 'PUBLIC_UPLOAD') {
       return (
           <PublicUploadScreen 
@@ -1499,9 +1509,16 @@ export const App: React.FC = () => {
             onUpload={handlePublicUpload}
             onBack={() => {
                 setPublicUploadJobId(null);
-                setView(user ? 'DASHBOARD' : 'DASHBOARD');
+                // Clear URL hash/params
                 window.history.pushState({}, '', '/');
-                if (user) fetchJobs(user.id); // Força atualização ao voltar do preview
+                
+                if (user) {
+                    setView('DASHBOARD');
+                    fetchJobs(user.id);
+                } else {
+                    // Force a reload to clear state properly if needed, or just show login
+                    window.location.reload(); 
+                }
             }}
           />
       );

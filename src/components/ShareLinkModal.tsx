@@ -17,12 +17,16 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   const [isPaused, setIsPaused] = useState(job.is_paused || false);
   const [updating, setUpdating] = useState(false);
 
+  // Gera o link curto se existir, senão usa o fallback antigo
   const origin = window.location.origin.replace(/\/$/, '');
+  
+  // ATUALIZAÇÃO IMPORTANTE: Usando Hash (#) para evitar erro 404 em servidores sem configuração SPA
   const shareUrl = job.short_code 
       ? `${origin}/#${job.short_code}`
       : `${origin}/?uploadJobId=${job.id}`;
 
   useEffect(() => {
+    // Detecta se está rodando em ambiente blob ou file (comum em previews)
     if (window.location.protocol === 'blob:' || window.location.protocol === 'file:') {
         setIsBlobOrLocal(true);
     }
@@ -34,6 +38,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
             await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
         } else {
+            // Fallback para contextos inseguros
             const textArea = document.createElement("textarea");
             textArea.value = shareUrl;
             textArea.style.position = "fixed";
@@ -45,38 +50,20 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
             const successful = document.execCommand('copy');
             document.body.removeChild(textArea);
             
-            if (successful) {
-                setCopied(true);
-            } else {
-                throw new Error("Copy failed");
-            }
+            if (successful) setCopied(true);
         }
     } catch (err) {
         console.error('Falha ao copiar:', err);
         prompt("Copie o link manualmente:", shareUrl);
     } finally {
-        if (copied) {
-            setTimeout(() => setCopied(false), 2000);
-        }
+        if (copied) setTimeout(() => setCopied(false), 2000);
     }
-  };
-
-  const handleDbError = (err: any) => {
-      console.error("DB Error:", err);
-      const isStructureError = err.message?.includes("column") || err.code === '42703';
-      const isPermissionError = err.message?.includes("policy") || err.code === '42501';
-      
-      let errorMsg = "Erro desconhecido.";
-      if (isStructureError) errorMsg = "O banco de dados precisa de manutenção.";
-      if (isPermissionError) errorMsg = "Permissão negada.";
-
-      alert(`Atenção: ${errorMsg}\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V32.`);
   };
 
   const togglePause = async () => {
       setUpdating(true);
       const newValue = !isPaused;
-      setIsPaused(newValue); 
+      setIsPaused(newValue); // Optimistic UI
       
       try {
           const { error } = await supabase
@@ -87,8 +74,14 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
           if (error) throw error;
           if (onUpdateJob) onUpdateJob({ ...job, is_paused: newValue });
       } catch (err: any) {
-          setIsPaused(!newValue); 
-          handleDbError(err);
+          console.error("Erro ao atualizar is_paused:", err);
+          setIsPaused(!newValue); // Revert
+          
+          if (err.message && (err.message.includes("column") || err.message.includes("policy"))) {
+             alert("Atenção: O banco de dados precisa ser atualizado. Vá em Configurações > Banco de Dados > Script V32.");
+          } else {
+             alert("Erro ao salvar: " + (err.message || "Verifique sua conexão."));
+          }
       } finally {
           setUpdating(false);
       }
@@ -129,12 +122,13 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                 </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4">
+            {/* CONTROLE DE PAUSA - ÚNICO BOTÃO AGORA */}
+            <div>
                 <button 
                     type="button"
                     onClick={togglePause}
                     disabled={updating}
-                    className={`relative p-5 rounded-[1.5rem] border-2 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group h-36 flex flex-col justify-between ${
+                    className={`w-full relative p-5 rounded-[1.5rem] border-2 text-left transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group h-36 flex flex-col justify-between ${
                         !isPaused 
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-[4px_4px_0px_0px_rgba(16,185,129,0.4)]'
                         : 'bg-red-50 border-red-200 text-red-900 shadow-sm hover:border-red-300'
@@ -144,16 +138,19 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                         <div className={`p-3 rounded-2xl transition-colors ${!isPaused ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
                             {!isPaused ? <PlayCircle className="w-6 h-6 fill-current" /> : <Ban className="w-6 h-6" />}
                         </div>
+                        
+                        {/* Custom Toggle */}
                         <div className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 flex items-center ${!isPaused ? 'bg-emerald-500' : 'bg-red-200'}`}>
                             <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${!isPaused ? 'translate-x-6' : 'translate-x-0'}`}></div>
                         </div>
                     </div>
+                    
                     <div>
                         <p className={`text-xs font-black uppercase tracking-widest mb-1.5 ${!isPaused ? 'text-emerald-700' : 'text-red-700'}`}>
-                            {!isPaused ? 'Recebendo CVs' : 'Vaga Encerrada'}
+                            {!isPaused ? 'RECEBENDO CURRÍCULOS' : 'VAGA ENCERRADA'}
                         </p>
                         <p className={`text-[10px] font-bold leading-relaxed ${!isPaused ? 'text-emerald-800/70' : 'text-red-800/60'}`}>
-                            {!isPaused ? 'Candidatos podem enviar currículos.' : 'Link bloqueado. Ninguém pode enviar.'}
+                            {!isPaused ? 'Link ativo. Candidatos podem enviar arquivos.' : 'Link bloqueado. Ninguém pode enviar.'}
                         </p>
                     </div>
                 </button>
@@ -174,11 +171,6 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                         {copied ? 'Copiado' : 'Copiar'}
                     </button>
                 </div>
-                {!isBlobOrLocal && !job.short_code && (
-                    <p className="text-[10px] text-slate-400 font-bold mt-2 ml-1">
-                        * Link legado (longo). Novas vagas terão links curtos.
-                    </p>
-                )}
             </div>
         </div>
         
