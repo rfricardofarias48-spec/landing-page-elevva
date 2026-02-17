@@ -10,12 +10,10 @@ interface Props {
 }
 
 export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUpload, onBack }) => {
-  // Estados do Formulário
   const [candidateName, setCandidateName] = useState('');
   const [candidatePhone, setCandidatePhone] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  // Estados de Interface e Controle
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -23,20 +21,16 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [hasApplied, setHasApplied] = useState(false);
   
-  // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const honeypotRef = useRef<HTMLInputElement>(null);
 
-  // CONSTANTES DE SEGURANÇA
   const MAX_FILE_SIZE_MB = 5;
   const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
   const STORAGE_KEY = `veloRH_applied_${jobTitle.replace(/\s/g, '_')}`;
 
   useEffect(() => {
-    // 3. Limitação por Sessão (Verifica se já se candidatou)
     const appliedTimestamp = localStorage.getItem(STORAGE_KEY);
     if (appliedTimestamp) {
-        // Bloqueia se aplicou nas últimas 24 horas
         const oneDay = 24 * 60 * 60 * 1000;
         if (Date.now() - parseInt(appliedTimestamp) < oneDay) {
             setHasApplied(true);
@@ -117,7 +111,6 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
     setError(null);
     setErrorDetails(null);
 
-    // Proteção contra Robôs (Honeypot)
     if (honeypotRef.current && honeypotRef.current.value !== '') {
         console.warn("Bot detectado via Honeypot");
         setSuccess(true);
@@ -126,14 +119,12 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
 
     if (hasApplied || isPaused) return;
 
-    // Validação de Nome
     const nameParts = candidateName.trim().split(/\s+/);
     if (nameParts.length < 2 || candidateName.trim().length < 8) {
         setError("Por favor, insira seu nome completo (Nome e Sobrenome).");
         return;
     }
 
-    // Validação de Telefone
     const cleanPhone = candidatePhone.replace(/\D/g, '');
     if (cleanPhone.length < 10) {
         setError("Por favor, insira um telefone válido com DDD.");
@@ -149,10 +140,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
 
     try {
         await onUpload([selectedFile]);
-        
-        // Marca como aplicado no LocalStorage
         localStorage.setItem(STORAGE_KEY, Date.now().toString());
-        
         setSuccess(true);
     } catch (err: any) {
         console.error("Erro detalhado no upload:", err);
@@ -163,10 +151,10 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
         if (err.message) {
             if (err.message.includes("row-level security")) {
                 msg = "Erro de permissão no servidor.";
-                details = "O sistema bloqueou o envio. Peça ao recrutador para executar o 'Script V29'.";
+                details = "O sistema bloqueou o envio. Peça ao recrutador para executar o 'Script V30'.";
             } else if (err.message.includes("violates not-null constraint") && err.message.includes("user_id")) {
                 msg = "Erro de configuração do banco de dados.";
-                details = "O servidor exige login para enviar. Peça ao recrutador para rodar o 'Script V29' para corrigir.";
+                details = "O servidor exige login para enviar. Peça ao recrutador para rodar o 'Script V30' para corrigir.";
             } else if (err.message.includes("storage")) {
                 msg = "Erro no armazenamento do arquivo.";
             } else if (err.message.includes("duplicate")) {
@@ -209,8 +197,6 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
 
   return (
     <div className="h-screen bg-slate-50 flex flex-col font-sans text-zinc-900 selection:bg-zinc-200 selection:text-black overflow-hidden relative">
-      
-      {/* Header Compacto */}
       <div className="w-full py-4 px-6 md:px-12 flex justify-between items-center absolute top-0 left-0 z-50">
         <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-16 md:h-20 w-auto object-contain select-none drop-shadow-sm" />
         
@@ -220,10 +206,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-4 relative z-10 overflow-y-auto custom-scrollbar">
-        
         <div className="w-full max-w-[620px] animate-slide-up relative z-10 my-auto">
-            
-            {/* Título e Ícone */}
             <div className="flex items-center justify-center gap-4 mb-8 px-4 animate-slide-up">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100 shadow-sm transform -rotate-3 hover:rotate-0 transition-transform duration-300">
                      <Zap className="w-5 h-5 text-blue-600" fill="currentColor" />
@@ -234,7 +217,6 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
             </div>
 
             <div className="bg-white rounded-[2rem] p-6 md:p-10 shadow-xl shadow-zinc-100/50 border border-zinc-200 relative">
-                
                 {hasApplied ? (
                     <div className="text-center py-12">
                          <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-100">
@@ -260,13 +242,11 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* HONEYPOT */}
                         <div className="absolute opacity-0 -z-10 w-0 h-0 overflow-hidden">
                             <label htmlFor="website_hp">Website</label>
                             <input type="text" id="website_hp" name="website_hp" ref={honeypotRef} tabIndex={-1} autoComplete="off" />
                         </div>
 
-                        {/* NOVO CAMPO CARGO */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1">Cargo</label>
                             <div className="relative group">

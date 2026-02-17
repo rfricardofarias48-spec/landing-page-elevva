@@ -7,29 +7,23 @@ import { supabase } from '../services/supabaseClient';
 interface Props {
   job: Job;
   onClose: () => void;
-  onUpdateJob?: (updatedJob: Job) => void; // Callback para atualizar o estado no App
+  onUpdateJob?: (updatedJob: Job) => void; 
 }
 
 export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) => {
   const [copied, setCopied] = useState(false);
   const [isBlobOrLocal, setIsBlobOrLocal] = useState(false);
   
-  // Local states for toggles
   const [autoAnalyze, setAutoAnalyze] = useState(job.auto_analyze || false);
   const [isPaused, setIsPaused] = useState(job.is_paused || false);
   const [updating, setUpdating] = useState(false);
 
-  // Gera o link curto se existir, senão usa o fallback antigo
-  // Remove slash final do origin se existir para evitar //
   const origin = window.location.origin.replace(/\/$/, '');
-  
-  // Usando Hash (#) para evitar erro 404 em servidores sem configuração SPA
   const shareUrl = job.short_code 
       ? `${origin}/#${job.short_code}`
       : `${origin}/?uploadJobId=${job.id}`;
 
   useEffect(() => {
-    // Detecta se está rodando em ambiente blob ou file (comum em previews)
     if (window.location.protocol === 'blob:' || window.location.protocol === 'file:') {
         setIsBlobOrLocal(true);
     }
@@ -41,10 +35,22 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDbError = (err: any) => {
+      console.error("DB Error:", err);
+      const isStructureError = err.message?.includes("column") || err.code === '42703';
+      const isPermissionError = err.message?.includes("policy") || err.code === '42501';
+      
+      let errorMsg = "Erro desconhecido.";
+      if (isStructureError) errorMsg = "Faltam colunas na tabela.";
+      if (isPermissionError) errorMsg = "Permissão negada.";
+
+      alert(`Atenção: O banco de dados precisa de manutenção.\n\nMotivo: ${errorMsg}\nDetalhe: ${err.message}\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V30.`);
+  };
+
   const toggleAutoAnalyze = async () => {
       setUpdating(true);
       const newValue = !autoAnalyze;
-      setAutoAnalyze(newValue); // Optimistic UI
+      setAutoAnalyze(newValue); 
       
       try {
           const { error } = await supabase
@@ -55,14 +61,8 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
           if (error) throw error;
           if (onUpdateJob) onUpdateJob({ ...job, auto_analyze: newValue });
       } catch (err: any) {
-          console.error("Erro ao atualizar auto_analyze:", err);
-          setAutoAnalyze(!newValue); // Revert
-          
-          if (err.message && (err.message.includes("column") || err.message.includes("policy") || err.code === '42703' || err.code === '42501')) {
-             alert("Atenção: O banco de dados precisa de manutenção.\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V29 (Reparo Total).");
-          } else {
-             alert("Erro ao salvar: " + (err.message || "Verifique sua conexão."));
-          }
+          setAutoAnalyze(!newValue); 
+          handleDbError(err);
       } finally {
           setUpdating(false);
       }
@@ -71,7 +71,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   const togglePause = async () => {
       setUpdating(true);
       const newValue = !isPaused;
-      setIsPaused(newValue); // Optimistic UI
+      setIsPaused(newValue); 
       
       try {
           const { error } = await supabase
@@ -82,14 +82,8 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
           if (error) throw error;
           if (onUpdateJob) onUpdateJob({ ...job, is_paused: newValue });
       } catch (err: any) {
-          console.error("Erro ao atualizar is_paused:", err);
-          setIsPaused(!newValue); // Revert
-          
-          if (err.message && (err.message.includes("column") || err.message.includes("policy") || err.code === '42703' || err.code === '42501')) {
-             alert("Atenção: O banco de dados precisa de manutenção.\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V29 (Reparo Total).");
-          } else {
-             alert("Erro ao salvar: " + (err.message || "Verifique sua conexão."));
-          }
+          setIsPaused(!newValue); 
+          handleDbError(err);
       } finally {
           setUpdating(false);
       }
@@ -130,9 +124,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                 </div>
             )}
 
-            {/* OPÇÕES AVANÇADAS */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Auto Analyze Toggle */}
                 <button 
                     type="button"
                     onClick={toggleAutoAnalyze}
@@ -147,13 +139,10 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                         <div className={`p-3 rounded-2xl transition-colors ${autoAnalyze ? 'bg-white/10 text-[#CCF300]' : 'bg-slate-100 text-slate-400'}`}>
                             <Zap className="w-6 h-6" fill={autoAnalyze ? "currentColor" : "none"} />
                         </div>
-                        
-                        {/* Custom Toggle */}
                         <div className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 flex items-center ${autoAnalyze ? 'bg-[#CCF300]' : 'bg-slate-200'}`}>
                             <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${autoAnalyze ? 'translate-x-6' : 'translate-x-0'}`}></div>
                         </div>
                     </div>
-                    
                     <div>
                         <p className={`text-xs font-black uppercase tracking-widest mb-1.5 ${autoAnalyze ? 'text-[#CCF300]' : 'text-slate-900'}`}>
                             Análise Automática
@@ -164,7 +153,6 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                     </div>
                 </button>
 
-                {/* Pause Toggle */}
                 <button 
                     type="button"
                     onClick={togglePause}
@@ -179,13 +167,10 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                         <div className={`p-3 rounded-2xl transition-colors ${!isPaused ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
                             {!isPaused ? <PlayCircle className="w-6 h-6 fill-current" /> : <Ban className="w-6 h-6" />}
                         </div>
-                        
-                        {/* Custom Toggle */}
                         <div className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 flex items-center ${!isPaused ? 'bg-emerald-500' : 'bg-red-200'}`}>
                             <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${!isPaused ? 'translate-x-6' : 'translate-x-0'}`}></div>
                         </div>
                     </div>
-                    
                     <div>
                         <p className={`text-xs font-black uppercase tracking-widest mb-1.5 ${!isPaused ? 'text-emerald-700' : 'text-red-700'}`}>
                             {!isPaused ? 'Recebendo CVs' : 'Vaga Encerrada'}
@@ -220,7 +205,6 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
             </div>
         </div>
         
-        {/* Footer Brand */}
         <div className="bg-slate-50 p-4 text-center border-t-2 border-slate-100">
              <div className="flex items-center justify-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
                 <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Powered by</span>
