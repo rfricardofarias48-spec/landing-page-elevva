@@ -35,6 +35,15 @@ const mapCandidateFromDB = (c: any): Candidate => ({
   isSelected: c.is_selected
 });
 
+// Helper para detecção robusta de rota pública
+const isPublicRoute = () => {
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash;
+    const path = window.location.pathname;
+    // Aceita qualquer hash com números (ex: #123456) ou params uploadJobId
+    return !!(params.get('uploadJobId') || hash.match(/#\d+/) || path.match(/\/\d+/));
+};
+
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
   <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in font-sans">
     <div className="bg-white rounded-[2rem] w-full max-w-2xl p-8 shadow-2xl relative animate-slide-up border-4 border-black">
@@ -70,17 +79,8 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   // INICIALIZAÇÃO PREGUIÇOSA (LAZY STATE) PARA DETECTAR URL ANTES DO RENDER
-  // Isso impede que a tela de Login pisque ou bloqueie o acesso público
   const [view, setView] = useState<ViewState>(() => {
-      const params = new URLSearchParams(window.location.search);
-      const hash = window.location.hash;
-      const path = window.location.pathname;
-      
-      const isPublic = params.get('uploadJobId') || 
-                       hash.match(/^#\/?(\d{5,6})$/) || 
-                       path.match(/^\/(\d{5,6})$/);
-                       
-      return isPublic ? 'PUBLIC_UPLOAD' : 'DASHBOARD';
+      return isPublicRoute() ? 'PUBLIC_UPLOAD' : 'DASHBOARD';
   });
 
   const [currentTab, setCurrentTab] = useState<UserTab>('OVERVIEW');
@@ -234,20 +234,15 @@ export const App: React.FC = () => {
              // Se tiver sessão, busca o perfil.
              fetchUserProfile(session.user.id, session.user.email!);
         } else {
-             // CORREÇÃO CRÍTICA: Se não houver sessão, NÃO redirecionar se já estivermos no modo público
-             // A verificação de URL agora é feita no useState inicial, então aqui só confirmamos
-             
+             // Se não tiver sessão (logout ou inicial), para o loading
              setLoading(false);
              setUser(null);
              setJobs([]);
              setIsOAuthUser(false);
              
-             // Se NÃO for rota pública e NÃO tiver usuário, vai pro Dashboard (que mostra Login)
-             const params = new URLSearchParams(window.location.search);
-             const hash = window.location.hash;
-             const isPublic = params.get('uploadJobId') || hash.match(/^#\/?(\d{5,6})$/);
-             
-             if (!isPublic) {
+             // SE NÃO FOR ROTA PÚBLICA, vai pro Dashboard (Login)
+             // SE FOR ROTA PÚBLICA, MANTÉM (PUBLIC_UPLOAD)
+             if (!isPublicRoute()) {
                  setView('DASHBOARD');
              }
         }
@@ -283,23 +278,23 @@ export const App: React.FC = () => {
     // 3. Lógica de Upload Público (URL Checks - Execução Imediata)
     const legacyUploadId = params.get('uploadJobId');
     const hash = window.location.hash;
-    const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
+    const hashMatch = hash.match(/^#\/?(\d+)$/); // Permissive regex
     const path = window.location.pathname;
-    const pathMatch = path.match(/^\/(\d{5,6})$/);
+    const pathMatch = path.match(/^\/(\d+)$/);
 
     if (legacyUploadId) {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
-        // setView já foi definido no useState, mas garantimos aqui
         setView('PUBLIC_UPLOAD');
     } else if (hashMatch) {
         const code = hashMatch[1];
-        fetchPublicJobByCode(code);
+        // Define view antes de buscar para evitar flash
         setView('PUBLIC_UPLOAD');
+        fetchPublicJobByCode(code);
     } else if (pathMatch) {
         const code = pathMatch[1];
-        fetchPublicJobByCode(code);
         setView('PUBLIC_UPLOAD');
+        fetchPublicJobByCode(code);
     }
     
     // Limpeza na desmontagem
@@ -657,7 +652,8 @@ export const App: React.FC = () => {
               autoAnalyze: data.auto_analyze, 
               isPaused: data.is_paused 
           });
-          setView('PUBLIC_UPLOAD'); // <--- AQUI GARANTE QUE MUDA PARA A TELA DE UPLOAD
+          // Se a view não for pública ainda, força.
+          setView('PUBLIC_UPLOAD');
       } else {
           console.error("Vaga não encontrada para o código:", code);
           // Opcional: Redirecionar para home se não achar
@@ -1158,66 +1154,6 @@ export const App: React.FC = () => {
 
   // --- RENDERING HELPERS ---
 
-  // Public Upload View - MOVED TO TOP to bypass login check for anonymous uploads
-  // CRITICAL: Ensure view logic is robust
-  if (view === 'PUBLIC_UPLOAD') {
-      return (
-          <PublicUploadScreen 
-            jobTitle={publicJobData.title}
-            isPaused={publicJobData.isPaused}
-            onUpload={handlePublicUpload}
-            onBack={() => {
-                setPublicUploadJobId(null);
-                // Clear URL hash/params
-                window.history.pushState({}, '', '/');
-                
-                if (user) {
-                    setView('DASHBOARD');
-                    fetchJobs(user.id);
-                } else {
-                    // Force a reload to clear state properly if needed, or just show login
-                    window.location.reload(); 
-                }
-            }}
-          />
-      );
-  }
-
-  // Loading
-  if (loading) {
-      return (
-          <div className="h-screen flex items-center justify-center bg-white">
-              <Loader2 className="w-10 h-10 animate-spin text-black" />
-          </div>
-      );
-  }
-
-  // Auth
-  if (!user) {
-      return (
-          <>
-            <LoginScreen 
-                onLogin={handleLogin}
-                onGoogleLogin={handleGoogleLogin}
-                onResetPassword={handleResetPassword}
-                onShowTerms={() => setShowTerms(true)}
-                onShowPrivacy={() => setShowPrivacy(true)}
-            />
-            {showTerms && (
-                <LegalModal title="Termos de Uso" onClose={() => setShowTerms(false)} />
-            )}
-            {showPrivacy && (
-                <LegalModal title="Política de Privacidade" onClose={() => setShowPrivacy(false)} />
-            )}
-          </>
-      );
-  }
-
-  // Admin
-  if (user.role === 'ADMIN' && view === 'DASHBOARD') { 
-      return <AdminDashboard />;
-  }
-
   const renderOverview = () => {
       // Filtrar Anúncios baseados no plano do usuário
       const visibleAnnouncements = announcements.filter(ad => {
@@ -1516,7 +1452,7 @@ export const App: React.FC = () => {
                          <input 
                            type="password" 
                            value={currentPassword}
-                           onChange={(e) => setSearchTerm(e.target.value)}
+                           onChange={(e) => setCurrentPassword(e.target.value)}
                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
                          />
                      </div>
@@ -1908,8 +1844,6 @@ export const App: React.FC = () => {
           <SqlSetupModal onClose={() => setShowSqlModal(false)} />
       )}
 
-      {/* ... (Existing modals remain unchanged) */}
-      
       {/* NAME UPDATE MODAL (FORCE UPDATE) */}
       {showNameModal && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
@@ -2027,3 +1961,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+export default App;

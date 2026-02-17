@@ -34,7 +34,6 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
             await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
         } else {
-            // Fallback para navegadores antigos ou contexto inseguro
             const textArea = document.createElement("textarea");
             textArea.value = shareUrl;
             textArea.style.position = "fixed";
