@@ -28,31 +28,37 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
     }
   }, []);
 
-  const handleCopy = () => {
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(shareUrl).then(() => {
+  const handleCopy = async () => {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        });
-    } else {
-        // Fallback para navegadores sem suporte ou contexto inseguro
-        const textArea = document.createElement("textarea");
-        textArea.value = shareUrl;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-9999px";
-        textArea.style.top = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-            document.execCommand('copy');
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-            console.error('Falha ao copiar', err);
-            alert("Não foi possível copiar automaticamente. Selecione e copie manualmente.");
+        } else {
+            // Fallback para navegadores antigos ou contexto inseguro
+            const textArea = document.createElement("textarea");
+            textArea.value = shareUrl;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            if (successful) {
+                setCopied(true);
+            } else {
+                throw new Error("Copy failed");
+            }
         }
-        document.body.removeChild(textArea);
+    } catch (err) {
+        console.error('Falha ao copiar:', err);
+        prompt("Copie o link manualmente:", shareUrl);
+    } finally {
+        if (copied) {
+            setTimeout(() => setCopied(false), 2000);
+        }
     }
   };
 

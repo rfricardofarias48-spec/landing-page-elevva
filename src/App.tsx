@@ -69,7 +69,20 @@ export const App: React.FC = () => {
   const [isOAuthUser, setIsOAuthUser] = useState(false); // Detecta se é login Google
   const [loading, setLoading] = useState(true);
   
-  const [view, setView] = useState<ViewState>('DASHBOARD');
+  // INICIALIZAÇÃO PREGUIÇOSA (LAZY STATE) PARA DETECTAR URL ANTES DO RENDER
+  // Isso impede que a tela de Login pisque ou bloqueie o acesso público
+  const [view, setView] = useState<ViewState>(() => {
+      const params = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+      
+      const isPublic = params.get('uploadJobId') || 
+                       hash.match(/^#\/?(\d{5,6})$/) || 
+                       path.match(/^\/(\d{5,6})$/);
+                       
+      return isPublic ? 'PUBLIC_UPLOAD' : 'DASHBOARD';
+  });
+
   const [currentTab, setCurrentTab] = useState<UserTab>('OVERVIEW');
   
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -221,23 +234,22 @@ export const App: React.FC = () => {
              // Se tiver sessão, busca o perfil.
              fetchUserProfile(session.user.id, session.user.email!);
         } else {
-             // CORREÇÃO CRÍTICA PARA LINKS PÚBLICOS
-             // Não força o view para DASHBOARD se estivermos em uma rota pública
-             // Isso evita que o usuário anônimo seja redirecionado para o login
-             
-             // Verifica se a URL atual parece ser um link público (#123456 ou /?uploadJobId=...)
-             const isPublicRoute = window.location.hash.match(/^#\/?(\d{5,6})$/) || 
-                                   window.location.search.includes('uploadJobId') || 
-                                   window.location.pathname.match(/^\/(\d{5,6})$/);
-
-             if (!isPublicRoute) {
-                 setView('DASHBOARD');
-             }
+             // CORREÇÃO CRÍTICA: Se não houver sessão, NÃO redirecionar se já estivermos no modo público
+             // A verificação de URL agora é feita no useState inicial, então aqui só confirmamos
              
              setLoading(false);
              setUser(null);
              setJobs([]);
              setIsOAuthUser(false);
+             
+             // Se NÃO for rota pública e NÃO tiver usuário, vai pro Dashboard (que mostra Login)
+             const params = new URLSearchParams(window.location.search);
+             const hash = window.location.hash;
+             const isPublic = params.get('uploadJobId') || hash.match(/^#\/?(\d{5,6})$/);
+             
+             if (!isPublic) {
+                 setView('DASHBOARD');
+             }
         }
     });
 
@@ -268,8 +280,7 @@ export const App: React.FC = () => {
         window.history.replaceState(null, '', window.location.pathname);
     }
     
-    // 3. Lógica de Upload Público (URL Checks)
-    // O parser de URL deve rodar INDEPENDENTE da autenticação
+    // 3. Lógica de Upload Público (URL Checks - Execução Imediata)
     const legacyUploadId = params.get('uploadJobId');
     const hash = window.location.hash;
     const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
@@ -279,14 +290,16 @@ export const App: React.FC = () => {
     if (legacyUploadId) {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
-        setView('PUBLIC_UPLOAD'); // Força a view para upload
+        // setView já foi definido no useState, mas garantimos aqui
+        setView('PUBLIC_UPLOAD');
     } else if (hashMatch) {
         const code = hashMatch[1];
         fetchPublicJobByCode(code);
-        // O fetchPublicJobByCode definirá a view como PUBLIC_UPLOAD se encontrar a vaga
+        setView('PUBLIC_UPLOAD');
     } else if (pathMatch) {
         const code = pathMatch[1];
         fetchPublicJobByCode(code);
+        setView('PUBLIC_UPLOAD');
     }
     
     // Limpeza na desmontagem
