@@ -34,14 +34,13 @@ const mapCandidateFromDB = (c: any): Candidate => ({
   isSelected: c.is_selected
 });
 
-// Helper para detecção robusta de rota pública
+// Helper para detecção robusta de rota pública (GLOBAL)
 const isPublicRoute = () => {
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
     const path = window.location.pathname;
     
     // Verifica se existe QUALQUER coisa relevante na URL que indique acesso a vaga
-    // Aceita parametro 'v' (short code), 'uploadJobId' (legacy), ou Hash/Path numérico
     const hasVParam = !!params.get('v');
     const hasLegacyParam = !!params.get('uploadJobId');
     const hasHash = /#\/?\d{4,}/.test(hash); 
@@ -85,8 +84,8 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   // INICIALIZAÇÃO PREGUIÇOSA (LAZY STATE) PARA DETECTAR URL ANTES DO RENDER
-  // Isso evita o "flicker" da tela de login
   const [view, setView] = useState<ViewState>(() => {
+      // Se for rota pública, força view PUBLIC_UPLOAD imediatamente
       return isPublicRoute() ? 'PUBLIC_UPLOAD' : 'DASHBOARD';
   });
 
@@ -250,6 +249,7 @@ export const App: React.FC = () => {
              // VERIFICAÇÃO CRÍTICA: Só redireciona para Dashboard se NÃO for rota pública
              // Isso impede que quem está enviando currículo caia no login (loop infinito)
              if (isPublicRoute()) {
+                 console.log("Rota pública detectada no logout/init, mantendo PUBLIC_UPLOAD");
                  setView('PUBLIC_UPLOAD');
              } else {
                  setView('DASHBOARD');
@@ -656,7 +656,7 @@ export const App: React.FC = () => {
           setView('PUBLIC_UPLOAD');
       } else {
           console.error("Vaga não encontrada para o código:", code);
-          // Opcional: Redirecionar para home se não achar
+          // Redireciona para home apenas se não encontrar
           window.history.pushState({}, '', '/');
           setView('DASHBOARD');
       }
