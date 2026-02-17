@@ -29,9 +29,31 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   }, []);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    } else {
+        // Fallback para navegadores sem suporte ou contexto inseguro
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Falha ao copiar', err);
+            alert("Não foi possível copiar automaticamente. Selecione e copie manualmente.");
+        }
+        document.body.removeChild(textArea);
+    }
   };
 
   const handleDbError = (err: any) => {

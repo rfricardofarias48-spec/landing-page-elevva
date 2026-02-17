@@ -221,11 +221,22 @@ export const App: React.FC = () => {
              // Se tiver sessão, busca o perfil.
              fetchUserProfile(session.user.id, session.user.email!);
         } else {
-             // Se não tiver sessão (logout ou inicial), para o loading
+             // CORREÇÃO CRÍTICA PARA LINKS PÚBLICOS
+             // Não força o view para DASHBOARD se estivermos em uma rota pública
+             // Isso evita que o usuário anônimo seja redirecionado para o login
+             
+             // Verifica se a URL atual parece ser um link público (#123456 ou /?uploadJobId=...)
+             const isPublicRoute = window.location.hash.match(/^#\/?(\d{5,6})$/) || 
+                                   window.location.search.includes('uploadJobId') || 
+                                   window.location.pathname.match(/^\/(\d{5,6})$/);
+
+             if (!isPublicRoute) {
+                 setView('DASHBOARD');
+             }
+             
              setLoading(false);
              setUser(null);
              setJobs([]);
-             setView('DASHBOARD');
              setIsOAuthUser(false);
         }
     });
@@ -258,7 +269,7 @@ export const App: React.FC = () => {
     }
     
     // 3. Lógica de Upload Público (URL Checks)
-    // IMPORTANT: Check URL BEFORE checking auth to allow public access
+    // O parser de URL deve rodar INDEPENDENTE da autenticação
     const legacyUploadId = params.get('uploadJobId');
     const hash = window.location.hash;
     const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
@@ -268,10 +279,11 @@ export const App: React.FC = () => {
     if (legacyUploadId) {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
-        setView('PUBLIC_UPLOAD');
+        setView('PUBLIC_UPLOAD'); // Força a view para upload
     } else if (hashMatch) {
         const code = hashMatch[1];
         fetchPublicJobByCode(code);
+        // O fetchPublicJobByCode definirá a view como PUBLIC_UPLOAD se encontrar a vaga
     } else if (pathMatch) {
         const code = pathMatch[1];
         fetchPublicJobByCode(code);
@@ -632,11 +644,12 @@ export const App: React.FC = () => {
               autoAnalyze: data.auto_analyze, 
               isPaused: data.is_paused 
           });
-          setView('PUBLIC_UPLOAD');
+          setView('PUBLIC_UPLOAD'); // <--- AQUI GARANTE QUE MUDA PARA A TELA DE UPLOAD
       } else {
           console.error("Vaga não encontrada para o código:", code);
           // Opcional: Redirecionar para home se não achar
           window.history.pushState({}, '', '/');
+          setView('DASHBOARD');
       }
   };
 
@@ -1133,6 +1146,7 @@ export const App: React.FC = () => {
   // --- RENDERING HELPERS ---
 
   // Public Upload View - MOVED TO TOP to bypass login check for anonymous uploads
+  // CRITICAL: Ensure view logic is robust
   if (view === 'PUBLIC_UPLOAD') {
       return (
           <PublicUploadScreen 
@@ -1141,9 +1155,16 @@ export const App: React.FC = () => {
             onUpload={handlePublicUpload}
             onBack={() => {
                 setPublicUploadJobId(null);
-                setView(user ? 'DASHBOARD' : 'DASHBOARD');
+                // Clear URL hash/params
                 window.history.pushState({}, '', '/');
-                if (user) fetchJobs(user.id); // Força atualização ao voltar do preview
+                
+                if (user) {
+                    setView('DASHBOARD');
+                    fetchJobs(user.id);
+                } else {
+                    // Force a reload to clear state properly if needed, or just show login
+                    window.location.reload(); 
+                }
             }}
           />
       );
@@ -1519,6 +1540,58 @@ export const App: React.FC = () => {
   );
 
   // --- MAIN RENDER (User Dashboard / Details) ---
+  
+  // Public Upload View
+  if (view === 'PUBLIC_UPLOAD') {
+      return (
+          <PublicUploadScreen 
+            jobTitle={publicJobData.title}
+            isPaused={publicJobData.isPaused}
+            onUpload={handlePublicUpload}
+            onBack={() => {
+                setPublicUploadJobId(null);
+                setView(user ? 'DASHBOARD' : 'DASHBOARD');
+                window.history.pushState({}, '', '/');
+                if (user) fetchJobs(user.id); // Força atualização ao voltar do preview
+            }}
+          />
+      );
+  }
+
+  // Loading
+  if (loading) {
+      return (
+          <div className="h-screen flex items-center justify-center bg-white">
+              <Loader2 className="w-10 h-10 animate-spin text-black" />
+          </div>
+      );
+  }
+
+  // Auth
+  if (!user) {
+      return (
+          <>
+            <LoginScreen 
+                onLogin={handleLogin}
+                onGoogleLogin={handleGoogleLogin}
+                onResetPassword={handleResetPassword}
+                onShowTerms={() => setShowTerms(true)}
+                onShowPrivacy={() => setShowPrivacy(true)}
+            />
+            {showTerms && (
+                <LegalModal title="Termos de Uso" onClose={() => setShowTerms(false)} />
+            )}
+            {showPrivacy && (
+                <LegalModal title="Política de Privacidade" onClose={() => setShowPrivacy(false)} />
+            )}
+          </>
+      );
+  }
+
+  // Admin
+  if (user.role === 'ADMIN' && view === 'DASHBOARD') { 
+      return <AdminDashboard />;
+  }
   
   // Main App Helpers
   const handleEditJobSetup = (job: Job) => {
