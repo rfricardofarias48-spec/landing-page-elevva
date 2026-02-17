@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { AnalysisResult } from "../types";
 
@@ -87,6 +86,7 @@ export const analyzeResume = async (
 ): Promise<AnalysisResult> => {
   
   // 1. Verificação de Segurança da API Key (Runtime)
+  // Verifica se a chave foi injetada corretamente pelo Vite
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey.trim() === '') {
