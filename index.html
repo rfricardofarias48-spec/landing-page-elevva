@@ -5,8 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google" content="notranslate" />
+    <meta name="format-detection" content="telephone=no">
     
-    <!-- CSP Permissiva para permitir CDN do Tailwind, Google Fonts e scripts do Vercel -->
+    <!-- CSP Permissiva como fallback -->
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
 
     <title>ELEVVA</title>
@@ -62,7 +63,13 @@
         background-color: #F3F4F6;
         color: #0f172a;
         font-family: 'Plus Jakarta Sans', sans-serif;
+        top: 0 !important; /* Previne que a barra do Google empurre o body */
       }
+      
+      /* Oculta elementos do Google Translate se eles forem injetados */
+      .goog-te-banner-frame { display: none !important; }
+      .goog-tooltip { display: none !important; }
+      .goog-te-balloon-frame { display: none !important; }
       
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
