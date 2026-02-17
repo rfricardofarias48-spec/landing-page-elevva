@@ -30,7 +30,26 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
     if (window.location.protocol === 'blob:' || window.location.protocol === 'file:') {
         setIsBlobOrLocal(true);
     }
-  }, []);
+
+    // AUTO-MIGRATE: Se não tiver short_code, gera um agora (5 dígitos)
+    // Isso conserta as URLs longas automaticamente ao abrir o modal
+    if (!job.short_code) {
+        const newCode = Math.floor(10000 + Math.random() * 90000).toString();
+        
+        const migrateJob = async () => {
+            const { error } = await supabase
+                .from('jobs')
+                .update({ short_code: newCode })
+                .eq('id', job.id);
+            
+            if (!error && onUpdateJob) {
+                // Atualiza o estado local para refletir o novo código instantaneamente
+                onUpdateJob({ ...job, short_code: newCode });
+            }
+        };
+        migrateJob();
+    }
+  }, [job]);
 
   const handleCopy = async () => {
     try {
