@@ -43,8 +43,9 @@ const isPublicRoute = () => {
     // Verifica se existe QUALQUER coisa relevante na URL que indique acesso a vaga
     const hasVParam = !!params.get('v');
     const hasLegacyParam = !!params.get('uploadJobId');
-    const hasHash = /#\/?\d{4,}/.test(hash); 
-    const hasPathId = /^\/\d{4,}/.test(path);
+    // Regex relaxado para aceitar qualquer sequência numérica no hash ou path
+    const hasHash = /#\/?\d+/.test(hash); 
+    const hasPathId = /^\/\d+/.test(path);
     
     return hasVParam || hasLegacyParam || hasHash || hasPathId;
 };
@@ -248,7 +249,8 @@ export const App: React.FC = () => {
              setJobs([]);
              setIsOAuthUser(false);
              
-             // VERIFICAÇÃO CRÍTICA: Só redireciona para Dashboard se NÃO for rota pública
+             // VERIFICAÇÃO CRÍTICA DO MIDDLEWARE FRONTEND: 
+             // Só redireciona para Dashboard se NÃO for rota pública.
              // Isso impede que quem está enviando currículo caia no login (loop infinito)
              if (isPublicRoute()) {
                  console.log("Rota pública detectada no logout/init, mantendo PUBLIC_UPLOAD");
@@ -274,14 +276,17 @@ export const App: React.FC = () => {
     
     // 3. Lógica de Upload Público (URL Checks - Execução Imediata)
     const legacyUploadId = params.get('uploadJobId');
-    const vParam = params.get('v'); // NOVA ESTRATÉGIA: QUERY PARAM ?v=1234
+    const vParam = params.get('v'); // ESTRATÉGIA: QUERY PARAM ?v=1234
+    
     const hash = window.location.hash;
-    const hashMatch = hash.match(/^#\/?(\d{4,6})$/);
+    // Regex flexível para hash: #12345
+    const hashMatch = hash.match(/^#\/?(\d+)$/);
+    
     const path = window.location.pathname;
-    const pathMatch = path.match(/^\/(\d{4,6})$/);
+    // Regex flexível para path: /12345 (Rota dinâmica)
+    const pathMatch = path.match(/^\/(\d+)$/);
 
     if (vParam) {
-        // Prioridade 1: Query Param ?v=XXXX (Mais estável)
         setView('PUBLIC_UPLOAD');
         fetchPublicJobByCode(vParam);
     } else if (legacyUploadId) {
@@ -289,7 +294,6 @@ export const App: React.FC = () => {
         fetchPublicJobTitle(legacyUploadId);
         setView('PUBLIC_UPLOAD');
     } else if (hashMatch) {
-        // Fallback: Hash #XXXX
         const code = hashMatch[1];
         setView('PUBLIC_UPLOAD');
         fetchPublicJobByCode(code);
@@ -1159,12 +1163,10 @@ export const App: React.FC = () => {
 
   // --- RENDERING HELPERS ---
 
+  // ... (renderOverview, renderBilling, renderSettings remain the same)
   const renderOverview = () => {
-      // Filtrar Anúncios baseados no plano do usuário
       const visibleAnnouncements = announcements.filter(ad => {
-          // Se o usuário não tiver plano definido (null), assume FREE
           const userPlan = user?.plan || 'FREE';
-          // Verifica se o plano do usuário está na lista de planos alvo do anúncio
           return ad.targetPlans.includes(userPlan);
       });
 
@@ -1178,7 +1180,6 @@ export const App: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* VAGAS ATIVAS */}
               <div className="bg-white p-8 rounded-[2rem] border-2 border-black relative overflow-hidden group shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all">
                   <div className="relative z-10">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">VAGAS ATIVAS</p>
@@ -1193,7 +1194,6 @@ export const App: React.FC = () => {
                   <Briefcase className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-110 transition-transform duration-500" />
               </div>
 
-              {/* CURRÍCULOS */}
               <div className="bg-white p-8 rounded-[2rem] border-2 border-black relative overflow-hidden group shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all">
                   <div className="relative z-10">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CURRÍCULOS ANALISADOS</p>
@@ -1208,7 +1208,6 @@ export const App: React.FC = () => {
                   <FileText className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-110 transition-transform duration-500" />
               </div>
 
-              {/* PLANO ATUAL */}
               <div className="bg-black p-8 rounded-[2rem] border-2 border-black relative overflow-hidden flex flex-col justify-between shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                    <div className="relative z-10">
                       <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">PLANO ATUAL</p>
@@ -1222,7 +1221,6 @@ export const App: React.FC = () => {
               </div>
           </div>
 
-          {/* ANÚNCIOS (NOVOS) - FILTRADOS POR PLANO */}
           {visibleAnnouncements.length > 0 && (
               <div className="animate-slide-up">
                   <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tight flex items-center gap-2">
@@ -1281,9 +1279,6 @@ export const App: React.FC = () => {
   );
   };
 
-  // ... (Billing and Settings render functions remain unchanged)
-  // ...
-
   const renderBilling = () => (
       <div className="space-y-12 animate-fade-in max-w-6xl mx-auto font-sans p-4">
           <div>
@@ -1291,7 +1286,6 @@ export const App: React.FC = () => {
               <p className="text-slate-500 font-medium mt-1">Gerencie seu plano e limites de uso.</p>
           </div>
 
-          {/* Current Plan Card - Black */}
           <div className="bg-black rounded-[2.5rem] p-10 md:p-12 relative overflow-hidden text-white shadow-2xl">
               <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-6">
@@ -1307,7 +1301,6 @@ export const App: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                      {/* Vagas Bar */}
                       <div>
                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
                               <span>Vagas Ativas</span>
@@ -1318,7 +1311,6 @@ export const App: React.FC = () => {
                           </div>
                       </div>
 
-                      {/* Curriculos Bar */}
                       <div>
                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
                               <span>Currículos Analisados</span>
@@ -1332,14 +1324,12 @@ export const App: React.FC = () => {
               </div>
           </div>
 
-          {/* Upgrade Options */}
           <div>
               <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tight flex items-center gap-2">
                   <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Free Plan */}
                   <div className="bg-white border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">FREE</span>
                       <div className="text-slate-900 mb-6 flex items-center justify-center h-[72px]">
@@ -1354,7 +1344,6 @@ export const App: React.FC = () => {
                       </button>
                   </div>
 
-                  {/* Mensal */}
                   <div className="bg-white border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Mensal</span>
                       <div className="text-slate-900 mb-6 flex items-baseline justify-center h-[72px]">
@@ -1372,7 +1361,6 @@ export const App: React.FC = () => {
                       </button>
                   </div>
 
-                  {/* Anual - Destaque */}
                   <div className="bg-black border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 overflow-hidden shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
                       <div className="absolute top-0 right-0 bg-[#CCF300] text-black text-[10px] font-black px-4 py-2 rounded-bl-2xl uppercase tracking-widest z-10">
                           Melhor Valor
@@ -1761,7 +1749,7 @@ export const App: React.FC = () => {
                  <button onClick={handleOpenShareModal} className="flex-none bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-5 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none whitespace-nowrap"><Share2 className="w-5 h-5 mr-2 text-black"/> Link</button>
                  
                  {activeJob.candidates.some(c=>c.isSelected) && (
-                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
+                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
                  )}
                  
                  <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>

@@ -14,11 +14,13 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   const [isBlobOrLocal, setIsBlobOrLocal] = useState(false);
 
   // Gera o link curto se existir, senão usa o fallback antigo
+  // Remove slash final do origin se existir para evitar //
   const origin = window.location.origin.replace(/\/$/, '');
   
-  // Usando Query Param (?v=) para evitar problemas de hash com autenticação
+  // ATUALIZAÇÃO: Link limpo baseado em caminho (ex: vello.net.br/12345)
+  // Fallback para query param apenas se não houver short_code
   const shareUrl = job.short_code 
-      ? `${origin}/?v=${job.short_code}`
+      ? `${origin}/${job.short_code}`
       : `${origin}/?uploadJobId=${job.id}`;
 
   useEffect(() => {
