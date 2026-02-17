@@ -59,7 +59,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
           setAutoAnalyze(!newValue); // Revert
           
           if (err.message && (err.message.includes("column") || err.message.includes("policy") || err.code === '42703' || err.code === '42501')) {
-             alert("Atenção: O banco de dados precisa ser atualizado para usar este recurso.\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V28.");
+             alert("Atenção: O banco de dados precisa de manutenção.\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V29 (Reparo Total).");
           } else {
              alert("Erro ao salvar: " + (err.message || "Verifique sua conexão."));
           }
@@ -86,7 +86,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
           setIsPaused(!newValue); // Revert
           
           if (err.message && (err.message.includes("column") || err.message.includes("policy") || err.code === '42703' || err.code === '42501')) {
-             alert("Atenção: O banco de dados precisa ser atualizado para usar este recurso.\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V28.");
+             alert("Atenção: O banco de dados precisa de manutenção.\n\n1. Vá em Configurações > Banco de Dados\n2. Execute o Script V29 (Reparo Total).");
           } else {
              alert("Erro ao salvar: " + (err.message || "Verifique sua conexão."));
           }

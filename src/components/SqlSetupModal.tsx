@@ -10,12 +10,12 @@ export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'FIX_ALL' | 'CRON' | 'NEW_FEATURES'>('NEW_FEATURES');
 
   const fixAllSql = `
--- --- SCRIPT V29: REPARO TOTAL (RECRIAR ESTRUTURA) ---
--- Execute este script se estiver recebendo erros de "relation does not exist"
+-- --- SCRIPT V29: REPARO TOTAL (RECRIAR ESTRUTURA E PERMISSÕES) ---
+-- Execute para corrigir erros de "permission denied" ou "relation does not exist"
 
 BEGIN;
 
--- 1. CRIA TABELA DE VAGAS (JOBS)
+-- 1. CRIA TABELAS (SE NÃO EXISTIREM)
 CREATE TABLE IF NOT EXISTS public.jobs (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id uuid REFERENCES auth.users NOT NULL,
@@ -29,12 +29,11 @@ CREATE TABLE IF NOT EXISTS public.jobs (
     is_paused boolean DEFAULT false
 );
 
--- Garante que as colunas existam mesmo se a tabela já foi criada antes
+-- Adiciona colunas que podem faltar em tabelas antigas
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text UNIQUE;
 
--- 2. CRIA TABELA DE CANDIDATOS
 CREATE TABLE IF NOT EXISTS public.candidates (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     job_id uuid REFERENCES public.jobs ON DELETE CASCADE,
@@ -48,7 +47,6 @@ CREATE TABLE IF NOT EXISTS public.candidates (
     created_at timestamptz DEFAULT now()
 );
 
--- 3. CRIA TABELA DE ANÚNCIOS
 CREATE TABLE IF NOT EXISTS public.announcements (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     title text NOT NULL,
@@ -59,21 +57,26 @@ CREATE TABLE IF NOT EXISTS public.announcements (
     target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
 );
 
--- 4. CONFIGURAÇÃO DO STORAGE (BUCKET 'resumes')
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('resumes', 'resumes', true)
-ON CONFLICT (id) DO NOTHING;
+-- 2. GRANT PERMISSÕES (IMPORTANTE: Corrige erro 42501)
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON TABLE public.jobs TO anon, authenticated;
+GRANT ALL ON TABLE public.candidates TO anon, authenticated;
+GRANT ALL ON TABLE public.announcements TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('marketing', 'marketing', true)
-ON CONFLICT (id) DO NOTHING;
+-- 3. CONFIGURAÇÃO DO STORAGE
+INSERT INTO storage.buckets (id, name, public) VALUES ('resumes', 'resumes', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('marketing', 'marketing', true) ON CONFLICT (id) DO NOTHING;
 
--- 5. REINICIA PERMISSÕES (RLS) - CORREÇÃO DE ERROS DE PERMISSÃO
+GRANT ALL ON SCHEMA storage TO anon, authenticated;
+GRANT ALL ON TABLE storage.objects TO anon, authenticated;
+
+-- 4. REINICIA POLÍTICAS (RLS)
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 
--- Limpa policies antigas para recriar corretamente
+-- Limpa policies antigas
 DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
 DROP POLICY IF EXISTS "Enable insert for authenticated" ON public.jobs;
 DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
@@ -84,14 +87,14 @@ DROP POLICY IF EXISTS "Enable select for all" ON public.candidates;
 DROP POLICY IF EXISTS "Enable update for owners" ON public.candidates;
 DROP POLICY IF EXISTS "Enable delete for owners" ON public.candidates;
 
--- Cria policies novas
--- Jobs
+-- Novas Policies (JOBS)
 CREATE POLICY "Enable read access for all" ON public.jobs FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Enable insert for authenticated" ON public.jobs FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Enable update for owners" ON public.jobs FOR UPDATE TO authenticated USING (auth.uid() = user_id);
+-- Update POLICY com WITH CHECK explícito
+CREATE POLICY "Enable update for owners" ON public.jobs FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Enable delete for owners" ON public.jobs FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- Candidates
+-- Novas Policies (CANDIDATES)
 CREATE POLICY "Enable insert for all" ON public.candidates FOR INSERT TO anon, authenticated WITH CHECK (true);
 CREATE POLICY "Enable select for all" ON public.candidates FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY "Enable update for owners" ON public.candidates FOR UPDATE TO authenticated USING (true);
@@ -106,14 +109,11 @@ CREATE POLICY "Public Read Resumes" ON storage.objects FOR SELECT TO anon, authe
 
 COMMIT;
 
--- Atualiza cache do Supabase
 NOTIFY pgrst, 'reload config';
   `.trim();
 
   const cronSql = `
 -- --- SCRIPT V27: AUTOMAÇÃO DE LIMPEZA (10 DIAS) ---
--- Requer extensão pg_cron ativada no dashboard do Supabase (Database -> Extensions)
-
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 CREATE OR REPLACE FUNCTION delete_expired_candidates() RETURNS void AS $$
