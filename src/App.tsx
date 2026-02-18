@@ -13,7 +13,7 @@ import { SqlSetupModal } from './components/SqlSetupModal';
 import { 
   Plus, LogOut, Search, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, Share2, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles, AlertTriangle
+  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles
 } from 'lucide-react';
 
 const INFINITE_PAY_LINKS = {
@@ -33,23 +33,6 @@ const mapCandidateFromDB = (c: any): Candidate => ({
   result: c.analysis_result,
   isSelected: c.is_selected
 });
-
-// Helper para detecção robusta de rota pública (GLOBAL)
-const isPublicRoute = () => {
-    const path = window.location.pathname;
-    const params = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-    
-    // Verifica caminho numérico (ex: /4034 ou /4034/)
-    const isNumericPath = /^\/\d+\/?$/.test(path);
-    
-    // Verifica parâmetros antigos ou hash
-    const hasVParam = !!params.get('v');
-    const hasLegacyParam = !!params.get('uploadJobId');
-    const hasHashId = /#\d+/.test(hash);
-
-    return isNumericPath || hasVParam || hasLegacyParam || hasHashId;
-};
 
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
   <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in font-sans">
@@ -190,41 +173,43 @@ const App: React.FC = () => {
 
   // --- INIT & AUTH ---
   useEffect(() => {
+    // Timeout de segurança: Se o Supabase não responder em 10s, para o loading
     const safetyTimer = setTimeout(() => {
         if (loading) {
             console.warn("Auth check timed out - forcing loading stop");
-            // Só para o loading se NÃO for uma rota pública
-            if (!isPublicRoute()) {
-                setLoading(false);
-            }
+            setLoading(false);
         }
-    }, 8000);
+    }, 10000);
 
+    // FIX: Proactively check for "Invalid Refresh Token" error to prevent white screen
     supabase.auth.getSession().then(({ error }) => {
         if (error) {
             console.warn("Session check warning:", error.message);
+            // Se o token de refresh não for encontrado, força logout para limpar o localStorage
             if (error.message.includes("Refresh Token") || error.message.includes("Invalid Refresh Token")) {
                  console.log("Cleaning up invalid session...");
                  supabase.auth.signOut().then(() => {
-                     if (!isPublicRoute()) {
-                        setLoading(false);
-                        setUser(null);
-                     }
+                     setLoading(false);
+                     setUser(null);
                  });
             }
         }
     });
 
+    // 1. Configura ouvinte de autenticação (Melhor para OAuth/Google Login)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        // DETECTA EVENTO DE RECUPERAÇÃO DE SENHA
         if (event === 'PASSWORD_RECOVERY') {
             setShowRecoveryModal(true);
         }
 
         if (session) {
+             // Limpa a hash da URL (token) para deixar limpo e evitar erros de roteamento
              if (window.location.hash && window.location.hash.includes('access_token')) {
                  window.history.replaceState(null, '', window.location.pathname);
              }
              
+             // Detecta se o usuário fez login com Google (provider)
              const providers = session.user.app_metadata.providers || [];
              if (providers.includes('google')) {
                  setIsOAuthUser(true);
@@ -232,22 +217,42 @@ const App: React.FC = () => {
                  setIsOAuthUser(false);
              }
              
+             // Se tiver sessão, busca o perfil.
              fetchUserProfile(session.user.id, session.user.email!);
         } else {
-             if (!isPublicRoute()) {
-                 setLoading(false);
-             }
+             // Se não tiver sessão (logout ou inicial), para o loading
+             setLoading(false);
              setUser(null);
              setJobs([]);
-             if (!isPublicRoute()) setView('DASHBOARD');
+             setView('DASHBOARD');
              setIsOAuthUser(false);
         }
     });
 
-    // 2. CHECK FOR OAUTH ERRORS
+    // 2. CHECK FOR OAUTH ERRORS (Novo)
     const params = new URLSearchParams(window.location.search);
     const error = params.get('error');
+    const errorCode = params.get('error_code');
+    const errorDesc = params.get('error_description');
+
     if (error) {
+        console.error("OAuth Error Detected:", error, errorCode, errorDesc);
+        
+        // Tratamento específico para o erro de 'bad_oauth_state' que ocorre quando há mismatch de porta
+        if (errorCode === 'bad_oauth_state' || errorDesc?.includes('state')) {
+            alert(
+                "Atenção: Erro de Configuração de Login\n\n" +
+                "O Google redirecionou para uma porta diferente da que você iniciou.\n" +
+                "Isso geralmente acontece quando o Supabase está configurado para 'localhost:3000' mas você está usando 'localhost:5173'.\n\n" +
+                "SOLUÇÃO:\n" +
+                "1. Vá ao painel do Supabase > Authentication > URL Configuration.\n" +
+                "2. Mude o 'Site URL' para http://localhost:5173\n" +
+                "3. Adicione http://localhost:5173 na lista de Redirect URLs."
+            );
+        } else {
+            alert(`Erro no Login: ${errorDesc || error}. Tente novamente.`);
+        }
+        // Limpa a URL para não ficar mostrando o erro
         window.history.replaceState(null, '', window.location.pathname);
     }
     
@@ -262,20 +267,15 @@ const App: React.FC = () => {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
         setView('PUBLIC_UPLOAD');
-        setLoading(false);
     } else if (hashMatch) {
         const code = hashMatch[1];
         fetchPublicJobByCode(code);
     } else if (pathMatch) {
         const code = pathMatch[1];
         fetchPublicJobByCode(code);
-    } else {
-        // Se não for rota publica e não tiver sessão (verificado acima), para o loading
-        if (!supabase.auth.getSession()) {
-             // A verificação de sessão é assincrona, o listener tratará.
-        }
     }
     
+    // Limpeza na desmontagem
     return () => {
       subscription.unsubscribe();
       clearTimeout(safetyTimer);
@@ -291,6 +291,8 @@ const App: React.FC = () => {
     const cutoffISO = cutoffDate.toISOString();
 
     try {
+        // 1. Identificar currículos antigos
+        // Nota: Precisamos selecionar apenas os candidatos que TEM file_path
         const { data: oldCandidates, error } = await supabase
             .from('candidates')
             .select('id, file_path, created_at')
@@ -298,17 +300,32 @@ const App: React.FC = () => {
             .not('file_path', 'is', null);
 
         if (error) {
+            console.error("Erro ao verificar retenção:", error);
             return;
         }
 
         if (oldCandidates && oldCandidates.length > 0) {
+            console.log(`🧹 Iniciando limpeza de ${oldCandidates.length} currículos expirados (>10 dias)...`);
+
+            // 2. Apagar Arquivos do Storage
             const filesToRemove = oldCandidates.map(c => c.file_path).filter(Boolean);
             if (filesToRemove.length > 0) {
-                await supabase.storage.from('resumes').remove(filesToRemove);
+                const { error: storageError } = await supabase.storage
+                    .from('resumes')
+                    .remove(filesToRemove);
+                
+                if (storageError) console.error("Erro ao limpar storage:", storageError);
             }
 
+            // 3. Apagar Registros do Banco
             const idsToRemove = oldCandidates.map(c => c.id);
-            await supabase.from('candidates').delete().in('id', idsToRemove);
+            const { error: dbError } = await supabase
+                .from('candidates')
+                .delete()
+                .in('id', idsToRemove);
+
+            if (dbError) console.error("Erro ao limpar DB:", dbError);
+            else console.log("✅ Limpeza de retenção concluída com sucesso.");
         }
     } catch (err) {
         console.error("Falha no processo de limpeza automática:", err);
@@ -321,61 +338,49 @@ const App: React.FC = () => {
       
       // --- SEGURANÇA: VERIFICA BLOQUEIO DE CONTA ---
       if (data && data.status === 'BLOCKED') {
+          console.warn("Usuário bloqueado tentando acessar:", email);
           await supabase.auth.signOut();
           setUser(null);
           setLoading(false);
           alert("Acesso Negado: Sua conta foi suspensa temporariamente. Entre em contato com o suporte.");
-          return; 
+          return; // Interrompe o carregamento
       }
-      
+      // ---------------------------------------------
+
       if (error && error.code !== 'PGRST116') {
         console.error("Erro ao buscar perfil:", error);
       }
       
       const dbName = data?.name;
+      // VERIFICAÇÃO DE NOME: Se não existir, for vazio ou igual ao placeholder "Usuário"
       const needsNameUpdate = !dbName || dbName.trim() === '' || dbName === 'Usuário';
-
-      // --- REGRAS DE LIMITES ESTRITOS (HARDCODED) ---
-      // Forçamos os limites aqui baseados no plano, ignorando valores antigos do DB
-      const userPlan = data?.plan || 'FREE';
-      let strictJobLimit = 1;
-      let strictResumeLimit = 30;
-
-      if (userPlan === 'MENSAL') {
-          strictJobLimit = 5;
-          strictResumeLimit = 99999; // Ilimitado
-      } else if (userPlan === 'ANUAL' || userPlan === 'TRIMESTRAL') {
-          strictJobLimit = 99999; // Ilimitado
-          strictResumeLimit = 99999; // Ilimitado
-      }
 
       const profile = data ? {
         ...data,
-        name: data.name || 'Usuário',
-        // Sobrescreve com os limites oficiais do plano
-        job_limit: strictJobLimit,
-        resume_limit: strictResumeLimit
+        name: data.name || 'Usuário'
       } : {
         id: userId,
         email: email,
         name: 'Usuário',
         plan: 'FREE',
-        job_limit: 1, // Default Free
-        resume_limit: 30, // Default Free
+        job_limit: 3,
+        resume_limit: 25, 
         resume_usage: 0,
         role: 'USER'
       };
 
       setUser(profile);
       
+      // Se precisar atualizar o nome e não for Admin (admins podem pular)
       if (needsNameUpdate && profile.role !== 'ADMIN') {
           setShowNameModal(true);
       }
       
+      // Inicia processos paralelos
       await Promise.all([
           fetchJobs(userId),
           fetchAnnouncements(),
-          runDataRetentionCleanup(userId)
+          runDataRetentionCleanup(userId) // Executa limpeza ao carregar
       ]);
 
     } catch (error) {
@@ -400,9 +405,11 @@ const App: React.FC = () => {
             
         if (error) throw error;
         
+        // Atualiza estado local
         setUser({ ...user, name: tempName });
         setShowNameModal(false);
     } catch (err: any) {
+        console.error("Erro ao salvar nome:", err);
         alert("Erro ao salvar: " + err.message);
     } finally {
         setIsSavingName(false);
@@ -419,6 +426,7 @@ const App: React.FC = () => {
             options: { data: { name, phone } }
         });
 
+        // Tratamento de Erros de Cadastro
         if (result.error) {
             if (result.error.message.includes("security purposes") || result.error.status === 429) {
                 return { success: false, error: "Muitas tentativas recentes. Aguarde 60 segundos antes de tentar novamente." };
@@ -430,39 +438,48 @@ const App: React.FC = () => {
         }
 
         if (result.data.user) {
+           // Verifica se a sessão existe (Email Confirmation: OFF) ou não (Email Confirmation: ON)
            if (result.data.session) {
-               // Cria perfil com Limites Padrão FREE
+               // Usuário logado. Cria/Atualiza perfil. 
+               // Usamos UPSERT para evitar erros se o cadastro falhou parcialmente antes.
                const { error: profileError } = await supabase.from('profiles').upsert([{
                  id: result.data.user.id,
                  email,
                  name: name || 'Usuário',
                  phone,
                  plan: 'FREE',
-                 job_limit: 1, // FREE: 1 Vaga
-                 resume_limit: 30, // FREE: 30 CVs
+                 job_limit: 3,
+                 resume_limit: 25, 
                  resume_usage: 0,
                  role: 'USER'
                }], { onConflict: 'id' });
                
                if (profileError) {
                    console.error("Erro ao criar perfil:", profileError);
+                   // Não retornamos erro aqui pois a Auth foi criada.
                }
            } else {
+               // Usuário criado, mas aguardando confirmação de email.
                return { success: true, message: "Cadastro realizado! Verifique seu email para confirmar a conta antes de entrar." };
            }
+
+           // fetchUserProfile será chamado pelo onAuthStateChange listener
            return { success: true };
         }
       } else {
         result = await supabase.auth.signInWithPassword({ email, password: pass });
         
+        // --- SEGURANÇA IMEDIATA NO LOGIN ---
         if (result.data.user) {
              const { data: profile } = await supabase.from('profiles').select('status').eq('id', result.data.user.id).single();
              if (profile && profile.status === 'BLOCKED') {
                  await supabase.auth.signOut();
                  return { success: false, error: "Acesso negado: Sua conta foi suspensa." };
              }
+             // Note: fetchUserProfile will be called by onAuthStateChange listener as backup
              return { success: true };
         }
+        // -----------------------------------
       }
       return { success: false, error: result.error?.message };
     } catch (e: any) {
@@ -472,11 +489,13 @@ const App: React.FC = () => {
 
   const handleResetPassword = async (email: string) => {
     try {
+        // Redireciona para a home, onde o usuário estará logado e poderá alterar a senha em Settings
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: window.location.origin
         });
 
         if (error) {
+            // Tratamento de Rate Limit no Reset
             if (error.message.includes("security purposes") || error.status === 429) {
                  return { success: false, error: "Muitas solicitações. Aguarde 60 segundos." };
             }
@@ -497,11 +516,15 @@ const App: React.FC = () => {
     
     setIsSavingRecovery(true);
     try {
+        // Atualiza a senha do usuário LOGADO (Magic Link já fez o login)
         const { error } = await supabase.auth.updateUser({ password: recoveryPassword });
+        
         if (error) throw error;
+        
         alert("Senha redefinida com sucesso!");
         setShowRecoveryModal(false);
         setRecoveryPassword('');
+        // Opcional: Redirecionar para dashboard ou apenas fechar modal
     } catch (error: any) {
         alert("Erro ao redefinir senha: " + error.message);
     } finally {
@@ -513,6 +536,9 @@ const App: React.FC = () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
+        // Tenta usar a origem atual para redirecionamento
+        // ATENÇÃO: Se estiver rodando em localhost:5173, certifique-se de que essa URL
+        // está adicionada no painel do Supabase > Auth > Redirect URLs
         redirectTo: window.location.origin 
       }
     });
@@ -525,6 +551,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    // onAuthStateChange will handle state cleanup
   };
 
   // --- DATA FETCHING ---
@@ -548,6 +575,7 @@ const App: React.FC = () => {
 
     setJobs(formattedJobs);
     
+    // Se estiver visualizando uma vaga, atualiza ela também
     if (activeJob) {
         const updatedActive = formattedJobs.find(j => j.id === activeJob.id);
         if (updatedActive) {
@@ -589,7 +617,6 @@ const App: React.FC = () => {
               autoAnalyze: data.auto_analyze, 
               isPaused: data.is_paused 
           });
-          setLoading(false);
       }
   };
 
@@ -604,11 +631,10 @@ const App: React.FC = () => {
               isPaused: data.is_paused 
           });
           setView('PUBLIC_UPLOAD');
-          setLoading(false);
       } else {
           console.error("Vaga não encontrada para o código:", code);
+          // Opcional: Redirecionar para home se não achar
           window.history.pushState({}, '', '/');
-          setLoading(false);
       }
   };
 
@@ -623,6 +649,8 @@ const App: React.FC = () => {
       if (!user) return;
       setIsRefreshing(true);
       await fetchJobs(user.id);
+      
+      // Simula um delay mínimo para feedback visual se a resposta for muito rápida
       setTimeout(() => setIsRefreshing(false), 800);
   };
 
@@ -644,17 +672,7 @@ const App: React.FC = () => {
               setActiveJob(prev => prev ? { ...prev, title, description, criteria } : null);
           }
       } else if (user) {
-          
-          // --- BLOQUEIO RIGOROSO DE LIMITE DE VAGAS ---
-          // Se o usuário já tiver atingido o limite do plano, impede a criação
-          if (jobs.length >= user.job_limit) {
-              alert(`Limite de vagas atingido (${user.job_limit}). Faça um upgrade para criar mais vagas.`);
-              setShowCreateModal(false);
-              setCurrentTab('BILLING');
-              return;
-          }
-          // ----------------------------------------------
-
+          // Geração de Código Curto de 6 dígitos
           const shortCode = generateShortCode();
           
           const { data, error } = await supabase
@@ -671,8 +689,9 @@ const App: React.FC = () => {
             
           if (error) {
               console.error("Erro ao criar vaga:", error);
+              // Fallback para erro de coluna: tenta criar sem short_code (compatibilidade)
               if (error.message?.includes('short_code')) {
-                   alert("Atenção: Para ativar os links curtos (6 números), atualize seu banco de dados em Configurações > Banco de Dados > Script V35.");
+                   alert("Atenção: Para ativar os links curtos (6 números), atualize seu banco de dados em Configurações > Banco de Dados > Script V23.");
               }
               return;
           }
@@ -705,6 +724,7 @@ const App: React.FC = () => {
   };
 
   const handleChangePassword = async () => {
+    // Se não for OAuth (Google), exige senha atual
     if (!isOAuthUser && !currentPassword) { 
         alert("Digite a senha atual."); 
         return; 
@@ -717,6 +737,7 @@ const App: React.FC = () => {
     
     setChangingPassword(true);
     
+    // Se for email/senha padrão, verifica a senha atual antes de trocar
     if (!isOAuthUser) {
         const { error: loginError } = await supabase.auth.signInWithPassword({ email: user?.email || '', password: currentPassword });
         
@@ -764,6 +785,7 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
       reader.onload = () => {
           let encoded = reader.result as string;
+          // Remove prefix like "data:application/pdf;base64,"
           encoded = encoded.replace(/^data:.+;base64,/, '');
           resolve(encoded);
       };
@@ -771,11 +793,12 @@ const App: React.FC = () => {
     });
   };
 
+  // FUNÇÃO CRÍTICA: Remove caracteres que quebram o upload do Supabase/Storage
   const sanitizeFileName = (name: string) => {
     return name
-      .normalize('NFD') 
-      .replace(/[\u0300-\u036f]/g, "") 
-      .replace(/[^a-zA-Z0-9.-]/g, "_") 
+      .normalize('NFD') // Separa acentos
+      .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/[^a-zA-Z0-9.-]/g, "_") // Substitui tudo que não for letra, número, ponto ou traço por underscore
       .toLowerCase();
   };
 
@@ -804,6 +827,7 @@ const App: React.FC = () => {
   };
 
   const uploadCandidates = async (files: File[], jobId: string) => {
+    // Optimistic Update
     const newCandidates: Candidate[] = files.map(f => ({
         id: Math.random().toString(36).substr(2, 9),
         file: f,
@@ -817,6 +841,7 @@ const App: React.FC = () => {
 
     for (const c of newCandidates) {
         try {
+            // CORREÇÃO: Usar nome sanitizado para o Storage, mas manter original para o Display
             const cleanName = sanitizeFileName(c.file.name);
             const fileName = `${Date.now()}_${cleanName}`;
             
@@ -833,8 +858,8 @@ const App: React.FC = () => {
                 .from('candidates')
                 .insert([{
                     job_id: jobId,
-                    filename: c.file.name, 
-                    file_path: uploadData.path, 
+                    filename: c.file.name, // Nome bonito no banco
+                    file_path: uploadData.path, // Caminho seguro no storage
                     status: 'PENDING'
                 }])
                 .select()
@@ -844,11 +869,13 @@ const App: React.FC = () => {
 
             if (dbData && activeJob) {
                 const finalCandidate = mapCandidateFromDB(dbData);
+                // Substitui o candidato otimista pelo real
                 setActiveJob(prev => {
                     if (!prev) return null;
                     const others = prev.candidates.filter(cand => cand.id !== c.id);
                     return { ...prev, candidates: [finalCandidate, ...others] };
                 });
+                // Atualiza lista global de vagas
                 setJobs(prev => prev.map(j => j.id === jobId ? { ...j, candidates: [finalCandidate, ...j.candidates] } : j));
             }
 
@@ -856,10 +883,11 @@ const App: React.FC = () => {
             console.error("Upload failed details:", err.message);
             
             if (err.message && err.message.includes("violates not-null constraint") && err.message.includes("file_name")) {
-                alert("ERRO CRÍTICO: Execute o SCRIPT V17 em Configurações > Banco de Dados.");
+                alert("ERRO CRÍTICO DE BANCO DE DADOS: Coluna 'file_name' bloqueada.\n\nPor favor, vá em Configurações > Banco de Dados > e execute o SCRIPT V17.");
                 setShowSqlModal(true);
             }
 
+            // Mark as error
             setActiveJob(prev => {
                 if (!prev) return null;
                 return {
@@ -894,13 +922,19 @@ const App: React.FC = () => {
 
               if (dbError) throw dbError;
 
+              // --- AUTO ANALYZE LOGIC ---
               if (publicJobData.autoAnalyze && publicJobData.criteria && insertedCandidate) {
                   try {
+                      // 1. Converter arquivo para base64
                       const base64 = await fileToBase64(file);
+                      
+                      // 2. Chamar IA
+                      // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
                       await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
                       
                       const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
                       
+                      // 3. Salvar Resultado
                       await supabase.from('candidates')
                           .update({ 
                               status: 'COMPLETED',
@@ -911,6 +945,7 @@ const App: React.FC = () => {
                           
                   } catch (analyzeErr) {
                       console.error("Erro na auto-análise:", analyzeErr);
+                      // Se falhar, deixa como PENDING ou ERROR? Melhor ERROR para o recrutador ver.
                       await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
                   }
               }
@@ -919,27 +954,18 @@ const App: React.FC = () => {
   };
 
   const runAnalysis = async () => {
-    if (!activeJob || !user) return;
+    if (!activeJob) return;
 
     const pendingCandidates = activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING);
     if (pendingCandidates.length === 0) return;
 
-    // --- BLOQUEIO RIGOROSO DE LIMITE DE ANÁLISE ---
-    // Se não for plano ilimitado (Free), checa limite
-    if (user.resume_limit < 9000) {
-        if (user.resume_usage + pendingCandidates.length > user.resume_limit) {
-            alert(`Limite de currículos do plano ${user.plan} atingido. Você analisou ${user.resume_usage}/${user.resume_limit}. Faça upgrade para análises ilimitadas.`);
-            setCurrentTab('BILLING');
-            return;
-        }
-    }
-    // ----------------------------------------------
-
+    // Refresh session to avoid Auth errors during long process
     await supabase.auth.refreshSession();
 
     setAnalysisMetrics({ isAnalyzing: true, processedCount: 0, timeTaken: null });
     const startTime = Date.now();
 
+    // Mark as analyzing visually
     const updatedWithAnalyzing = activeJob.candidates.map(c => 
         c.status === CandidateStatus.PENDING ? { ...c, status: CandidateStatus.ANALYZING } : c
     );
@@ -947,21 +973,29 @@ const App: React.FC = () => {
 
     let processedGlobal = 0;
 
+    // --- FUNÇÃO DE PROCESSAMENTO INDIVIDUAL ---
     const processCandidate = async (candidate: Candidate) => {
         try {
+            // 1. Download file from storage
             if (!candidate.filePath) throw new Error("File path missing");
             
             const { data: fileBlob, error: downloadError } = await supabase.storage
                 .from('resumes')
                 .download(candidate.filePath);
 
-            if (downloadError || !fileBlob) throw new Error("Falha no download");
+            if (downloadError || !fileBlob) {
+                console.error("Erro ao baixar arquivo do Supabase:", downloadError);
+                throw new Error("Falha no download");
+            }
 
+            // 2. Convert blob to base64
             const file = new File([fileBlob], candidate.fileName || 'resume.pdf', { type: 'application/pdf' });
             const base64 = await fileToBase64(file);
 
+            // 3. Analyze
             const result = await analyzeResume(base64, activeJob.title, activeJob.criteria);
             
+            // 4. Update DB
             const { error: updateError } = await supabase.from('candidates')
                 .update({ 
                     status: 'COMPLETED',
@@ -970,8 +1004,12 @@ const App: React.FC = () => {
                 })
                 .eq('id', candidate.id);
             
-            if (updateError) throw new Error("Falha ao salvar no banco");
+            if (updateError) {
+                console.error("DB Save Failed:", updateError);
+                throw new Error("Falha ao salvar no banco: " + updateError.message);
+            }
             
+            // 5. Update UI State (Individual Success)
             setActiveJob(prev => {
                 if (!prev) return null;
                 return {
@@ -1002,7 +1040,11 @@ const App: React.FC = () => {
         }
     };
 
-    const CONCURRENCY_LIMIT = 15;
+    // --- PROMISE POOL PATTERN (CONCORRÊNCIA MÁXIMA) ---
+    // Em vez de esperar lotes de 8 em 8, criamos uma fila onde 15 executam ao mesmo tempo.
+    // Assim que um termina, outro entra na vaga imediatamente.
+    
+    const CONCURRENCY_LIMIT = 20; // 20 conexões simultâneas para acelerar
     const queue = [...pendingCandidates];
     
     const worker = async () => {
@@ -1014,12 +1056,14 @@ const App: React.FC = () => {
         }
     };
 
+    // Inicia N workers que consomem da mesma fila
     const workers = Array(Math.min(pendingCandidates.length, CONCURRENCY_LIMIT))
         .fill(null)
         .map(() => worker());
 
     await Promise.all(workers);
 
+    // Finish
     const diff = Date.now() - startTime;
     const minutes = Math.floor(diff / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
@@ -1027,6 +1071,7 @@ const App: React.FC = () => {
 
     setAnalysisMetrics({ isAnalyzing: false, processedCount: processedGlobal, timeTaken: formattedTime });
     
+    // Update global job list
     if (activeJob) {
         const { data } = await supabase.from('candidates').select('*').eq('job_id', activeJob.id);
         if (data) {
@@ -1036,6 +1081,7 @@ const App: React.FC = () => {
         }
     }
 
+    // Decrement usage quota if needed
     if (user && user.resume_limit < 9999) {
         const newUsage = user.resume_usage + processedGlobal;
         await supabase.from('profiles').update({ resume_usage: newUsage }).eq('id', user.id);
@@ -1044,8 +1090,10 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCandidate = async (id: string) => {
+      // Verifica se o candidato é um item temporário com erro (não salvo no banco)
       const isErrorItem = activeJob?.candidates.find(c => c.id === id && (c.status === CandidateStatus.ERROR || c.status === CandidateStatus.UPLOADING));
       
+      // Se for um item de erro, apenas remove da tela (não chama API, pois ID não existe no DB)
       if (!isErrorItem) {
           await supabase.from('candidates').delete().eq('id', id);
       }
@@ -1082,18 +1130,41 @@ const App: React.FC = () => {
   // --- RENDERING HELPERS ---
 
   const renderOverview = () => {
+      // Filtrar Anúncios baseados no plano do usuário
       const visibleAnnouncements = announcements.filter(ad => {
+          // Se o usuário não tiver plano definido (null), assume FREE
           const userPlan = user?.plan || 'FREE';
+          // Verifica se o plano do usuário está na lista de planos alvo do anúncio
           return ad.targetPlans.includes(userPlan);
       });
 
       return (
-      <div className="space-y-8 animate-fade-in max-w-6xl mx-auto font-sans">
-          <div>
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight">Visão Geral</h2>
-              <p className="text-slate-500 font-medium">
-                  Bem-vindo de volta, <span className="text-slate-900 font-bold capitalize">{(user?.name || 'Usuário').split(' ')[0].toLowerCase()}</span>.
-              </p>
+      <div className="space-y-10 animate-fade-in max-w-6xl mx-auto font-sans pt-2">
+          
+          {/* HEADER DE RECEPÇÃO - NOVO DESIGN */}
+          <div className="flex items-center gap-6">
+              <div className="relative shrink-0 group cursor-default">
+                  <div className="absolute inset-0 bg-[#CCF300] rounded-[1.3rem] translate-x-2 translate-y-2 transition-transform duration-300 group-hover:translate-x-3 group-hover:translate-y-3"></div>
+                  <div className="w-24 h-24 bg-black rounded-[1.3rem] relative flex items-center justify-center text-white text-4xl font-black border-2 border-black z-10 shadow-sm">
+                      {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+              </div>
+              
+              <div className="flex flex-col justify-center">
+                  <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none mb-3">
+                      Olá, {(user?.name || 'Usuário').split(' ')[0]}
+                  </h1>
+                  <div className="flex items-center gap-4">
+                      <div className="bg-[#CCF300] text-black text-[11px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest border-2 border-[#CCF300] shadow-[2px_2px_0px_0px_rgba(0,0,0,0.1)]">
+                          PLANO {user?.plan || 'FREE'}
+                      </div>
+                      <div className="text-slate-400 font-bold text-sm tracking-tight flex items-baseline gap-1.5">
+                          <span className="text-slate-900 font-black text-xl">{user?.resume_usage}</span> 
+                          <span className="text-slate-300 font-light">/</span> 
+                          <span className="text-slate-500 font-bold">{user?.resume_limit >= 9999 ? 'Ilimitado' : user?.resume_limit} Análises</span>
+                      </div>
+                  </div>
+              </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1262,8 +1333,8 @@ const App: React.FC = () => {
                           <span className="text-5xl font-black tracking-tighter">Grátis</span>
                       </div>
                       <div className="space-y-1 mb-8 text-sm font-bold text-slate-600">
-                          <p>1 Vaga</p>
-                          <p>30 Currículos/mês</p>
+                          <p>3 Vagas</p>
+                          <p>25 Currículos/mês</p>
                       </div>
                       <button disabled className="w-full bg-black text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest cursor-default border-2 border-black opacity-90">
                           (Atual)
@@ -1281,7 +1352,6 @@ const App: React.FC = () => {
                       </div>
                       <div className="space-y-1 mb-8 text-sm font-bold text-slate-600">
                           <p>5 Vagas</p>
-                          <p>Currículos Ilimitados</p>
                           <p>+ Link Público</p>
                       </div>
                       <button onClick={() => handleUpgrade('MENSAL')} className="w-full bg-black text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-zinc-800 transition-colors">
@@ -1304,7 +1374,6 @@ const App: React.FC = () => {
                       </div>
                       <div className="space-y-1 mb-8 text-sm font-bold text-white">
                           <p>Vagas Ilimitadas</p>
-                          <p>Currículos Ilimitados</p>
                           <p className="text-[#CCF300]">+ Link Público</p>
                       </div>
                       <button onClick={() => handleUpgrade('ANUAL')} className="w-full bg-[#CCF300] text-black font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-[#bce000] transition-colors">
@@ -1427,7 +1496,7 @@ const App: React.FC = () => {
                 setPublicUploadJobId(null);
                 setView(user ? 'DASHBOARD' : 'DASHBOARD');
                 window.history.pushState({}, '', '/');
-                if (user) fetchJobs(user.id); 
+                if (user) fetchJobs(user.id); // Força atualização ao voltar do preview
             }}
           />
       );
@@ -1479,6 +1548,7 @@ const App: React.FC = () => {
       if (activeJob) setShowShareModal(true);
   };
 
+  // Helper para atualizar job localmente no modal de share
   const handleJobUpdate = (updatedJob: Job) => {
       setJobs(prev => prev.map(j => j.id === updatedJob.id ? updatedJob : j));
       if (activeJob?.id === updatedJob.id) {
@@ -1769,6 +1839,8 @@ const App: React.FC = () => {
           <SqlSetupModal onClose={() => setShowSqlModal(false)} />
       )}
 
+      {/* ... (Existing modals remain unchanged) */}
+      
       {/* NAME UPDATE MODAL (FORCE UPDATE) */}
       {showNameModal && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
