@@ -1,10 +1,10 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { AdminUserProfile, Announcement, PlanType } from '../types';
+import { SqlSetupModal } from './SqlSetupModal';
 import { 
   Users, Calendar, CreditCard, Search, Activity, Briefcase, 
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, Clock, UserX, Wallet, Lock, Database, Copy, ToggleRight, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, Clock, UserX, Wallet, Lock, Database, Copy, ToggleRight, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Crown, Percent
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -31,6 +31,7 @@ export const AdminDashboard: React.FC = () => {
   // State para o Modal de Detalhes de Usuário
   const [selectedUser, setSelectedUser] = useState<AdminUserProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
 
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
@@ -44,9 +45,6 @@ export const AdminDashboard: React.FC = () => {
   // State Financeiro
   const [financeDate, setFinanceDate] = useState(new Date());
 
-  // State Database Tab
-  const [sqlTab, setSqlTab] = useState<'FIX_ALL' | 'CRON' | 'NEW_FEATURES'>('FIX_ALL');
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -55,31 +53,15 @@ export const AdminDashboard: React.FC = () => {
     try {
       setLoading(true);
       
-      // 1. Buscar Perfis
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-        
+      const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('*');
       if (profilesError) throw profilesError;
 
-      // 2. Buscar Vagas (para Overview)
-      const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select('*, candidates(id)');
-
+      const { data: jobsData, error: jobsError } = await supabase.from('jobs').select('*, candidates(id)');
       if (jobsError) throw jobsError;
 
-      // 3. Buscar Anúncios
-      const { data: adsData, error: adsError } = await supabase
-        .from('announcements')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data: adsData, error: adsError } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+      if (adsError && adsError.code !== '42P01') console.error("Erro ao buscar anúncios:", adsError);
 
-      if (adsError && adsError.code !== '42P01') { 
-          console.error("Erro ao buscar anúncios:", adsError);
-      }
-
-      // Processar Usuários
       const mappedUsers: AdminUserProfile[] = profilesData.map((u: any) => {
           const userJobs = jobsData?.filter((j: any) => j.user_id === u.id) || [];
           return {
@@ -98,7 +80,6 @@ export const AdminDashboard: React.FC = () => {
           };
       });
 
-      // Processar Vagas
       const mappedJobs: AdminJob[] = jobsData?.map((j: any) => {
           const owner = mappedUsers.find(u => u.id === j.user_id);
           return {
@@ -112,7 +93,6 @@ export const AdminDashboard: React.FC = () => {
           };
       }) || [];
 
-      // Processar Anúncios
       const mappedAds: Announcement[] = adsData?.map((a: any) => {
           const { data } = supabase.storage.from('marketing').getPublicUrl(a.image_path);
           return {
@@ -142,11 +122,7 @@ export const AdminDashboard: React.FC = () => {
       const newStatus = user.status === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED';
       
       try {
-          const { error } = await supabase
-            .from('profiles')
-            .update({ status: newStatus })
-            .eq('id', user.id);
-            
+          const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', user.id);
           if (error) throw error;
           
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
@@ -160,7 +136,54 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
-  // --- ADVERTISEMENT LOGIC ---
+  const handleUpdatePlan = async (newPlan: string) => {
+      if (!selectedUser) return;
+      setActionLoading(true);
+
+      let newJobLimit = 3;
+      let newResumeLimit = 25;
+
+      if (newPlan === 'MENSAL') {
+          newJobLimit = 5;
+          newResumeLimit = 150;
+      } else if (newPlan === 'ANUAL') {
+          newJobLimit = 9999;
+          newResumeLimit = 9999;
+      }
+
+      try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ 
+                plan: newPlan,
+                job_limit: newJobLimit,
+                resume_limit: newResumeLimit,
+                subscription_status: 'active'
+            })
+            .eq('id', selectedUser.id);
+
+          if (error) {
+              if (error.message.includes('policy')) {
+                  alert("ERRO DE PERMISSÃO: Você precisa rodar o SCRIPT V40 (Admin Power) em 'Banco de Dados' para liberar essa função.");
+              } else {
+                  throw error;
+              }
+              return;
+          }
+
+          const updatedUser = { ...selectedUser, plan: newPlan, job_limit: newJobLimit, resume_limit: newResumeLimit };
+          setSelectedUser(updatedUser);
+          setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, plan: newPlan } : u));
+          setIsEditingPlan(false);
+          alert(`✅ Sucesso! Plano alterado para ${newPlan}.\nLimites atualizados: ${newJobLimit >= 9999 ? 'Ilimitado' : newJobLimit} Vagas, ${newResumeLimit >= 9999 ? 'Ilimitado' : newResumeLimit} Currículos.`);
+
+      } catch (err: any) {
+          console.error("Erro ao atualizar plano:", err);
+          alert("Erro ao atualizar plano: " + err.message);
+      } finally {
+          setActionLoading(false);
+      }
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
@@ -183,48 +206,34 @@ export const AdminDashboard: React.FC = () => {
           alert("Título e Imagem são obrigatórios.");
           return;
       }
-
       if (newAdPlans.length === 0) {
           alert("Selecione pelo menos um plano alvo.");
           return;
       }
-
       setIsPostingAd(true);
       try {
-          // 1. Upload Image
           const fileExt = newAdImage.name.split('.').pop();
           const fileName = `${Date.now()}_ad.${fileExt}`;
-          const { error: uploadError, data: uploadData } = await supabase.storage
-              .from('marketing')
-              .upload(fileName, newAdImage);
-
+          const { error: uploadError, data: uploadData } = await supabase.storage.from('marketing').upload(fileName, newAdImage);
           if (uploadError) throw uploadError;
 
-          // 2. Insert DB Record
-          const { error: dbError } = await supabase
-              .from('announcements')
-              .insert([{
-                  title: newAdTitle,
-                  link_url: newAdLink || null,
-                  image_path: uploadData.path,
-                  is_active: true,
-                  target_plans: newAdPlans
-              }]);
-
+          const { error: dbError } = await supabase.from('announcements').insert([{
+              title: newAdTitle,
+              link_url: newAdLink || null,
+              image_path: uploadData.path,
+              is_active: true,
+              target_plans: newAdPlans
+          }]);
           if (dbError) throw dbError;
 
           alert("Anúncio publicado com sucesso!");
-          
-          // Reset Form
           setNewAdTitle('');
           setNewAdLink('');
           setNewAdImage(null);
           setNewAdPreview(null);
           setNewAdPlans(['FREE', 'MENSAL', 'ANUAL']);
-          fetchData(); // Refresh list
-
+          fetchData();
       } catch (err: any) {
-          console.error("Erro ao postar anúncio:", err);
           alert("Erro ao postar anúncio: " + err.message);
       } finally {
           setIsPostingAd(false);
@@ -233,7 +242,6 @@ export const AdminDashboard: React.FC = () => {
 
   const handleDeleteAd = async (id: string) => {
       if (!confirm("Tem certeza que deseja apagar este anúncio?")) return;
-      
       try {
           const { error } = await supabase.from('announcements').delete().eq('id', id);
           if (error) throw error;
@@ -247,12 +255,8 @@ export const AdminDashboard: React.FC = () => {
     await supabase.auth.signOut();
   };
 
-  // --- LÓGICA FINANCEIRA ---
-  
   const getFinancialData = () => {
-      // Filtrar usuários que existiam até o final do mês selecionado
       const targetMonthEnd = new Date(financeDate.getFullYear(), financeDate.getMonth() + 1, 0);
-      
       const historicalUsers = users.filter(u => {
           const userCreated = new Date(u.created_at);
           return userCreated <= targetMonthEnd;
@@ -261,7 +265,7 @@ export const AdminDashboard: React.FC = () => {
       const stats = {
           FREE: { count: 0, price: 0, revenue: 0 },
           MENSAL: { count: 0, price: 329.90, revenue: 0 },
-          TRIMESTRAL: { count: 0, price: 329.90, revenue: 0 }, // Legado ou futuro
+          TRIMESTRAL: { count: 0, price: 329.90, revenue: 0 },
           ANUAL: { count: 0, price: 289.90, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
@@ -276,7 +280,6 @@ export const AdminDashboard: React.FC = () => {
               // @ts-ignore
               stats[u.plan].revenue += stats[u.plan].price;
           }
-          // Soma uso de currículos
           stats.totalResumeUsage += (u.resume_usage || 0);
       });
 
@@ -284,168 +287,6 @@ export const AdminDashboard: React.FC = () => {
       stats.totalRevenue = stats.MENSAL.revenue + stats.TRIMESTRAL.revenue + stats.ANUAL.revenue;
 
       return stats;
-  };
-
-  // --- SQL SCRIPTS ---
-  const fixAllSql = `
--- --- SCRIPT V26: CORREÇÃO DE UPLOAD PÚBLICO E POLÍTICAS ---
-
--- 1. CORREÇÃO CRÍTICA: PERMITIR CANDIDATOS ANÔNIMOS (SEM USER_ID)
--- Isso resolve o erro: null value in column "user_id" violates not-null constraint
-ALTER TABLE public.candidates ALTER COLUMN user_id DROP NOT NULL;
-
--- 2. PERMISSÕES EXPLÍCITAS (GRANT)
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT ALL ON TABLE public.candidates TO anon, authenticated;
-GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
-GRANT ALL ON TABLE public.announcements TO anon, authenticated;
-
--- 3. POLÍTICAS DE CANDIDATOS (RLS) - RESET TOTAL
-ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
-
--- Remove políticas antigas para evitar erro "policy already exists"
-DROP POLICY IF EXISTS "Public Insert Candidates" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for anon" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for authenticated" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
-DROP POLICY IF EXISTS "Enable select for all" ON public.candidates;
-
--- Cria política unificada para permitir INSERT de qualquer um
-CREATE POLICY "Enable insert for all" ON public.candidates 
-FOR INSERT TO anon, authenticated 
-WITH CHECK (true);
-
--- Permite leitura para mostrar status/confirmação
-CREATE POLICY "Enable select for all" ON public.candidates 
-FOR SELECT TO anon, authenticated 
-USING (true);
-
--- 4. POLÍTICAS DE VAGAS (JOBS)
-ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
-CREATE POLICY "Enable read access for all" ON public.jobs 
-FOR SELECT TO anon, authenticated 
-USING (true);
-
--- PERMITIR UPDATE PARA O DONO DA VAGA (ESSENCIAL PARA PAUSAR/AUTO-ANÁLISE)
-DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
-CREATE POLICY "Enable update for owners" ON public.jobs 
-FOR UPDATE TO authenticated 
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
-
--- 5. STORAGE (Bucket 'resumes')
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('resumes', 'resumes', true)
-ON CONFLICT (id) DO NOTHING;
-
-GRANT ALL ON SCHEMA storage TO anon, authenticated;
-GRANT ALL ON TABLE storage.objects TO anon, authenticated;
-
-DROP POLICY IF EXISTS "Public Upload Resumes" ON storage.objects;
-DROP POLICY IF EXISTS "Give anon insert access" ON storage.objects;
-DROP POLICY IF EXISTS "Public Read Resumes" ON storage.objects;
-
-CREATE POLICY "Give anon insert access" ON storage.objects 
-FOR INSERT TO anon, authenticated 
-WITH CHECK (bucket_id = 'resumes');
-
-CREATE POLICY "Public Read Resumes" ON storage.objects 
-FOR SELECT TO anon, authenticated 
-USING (bucket_id = 'resumes');
-
--- 6. ANÚNCIOS (Correção do erro 42710)
-CREATE TABLE IF NOT EXISTS public.announcements (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    title text NOT NULL,
-    link_url text,
-    image_path text NOT NULL,
-    is_active boolean DEFAULT true,
-    created_at timestamptz DEFAULT now(),
-    target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
-);
-ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Public View Announcements" ON public.announcements;
-CREATE POLICY "Public View Announcements" ON public.announcements 
-FOR SELECT TO anon, authenticated 
-USING (true);
-
-GRANT ALL ON TABLE public.announcements TO anon, authenticated;
-
--- 7. LINKS CURTOS
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'jobs_short_code_key') THEN
-        ALTER TABLE public.jobs ADD CONSTRAINT jobs_short_code_key UNIQUE (short_code);
-    END IF;
-END $$;
-
-COMMIT;
-  `.trim();
-
-  const cronSql = `
--- --- SCRIPT V27: AUTOMAÇÃO DE LIMPEZA (10 DIAS) ---
--- Requer extensão pg_cron ativada no dashboard do Supabase (Database -> Extensions)
-
--- 1. Ativa a extensão (se permitido)
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-
--- 2. Cria a função de limpeza
-CREATE OR REPLACE FUNCTION delete_expired_candidates() RETURNS void AS $$
-BEGIN
-  -- Deleta candidatos criados há mais de 10 dias
-  -- Nota: O trigger de storage deve limpar o arquivo se configurado, 
-  -- caso contrário, a limpeza é apenas lógica no banco.
-  DELETE FROM public.candidates 
-  WHERE created_at < NOW() - INTERVAL '10 days';
-END;
-$$ LANGUAGE plpgsql;
-
--- 3. Agenda a execução para todo dia às 03:00 AM
-SELECT cron.schedule(
-  'cleanup_resumes', -- nome do job
-  '0 3 * * *',       -- cron expression (03:00 am daily)
-  $$SELECT delete_expired_candidates()$$
-);
-
--- Para verificar se agendou: SELECT * FROM cron.job;
-`.trim();
-
-  const featuresSql = `
--- --- SCRIPT V28: CORREÇÃO DE PERMISSÕES PARA NOVAS FUNÇÕES ---
-
--- 1. Adiciona as colunas necessárias se não existirem
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
-
--- 2. CORREÇÃO DE PERMISSÃO: Permite que o usuário ATUALIZE suas próprias vagas
--- Sem isso, ao tentar ativar "Auto Análise" ou "Pausar", o Supabase retorna erro.
-ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
-
-CREATE POLICY "Enable update for owners" ON public.jobs 
-FOR UPDATE TO authenticated 
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
-
--- Garante que o Supabase recarregue o schema
-NOTIFY pgrst, 'reload config';
-  `.trim();
-
-  const getSql = () => {
-      switch(sqlTab) {
-          case 'CRON': return cronSql;
-          case 'NEW_FEATURES': return featuresSql;
-          default: return fixAllSql;
-      }
-  };
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(getSql());
-    alert("Script copiado! Execute no SQL Editor do Supabase.");
   };
 
   // --- RENDERS ---
@@ -483,57 +324,6 @@ NOTIFY pgrst, 'reload config';
     </div>
   );
 
-  const renderDatabase = () => (
-      <div className="space-y-6 animate-fade-in h-full flex flex-col">
-          <div>
-              <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Banco de Dados</h2>
-              <p className="text-zinc-500 font-medium">Scripts de manutenção e atualizações do Supabase.</p>
-          </div>
-
-          <div className="flex-1 bg-zinc-900 rounded-[2rem] border border-zinc-700 shadow-xl overflow-hidden flex flex-col">
-              {/* Header do Terminal */}
-              <div className="bg-zinc-950 p-6 border-b border-zinc-800 flex justify-between items-center">
-                  <div className="flex gap-4">
-                      <button 
-                        onClick={() => setSqlTab('FIX_ALL')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${sqlTab === 'FIX_ALL' ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
-                      >
-                          <Database className="w-4 h-4" /> Script V26 (Geral)
-                      </button>
-                      <button 
-                        onClick={() => setSqlTab('NEW_FEATURES')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${sqlTab === 'NEW_FEATURES' ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
-                      >
-                          <ToggleRight className="w-4 h-4" /> Script V28 (Permissões)
-                      </button>
-                      <button 
-                        onClick={() => setSqlTab('CRON')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${sqlTab === 'CRON' ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
-                      >
-                          <Clock className="w-4 h-4" /> Script V27 (Limpeza)
-                      </button>
-                  </div>
-                  
-                  <div className="flex gap-3">
-                      <button onClick={handleCopySql} className="text-white hover:text-emerald-400 flex items-center gap-2 text-xs font-bold bg-zinc-800 px-3 py-2 rounded-lg hover:bg-zinc-700 transition-all">
-                          <Copy className="w-4 h-4" /> Copiar SQL
-                      </button>
-                      <a href="https://supabase.com/dashboard/project/_/sql/new" target="_blank" rel="noreferrer" className="text-white hover:text-emerald-400 flex items-center gap-2 text-xs font-bold bg-zinc-800 px-3 py-2 rounded-lg hover:bg-zinc-700 transition-all">
-                          Abrir Supabase <ExternalLink className="w-4 h-4" />
-                      </a>
-                  </div>
-              </div>
-
-              {/* Code Content */}
-              <div className="flex-1 overflow-auto p-6 bg-[#1e1e1e] custom-scrollbar">
-                  <pre className="text-zinc-300 font-mono text-sm leading-relaxed whitespace-pre-wrap selection:bg-emerald-500/30">
-                      {getSql()}
-                  </pre>
-              </div>
-          </div>
-      </div>
-  );
-
   const renderOverview = () => {
     const currentFinancials = getFinancialData();
     return (
@@ -542,7 +332,6 @@ NOTIFY pgrst, 'reload config';
             <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Visão Geral</h2>
             <p className="text-zinc-500 font-medium">Métricas de hoje, {new Date().toLocaleDateString('pt-BR')}</p>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
                 <div className="flex justify-between items-start mb-4">
@@ -578,185 +367,63 @@ NOTIFY pgrst, 'reload config';
     );
   };
 
-  const renderFinance = () => {
-      const stats = getFinancialData();
-      const arpu = stats.payingUsers > 0 ? stats.totalRevenue / stats.payingUsers : 0;
-      
-      // Simulação de transações recentes (pegando os usuários pagantes mais recentes)
-      const recentTransactions = users
-          .filter(u => u.plan !== 'FREE')
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 5);
+  const renderUsersList = () => {
+      const filteredUsers = users.filter(u => 
+          u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          u.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      const totalFree = users.filter(u => u.plan === 'FREE').length;
+      const totalPaid = users.filter(u => u.plan !== 'FREE').length;
 
       return (
-          <div className="space-y-8 animate-fade-in pb-12">
-              <div className="flex justify-between items-end">
+          <div className="space-y-6 animate-fade-in">
+              <div className="flex justify-between items-center">
                   <div>
-                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Faturamento</h2>
-                      <p className="text-zinc-500 font-medium">Gestão financeira e métricas de receita.</p>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Usuários</h2>
+                      <p className="text-zinc-500 font-medium">Gerencie o acesso à plataforma.</p>
                   </div>
-                  <div className="bg-white px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-500 shadow-sm flex items-center gap-2">
-                      <Calendar className="w-4 h-4"/>
-                      {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  <div className="flex gap-4">
+                      <div className="bg-white border border-zinc-200 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Free</span>
+                          <span className="text-lg font-black text-zinc-900">{totalFree}</span>
+                      </div>
+                      <div className="bg-black text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Pagos</span>
+                          <span className="text-lg font-black text-[#CCF300]">{totalPaid}</span>
+                      </div>
                   </div>
-              </div>
-
-              {/* KPIS PRINCIPAIS */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* MRR CARD - BLACK */}
-                  <div className="bg-black text-white p-8 rounded-[2.5rem] border border-zinc-800 shadow-xl relative overflow-hidden group">
-                      <div className="relative z-10">
-                          <div className="flex justify-between items-start mb-6">
-                              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
-                                  <Wallet className="w-6 h-6 text-[#CCF300]"/>
-                              </div>
-                              <span className="text-[#CCF300] bg-[#CCF300]/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#CCF300]/20">
-                                  Mensal
-                              </span>
-                          </div>
-                          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">MRR (Receita Recorrente)</p>
-                          <h3 className="text-5xl font-black text-white tracking-tighter mb-2">
-                              R$ {stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </h3>
-                          <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mt-4">
-                              <TrendingUp className="w-4 h-4 text-emerald-500" />
-                              <span className="text-emerald-500">Projeção Anual:</span> 
-                              R$ {(stats.totalRevenue * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </div>
-                      </div>
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-800/30 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                  </div>
-
-                  {/* PAYING USERS CARD */}
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
-                      <div>
-                          <div className="flex justify-between items-start mb-6">
-                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
-                                  <CreditCard className="w-6 h-6 text-zinc-900"/>
-                              </div>
-                          </div>
-                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Assinantes Ativos</p>
-                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
-                              {stats.payingUsers}
-                          </h3>
-                      </div>
-                      <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden mt-6">
-                          <div className="bg-black h-full rounded-full" style={{ width: `${(stats.payingUsers / (stats.totalUsers || 1)) * 100}%` }}></div>
-                      </div>
-                      <p className="text-[10px] font-bold text-zinc-400 mt-2 text-right">
-                          {((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}% da base total
-                      </p>
-                  </div>
-
-                  {/* ARPU CARD */}
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
-                      <div>
-                          <div className="flex justify-between items-start mb-6">
-                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
-                                  <Activity className="w-6 h-6 text-zinc-900"/>
-                              </div>
-                          </div>
-                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Ticket Médio (ARPU)</p>
-                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
-                              R$ {arpu.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                          </h3>
-                      </div>
-                      <div className="flex gap-2 mt-6">
-                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 border border-emerald-100">
-                              <ArrowUpRight className="w-3 h-3" /> Saudável
-                          </span>
-                      </div>
+                  <div className="relative">
+                      <Search className="w-5 h-5 absolute left-4 top-3.5 text-zinc-400" />
+                      <input type="text" placeholder="Buscar nome ou email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:border-black focus:ring-0 outline-none w-64 md:w-80 shadow-sm" />
                   </div>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* BREAKDOWN DE PLANOS */}
-                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8">
-                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
-                          <PieChart className="w-5 h-5"/> Distribuição de Receita
-                      </h3>
-                      
-                      <div className="space-y-6">
-                          {/* Mensal */}
-                          <div>
-                              <div className="flex justify-between items-end mb-2">
-                                  <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Mensal</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 329,90 / mês</span>
-                                  </div>
-                                  <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.MENSAL.count}</span>
-                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
-                                  </div>
-                              </div>
-                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-zinc-900 h-full rounded-full" style={{ width: `${(stats.MENSAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
-                              </div>
-                          </div>
-
-                          {/* Anual */}
-                          <div>
-                              <div className="flex justify-between items-end mb-2">
-                                  <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Anual</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 289,90 / mês (Cobrado anualmente)</span>
-                                  </div>
-                                  <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.ANUAL.count}</span>
-                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
-                                  </div>
-                              </div>
-                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-[#CCF300] h-full rounded-full" style={{ width: `${(stats.ANUAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="mt-8 pt-6 border-t border-zinc-100 flex justify-between items-center text-xs font-bold text-zinc-500">
-                          <span>Total Free: <strong className="text-zinc-900">{stats.FREE.count}</strong></span>
-                          <span>Conversão: <strong className="text-zinc-900">{((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}%</strong></span>
-                      </div>
-                  </div>
-
-                  {/* TRANSAÇÕES RECENTES (SIMULADO VIA USERS) */}
-                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8 flex flex-col">
-                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
-                          <Activity className="w-5 h-5"/> Últimas Conversões
-                      </h3>
-                      
-                      <div className="flex-1 overflow-auto custom-scrollbar">
-                          {recentTransactions.length === 0 ? (
-                              <div className="flex flex-col items-center justify-center h-full text-zinc-400 py-10">
-                                  <Ban className="w-8 h-8 mb-2 opacity-50" />
-                                  <p className="text-xs font-bold uppercase">Nenhuma venda recente</p>
-                              </div>
-                          ) : (
-                              <div className="space-y-4">
-                                  {recentTransactions.map(user => (
-                                      <div key={user.id} className="flex items-center justify-between p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 hover:bg-zinc-50 transition-colors">
-                                          <div className="flex items-center gap-3">
-                                              <div className="w-10 h-10 rounded-full bg-white border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold">
-                                                  {user.name?.charAt(0)}
-                                              </div>
-                                              <div>
-                                                  <p className="text-sm font-bold text-zinc-900">{user.name}</p>
-                                                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{user.plan}</p>
-                                              </div>
-                                          </div>
-                                          <div className="text-right">
-                                              <p className="text-sm font-black text-emerald-600">
-                                                  + R$ {user.plan === 'ANUAL' ? '289,90' : '329,90'}
-                                              </p>
-                                              <p className="text-[10px] text-zinc-400">
-                                                  {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                                              </p>
-                                          </div>
-                                      </div>
-                                  ))}
-                              </div>
-                          )}
-                      </div>
-                  </div>
+              <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                      <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
+                          <tr>
+                              <th className="p-6">Usuário</th>
+                              <th className="p-6">Plano</th>
+                              <th className="p-6">Cadastro</th>
+                              <th className="p-6">Último Acesso</th>
+                              <th className="p-6">Uso</th>
+                              <th className="p-6">Status</th>
+                              <th className="p-6 text-right">Ações</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-50 text-sm">
+                          {filteredUsers.map(user => (
+                              <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
+                                  <td className="p-6"><div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div><div className="text-xs text-zinc-500">{user.email}</div></td>
+                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ANUAL' ? 'bg-[#CCF300] text-black' : user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
+                                  <td className="p-6"><span className="text-xs font-bold text-zinc-500">{new Date(user.created_at).toLocaleDateString('pt-BR')}</span></td>
+                                  <td className="p-6"><span className="text-xs font-bold text-zinc-500">{user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}</span></td>
+                                  <td className="p-6"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div></div><span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span></div></td>
+                                  <td className="p-6">{user.status === 'BLOCKED' ? (<span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>) : (<span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>)}</td>
+                                  <td className="p-6 text-right"><button onClick={() => setSelectedUser(user)} className="text-zinc-400 hover:text-black font-bold text-xs underline">Detalhes</button></td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
               </div>
           </div>
       );
@@ -912,119 +579,190 @@ NOTIFY pgrst, 'reload config';
       </div>
   );
 
-  const renderUsersList = () => {
-      const filteredUsers = users.filter(u => 
-          u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          u.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-      // Calcular totais
-      const totalFree = users.filter(u => u.plan === 'FREE').length;
-      const totalPaid = users.filter(u => u.plan !== 'FREE').length;
+  const renderFinance = () => {
+      const stats = getFinancialData();
+      const arpu = stats.payingUsers > 0 ? stats.totalRevenue / stats.payingUsers : 0;
+      
+      const recentTransactions = users
+          .filter(u => u.plan !== 'FREE')
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 5);
 
       return (
-          <div className="space-y-6 animate-fade-in">
-              <div className="flex justify-between items-center">
+          <div className="space-y-8 animate-fade-in pb-12">
+              <div className="flex justify-between items-end">
                   <div>
-                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Usuários</h2>
-                      <p className="text-zinc-500 font-medium">Gerencie o acesso à plataforma.</p>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Faturamento</h2>
+                      <p className="text-zinc-500 font-medium">Gestão financeira e métricas de receita.</p>
                   </div>
-                  
-                  {/* Resumo Rápido */}
-                  <div className="flex gap-4">
-                      <div className="bg-white border border-zinc-200 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Free</span>
-                          <span className="text-lg font-black text-zinc-900">{totalFree}</span>
-                      </div>
-                      <div className="bg-black text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Pagos</span>
-                          <span className="text-lg font-black text-[#CCF300]">{totalPaid}</span>
-                      </div>
-                  </div>
-
-                  <div className="relative">
-                      <Search className="w-5 h-5 absolute left-4 top-3.5 text-zinc-400" />
-                      <input 
-                          type="text" 
-                          placeholder="Buscar nome ou email..." 
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-12 pr-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:border-black focus:ring-0 outline-none w-64 md:w-80 shadow-sm"
-                      />
+                  <div className="bg-white px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-500 shadow-sm flex items-center gap-2">
+                      <Calendar className="w-4 h-4"/>
+                      {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                   </div>
               </div>
 
-              <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
-                  <table className="w-full text-left border-collapse">
-                      <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
-                          <tr>
-                              <th className="p-6">Usuário</th>
-                              <th className="p-6">Plano</th>
-                              <th className="p-6">Cadastro</th>
-                              <th className="p-6">Último Acesso</th>
-                              <th className="p-6">Uso</th>
-                              <th className="p-6">Status</th>
-                              <th className="p-6 text-right">Ações</th>
-                          </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-50 text-sm">
-                          {filteredUsers.map(user => (
-                              <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
-                                  <td className="p-6">
-                                      <div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div>
-                                      <div className="text-xs text-zinc-500">{user.email}</div>
-                                  </td>
-                                  <td className="p-6">
-                                      <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ANUAL' ? 'bg-[#CCF300] text-black' : user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>
-                                          {user.plan}
-                                      </span>
-                                  </td>
-                                  <td className="p-6">
-                                      <span className="text-xs font-bold text-zinc-500">
-                                          {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                                      </span>
-                                  </td>
-                                  <td className="p-6">
-                                      <span className="text-xs font-bold text-zinc-500">
-                                          {user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}
-                                      </span>
-                                  </td>
-                                  <td className="p-6">
-                                      <div className="flex items-center gap-2">
-                                          <div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                                              <div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div>
+              {/* KPIS PRINCIPAIS */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* MRR CARD - BLACK */}
+                  <div className="bg-black text-white p-8 rounded-[2.5rem] border border-zinc-800 shadow-xl relative overflow-hidden group">
+                      <div className="relative z-10">
+                          <div className="flex justify-between items-start mb-6">
+                              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
+                                  <Wallet className="w-6 h-6 text-[#CCF300]"/>
+                              </div>
+                              <span className="text-[#CCF300] bg-[#CCF300]/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#CCF300]/20">
+                                  Mensal
+                              </span>
+                          </div>
+                          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">MRR (Receita Recorrente)</p>
+                          <h3 className="text-5xl font-black text-white tracking-tighter mb-2">
+                              R$ {stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </h3>
+                          <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mt-4">
+                              <TrendingUp className="w-4 h-4 text-emerald-500" />
+                              <span className="text-emerald-500">Projeção Anual:</span> 
+                              R$ {(stats.totalRevenue * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                      </div>
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-800/30 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                  </div>
+
+                  {/* PAYING USERS CARD */}
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
+                      <div>
+                          <div className="flex justify-between items-start mb-6">
+                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
+                                  <CreditCard className="w-6 h-6 text-zinc-900"/>
+                              </div>
+                          </div>
+                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Assinantes Ativos</p>
+                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
+                              {stats.payingUsers}
+                          </h3>
+                      </div>
+                      <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden mt-6">
+                          <div className="bg-black h-full rounded-full" style={{ width: `${(stats.payingUsers / (stats.totalUsers || 1)) * 100}%` }}></div>
+                      </div>
+                      <p className="text-[10px] font-bold text-zinc-400 mt-2 text-right">
+                          {((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}% da base total
+                      </p>
+                  </div>
+
+                  {/* ARPU CARD */}
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
+                      <div>
+                          <div className="flex justify-between items-start mb-6">
+                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
+                                  <Briefcase className="w-6 h-6 text-zinc-900"/>
+                              </div>
+                          </div>
+                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Ticket Médio (ARPU)</p>
+                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
+                              R$ {arpu.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                          </h3>
+                      </div>
+                      <div className="flex gap-2 mt-6">
+                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 border border-emerald-100">
+                              <ArrowUpRight className="w-3 h-3" /> Saudável
+                          </span>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* BREAKDOWN DE PLANOS */}
+                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8">
+                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
+                          <PieChart className="w-5 h-5"/> Distribuição de Receita
+                      </h3>
+                      
+                      <div className="space-y-6">
+                          {/* Mensal */}
+                          <div>
+                              <div className="flex justify-between items-end mb-2">
+                                  <div>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Mensal</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 329,90 / mês</span>
+                                  </div>
+                                  <div className="text-right">
+                                      <span className="text-lg font-black text-zinc-900">{stats.MENSAL.count}</span>
+                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
+                                  </div>
+                              </div>
+                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
+                                  <div className="bg-zinc-900 h-full rounded-full" style={{ width: `${(stats.MENSAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                              </div>
+                          </div>
+
+                          {/* Anual */}
+                          <div>
+                              <div className="flex justify-between items-end mb-2">
+                                  <div>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Anual</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 289,90 / mês (Cobrado anualmente)</span>
+                                  </div>
+                                  <div className="text-right">
+                                      <span className="text-lg font-black text-zinc-900">{stats.ANUAL.count}</span>
+                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
+                                  </div>
+                              </div>
+                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
+                                  <div className="bg-[#CCF300] h-full rounded-full" style={{ width: `${(stats.ANUAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="mt-8 pt-6 border-t border-zinc-100 flex justify-between items-center text-xs font-bold text-zinc-500">
+                          <span>Total Free: <strong className="text-zinc-900">{stats.FREE.count}</strong></span>
+                          <span>Conversão: <strong className="text-zinc-900">{((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}%</strong></span>
+                      </div>
+                  </div>
+
+                  {/* TRANSAÇÕES RECENTES (SIMULADO VIA USERS) */}
+                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8 flex flex-col">
+                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
+                          <Activity className="w-5 h-5"/> Últimas Conversões
+                      </h3>
+                      
+                      <div className="flex-1 overflow-auto custom-scrollbar">
+                          {recentTransactions.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center h-full text-zinc-400 py-10">
+                                  <Ban className="w-8 h-8 mb-2 opacity-50" />
+                                  <p className="text-xs font-bold uppercase">Nenhuma venda recente</p>
+                              </div>
+                          ) : (
+                              <div className="space-y-4">
+                                  {recentTransactions.map(user => (
+                                      <div key={user.id} className="flex items-center justify-between p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 hover:bg-zinc-50 transition-colors">
+                                          <div className="flex items-center gap-3">
+                                              <div className="w-10 h-10 rounded-full bg-white border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold">
+                                                  {user.name?.charAt(0)}
+                                              </div>
+                                              <div>
+                                                  <p className="text-sm font-bold text-zinc-900">{user.name}</p>
+                                                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{user.plan}</p>
+                                              </div>
                                           </div>
-                                          <span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span>
+                                          <div className="text-right">
+                                              <p className="text-sm font-black text-emerald-600">
+                                                  + R$ {user.plan === 'ANUAL' ? '289,90' : '329,90'}
+                                              </p>
+                                              <p className="text-[10px] text-zinc-400">
+                                                  {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                                              </p>
+                                          </div>
                                       </div>
-                                  </td>
-                                  <td className="p-6">
-                                      {user.status === 'BLOCKED' ? (
-                                          <span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>
-                                      ) : (
-                                          <span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>
-                                      )}
-                                  </td>
-                                  <td className="p-6 text-right">
-                                      <button onClick={() => setSelectedUser(user)} className="text-zinc-400 hover:text-black font-bold text-xs underline">
-                                          Detalhes
-                                      </button>
-                                  </td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
+                                  ))}
+                              </div>
+                          )}
+                      </div>
+                  </div>
               </div>
           </div>
       );
   };
 
-  if (loading) {
-      return (
-          <div className="h-screen flex items-center justify-center bg-zinc-50">
-              <Loader2 className="w-10 h-10 animate-spin text-black" />
-          </div>
-      );
-  }
+  if (loading) return <div className="h-screen flex items-center justify-center bg-zinc-50"><Loader2 className="w-10 h-10 animate-spin text-black" /></div>;
 
   return (
     <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900 flex">
@@ -1035,7 +773,7 @@ NOTIFY pgrst, 'reload config';
             {currentView === 'USERS' && renderUsersList()}
             {currentView === 'ADS' && renderAdsManager()}
             {currentView === 'FINANCE' && renderFinance()} 
-            {currentView === 'DATABASE' && renderDatabase()}
+            {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
             {currentView === 'CANCELLATIONS' && (
                 <div className="text-center py-20">
                     <UserX className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
@@ -1049,7 +787,7 @@ NOTIFY pgrst, 'reload config';
         {selectedUser && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
                 <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative">
-                    <button onClick={() => setSelectedUser(null)} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+                    <button onClick={() => { setSelectedUser(null); setIsEditingPlan(false); }} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
                     
                     <div className="flex items-center gap-4 mb-8">
                         <div className="w-16 h-16 bg-zinc-100 rounded-2xl flex items-center justify-center text-2xl font-black text-zinc-400">
@@ -1062,24 +800,47 @@ NOTIFY pgrst, 'reload config';
                     </div>
 
                     <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
-                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Plano Atual</p>
-                                <p className="text-lg font-black text-zinc-900">{selectedUser.plan}</p>
+                        <div className="bg-zinc-50 p-5 rounded-2xl border border-zinc-100 relative group">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Plano Atual (Manual)</p>
+                                <button onClick={() => setIsEditingPlan(!isEditingPlan)} className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" title="Trocar Plano">
+                                    {isEditingPlan ? <X className="w-4 h-4"/> : <Edit3 className="w-4 h-4" />}
+                                </button>
                             </div>
+                            
+                            {isEditingPlan ? (
+                                <div className="space-y-2 animate-fade-in">
+                                    <p className="text-xs text-zinc-500 font-medium mb-2">Selecione o novo plano. Os limites serão atualizados automaticamente.</p>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <button onClick={() => handleUpdatePlan('FREE')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
+                                            <span>FREE</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas / 25 CVs</span>
+                                        </button>
+                                        <button onClick={() => handleUpdatePlan('MENSAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
+                                            <span>MENSAL</span> <span className="text-[10px] text-zinc-400 font-normal">5 Vagas / 150 CVs</span>
+                                        </button>
+                                        <button onClick={() => handleUpdatePlan('ANUAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#CCF300] text-black border-[#CCF300] hover:bg-[#bce000]">
+                                            <span>ANUAL</span> <span className="text-[10px] text-black/60 font-normal">Ilimitado</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-3xl font-black text-zinc-900">{selectedUser.plan}</p>
+                                    <p className="text-xs text-zinc-400 font-bold mt-1">
+                                        {selectedUser.plan === 'FREE' ? 'Limites: 3 Vagas / 25 CVs' : selectedUser.plan === 'MENSAL' ? 'Limites: 5 Vagas / 150 CVs' : 'Limites: ILIMITADO'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Vagas Criadas</p>
                                 <p className="text-lg font-black text-zinc-900">{selectedUser.jobs_count}</p>
                             </div>
-                        </div>
-
-                        <div className="p-4 rounded-xl border border-zinc-200 bg-white">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs font-bold text-zinc-500">Uso de Currículos</span>
-                                <span className="text-xs font-black text-zinc-900">{selectedUser.resume_usage} processados</span>
-                            </div>
-                            <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden">
-                                <div className="bg-black h-full rounded-full" style={{ width: `${Math.min(100, selectedUser.resume_usage / 100 * 100)}%`}}></div>
+                            <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
+                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Currículos</p>
+                                <p className="text-lg font-black text-zinc-900">{selectedUser.resume_usage}</p>
                             </div>
                         </div>
 

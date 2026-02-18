@@ -1,60 +1,143 @@
 import React, { useState } from 'react';
-import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Wrench, ShieldCheck, Unlock } from 'lucide-react';
+import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Crown, Unlock } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
 }
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'FIX_ACCESS' | 'CRON' | 'PERMISSIONS'>('FIX_ACCESS');
+  const [activeTab, setActiveTab] = useState<'FIX_ALL' | 'CRON' | 'ADMIN_POWER'>('FIX_ALL');
 
-  // SCRIPT V35: CORREÇÃO TOTAL DE ACESSO (O "MARTELO")
-  const fixAccessSql = `
--- --- SCRIPT V35: CORREÇÃO TOTAL DE ACESSO PÚBLICO ---
--- Execute este script para eliminar o "Erro de Permissão" nas vagas.
+  const fixAllSql = `
+-- --- SCRIPT V26: CORREÇÃO DE UPLOAD PÚBLICO E POLÍTICAS ---
 
-BEGIN;
+-- 1. CORREÇÃO CRÍTICA: PERMITIR CANDIDATOS ANÔNIMOS (SEM USER_ID)
+ALTER TABLE public.candidates ALTER COLUMN user_id DROP NOT NULL;
 
--- 1. Garante permissões básicas no Schema
+-- 2. PERMISSÕES EXPLÍCITAS (GRANT)
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON TABLE public.candidates TO anon, authenticated;
 GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
+GRANT ALL ON TABLE public.announcements TO anon, authenticated;
 
--- 2. Ativa RLS (Segurança a nível de linha)
-ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+-- 3. POLÍTICAS DE CANDIDATOS (RLS) - RESET TOTAL
+ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
 
--- 3. REMOVE TODAS AS POLÍTICAS ANTIGAS DE LEITURA (LIMPEZA TOTAL)
--- Isso evita conflitos com políticas mal configuradas anteriormente
-DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
-DROP POLICY IF EXISTS "Public Read Jobs" ON public.jobs;
-DROP POLICY IF EXISTS "read_jobs" ON public.jobs;
-DROP POLICY IF EXISTS "anon_read_jobs" ON public.jobs;
-DROP POLICY IF EXISTS "Anyone can select jobs" ON public.jobs;
+DROP POLICY IF EXISTS "Public Insert Candidates" ON public.candidates;
+DROP POLICY IF EXISTS "Enable insert for anon" ON public.candidates;
+DROP POLICY IF EXISTS "Enable insert for authenticated" ON public.candidates;
+DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
+DROP POLICY IF EXISTS "Enable select for all" ON public.candidates;
 
--- 4. CRIA A POLÍTICA ÚNICA E DEFINITIVA DE LEITURA
--- Permite que qualquer um (anon ou logado) leia todas as vagas
-CREATE POLICY "Enable read access for all" ON public.jobs 
-FOR SELECT 
-TO anon, authenticated 
+CREATE POLICY "Enable insert for all" ON public.candidates 
+FOR INSERT TO anon, authenticated 
+WITH CHECK (true);
+
+CREATE POLICY "Enable select for all" ON public.candidates 
+FOR SELECT TO anon, authenticated 
 USING (true);
 
--- 5. Garante permissão de atualização para o dono (para pausar/editar)
+-- 4. POLÍTICAS DE VAGAS (JOBS)
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
+CREATE POLICY "Enable read access for all" ON public.jobs 
+FOR SELECT TO anon, authenticated 
+USING (true);
+
 DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
 CREATE POLICY "Enable update for owners" ON public.jobs 
 FOR UPDATE TO authenticated 
-USING (auth.uid() = user_id) 
+USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
--- 6. Garante estrutura da tabela (Short Code)
+-- 5. STORAGE (Bucket 'resumes')
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('resumes', 'resumes', true)
+ON CONFLICT (id) DO NOTHING;
+
+GRANT ALL ON SCHEMA storage TO anon, authenticated;
+GRANT ALL ON TABLE storage.objects TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public Upload Resumes" ON storage.objects;
+DROP POLICY IF EXISTS "Give anon insert access" ON storage.objects;
+DROP POLICY IF EXISTS "Public Read Resumes" ON storage.objects;
+
+CREATE POLICY "Give anon insert access" ON storage.objects 
+FOR INSERT TO anon, authenticated 
+WITH CHECK (bucket_id = 'resumes');
+
+CREATE POLICY "Public Read Resumes" ON storage.objects 
+FOR SELECT TO anon, authenticated 
+USING (bucket_id = 'resumes');
+
+-- 6. ANÚNCIOS
+CREATE TABLE IF NOT EXISTS public.announcements (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    title text NOT NULL,
+    link_url text,
+    image_path text NOT NULL,
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
+);
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public View Announcements" ON public.announcements;
+CREATE POLICY "Public View Announcements" ON public.announcements 
+FOR SELECT TO anon, authenticated 
+USING (true);
+
+GRANT ALL ON TABLE public.announcements TO anon, authenticated;
+
+-- 7. LINKS CURTOS E FEATURES
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
 
--- 7. Garante índice único para performance do link
-ALTER TABLE public.jobs DROP CONSTRAINT IF EXISTS jobs_short_code_key;
-CREATE UNIQUE INDEX IF NOT EXISTS jobs_short_code_idx ON public.jobs (short_code);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'jobs_short_code_key') THEN
+        ALTER TABLE public.jobs ADD CONSTRAINT jobs_short_code_key UNIQUE (short_code);
+    END IF;
+END $$;
 
--- 8. Recarrega configurações do PostgREST
-NOTIFY pgrst, 'reload config';
+COMMIT;
+  `.trim();
+
+  // SCRIPT V40: PODERES DE ADMIN (Permite alterar planos)
+  const adminPowerSql = `
+-- --- SCRIPT V40: PERMISSÕES DE SUPER ADMIN ---
+-- Execute isso para conseguir alterar planos de outros usuários pelo painel.
+
+BEGIN;
+
+-- 1. Garante que RLS está ativo em profiles
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- 2. Política de LEITURA (Admin vê tudo, User vê o seu)
+DROP POLICY IF EXISTS "Read profiles" ON public.profiles;
+CREATE POLICY "Read profiles" ON public.profiles
+FOR SELECT TO authenticated
+USING (
+  auth.uid() = id 
+  OR 
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+);
+
+-- 3. Política de EDIÇÃO (Admin edita tudo, User edita o seu)
+DROP POLICY IF EXISTS "Update profiles" ON public.profiles;
+CREATE POLICY "Update profiles" ON public.profiles
+FOR UPDATE TO authenticated
+USING (
+  auth.uid() = id 
+  OR 
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+)
+WITH CHECK (
+  auth.uid() = id 
+  OR 
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+);
 
 COMMIT;
   `.trim();
@@ -77,28 +160,11 @@ SELECT cron.schedule(
 );
 `.trim();
 
-  const permissionsSql = `
--- --- SCRIPT V28: RESET DE PERMISSÕES DE CANDIDATOS ---
-ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
-
--- Permite insert público de currículos (Upload)
-DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
-CREATE POLICY "Enable insert for all" ON public.candidates 
-FOR INSERT TO anon, authenticated 
-WITH CHECK (true);
-
--- Permite leitura de currículos APENAS para usuários autenticados (Recrutadores)
-DROP POLICY IF EXISTS "Enable select for authenticated" ON public.candidates;
-CREATE POLICY "Enable select for authenticated" ON public.candidates 
-FOR SELECT TO authenticated 
-USING (true);
-  `.trim();
-
   const getSql = () => {
       switch(activeTab) {
           case 'CRON': return cronSql;
-          case 'PERMISSIONS': return permissionsSql;
-          default: return fixAccessSql;
+          case 'ADMIN_POWER': return adminPowerSql;
+          default: return fixAllSql;
       }
   };
 
@@ -127,16 +193,16 @@ USING (true);
           
           <div className="flex px-6 gap-6 mt-2 overflow-x-auto">
             <button 
-              onClick={() => setActiveTab('FIX_ACCESS')}
-              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ACCESS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              onClick={() => setActiveTab('FIX_ALL')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ALL' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Unlock className="w-4 h-4" /> Script V35 (Corrigir Acesso)
+              <Unlock className="w-4 h-4" /> Script V26 (Geral)
             </button>
             <button 
-              onClick={() => setActiveTab('PERMISSIONS')}
-              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'PERMISSIONS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              onClick={() => setActiveTab('ADMIN_POWER')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'ADMIN_POWER' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <ShieldCheck className="w-4 h-4" /> V28 (Candidatos)
+              <Crown className="w-4 h-4" /> V40 (Admin Power)
             </button>
             <button 
               onClick={() => setActiveTab('CRON')}

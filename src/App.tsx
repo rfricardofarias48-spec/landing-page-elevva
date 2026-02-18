@@ -122,12 +122,12 @@ const App: React.FC = () => {
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- REALTIME SUBSCRIPTION ---
+  // --- REALTIME SUBSCRIPTION (JOBS & CANDIDATES) ---
   useEffect(() => {
     if (!user) return;
 
     // Escuta mudanças na tabela 'candidates' para atualizar a tela em tempo real
-    const channel = supabase
+    const candidateChannel = supabase
       .channel('realtime-candidates')
       .on(
         'postgres_changes',
@@ -135,9 +135,7 @@ const App: React.FC = () => {
         (payload) => {
           const newRecord = payload.new;
           
-          // Atualiza a lista de Jobs globalmente
           setJobs(currentJobs => {
-              // Verifica se a vaga pertence a este usuário
               const jobExists = currentJobs.some(j => j.id === newRecord.job_id);
               if (!jobExists) return currentJobs;
 
@@ -145,7 +143,6 @@ const App: React.FC = () => {
               
               return currentJobs.map(j => {
                   if (j.id === newRecord.job_id) {
-                      // Evita duplicatas se já tivermos adicionado (ex: upload manual)
                       if (j.candidates.some(c => c.id === newCandidate.id)) return j;
                       return { ...j, candidates: [newCandidate, ...j.candidates] };
                   }
@@ -153,7 +150,6 @@ const App: React.FC = () => {
               });
           });
 
-          // Atualiza a Vaga Ativa se ela estiver aberta na tela
           setActiveJob(currentActive => {
               if (currentActive && currentActive.id === newRecord.job_id) {
                    const newCandidate = mapCandidateFromDB(newRecord);
@@ -167,9 +163,47 @@ const App: React.FC = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(candidateChannel);
     };
   }, [user]);
+
+  // --- REALTIME PROFILE SUBSCRIPTION (AUTOMATIC PLAN UPDATE) ---
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const profileChannel = supabase.channel(`profile-${user.id}`)
+      .on(
+        'postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'profiles', 
+          filter: `id=eq.${user.id}` 
+        }, 
+        (payload) => {
+          setUser(prev => {
+              if (!prev) return null;
+              const newData = payload.new as any;
+              
+              // Se o plano mudou (e não é FREE), notifica o usuário
+              if (prev.plan !== newData.plan && newData.plan !== 'FREE') {
+                  // Mostra alerta visual
+                  setTimeout(() => {
+                      alert(`🎉 Pagamento confirmado!\n\nSeu plano foi atualizado para ${newData.plan}. Todos os recursos foram liberados.`);
+                  }, 1000);
+              }
+              
+              // Retorna o usuário com os novos dados mesclados
+              return { ...prev, ...newData };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+        supabase.removeChannel(profileChannel);
+    }
+  }, [user?.id]);
 
   // --- INIT & AUTH ---
   useEffect(() => {
@@ -390,6 +424,8 @@ const App: React.FC = () => {
     }
   };
 
+  // ... (Rest of the component remains same: handleSaveName, handleLogin, etc)
+  
   const handleSaveName = async () => {
     if (!user || !tempName.trim()) {
         alert("Por favor, digite seu Nome e Sobrenome.");
@@ -794,6 +830,7 @@ const App: React.FC = () => {
   };
 
   // FUNÇÃO CRÍTICA: Remove caracteres que quebram o upload do Supabase/Storage
+  // Adicionado tratamento de caracteres especiais para evitar erros de URL
   const sanitizeFileName = (name: string) => {
     return name
       .normalize('NFD') // Separa acentos
@@ -1141,25 +1178,25 @@ const App: React.FC = () => {
       return (
       <div className="space-y-8 animate-fade-in max-w-6xl mx-auto font-sans pt-2">
           
-          {/* HEADER DE RECEPÇÃO - NOVO DESIGN (REDUZIDO) */}
-          <div className="flex items-center gap-4">
+          {/* HEADER DE RECEPÇÃO - ULTRA COMPACTO */}
+          <div className="flex items-center gap-3">
               <div className="relative shrink-0 group cursor-default">
-                  <div className="absolute inset-0 bg-[#CCF300] rounded-[1rem] translate-x-1.5 translate-y-1.5 transition-transform duration-300 group-hover:translate-x-2 group-hover:translate-y-2"></div>
-                  <div className="w-16 h-16 bg-black rounded-[1rem] relative flex items-center justify-center text-white text-2xl font-black border-2 border-black z-10 shadow-sm">
+                  <div className="absolute inset-0 bg-[#CCF300] rounded-xl translate-x-1 translate-y-1 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:translate-y-1.5"></div>
+                  <div className="w-12 h-12 bg-black rounded-xl relative flex items-center justify-center text-white text-lg font-black border-2 border-black z-10 shadow-sm">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
               </div>
               
               <div className="flex flex-col justify-center">
-                  <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter leading-none mb-2">
+                  <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter leading-none mb-1">
                       Olá, {(user?.name || 'Usuário').split(' ')[0]}
                   </h1>
-                  <div className="flex items-center gap-3">
-                      <div className="bg-[#CCF300] text-black text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest border-2 border-[#CCF300] shadow-sm">
-                          PLANO {user?.plan || 'FREE'}
+                  <div className="flex items-center gap-2">
+                      <div className="bg-[#CCF300] text-black text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border border-[#CCF300] shadow-sm">
+                          {user?.plan || 'FREE'}
                       </div>
-                      <div className="text-slate-400 font-bold text-xs tracking-tight flex items-baseline gap-1">
-                          <span className="text-slate-900 font-black text-base">{user?.resume_usage}</span> 
+                      <div className="text-slate-400 font-bold text-[10px] tracking-tight flex items-baseline gap-1">
+                          <span className="text-slate-900 font-black text-sm">{user?.resume_usage}</span> 
                           <span className="text-slate-300 font-light">/</span> 
                           <span className="text-slate-500 font-bold">{user?.resume_limit >= 9999 ? 'Ilimitado' : `${user?.resume_limit} Análises`}</span>
                       </div>
@@ -1839,8 +1876,6 @@ const App: React.FC = () => {
           <SqlSetupModal onClose={() => setShowSqlModal(false)} />
       )}
 
-      {/* ... (Existing modals remain unchanged) */}
-      
       {/* NAME UPDATE MODAL (FORCE UPDATE) */}
       {showNameModal && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
