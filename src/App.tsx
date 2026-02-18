@@ -35,22 +35,20 @@ const mapCandidateFromDB = (c: any): Candidate => ({
 });
 
 // Helper para detecção robusta de rota pública (GLOBAL)
-// ATUALIZADO: Aceita qualquer caminho que seja EXATAMENTE um número (ex: /4034, /123456)
 const isPublicRoute = () => {
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
     
     // Verifica caminho numérico (ex: /4034 ou /4034/)
-    // Regex: Começa com barra, tem dígitos, opcionalmente termina com barra
     const isNumericPath = /^\/\d+\/?$/.test(path);
     
     // Verifica parâmetros antigos ou hash
     const hasVParam = !!params.get('v');
     const hasLegacyParam = !!params.get('uploadJobId');
-    const hasHashNumber = /#\/?\d+/.test(hash);
-    
-    return isNumericPath || hasVParam || hasLegacyParam || hasHashNumber;
+    const hasHashId = /#\d+/.test(hash);
+
+    return isNumericPath || hasVParam || hasLegacyParam || hasHashId;
 };
 
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
@@ -81,19 +79,13 @@ const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, o
   </div>
 );
 
-export const App: React.FC = () => {
+const App: React.FC = () => {
   // --- STATE ---
   const [user, setUser] = useState<User | null>(null);
   const [isOAuthUser, setIsOAuthUser] = useState(false); // Detecta se é login Google
   const [loading, setLoading] = useState(true);
   
-  // INICIALIZAÇÃO PREGUIÇOSA (LAZY STATE) PARA DETECTAR URL ANTES DO RENDER
-  const [view, setView] = useState<ViewState>(() => {
-      // Se for rota pública, força view PUBLIC_UPLOAD imediatamente
-      // Isso evita o "flicker" da tela de login
-      return isPublicRoute() ? 'PUBLIC_UPLOAD' : 'DASHBOARD';
-  });
-
+  const [view, setView] = useState<ViewState>('DASHBOARD');
   const [currentTab, setCurrentTab] = useState<UserTab>('OVERVIEW');
   
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -143,8 +135,6 @@ export const App: React.FC = () => {
   const [publicUploadJobId, setPublicUploadJobId] = useState<string | null>(null);
   // Guardamos informações extras para auto-análise e pausa
   const [publicJobData, setPublicJobData] = useState<{ title: string; criteria?: string; autoAnalyze?: boolean; isPaused?: boolean }>({ title: '' });
-  // NOVO: Estado de erro para link público (evita redirect)
-  const [publicFetchError, setPublicFetchError] = useState<string | null>(null);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -200,43 +190,41 @@ export const App: React.FC = () => {
 
   // --- INIT & AUTH ---
   useEffect(() => {
-    // Timeout de segurança: Se o Supabase não responder em 10s, para o loading
     const safetyTimer = setTimeout(() => {
         if (loading) {
             console.warn("Auth check timed out - forcing loading stop");
-            setLoading(false);
+            // Só para o loading se NÃO for uma rota pública
+            if (!isPublicRoute()) {
+                setLoading(false);
+            }
         }
-    }, 10000);
+    }, 8000);
 
-    // FIX: Proactively check for "Invalid Refresh Token" error to prevent white screen
     supabase.auth.getSession().then(({ error }) => {
         if (error) {
             console.warn("Session check warning:", error.message);
-            // Se o token de refresh não for encontrado, força logout para limpar o localStorage
             if (error.message.includes("Refresh Token") || error.message.includes("Invalid Refresh Token")) {
                  console.log("Cleaning up invalid session...");
                  supabase.auth.signOut().then(() => {
-                     setLoading(false);
-                     setUser(null);
+                     if (!isPublicRoute()) {
+                        setLoading(false);
+                        setUser(null);
+                     }
                  });
             }
         }
     });
 
-    // 1. Configura ouvinte de autenticação (Melhor para OAuth/Google Login)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        // DETECTA EVENTO DE RECUPERAÇÃO DE SENHA
         if (event === 'PASSWORD_RECOVERY') {
             setShowRecoveryModal(true);
         }
 
         if (session) {
-             // Limpa a hash da URL (token) para deixar limpo e evitar erros de roteamento
              if (window.location.hash && window.location.hash.includes('access_token')) {
                  window.history.replaceState(null, '', window.location.pathname);
              }
              
-             // Detecta se o usuário fez login com Google (provider)
              const providers = session.user.app_metadata.providers || [];
              if (providers.includes('google')) {
                  setIsOAuthUser(true);
@@ -244,174 +232,58 @@ export const App: React.FC = () => {
                  setIsOAuthUser(false);
              }
              
-             // Se tiver sessão, busca o perfil.
              fetchUserProfile(session.user.id, session.user.email!);
         } else {
-             // Se não tiver sessão (logout ou inicial), para o loading
-             setLoading(false);
+             if (!isPublicRoute()) {
+                 setLoading(false);
+             }
              setUser(null);
              setJobs([]);
+             if (!isPublicRoute()) setView('DASHBOARD');
              setIsOAuthUser(false);
-             
-             // VERIFICAÇÃO CRÍTICA DO MIDDLEWARE FRONTEND: 
-             // Só redireciona para Dashboard se NÃO for rota pública.
-             // Isso impede que quem está enviando currículo caia no login (loop infinito)
-             if (isPublicRoute()) {
-                 console.log("Rota pública detectada no logout/init, mantendo PUBLIC_UPLOAD");
-                 setView('PUBLIC_UPLOAD');
-             } else {
-                 setView('DASHBOARD');
-             }
         }
     });
 
-    // 2. CHECK FOR OAUTH ERRORS (Novo)
+    // 2. CHECK FOR OAUTH ERRORS
     const params = new URLSearchParams(window.location.search);
     const error = params.get('error');
-    const errorCode = params.get('error_code');
-    const errorDesc = params.get('error_description');
-
     if (error) {
-        console.error("OAuth Error Detected:", error, errorCode, errorDesc);
-        alert(`Erro no Login: ${errorDesc || error}. Tente novamente.`);
-        // Limpa a URL para não ficar mostrando o erro
         window.history.replaceState(null, '', window.location.pathname);
     }
     
-    // 3. Lógica de Upload Público (URL Checks - Execução Imediata)
-    // Extrai o ID/Código da rota numérica
-    const path = window.location.pathname;
-    // Captura números após a barra (ex: /1234 -> 1234, /1234/ -> 1234)
-    const pathMatch = path.match(/^\/(\d+)\/?$/);
-    
-    // Legacy support
+    // 3. Lógica de Upload Público (URL Checks)
     const legacyUploadId = params.get('uploadJobId');
-    const vParam = params.get('v');
     const hash = window.location.hash;
-    const hashMatch = hash.match(/^#\/?(\d+)$/);
+    const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
+    const path = window.location.pathname;
+    const pathMatch = path.match(/^\/(\d{5,6})$/);
 
-    if (pathMatch) {
-        // Rota principal: vello.net.br/12345
-        const code = pathMatch[1];
-        setView('PUBLIC_UPLOAD');
-        fetchPublicJobByCode(code);
-    } else if (vParam) {
-        setView('PUBLIC_UPLOAD');
-        fetchPublicJobByCode(vParam);
-    } else if (legacyUploadId) {
+    if (legacyUploadId) {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
         setView('PUBLIC_UPLOAD');
+        setLoading(false);
     } else if (hashMatch) {
         const code = hashMatch[1];
-        setView('PUBLIC_UPLOAD');
         fetchPublicJobByCode(code);
+    } else if (pathMatch) {
+        const code = pathMatch[1];
+        fetchPublicJobByCode(code);
+    } else {
+        // Se não for rota publica e não tiver sessão (verificado acima), para o loading
+        if (!supabase.auth.getSession()) {
+             // A verificação de sessão é assincrona, o listener tratará.
+        }
     }
     
-    // Limpeza na desmontagem
     return () => {
       subscription.unsubscribe();
       clearTimeout(safetyTimer);
     };
   }, []);
 
-  // ... (Restante do código igual até fetchPublicJobByCode) ...
-
-  const fetchJobs = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('jobs')
-      .select('*, candidates(*)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error("Erro ao buscar vagas:", error);
-      return;
-    }
-
-    const formattedJobs: Job[] = data.map((j: any) => ({
-      ...j,
-      createdAt: new Date(j.created_at).getTime(),
-      candidates: j.candidates ? j.candidates.map(mapCandidateFromDB) : []
-    }));
-
-    setJobs(formattedJobs);
-    
-    // Se estiver visualizando uma vaga, atualiza ela também
-    if (activeJob) {
-        const updatedActive = formattedJobs.find(j => j.id === activeJob.id);
-        if (updatedActive) {
-            setActiveJob(updatedActive);
-        }
-    }
-  };
-
-  const fetchAnnouncements = async () => {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (!error && data) {
-          const mappedAds: Announcement[] = data.map((a: any) => {
-              const { data: urlData } = supabase.storage.from('marketing').getPublicUrl(a.image_path);
-              return {
-                  id: a.id,
-                  title: a.title,
-                  imageUrl: urlData.publicUrl,
-                  linkUrl: a.link_url,
-                  isActive: a.is_active,
-                  createdAt: a.created_at,
-                  targetPlans: a.target_plans || ['FREE', 'MENSAL', 'ANUAL'] // Map target plans
-              };
-          });
-          setAnnouncements(mappedAds);
-      }
-  };
-
-  // ... (Restante dos helpers de fetch) ...
-
-  const fetchPublicJobTitle = async (id: string) => {
-      const { data } = await supabase.from('jobs').select('title, criteria, auto_analyze, is_paused').eq('id', id).single();
-      if (data) {
-          setPublicJobData({ 
-              title: data.title, 
-              criteria: data.criteria, 
-              autoAnalyze: data.auto_analyze, 
-              isPaused: data.is_paused 
-          });
-      }
-  };
-
-  const fetchPublicJobByCode = async (code: string) => {
-      // CORREÇÃO: Tratamento de erro robusto. Se falhar, NÃO REDIRECIONA, mas mostra erro.
-      const { data, error } = await supabase.from('jobs').select('id, title, criteria, auto_analyze, is_paused').eq('short_code', code).single();
-      
-      if (data) {
-          setPublicUploadJobId(data.id);
-          setPublicJobData({ 
-              title: data.title, 
-              criteria: data.criteria, 
-              autoAnalyze: data.auto_analyze, 
-              isPaused: data.is_paused 
-          });
-          setPublicFetchError(null);
-          setView('PUBLIC_UPLOAD');
-      } else {
-          console.error("Vaga não encontrada para o código:", code, error);
-          // DEFINE ESTADO DE ERRO VISUAL AO INVÉS DE REDIRECIONAR
-          setPublicFetchError(error?.message === 'JSON object requested, multiple (or no) rows returned' ? 'Link inválido ou vaga não encontrada.' : 'Erro de permissão. Peça ao recrutador para executar o Script V33.');
-          setView('PUBLIC_UPLOAD'); // Mantém na view pública para mostrar o erro
-      }
-  };
-
-  // ... (Restante do componente sem alterações até runDataRetentionCleanup, fetchUserProfile, etc.) ...
-  // Apenas a estrutura do App.tsx foi atualizada acima para incluir a lógica correta de isPublicRoute.
-  // Vou manter o restante do arquivo intacto na renderização.
-
+  // --- RETENTION POLICY CLEANUP ---
   const runDataRetentionCleanup = async (userId: string) => {
-    // ... (mesma implementação) ...
     // Apaga currículos com mais de 10 dias
     const RETENTION_DAYS = 10;
     const cutoffDate = new Date();
@@ -426,27 +298,17 @@ export const App: React.FC = () => {
             .not('file_path', 'is', null);
 
         if (error) {
-            console.error("Erro ao verificar retenção:", error);
             return;
         }
 
         if (oldCandidates && oldCandidates.length > 0) {
             const filesToRemove = oldCandidates.map(c => c.file_path).filter(Boolean);
             if (filesToRemove.length > 0) {
-                const { error: storageError } = await supabase.storage
-                    .from('resumes')
-                    .remove(filesToRemove);
-                
-                if (storageError) console.error("Erro ao limpar storage:", storageError);
+                await supabase.storage.from('resumes').remove(filesToRemove);
             }
 
             const idsToRemove = oldCandidates.map(c => c.id);
-            const { error: dbError } = await supabase
-                .from('candidates')
-                .delete()
-                .in('id', idsToRemove);
-
-            if (dbError) console.error("Erro ao limpar DB:", dbError);
+            await supabase.from('candidates').delete().in('id', idsToRemove);
         }
     } catch (err) {
         console.error("Falha no processo de limpeza automática:", err);
@@ -457,15 +319,15 @@ export const App: React.FC = () => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
+      // --- SEGURANÇA: VERIFICA BLOQUEIO DE CONTA ---
       if (data && data.status === 'BLOCKED') {
-          console.warn("Usuário bloqueado tentando acessar:", email);
           await supabase.auth.signOut();
           setUser(null);
           setLoading(false);
           alert("Acesso Negado: Sua conta foi suspensa temporariamente. Entre em contato com o suporte.");
           return; 
       }
-
+      
       if (error && error.code !== 'PGRST116') {
         console.error("Erro ao buscar perfil:", error);
       }
@@ -473,16 +335,33 @@ export const App: React.FC = () => {
       const dbName = data?.name;
       const needsNameUpdate = !dbName || dbName.trim() === '' || dbName === 'Usuário';
 
+      // --- REGRAS DE LIMITES ESTRITOS (HARDCODED) ---
+      // Forçamos os limites aqui baseados no plano, ignorando valores antigos do DB
+      const userPlan = data?.plan || 'FREE';
+      let strictJobLimit = 1;
+      let strictResumeLimit = 30;
+
+      if (userPlan === 'MENSAL') {
+          strictJobLimit = 5;
+          strictResumeLimit = 99999; // Ilimitado
+      } else if (userPlan === 'ANUAL' || userPlan === 'TRIMESTRAL') {
+          strictJobLimit = 99999; // Ilimitado
+          strictResumeLimit = 99999; // Ilimitado
+      }
+
       const profile = data ? {
         ...data,
-        name: data.name || 'Usuário'
+        name: data.name || 'Usuário',
+        // Sobrescreve com os limites oficiais do plano
+        job_limit: strictJobLimit,
+        resume_limit: strictResumeLimit
       } : {
         id: userId,
         email: email,
         name: 'Usuário',
         plan: 'FREE',
-        job_limit: 3,
-        resume_limit: 25, 
+        job_limit: 1, // Default Free
+        resume_limit: 30, // Default Free
         resume_usage: 0,
         role: 'USER'
       };
@@ -496,7 +375,7 @@ export const App: React.FC = () => {
       await Promise.all([
           fetchJobs(userId),
           fetchAnnouncements(),
-          runDataRetentionCleanup(userId) 
+          runDataRetentionCleanup(userId)
       ]);
 
     } catch (error) {
@@ -506,7 +385,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // ... (funções handleSaveName, handleLogin, etc. - inalteradas) ...
   const handleSaveName = async () => {
     if (!user || !tempName.trim()) {
         alert("Por favor, digite seu Nome e Sobrenome.");
@@ -525,7 +403,6 @@ export const App: React.FC = () => {
         setUser({ ...user, name: tempName });
         setShowNameModal(false);
     } catch (err: any) {
-        console.error("Erro ao salvar nome:", err);
         alert("Erro ao salvar: " + err.message);
     } finally {
         setIsSavingName(false);
@@ -554,19 +431,22 @@ export const App: React.FC = () => {
 
         if (result.data.user) {
            if (result.data.session) {
+               // Cria perfil com Limites Padrão FREE
                const { error: profileError } = await supabase.from('profiles').upsert([{
                  id: result.data.user.id,
                  email,
                  name: name || 'Usuário',
                  phone,
                  plan: 'FREE',
-                 job_limit: 3,
-                 resume_limit: 25, 
+                 job_limit: 1, // FREE: 1 Vaga
+                 resume_limit: 30, // FREE: 30 CVs
                  resume_usage: 0,
                  role: 'USER'
                }], { onConflict: 'id' });
                
-               if (profileError) console.error("Erro ao criar perfil:", profileError);
+               if (profileError) {
+                   console.error("Erro ao criar perfil:", profileError);
+               }
            } else {
                return { success: true, message: "Cadastro realizado! Verifique seu email para confirmar a conta antes de entrar." };
            }
@@ -618,9 +498,7 @@ export const App: React.FC = () => {
     setIsSavingRecovery(true);
     try {
         const { error } = await supabase.auth.updateUser({ password: recoveryPassword });
-        
         if (error) throw error;
-        
         alert("Senha redefinida com sucesso!");
         setShowRecoveryModal(false);
         setRecoveryPassword('');
@@ -649,9 +527,97 @@ export const App: React.FC = () => {
     await supabase.auth.signOut();
   };
 
-  // ... (Outras Actions: generateShortCode, handleRefresh, handleJobFormSubmit, handleDeleteJob, handlePinJob, handleChangePassword, handleUpdateProfile, handleUpgrade, fileToBase64, sanitizeFileName, handleFileSelect, handleDrop, handleDragOver, handleDragLeave, uploadCandidates, handlePublicUpload, runAnalysis, handleDeleteCandidate, handleClearAllCandidates, handleToggleSelection - Mantidas iguais ao original mas omitidas para brevidade na resposta XML se não houver mudança lógica) ...
+  // --- DATA FETCHING ---
+  const fetchJobs = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*, candidates(*)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar vagas:", error);
+      return;
+    }
+
+    const formattedJobs: Job[] = data.map((j: any) => ({
+      ...j,
+      createdAt: new Date(j.created_at).getTime(),
+      candidates: j.candidates ? j.candidates.map(mapCandidateFromDB) : []
+    }));
+
+    setJobs(formattedJobs);
+    
+    if (activeJob) {
+        const updatedActive = formattedJobs.find(j => j.id === activeJob.id);
+        if (updatedActive) {
+            setActiveJob(updatedActive);
+        }
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+          const mappedAds: Announcement[] = data.map((a: any) => {
+              const { data: urlData } = supabase.storage.from('marketing').getPublicUrl(a.image_path);
+              return {
+                  id: a.id,
+                  title: a.title,
+                  imageUrl: urlData.publicUrl,
+                  linkUrl: a.link_url,
+                  isActive: a.is_active,
+                  createdAt: a.created_at,
+                  targetPlans: a.target_plans || ['FREE', 'MENSAL', 'ANUAL'] // Map target plans
+              };
+          });
+          setAnnouncements(mappedAds);
+      }
+  };
+
+  const fetchPublicJobTitle = async (id: string) => {
+      const { data } = await supabase.from('jobs').select('title, criteria, auto_analyze, is_paused').eq('id', id).single();
+      if (data) {
+          setPublicJobData({ 
+              title: data.title, 
+              criteria: data.criteria, 
+              autoAnalyze: data.auto_analyze, 
+              isPaused: data.is_paused 
+          });
+          setLoading(false);
+      }
+  };
+
+  const fetchPublicJobByCode = async (code: string) => {
+      const { data, error } = await supabase.from('jobs').select('id, title, criteria, auto_analyze, is_paused').eq('short_code', code).single();
+      if (data) {
+          setPublicUploadJobId(data.id);
+          setPublicJobData({ 
+              title: data.title, 
+              criteria: data.criteria, 
+              autoAnalyze: data.auto_analyze, 
+              isPaused: data.is_paused 
+          });
+          setView('PUBLIC_UPLOAD');
+          setLoading(false);
+      } else {
+          console.error("Vaga não encontrada para o código:", code);
+          window.history.pushState({}, '', '/');
+          setLoading(false);
+      }
+  };
+
+  // --- ACTIONS ---
   
-  const generateShortCode = () => Math.floor(100000 + Math.random() * 900000).toString();
+  const generateShortCode = () => {
+      // Gera um código de 6 dígitos entre 100000 e 999999
+      return Math.floor(100000 + Math.random() * 900000).toString();
+  };
 
   const handleRefresh = async () => {
       if (!user) return;
@@ -678,6 +644,17 @@ export const App: React.FC = () => {
               setActiveJob(prev => prev ? { ...prev, title, description, criteria } : null);
           }
       } else if (user) {
+          
+          // --- BLOQUEIO RIGOROSO DE LIMITE DE VAGAS ---
+          // Se o usuário já tiver atingido o limite do plano, impede a criação
+          if (jobs.length >= user.job_limit) {
+              alert(`Limite de vagas atingido (${user.job_limit}). Faça um upgrade para criar mais vagas.`);
+              setShowCreateModal(false);
+              setCurrentTab('BILLING');
+              return;
+          }
+          // ----------------------------------------------
+
           const shortCode = generateShortCode();
           
           const { data, error } = await supabase
@@ -695,7 +672,7 @@ export const App: React.FC = () => {
           if (error) {
               console.error("Erro ao criar vaga:", error);
               if (error.message?.includes('short_code')) {
-                   alert("Atenção: Para ativar os links curtos (6 números), atualize seu banco de dados em Configurações > Banco de Dados > Script V23.");
+                   alert("Atenção: Para ativar os links curtos (6 números), atualize seu banco de dados em Configurações > Banco de Dados > Script V35.");
               }
               return;
           }
@@ -732,21 +709,27 @@ export const App: React.FC = () => {
         alert("Digite a senha atual."); 
         return; 
     }
+    
     if (newPassword.length < 6) { 
         alert("Senha muito curta (mínimo 6 caracteres)."); 
         return; 
     }
+    
     setChangingPassword(true);
+    
     if (!isOAuthUser) {
         const { error: loginError } = await supabase.auth.signInWithPassword({ email: user?.email || '', password: currentPassword });
+        
         if (loginError) {
             alert("Senha atual incorreta.");
             setChangingPassword(false);
             return;
         }
     }
+
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setChangingPassword(false);
+    
     if (error) {
         alert("Erro ao atualizar senha: " + error.message);
     } else {
@@ -774,6 +757,7 @@ export const App: React.FC = () => {
       window.open(finalUrl, '_blank');
   };
 
+  // --- CANDIDATES ---
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -789,9 +773,9 @@ export const App: React.FC = () => {
 
   const sanitizeFileName = (name: string) => {
     return name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9.-]/g, "_")
+      .normalize('NFD') 
+      .replace(/[\u0300-\u036f]/g, "") 
+      .replace(/[^a-zA-Z0-9.-]/g, "_") 
       .toLowerCase();
   };
 
@@ -870,10 +854,12 @@ export const App: React.FC = () => {
 
         } catch (err: any) {
             console.error("Upload failed details:", err.message);
+            
             if (err.message && err.message.includes("violates not-null constraint") && err.message.includes("file_name")) {
-                alert("ERRO CRÍTICO DE BANCO DE DADOS: Coluna 'file_name' bloqueada.\n\nPor favor, vá em Configurações > Banco de Dados > e execute o SCRIPT V17.");
+                alert("ERRO CRÍTICO: Execute o SCRIPT V17 em Configurações > Banco de Dados.");
                 setShowSqlModal(true);
             }
+
             setActiveJob(prev => {
                 if (!prev) return null;
                 return {
@@ -912,7 +898,9 @@ export const App: React.FC = () => {
                   try {
                       const base64 = await fileToBase64(file);
                       await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
+                      
                       const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
+                      
                       await supabase.from('candidates')
                           .update({ 
                               status: 'COMPLETED',
@@ -920,6 +908,7 @@ export const App: React.FC = () => {
                               match_score: result.matchScore 
                           })
                           .eq('id', insertedCandidate.id);
+                          
                   } catch (analyzeErr) {
                       console.error("Erro na auto-análise:", analyzeErr);
                       await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
@@ -930,30 +919,49 @@ export const App: React.FC = () => {
   };
 
   const runAnalysis = async () => {
-    if (!activeJob) return;
+    if (!activeJob || !user) return;
+
     const pendingCandidates = activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING);
     if (pendingCandidates.length === 0) return;
+
+    // --- BLOQUEIO RIGOROSO DE LIMITE DE ANÁLISE ---
+    // Se não for plano ilimitado (Free), checa limite
+    if (user.resume_limit < 9000) {
+        if (user.resume_usage + pendingCandidates.length > user.resume_limit) {
+            alert(`Limite de currículos do plano ${user.plan} atingido. Você analisou ${user.resume_usage}/${user.resume_limit}. Faça upgrade para análises ilimitadas.`);
+            setCurrentTab('BILLING');
+            return;
+        }
+    }
+    // ----------------------------------------------
+
     await supabase.auth.refreshSession();
+
     setAnalysisMetrics({ isAnalyzing: true, processedCount: 0, timeTaken: null });
     const startTime = Date.now();
+
     const updatedWithAnalyzing = activeJob.candidates.map(c => 
         c.status === CandidateStatus.PENDING ? { ...c, status: CandidateStatus.ANALYZING } : c
     );
     setActiveJob({ ...activeJob, candidates: updatedWithAnalyzing });
+
     let processedGlobal = 0;
+
     const processCandidate = async (candidate: Candidate) => {
         try {
             if (!candidate.filePath) throw new Error("File path missing");
+            
             const { data: fileBlob, error: downloadError } = await supabase.storage
                 .from('resumes')
                 .download(candidate.filePath);
-            if (downloadError || !fileBlob) {
-                console.error("Erro ao baixar arquivo do Supabase:", downloadError);
-                throw new Error("Falha no download");
-            }
+
+            if (downloadError || !fileBlob) throw new Error("Falha no download");
+
             const file = new File([fileBlob], candidate.fileName || 'resume.pdf', { type: 'application/pdf' });
             const base64 = await fileToBase64(file);
+
             const result = await analyzeResume(base64, activeJob.title, activeJob.criteria);
+            
             const { error: updateError } = await supabase.from('candidates')
                 .update({ 
                     status: 'COMPLETED',
@@ -961,7 +969,9 @@ export const App: React.FC = () => {
                     match_score: result.matchScore 
                 })
                 .eq('id', candidate.id);
-            if (updateError) throw new Error("Falha ao salvar no banco: " + updateError.message);
+            
+            if (updateError) throw new Error("Falha ao salvar no banco");
+            
             setActiveJob(prev => {
                 if (!prev) return null;
                 return {
@@ -973,11 +983,15 @@ export const App: React.FC = () => {
                     )
                 };
             });
+
             processedGlobal++;
             setAnalysisMetrics(prev => ({ ...prev, processedCount: processedGlobal }));
+
         } catch (err: any) {
             console.error("Analysis FAILURE for", candidate.fileName, err);
+            
             await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', candidate.id);
+            
             setActiveJob(prev => {
                 if (!prev) return null;
                 return {
@@ -987,8 +1001,10 @@ export const App: React.FC = () => {
             });
         }
     };
-    const CONCURRENCY_LIMIT = 20; 
+
+    const CONCURRENCY_LIMIT = 15;
     const queue = [...pendingCandidates];
+    
     const worker = async () => {
         while (queue.length > 0) {
             const candidate = queue.shift();
@@ -997,15 +1013,20 @@ export const App: React.FC = () => {
             }
         }
     };
+
     const workers = Array(Math.min(pendingCandidates.length, CONCURRENCY_LIMIT))
         .fill(null)
         .map(() => worker());
+
     await Promise.all(workers);
+
     const diff = Date.now() - startTime;
     const minutes = Math.floor(diff / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
     const formattedTime = minutes > 0 ? `${minutes}min e ${seconds}seg` : `${seconds}seg`;
+
     setAnalysisMetrics({ isAnalyzing: false, processedCount: processedGlobal, timeTaken: formattedTime });
+    
     if (activeJob) {
         const { data } = await supabase.from('candidates').select('*').eq('job_id', activeJob.id);
         if (data) {
@@ -1014,6 +1035,7 @@ export const App: React.FC = () => {
             setActiveJob(prev => prev ? { ...prev, candidates: freshCandidates } : null);
         }
     }
+
     if (user && user.resume_limit < 9999) {
         const newUsage = user.resume_usage + processedGlobal;
         await supabase.from('profiles').update({ resume_usage: newUsage }).eq('id', user.id);
@@ -1023,9 +1045,11 @@ export const App: React.FC = () => {
 
   const handleDeleteCandidate = async (id: string) => {
       const isErrorItem = activeJob?.candidates.find(c => c.id === id && (c.status === CandidateStatus.ERROR || c.status === CandidateStatus.UPLOADING));
+      
       if (!isErrorItem) {
           await supabase.from('candidates').delete().eq('id', id);
       }
+      
       if (activeJob) {
           const newCandidates = activeJob.candidates.filter(c => c.id !== id);
           setActiveJob({ ...activeJob, candidates: newCandidates });
@@ -1056,7 +1080,6 @@ export const App: React.FC = () => {
   };
 
   // --- RENDERING HELPERS ---
-  // ... (Render Helpers kept largely identical to conserve space, focusing on routing fix)
 
   const renderOverview = () => {
       const visibleAnnouncements = announcements.filter(ad => {
@@ -1074,6 +1097,7 @@ export const App: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* VAGAS ATIVAS */}
               <div className="bg-white p-8 rounded-[2rem] border-2 border-black relative overflow-hidden group shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all">
                   <div className="relative z-10">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">VAGAS ATIVAS</p>
@@ -1088,6 +1112,7 @@ export const App: React.FC = () => {
                   <Briefcase className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-110 transition-transform duration-500" />
               </div>
 
+              {/* CURRÍCULOS */}
               <div className="bg-white p-8 rounded-[2rem] border-2 border-black relative overflow-hidden group shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all">
                   <div className="relative z-10">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CURRÍCULOS ANALISADOS</p>
@@ -1102,6 +1127,7 @@ export const App: React.FC = () => {
                   <FileText className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-110 transition-transform duration-500" />
               </div>
 
+              {/* PLANO ATUAL */}
               <div className="bg-black p-8 rounded-[2rem] border-2 border-black relative overflow-hidden flex flex-col justify-between shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                    <div className="relative z-10">
                       <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">PLANO ATUAL</p>
@@ -1115,6 +1141,7 @@ export const App: React.FC = () => {
               </div>
           </div>
 
+          {/* ANÚNCIOS (NOVOS) - FILTRADOS POR PLANO */}
           {visibleAnnouncements.length > 0 && (
               <div className="animate-slide-up">
                   <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tight flex items-center gap-2">
@@ -1173,7 +1200,6 @@ export const App: React.FC = () => {
   );
   };
 
-  // ... (renderBilling and renderSettings same as previous version) ...
   const renderBilling = () => (
       <div className="space-y-12 animate-fade-in max-w-6xl mx-auto font-sans p-4">
           <div>
@@ -1181,6 +1207,7 @@ export const App: React.FC = () => {
               <p className="text-slate-500 font-medium mt-1">Gerencie seu plano e limites de uso.</p>
           </div>
 
+          {/* Current Plan Card - Black */}
           <div className="bg-black rounded-[2.5rem] p-10 md:p-12 relative overflow-hidden text-white shadow-2xl">
               <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-6">
@@ -1196,6 +1223,7 @@ export const App: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                      {/* Vagas Bar */}
                       <div>
                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
                               <span>Vagas Ativas</span>
@@ -1206,6 +1234,7 @@ export const App: React.FC = () => {
                           </div>
                       </div>
 
+                      {/* Curriculos Bar */}
                       <div>
                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
                               <span>Currículos Analisados</span>
@@ -1219,26 +1248,29 @@ export const App: React.FC = () => {
               </div>
           </div>
 
+          {/* Upgrade Options */}
           <div>
               <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tight flex items-center gap-2">
                   <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Free Plan */}
                   <div className="bg-white border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">FREE</span>
                       <div className="text-slate-900 mb-6 flex items-center justify-center h-[72px]">
                           <span className="text-5xl font-black tracking-tighter">Grátis</span>
                       </div>
                       <div className="space-y-1 mb-8 text-sm font-bold text-slate-600">
-                          <p>3 Vagas</p>
-                          <p>25 Currículos/mês</p>
+                          <p>1 Vaga</p>
+                          <p>30 Currículos/mês</p>
                       </div>
                       <button disabled className="w-full bg-black text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest cursor-default border-2 border-black opacity-90">
                           (Atual)
                       </button>
                   </div>
 
+                  {/* Mensal */}
                   <div className="bg-white border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Mensal</span>
                       <div className="text-slate-900 mb-6 flex items-baseline justify-center h-[72px]">
@@ -1249,6 +1281,7 @@ export const App: React.FC = () => {
                       </div>
                       <div className="space-y-1 mb-8 text-sm font-bold text-slate-600">
                           <p>5 Vagas</p>
+                          <p>Currículos Ilimitados</p>
                           <p>+ Link Público</p>
                       </div>
                       <button onClick={() => handleUpgrade('MENSAL')} className="w-full bg-black text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-zinc-800 transition-colors">
@@ -1256,6 +1289,7 @@ export const App: React.FC = () => {
                       </button>
                   </div>
 
+                  {/* Anual - Destaque */}
                   <div className="bg-black border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 overflow-hidden shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
                       <div className="absolute top-0 right-0 bg-[#CCF300] text-black text-[10px] font-black px-4 py-2 rounded-bl-2xl uppercase tracking-widest z-10">
                           Melhor Valor
@@ -1270,6 +1304,7 @@ export const App: React.FC = () => {
                       </div>
                       <div className="space-y-1 mb-8 text-sm font-bold text-white">
                           <p>Vagas Ilimitadas</p>
+                          <p>Currículos Ilimitados</p>
                           <p className="text-[#CCF300]">+ Link Público</p>
                       </div>
                       <button onClick={() => handleUpgrade('ANUAL')} className="w-full bg-[#CCF300] text-black font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-[#bce000] transition-colors">
@@ -1381,32 +1416,8 @@ export const App: React.FC = () => {
 
   // --- MAIN RENDER (User Dashboard / Details) ---
   
-  // Public Upload View - MOVED TO TOP to bypass login check for anonymous uploads
-  // CRITICAL: Ensure view logic is robust
+  // Public Upload View
   if (view === 'PUBLIC_UPLOAD') {
-      // Exibe erro amigável em vez de redirecionar se a vaga não for encontrada
-      if (publicFetchError) {
-          return (
-              <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center font-sans">
-                  <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border-2 border-slate-200 max-w-md w-full animate-slide-up">
-                      <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-red-100">
-                          <AlertTriangle className="w-10 h-10 text-red-500" />
-                      </div>
-                      <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Ops! Algo deu errado.</h2>
-                      <p className="text-slate-500 font-bold text-sm mb-8 leading-relaxed">
-                          {publicFetchError}
-                      </p>
-                      <button 
-                        onClick={() => window.location.href = '/'} 
-                        className="w-full bg-black text-white font-black py-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] transition-all border-2 border-black"
-                      >
-                          Ir para Home
-                      </button>
-                  </div>
-              </div>
-          );
-      }
-
       return (
           <PublicUploadScreen 
             jobTitle={publicJobData.title}
@@ -1414,17 +1425,9 @@ export const App: React.FC = () => {
             onUpload={handlePublicUpload}
             onBack={() => {
                 setPublicUploadJobId(null);
-                setPublicFetchError(null);
-                // Clear URL hash/params
+                setView(user ? 'DASHBOARD' : 'DASHBOARD');
                 window.history.pushState({}, '', '/');
-                
-                if (user) {
-                    setView('DASHBOARD');
-                    fetchJobs(user.id);
-                } else {
-                    // Force a reload to clear state properly if needed, or just show login
-                    window.location.reload(); 
-                }
+                if (user) fetchJobs(user.id); 
             }}
           />
       );
@@ -1476,7 +1479,6 @@ export const App: React.FC = () => {
       if (activeJob) setShowShareModal(true);
   };
 
-  // Helper para atualizar job localmente no modal de share
   const handleJobUpdate = (updatedJob: Job) => {
       setJobs(prev => prev.map(j => j.id === updatedJob.id ? updatedJob : j));
       if (activeJob?.id === updatedJob.id) {
@@ -1644,7 +1646,7 @@ export const App: React.FC = () => {
                  <button onClick={handleOpenShareModal} className="flex-none bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-5 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none whitespace-nowrap"><Share2 className="w-5 h-5 mr-2 text-black"/> Link</button>
                  
                  {activeJob.candidates.some(c=>c.isSelected) && (
-                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
+                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
                  )}
                  
                  <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>
