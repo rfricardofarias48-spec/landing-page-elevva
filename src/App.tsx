@@ -397,9 +397,16 @@ const App: React.FC = () => {
 
       // O modal só deve abrir se for conta NOVA E não tiver nome.
       const needsNameUpdate = isNewAccount && (!dbName || dbName.trim() === '');
+      
+      // Verifica se o modal já foi dispensado nesta sessão
+      const isWelcomeDismissed = sessionStorage.getItem('welcome_dismissed') === 'true';
+
+      // FORCE ADMIN: Se o email for o do dono, força o papel de ADMIN mesmo que no banco esteja USER
+      const isAdmin = (data?.role === 'ADMIN') || (email === 'rhfarilog@gmail.com');
 
       const profile = data ? {
         ...data,
+        role: isAdmin ? 'ADMIN' : (data.role || 'USER'), // Força Admin se email bater
         name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário' // Fallback para não quebrar a UI
       } : {
         id: userId,
@@ -409,16 +416,17 @@ const App: React.FC = () => {
         job_limit: 3,
         resume_limit: 25, 
         resume_usage: 0,
-        role: 'USER'
+        role: isAdmin ? 'ADMIN' : 'USER'
       };
 
       setUser(profile);
       
       // Se precisar atualizar o nome (conta nova) e não for Admin (admins podem pular)
-      if (needsNameUpdate && profile.role !== 'ADMIN') {
+      // E NÃO TIVER SIDO FECHADO AINDA
+      if (needsNameUpdate && profile.role !== 'ADMIN' && !isWelcomeDismissed) {
           setShowNameModal(true);
       } else {
-          setShowNameModal(false); // Garante fechado para contas antigas
+          setShowNameModal(false); // Garante fechado para contas antigas ou já dispensadas
       }
       
       // Inicia processos paralelos
@@ -456,6 +464,8 @@ const App: React.FC = () => {
         
         // Atualiza estado local SEMPRE, para liberar o usuário
         setUser({ ...user, name: tempName });
+        // Marca como dispensado para não voltar
+        sessionStorage.setItem('welcome_dismissed', 'true');
         setShowNameModal(false);
     } catch (err: any) {
         console.error("Erro ao salvar nome:", err);
@@ -463,6 +473,12 @@ const App: React.FC = () => {
     } finally {
         setIsSavingName(false);
     }
+  };
+
+  // Funções para dispensar modal de boas-vindas
+  const dismissWelcomeModal = () => {
+      sessionStorage.setItem('welcome_dismissed', 'true');
+      setShowNameModal(false);
   };
 
   const handleLogin = async (email: string, pass: string, name?: string, phone?: string, isRegister?: boolean) => {
@@ -599,6 +615,8 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    // Limpa a sessão ao sair
+    sessionStorage.removeItem('welcome_dismissed');
     await supabase.auth.signOut();
     // onAuthStateChange will handle state cleanup
   };
@@ -1896,7 +1914,7 @@ const App: React.FC = () => {
                   
                   {/* Close Button (Skip) */}
                   <button 
-                    onClick={() => setShowNameModal(false)} 
+                    onClick={() => { setShowNameModal(false); sessionStorage.setItem('welcome_dismissed', 'true'); }} 
                     className="absolute top-4 left-4 p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-full transition-all" 
                     title="Pular / Fechar"
                   >
