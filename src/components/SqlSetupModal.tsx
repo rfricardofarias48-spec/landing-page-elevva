@@ -6,105 +6,13 @@ interface Props {
 }
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
-  // Define FIX_PROFILES (V42) como padrão para resolver o erro atual
-  const [activeTab, setActiveTab] = useState<'FIX_ACCESS' | 'CRON' | 'ADMIN_POWER' | 'FIX_PROFILES'>('FIX_PROFILES');
+  // Define FIX_ADMIN (V43) como padrão para resolver o erro atual
+  const [activeTab, setActiveTab] = useState<'FIX_ADMIN' | 'FIX_ACCESS' | 'CRON'>('FIX_ADMIN');
 
-  // SCRIPT V35: CORREÇÃO TOTAL DE ACESSO PÚBLICO
-  const fixAccessSql = `
--- --- SCRIPT V35: CORREÇÃO TOTAL DE ACESSO PÚBLICO ---
-BEGIN;
-
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
-
-ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
-DROP POLICY IF EXISTS "Public Read Jobs" ON public.jobs;
-DROP POLICY IF EXISTS "read_jobs" ON public.jobs;
-DROP POLICY IF EXISTS "anon_read_jobs" ON public.jobs;
-
-CREATE POLICY "Enable read access for all" ON public.jobs 
-FOR SELECT 
-TO anon, authenticated 
-USING (true);
-
-DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
-CREATE POLICY "Enable update for owners" ON public.jobs 
-FOR UPDATE TO authenticated 
-USING (auth.uid() = user_id) 
-WITH CHECK (auth.uid() = user_id);
-
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
-
-ALTER TABLE public.jobs DROP CONSTRAINT IF EXISTS jobs_short_code_key;
-CREATE UNIQUE INDEX IF NOT EXISTS jobs_short_code_idx ON public.jobs (short_code);
-
-NOTIFY pgrst, 'reload config';
-COMMIT;
-  `.trim();
-
-  // SCRIPT V40: PODERES DE ADMIN (Permite alterar planos)
-  const adminPowerSql = `
--- --- SCRIPT V40: PERMISSÕES DE SUPER ADMIN ---
--- Execute isso para conseguir alterar planos de outros usuários pelo painel.
-
-BEGIN;
-
--- 1. Garante que RLS está ativo em profiles
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
--- 2. Política de LEITURA (Admin vê tudo, User vê o seu)
-DROP POLICY IF EXISTS "Read profiles" ON public.profiles;
-CREATE POLICY "Read profiles" ON public.profiles
-FOR SELECT TO authenticated
-USING (
-  auth.uid() = id 
-  OR 
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-);
-
--- 3. Política de EDIÇÃO (Admin edita tudo, User edita o seu)
-DROP POLICY IF EXISTS "Update profiles" ON public.profiles;
-CREATE POLICY "Update profiles" ON public.profiles
-FOR UPDATE TO authenticated
-USING (
-  auth.uid() = id 
-  OR 
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-)
-WITH CHECK (
-  auth.uid() = id 
-  OR 
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-);
-
-COMMIT;
-  `.trim();
-
-  const cronSql = `
--- --- SCRIPT V27: AUTOMAÇÃO DE LIMPEZA (10 DIAS) ---
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-
-CREATE OR REPLACE FUNCTION delete_expired_candidates() RETURNS void AS $$
-BEGIN
-  DELETE FROM public.candidates 
-  WHERE created_at < NOW() - INTERVAL '10 days';
-END;
-$$ LANGUAGE plpgsql;
-
-SELECT cron.schedule(
-  'cleanup_resumes',
-  '0 3 * * *',
-  $$SELECT delete_expired_candidates()$$
-);
-`.trim();
-
-  const fixProfilesSql = `
--- --- SCRIPT V42: CORREÇÃO DE PERFIS E ADMINISTRAÇÃO ---
--- Use este script se a lista de usuários no Admin estiver vazia.
+  // SCRIPT V43: CORREÇÃO DEFINITIVA DE PERMISSÕES ADMIN (ANTI-RECURSÃO)
+  const fixAdminSql = `
+-- --- SCRIPT V43: CORREÇÃO DEFINITIVA DE DADOS DO ADMIN ---
+-- Este script resolve o problema de "Painel Zerado" liberando acesso total ao Admin.
 
 BEGIN;
 
@@ -125,65 +33,117 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   subscription_status text
 );
 
--- 2. Habilita RLS
+-- 2. Garante que seu usuário é ADMIN
+UPDATE public.profiles 
+SET role = 'ADMIN' 
+WHERE email = 'rhfarilog@gmail.com';
+
+-- 3. Função Segura para verificar Admin (Bypassa RLS para evitar recursão)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid() AND role = 'ADMIN'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 4. Recriar Políticas de Profiles (Acesso Total para Admin)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- 3. Limpa políticas antigas
-DROP POLICY IF EXISTS "Public profiles access" ON public.profiles;
-DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Read profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Update profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Insert profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Admin Select" ON public.profiles;
-DROP POLICY IF EXISTS "Admin Update" ON public.profiles;
 
--- 4. Cria Políticas Permissivas para Correção
--- Permitir leitura para o próprio usuário E para admins
+-- LEITURA: O usuário vê o dele, o Admin vê TODOS
 CREATE POLICY "Read profiles" ON public.profiles
 FOR SELECT TO authenticated
 USING (
   auth.uid() = id 
   OR 
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-  OR 
-  auth.jwt() ->> 'email' = 'rhfarilog@gmail.com' -- Garantia extra para o Admin principal
+  public.is_admin() = true
+  OR
+  auth.jwt() ->> 'email' = 'rhfarilog@gmail.com' -- Trava de segurança extra
 );
 
--- Permitir update para o próprio usuário E para admins
+-- UPDATE: O usuário edita o dele, o Admin edita TODOS
 CREATE POLICY "Update profiles" ON public.profiles
 FOR UPDATE TO authenticated
 USING (
   auth.uid() = id 
   OR 
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-  OR 
+  public.is_admin() = true
+  OR
   auth.jwt() ->> 'email' = 'rhfarilog@gmail.com'
 );
 
--- Permitir insert para usuários autenticados (caso não exista)
+-- INSERT: Qualquer um logado pode criar seu perfil
 CREATE POLICY "Insert profiles" ON public.profiles
 FOR INSERT TO authenticated
 WITH CHECK (auth.uid() = id);
 
--- 5. Forçar Admin para o email específico
-UPDATE public.profiles 
-SET role = 'ADMIN' 
-WHERE email = 'rhfarilog@gmail.com';
+-- 5. Garantir acesso a Vagas (Jobs) para o Admin
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
 
--- 6. Grant final
-GRANT ALL ON TABLE public.profiles TO anon, authenticated, service_role;
+CREATE POLICY "Enable read access for all" ON public.jobs 
+FOR SELECT 
+TO anon, authenticated 
+USING (true);
+
+-- 6. Garantir acesso a Anúncios
+CREATE TABLE IF NOT EXISTS public.announcements (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    title text NOT NULL,
+    link_url text,
+    image_path text NOT NULL,
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
+);
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE public.announcements TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Public View Announcements" ON public.announcements;
+CREATE POLICY "Public View Announcements" ON public.announcements 
+FOR SELECT TO anon, authenticated 
+USING (true);
+
+DROP POLICY IF EXISTS "Admin Manage Announcements" ON public.announcements;
+CREATE POLICY "Admin Manage Announcements" ON public.announcements 
+FOR ALL TO authenticated 
+USING (public.is_admin() = true OR auth.jwt() ->> 'email' = 'rhfarilog@gmail.com');
 
 NOTIFY pgrst, 'reload config';
 COMMIT;
   `.trim();
 
+  // SCRIPT V35: CORREÇÃO DE ACESSO PÚBLICO
+  const fixAccessSql = `
+-- --- SCRIPT V35: CORREÇÃO GERAL ---
+BEGIN;
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
+CREATE POLICY "Enable read access for all" ON public.jobs FOR SELECT TO anon, authenticated USING (true);
+COMMIT;
+  `.trim();
+
+  const cronSql = `
+-- --- SCRIPT V27: AUTO LIMPEZA ---
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHERE created_at < NOW() - INTERVAL '10 days'$$);
+`.trim();
+
   const getSql = () => {
       switch(activeTab) {
           case 'CRON': return cronSql;
-          case 'ADMIN_POWER': return adminPowerSql;
-          case 'FIX_PROFILES': return fixProfilesSql;
-          default: return fixAccessSql;
+          case 'FIX_ACCESS': return fixAccessSql;
+          default: return fixAdminSql;
       }
   };
 
@@ -204,7 +164,7 @@ COMMIT;
                </div>
                <div>
                  <h2 className="text-xl font-bold text-white">Scripts de Banco de Dados</h2>
-                 <p className="text-zinc-400 text-sm">Correções de permissão e manutenção.</p>
+                 <p className="text-zinc-400 text-sm">Execute para corrigir permissões e visualizar dados.</p>
                </div>
              </div>
              <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
@@ -212,22 +172,16 @@ COMMIT;
           
           <div className="flex px-6 gap-6 mt-2 overflow-x-auto custom-scrollbar pb-2">
             <button 
-              onClick={() => setActiveTab('FIX_PROFILES')}
-              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_PROFILES' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              onClick={() => setActiveTab('FIX_ADMIN')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ADMIN' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <ShieldCheck className="w-4 h-4" /> V42 (Correção Crítica)
+              <Crown className="w-4 h-4" /> V43 (Fix Admin)
             </button>
             <button 
               onClick={() => setActiveTab('FIX_ACCESS')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ACCESS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Unlock className="w-4 h-4" /> Script V35 (Acesso Público)
-            </button>
-            <button 
-              onClick={() => setActiveTab('ADMIN_POWER')}
-              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'ADMIN_POWER' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-            >
-              <Crown className="w-4 h-4" /> V40 (Admin Power)
+              <Unlock className="w-4 h-4" /> V35 (Acesso Geral)
             </button>
             <button 
               onClick={() => setActiveTab('CRON')}

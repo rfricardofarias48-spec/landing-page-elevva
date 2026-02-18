@@ -4,7 +4,7 @@ import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import { 
   Users, Calendar, CreditCard, Search, Activity, Briefcase, 
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, Clock, UserX, Wallet, Lock, Database, Copy, ToggleRight, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Crown
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, Clock, UserX, Wallet, Lock, Database, Copy, ToggleRight, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Crown, AlertTriangle
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -45,6 +45,9 @@ export const AdminDashboard: React.FC = () => {
   // State Financeiro
   const [financeDate, setFinanceDate] = useState(new Date());
 
+  // Error State
+  const [dataError, setDataError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -52,12 +55,17 @@ export const AdminDashboard: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setDataError(null);
       
       const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('*');
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+          throw new Error(`Erro ao buscar perfis: ${profilesError.message} (Dica: Rode o Script V43)`);
+      }
 
       const { data: jobsData, error: jobsError } = await supabase.from('jobs').select('*, candidates(id)');
-      if (jobsError) throw jobsError;
+      if (jobsError) {
+          console.warn("Erro não crítico ao buscar jobs:", jobsError);
+      }
 
       const { data: adsData, error: adsError } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
       if (adsError && adsError.code !== '42P01') console.error("Erro ao buscar anúncios:", adsError);
@@ -110,8 +118,9 @@ export const AdminDashboard: React.FC = () => {
       setAllJobs(mappedJobs);
       setAds(mappedAds);
 
-    } catch (error) {
-      console.error("Erro ao carregar dados do admin:", error);
+    } catch (error: any) {
+      console.error("Erro crítico no Admin:", error);
+      setDataError(error.message);
     } finally {
       setLoading(false);
     }
@@ -162,24 +171,17 @@ export const AdminDashboard: React.FC = () => {
             })
             .eq('id', selectedUser.id);
 
-          if (error) {
-              if (error.message.includes('policy')) {
-                  alert("ERRO DE PERMISSÃO: Você precisa rodar o SCRIPT V40 (Admin Power) em 'Configurações > Banco de Dados' para liberar essa função.");
-              } else {
-                  throw error;
-              }
-              return;
-          }
+          if (error) throw error;
 
           const updatedUser = { ...selectedUser, plan: newPlan };
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, plan: newPlan } : u));
           setIsEditingPlan(false);
-          alert(`✅ Sucesso! Plano alterado para ${newPlan}.\nLimites atualizados: ${newJobLimit >= 9999 ? 'Ilimitado' : newJobLimit} Vagas, ${newResumeLimit >= 9999 ? 'Ilimitado' : newResumeLimit} Currículos.`);
+          alert(`✅ Sucesso! Plano alterado para ${newPlan}.`);
 
       } catch (err: any) {
           console.error("Erro ao atualizar plano:", err);
-          alert("Erro ao atualizar plano: " + err.message);
+          alert("Erro ao atualizar plano. Verifique se o Script V43 foi executado.");
       } finally {
           setActionLoading(false);
       }
@@ -769,6 +771,24 @@ export const AdminDashboard: React.FC = () => {
         {renderSidebar()}
         
         <main className="flex-1 ml-64 p-8 overflow-y-auto h-screen">
+            {dataError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3 animate-fade-in shadow-sm">
+                    <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                        <h3 className="text-sm font-black text-red-900 mb-1">Erro de Permissão (Dados Zerados)</h3>
+                        <p className="text-xs text-red-700 font-medium mb-3">
+                            O Supabase bloqueou a leitura dos dados de outros usuários. Isso acontece porque a política de segurança padrão protege a privacidade.
+                        </p>
+                        <button 
+                            onClick={() => setCurrentView('DATABASE')} 
+                            className="bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                            Corrigir Agora (Ir para Banco de Dados &gt; Script V43)
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {currentView === 'OVERVIEW' && renderOverview()}
             {currentView === 'USERS' && renderUsersList()}
             {currentView === 'ADS' && renderAdsManager()}

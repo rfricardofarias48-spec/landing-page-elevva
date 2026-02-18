@@ -383,7 +383,6 @@ const App: React.FC = () => {
       // ---------------------------------------------
 
       // Se houver erro de permissão (403/401/PGRST301), provavelmente é RLS
-      // Se não conseguimos ler o perfil, não devemos abrir o modal de "Bem-vindo"
       const permissionError = error && (error.code === '42501' || error.code === 'PGRST301');
 
       if (error && error.code !== 'PGRST116' && !permissionError) {
@@ -394,19 +393,29 @@ const App: React.FC = () => {
       
       // --- LÓGICA DE CORREÇÃO (LOCK BUG FIX) ---
       // Se não tivermos o perfil do banco (data=null), usamos a data da sessão.
-      // Isso evita que contas antigas sem perfil carregado sejam tratadas como novas.
-      const createdAtIso = data?.created_at || sessionCreatedAt || new Date().toISOString();
-      const createdAt = new Date(createdAtIso);
-      const now = new Date();
-      const isNewAccount = (now.getTime() - createdAt.getTime()) < 2 * 60 * 1000; // 2 minutos
-
-      // O modal só deve abrir se for conta NOVA E não tiver nome.
-      // Adicionado: !permissionError -> Se não conseguimos ler o banco, assumimos que NÃO precisa atualizar nome
-      const needsNameUpdate = !permissionError && isNewAccount && (!dbName || dbName.trim() === '');
+      // IMPORTANTE: Se sessionCreatedAt for undefined, NÃO assume que é hoje. Assume que é antiga.
+      const createdAtIso = data?.created_at || sessionCreatedAt;
       
-      // Verifica se o modal já foi dispensado nesta sessão
-      const isWelcomeDismissed = sessionStorage.getItem('welcome_dismissed') === 'true';
+      let isNewAccount = false;
+      // Só considera conta nova se tivermos uma data válida e ela for recente (< 5 min)
+      if (createdAtIso) {
+          const createdAt = new Date(createdAtIso);
+          const now = new Date();
+          isNewAccount = (now.getTime() - createdAt.getTime()) < 5 * 60 * 1000;
+      }
 
+      // Verifica se o modal já foi dispensado (Session ou Local Storage)
+      const dismissedSession = sessionStorage.getItem('welcome_dismissed') === 'true';
+      const dismissedLocal = localStorage.getItem(`welcome_dismissed_${userId}`) === 'true';
+      const isWelcomeDismissed = dismissedSession || dismissedLocal;
+
+      // O modal só deve abrir se:
+      // 1. Não houve erro de permissão (se houve, não bloqueamos)
+      // 2. É comprovadamente uma conta nova
+      // 3. Não tem nome
+      // 4. Ainda não foi dispensado
+      const needsNameUpdate = !permissionError && isNewAccount && (!dbName || dbName.trim() === '') && !isWelcomeDismissed;
+      
       // FORCE ADMIN: Se o email for o do dono, força o papel de ADMIN mesmo que no banco esteja USER
       const isAdmin = (data?.role === 'ADMIN') || (email === 'rhfarilog@gmail.com');
 
@@ -427,12 +436,10 @@ const App: React.FC = () => {
 
       setUser(profile);
       
-      // Se precisar atualizar o nome (conta nova) e não for Admin (admins podem pular)
-      // E NÃO TIVER SIDO FECHADO AINDA
-      if (needsNameUpdate && profile.role !== 'ADMIN' && !isWelcomeDismissed) {
+      if (needsNameUpdate && profile.role !== 'ADMIN') {
           setShowNameModal(true);
       } else {
-          setShowNameModal(false); // Garante fechado para contas antigas ou já dispensadas
+          setShowNameModal(false); // Garante fechado
       }
       
       // Inicia processos paralelos
@@ -470,9 +477,8 @@ const App: React.FC = () => {
         
         // Atualiza estado local SEMPRE, para liberar o usuário
         setUser({ ...user, name: tempName });
-        // Marca como dispensado para não voltar
-        sessionStorage.setItem('welcome_dismissed', 'true');
-        setShowNameModal(false);
+        // Marca como dispensado PERMANENTEMENTE para este usuário
+        dismissWelcomeModal();
     } catch (err: any) {
         console.error("Erro ao salvar nome:", err);
         alert("Erro crítico ao salvar: " + err.message);
@@ -484,6 +490,9 @@ const App: React.FC = () => {
   // Funções para dispensar modal de boas-vindas
   const dismissWelcomeModal = () => {
       sessionStorage.setItem('welcome_dismissed', 'true');
+      if (user) {
+          localStorage.setItem(`welcome_dismissed_${user.id}`, 'true');
+      }
       setShowNameModal(false);
   };
 
@@ -1920,7 +1929,7 @@ const App: React.FC = () => {
                   
                   {/* Close Button (Skip) */}
                   <button 
-                    onClick={() => { setShowNameModal(false); sessionStorage.setItem('welcome_dismissed', 'true'); }} 
+                    onClick={dismissWelcomeModal}
                     className="absolute top-4 left-4 p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-full transition-all" 
                     title="Pular / Fechar"
                   >
