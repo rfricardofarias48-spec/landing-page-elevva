@@ -6,9 +6,10 @@ interface Props {
 }
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'FIX_ACCESS' | 'CRON' | 'ADMIN_POWER'>('FIX_ACCESS');
+  // Define FIX_PROFILES (V42) como padrão para resolver o erro atual
+  const [activeTab, setActiveTab] = useState<'FIX_ACCESS' | 'CRON' | 'ADMIN_POWER' | 'FIX_PROFILES'>('FIX_PROFILES');
 
-  // SCRIPT V35: CORREÇÃO TOTAL DE ACESSO
+  // SCRIPT V35: CORREÇÃO TOTAL DE ACESSO PÚBLICO
   const fixAccessSql = `
 -- --- SCRIPT V35: CORREÇÃO TOTAL DE ACESSO PÚBLICO ---
 BEGIN;
@@ -101,10 +102,87 @@ SELECT cron.schedule(
 );
 `.trim();
 
+  const fixProfilesSql = `
+-- --- SCRIPT V42: CORREÇÃO DE PERFIS E ADMINISTRAÇÃO ---
+-- Use este script se a lista de usuários no Admin estiver vazia.
+
+BEGIN;
+
+-- 1. Cria a tabela profiles se não existir (segurança)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  email text UNIQUE NOT NULL,
+  name text,
+  phone text,
+  role text DEFAULT 'USER',
+  plan text DEFAULT 'FREE',
+  job_limit int DEFAULT 3,
+  resume_limit int DEFAULT 25,
+  resume_usage int DEFAULT 0,
+  status text DEFAULT 'ACTIVE',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  subscription_status text
+);
+
+-- 2. Habilita RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- 3. Limpa políticas antigas
+DROP POLICY IF EXISTS "Public profiles access" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Read profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Update profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Insert profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Admin Select" ON public.profiles;
+DROP POLICY IF EXISTS "Admin Update" ON public.profiles;
+
+-- 4. Cria Políticas Permissivas para Correção
+-- Permitir leitura para o próprio usuário E para admins
+CREATE POLICY "Read profiles" ON public.profiles
+FOR SELECT TO authenticated
+USING (
+  auth.uid() = id 
+  OR 
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+  OR 
+  auth.jwt() ->> 'email' = 'rhfarilog@gmail.com' -- Garantia extra para o Admin principal
+);
+
+-- Permitir update para o próprio usuário E para admins
+CREATE POLICY "Update profiles" ON public.profiles
+FOR UPDATE TO authenticated
+USING (
+  auth.uid() = id 
+  OR 
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+  OR 
+  auth.jwt() ->> 'email' = 'rhfarilog@gmail.com'
+);
+
+-- Permitir insert para usuários autenticados (caso não exista)
+CREATE POLICY "Insert profiles" ON public.profiles
+FOR INSERT TO authenticated
+WITH CHECK (auth.uid() = id);
+
+-- 5. Forçar Admin para o email específico
+UPDATE public.profiles 
+SET role = 'ADMIN' 
+WHERE email = 'rhfarilog@gmail.com';
+
+-- 6. Grant final
+GRANT ALL ON TABLE public.profiles TO anon, authenticated, service_role;
+
+NOTIFY pgrst, 'reload config';
+COMMIT;
+  `.trim();
+
   const getSql = () => {
       switch(activeTab) {
           case 'CRON': return cronSql;
           case 'ADMIN_POWER': return adminPowerSql;
+          case 'FIX_PROFILES': return fixProfilesSql;
           default: return fixAccessSql;
       }
   };
@@ -132,7 +210,13 @@ SELECT cron.schedule(
              <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
           </div>
           
-          <div className="flex px-6 gap-6 mt-2 overflow-x-auto">
+          <div className="flex px-6 gap-6 mt-2 overflow-x-auto custom-scrollbar pb-2">
+            <button 
+              onClick={() => setActiveTab('FIX_PROFILES')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_PROFILES' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <ShieldCheck className="w-4 h-4" /> V42 (Correção Crítica)
+            </button>
             <button 
               onClick={() => setActiveTab('FIX_ACCESS')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ACCESS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}

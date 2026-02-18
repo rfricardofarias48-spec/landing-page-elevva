@@ -252,7 +252,8 @@ const App: React.FC = () => {
              }
              
              // Se tiver sessão, busca o perfil.
-             fetchUserProfile(session.user.id, session.user.email!);
+             // IMPORTANTE: Passamos o created_at da sessão para garantir a verificação de conta nova
+             fetchUserProfile(session.user.id, session.user.email!, session.user.created_at);
         } else {
              // Se não tiver sessão (logout ou inicial), para o loading
              setLoading(false);
@@ -366,7 +367,7 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchUserProfile = async (userId: string, email: string) => {
+  const fetchUserProfile = async (userId: string, email: string, sessionCreatedAt?: string) => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
@@ -381,22 +382,27 @@ const App: React.FC = () => {
       }
       // ---------------------------------------------
 
-      if (error && error.code !== 'PGRST116') {
+      // Se houver erro de permissão (403/401/PGRST301), provavelmente é RLS
+      // Se não conseguimos ler o perfil, não devemos abrir o modal de "Bem-vindo"
+      const permissionError = error && (error.code === '42501' || error.code === 'PGRST301');
+
+      if (error && error.code !== 'PGRST116' && !permissionError) {
         console.error("Erro ao buscar perfil:", error);
       }
       
       const dbName = data?.name;
       
       // --- LÓGICA DE CORREÇÃO (LOCK BUG FIX) ---
-      // Calcula se a conta é nova (menos de 2 minutos).
-      // Se for antiga, assumimos que o cadastro foi concluído ou ignorado,
-      // para não travar o usuário.
-      const createdAt = new Date(data?.created_at || new Date());
+      // Se não tivermos o perfil do banco (data=null), usamos a data da sessão.
+      // Isso evita que contas antigas sem perfil carregado sejam tratadas como novas.
+      const createdAtIso = data?.created_at || sessionCreatedAt || new Date().toISOString();
+      const createdAt = new Date(createdAtIso);
       const now = new Date();
       const isNewAccount = (now.getTime() - createdAt.getTime()) < 2 * 60 * 1000; // 2 minutos
 
       // O modal só deve abrir se for conta NOVA E não tiver nome.
-      const needsNameUpdate = isNewAccount && (!dbName || dbName.trim() === '');
+      // Adicionado: !permissionError -> Se não conseguimos ler o banco, assumimos que NÃO precisa atualizar nome
+      const needsNameUpdate = !permissionError && isNewAccount && (!dbName || dbName.trim() === '');
       
       // Verifica se o modal já foi dispensado nesta sessão
       const isWelcomeDismissed = sessionStorage.getItem('welcome_dismissed') === 'true';
