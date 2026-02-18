@@ -386,12 +386,21 @@ const App: React.FC = () => {
       }
       
       const dbName = data?.name;
-      // VERIFICAÇÃO DE NOME: Se não existir, for vazio ou igual ao placeholder "Usuário"
-      const needsNameUpdate = !dbName || dbName.trim() === '' || dbName === 'Usuário';
+      
+      // --- LÓGICA DE CORREÇÃO (LOCK BUG FIX) ---
+      // Calcula se a conta é nova (menos de 2 minutos).
+      // Se for antiga, assumimos que o cadastro foi concluído ou ignorado,
+      // para não travar o usuário.
+      const createdAt = new Date(data?.created_at || new Date());
+      const now = new Date();
+      const isNewAccount = (now.getTime() - createdAt.getTime()) < 2 * 60 * 1000; // 2 minutos
+
+      // O modal só deve abrir se for conta NOVA E não tiver nome.
+      const needsNameUpdate = isNewAccount && (!dbName || dbName.trim() === '');
 
       const profile = data ? {
         ...data,
-        name: data.name || 'Usuário'
+        name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário' // Fallback para não quebrar a UI
       } : {
         id: userId,
         email: email,
@@ -405,9 +414,11 @@ const App: React.FC = () => {
 
       setUser(profile);
       
-      // Se precisar atualizar o nome e não for Admin (admins podem pular)
+      // Se precisar atualizar o nome (conta nova) e não for Admin (admins podem pular)
       if (needsNameUpdate && profile.role !== 'ADMIN') {
           setShowNameModal(true);
+      } else {
+          setShowNameModal(false); // Garante fechado para contas antigas
       }
       
       // Inicia processos paralelos
@@ -424,8 +435,6 @@ const App: React.FC = () => {
     }
   };
 
-  // ... (Rest of the component remains same: handleSaveName, handleLogin, etc)
-  
   const handleSaveName = async () => {
     if (!user || !tempName.trim()) {
         alert("Por favor, digite seu Nome e Sobrenome.");
@@ -439,14 +448,18 @@ const App: React.FC = () => {
             .update({ name: tempName })
             .eq('id', user.id);
             
-        if (error) throw error;
+        if (error) {
+            console.warn("Falha ao persistir nome no banco:", error);
+            // Fallback: Permite entrar mesmo com erro no banco, para não trancar
+            alert("Aviso: Houve um problema ao salvar seu nome no servidor. O acesso será liberado temporariamente.");
+        }
         
-        // Atualiza estado local
+        // Atualiza estado local SEMPRE, para liberar o usuário
         setUser({ ...user, name: tempName });
         setShowNameModal(false);
     } catch (err: any) {
         console.error("Erro ao salvar nome:", err);
-        alert("Erro ao salvar: " + err.message);
+        alert("Erro crítico ao salvar: " + err.message);
     } finally {
         setIsSavingName(false);
     }
@@ -1881,6 +1894,24 @@ const App: React.FC = () => {
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
               <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl relative animate-slide-up border-4 border-black text-center">
                   
+                  {/* Close Button (Skip) */}
+                  <button 
+                    onClick={() => setShowNameModal(false)} 
+                    className="absolute top-4 left-4 p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-full transition-all" 
+                    title="Pular / Fechar"
+                  >
+                      <X className="w-5 h-5"/>
+                  </button>
+
+                  {/* Logout Button added for Emergency Unlock */}
+                  <button 
+                    onClick={handleLogout} 
+                    className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 rounded-full transition-all" 
+                    title="Sair / Logout"
+                  >
+                      <LogOut className="w-5 h-5"/>
+                  </button>
+
                   <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] border-4 border-white">
                       <Sparkles className="w-10 h-10 text-[#CCF300]" />
                   </div>
@@ -1898,6 +1929,7 @@ const App: React.FC = () => {
                               placeholder="Ex: Ana Silva"
                               className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium placeholder:text-slate-400"
                               autoFocus
+                              onKeyDown={(e) => e.key === 'Enter' && tempName.trim() && handleSaveName()}
                           />
                       </div>
 

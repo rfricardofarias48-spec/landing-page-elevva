@@ -1,106 +1,47 @@
 import React, { useState } from 'react';
-import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Crown, Unlock } from 'lucide-react';
+import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Wrench, ShieldCheck, Unlock, Crown } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
 }
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'FIX_ALL' | 'CRON' | 'ADMIN_POWER'>('FIX_ALL');
+  const [activeTab, setActiveTab] = useState<'FIX_ACCESS' | 'CRON' | 'ADMIN_POWER'>('FIX_ACCESS');
 
-  const fixAllSql = `
--- --- SCRIPT V26: CORREÇÃO DE UPLOAD PÚBLICO E POLÍTICAS ---
+  // SCRIPT V35: CORREÇÃO TOTAL DE ACESSO
+  const fixAccessSql = `
+-- --- SCRIPT V35: CORREÇÃO TOTAL DE ACESSO PÚBLICO ---
+BEGIN;
 
--- 1. CORREÇÃO CRÍTICA: PERMITIR CANDIDATOS ANÔNIMOS (SEM USER_ID)
-ALTER TABLE public.candidates ALTER COLUMN user_id DROP NOT NULL;
-
--- 2. PERMISSÕES EXPLÍCITAS (GRANT)
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT ALL ON TABLE public.candidates TO anon, authenticated;
 GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
-GRANT ALL ON TABLE public.announcements TO anon, authenticated;
 
--- 3. POLÍTICAS DE CANDIDATOS (RLS) - RESET TOTAL
-ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Public Insert Candidates" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for anon" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for authenticated" ON public.candidates;
-DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
-DROP POLICY IF EXISTS "Enable select for all" ON public.candidates;
-
-CREATE POLICY "Enable insert for all" ON public.candidates 
-FOR INSERT TO anon, authenticated 
-WITH CHECK (true);
-
-CREATE POLICY "Enable select for all" ON public.candidates 
-FOR SELECT TO anon, authenticated 
-USING (true);
-
--- 4. POLÍTICAS DE VAGAS (JOBS)
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
+DROP POLICY IF EXISTS "Public Read Jobs" ON public.jobs;
+DROP POLICY IF EXISTS "read_jobs" ON public.jobs;
+DROP POLICY IF EXISTS "anon_read_jobs" ON public.jobs;
+
 CREATE POLICY "Enable read access for all" ON public.jobs 
-FOR SELECT TO anon, authenticated 
+FOR SELECT 
+TO anon, authenticated 
 USING (true);
 
 DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
 CREATE POLICY "Enable update for owners" ON public.jobs 
 FOR UPDATE TO authenticated 
-USING (auth.uid() = user_id)
+USING (auth.uid() = user_id) 
 WITH CHECK (auth.uid() = user_id);
 
--- 5. STORAGE (Bucket 'resumes')
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('resumes', 'resumes', true)
-ON CONFLICT (id) DO NOTHING;
-
-GRANT ALL ON SCHEMA storage TO anon, authenticated;
-GRANT ALL ON TABLE storage.objects TO anon, authenticated;
-
-DROP POLICY IF EXISTS "Public Upload Resumes" ON storage.objects;
-DROP POLICY IF EXISTS "Give anon insert access" ON storage.objects;
-DROP POLICY IF EXISTS "Public Read Resumes" ON storage.objects;
-
-CREATE POLICY "Give anon insert access" ON storage.objects 
-FOR INSERT TO anon, authenticated 
-WITH CHECK (bucket_id = 'resumes');
-
-CREATE POLICY "Public Read Resumes" ON storage.objects 
-FOR SELECT TO anon, authenticated 
-USING (bucket_id = 'resumes');
-
--- 6. ANÚNCIOS
-CREATE TABLE IF NOT EXISTS public.announcements (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    title text NOT NULL,
-    link_url text,
-    image_path text NOT NULL,
-    is_active boolean DEFAULT true,
-    created_at timestamptz DEFAULT now(),
-    target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
-);
-ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Public View Announcements" ON public.announcements;
-CREATE POLICY "Public View Announcements" ON public.announcements 
-FOR SELECT TO anon, authenticated 
-USING (true);
-
-GRANT ALL ON TABLE public.announcements TO anon, authenticated;
-
--- 7. LINKS CURTOS E FEATURES
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'jobs_short_code_key') THEN
-        ALTER TABLE public.jobs ADD CONSTRAINT jobs_short_code_key UNIQUE (short_code);
-    END IF;
-END $$;
+ALTER TABLE public.jobs DROP CONSTRAINT IF EXISTS jobs_short_code_key;
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_short_code_idx ON public.jobs (short_code);
 
+NOTIFY pgrst, 'reload config';
 COMMIT;
   `.trim();
 
@@ -164,7 +105,7 @@ SELECT cron.schedule(
       switch(activeTab) {
           case 'CRON': return cronSql;
           case 'ADMIN_POWER': return adminPowerSql;
-          default: return fixAllSql;
+          default: return fixAccessSql;
       }
   };
 
@@ -193,10 +134,10 @@ SELECT cron.schedule(
           
           <div className="flex px-6 gap-6 mt-2 overflow-x-auto">
             <button 
-              onClick={() => setActiveTab('FIX_ALL')}
-              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ALL' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              onClick={() => setActiveTab('FIX_ACCESS')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ACCESS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Unlock className="w-4 h-4" /> Script V26 (Geral)
+              <Unlock className="w-4 h-4" /> Script V35 (Acesso Público)
             </button>
             <button 
               onClick={() => setActiveTab('ADMIN_POWER')}

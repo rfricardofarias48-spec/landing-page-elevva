@@ -4,7 +4,7 @@ import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import { 
   Users, Calendar, CreditCard, Search, Activity, Briefcase, 
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, Clock, UserX, Wallet, Lock, Database, Copy, ToggleRight, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Crown, Percent
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, Clock, UserX, Wallet, Lock, Database, Copy, ToggleRight, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Crown
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -31,7 +31,7 @@ export const AdminDashboard: React.FC = () => {
   // State para o Modal de Detalhes de Usuário
   const [selectedUser, setSelectedUser] = useState<AdminUserProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [isEditingPlan, setIsEditingPlan] = useState(false); 
 
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
@@ -164,14 +164,14 @@ export const AdminDashboard: React.FC = () => {
 
           if (error) {
               if (error.message.includes('policy')) {
-                  alert("ERRO DE PERMISSÃO: Você precisa rodar o SCRIPT V40 (Admin Power) em 'Banco de Dados' para liberar essa função.");
+                  alert("ERRO DE PERMISSÃO: Você precisa rodar o SCRIPT V40 (Admin Power) em 'Configurações > Banco de Dados' para liberar essa função.");
               } else {
                   throw error;
               }
               return;
           }
 
-          const updatedUser = { ...selectedUser, plan: newPlan, job_limit: newJobLimit, resume_limit: newResumeLimit };
+          const updatedUser = { ...selectedUser, plan: newPlan };
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, plan: newPlan } : u));
           setIsEditingPlan(false);
