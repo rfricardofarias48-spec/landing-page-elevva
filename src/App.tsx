@@ -1139,29 +1139,29 @@ const App: React.FC = () => {
       });
 
       return (
-      <div className="space-y-10 animate-fade-in max-w-6xl mx-auto font-sans pt-2">
+      <div className="space-y-8 animate-fade-in max-w-6xl mx-auto font-sans pt-2">
           
-          {/* HEADER DE RECEPÇÃO - NOVO DESIGN */}
-          <div className="flex items-center gap-6">
+          {/* HEADER DE RECEPÇÃO - NOVO DESIGN (REDUZIDO) */}
+          <div className="flex items-center gap-4">
               <div className="relative shrink-0 group cursor-default">
-                  <div className="absolute inset-0 bg-[#CCF300] rounded-[1.3rem] translate-x-2 translate-y-2 transition-transform duration-300 group-hover:translate-x-3 group-hover:translate-y-3"></div>
-                  <div className="w-24 h-24 bg-black rounded-[1.3rem] relative flex items-center justify-center text-white text-4xl font-black border-2 border-black z-10 shadow-sm">
+                  <div className="absolute inset-0 bg-[#CCF300] rounded-[1rem] translate-x-1.5 translate-y-1.5 transition-transform duration-300 group-hover:translate-x-2 group-hover:translate-y-2"></div>
+                  <div className="w-16 h-16 bg-black rounded-[1rem] relative flex items-center justify-center text-white text-2xl font-black border-2 border-black z-10 shadow-sm">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
               </div>
               
               <div className="flex flex-col justify-center">
-                  <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none mb-3">
+                  <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter leading-none mb-2">
                       Olá, {(user?.name || 'Usuário').split(' ')[0]}
                   </h1>
-                  <div className="flex items-center gap-4">
-                      <div className="bg-[#CCF300] text-black text-[11px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest border-2 border-[#CCF300] shadow-[2px_2px_0px_0px_rgba(0,0,0,0.1)]">
+                  <div className="flex items-center gap-3">
+                      <div className="bg-[#CCF300] text-black text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest border-2 border-[#CCF300] shadow-sm">
                           PLANO {user?.plan || 'FREE'}
                       </div>
-                      <div className="text-slate-400 font-bold text-sm tracking-tight flex items-baseline gap-1.5">
-                          <span className="text-slate-900 font-black text-xl">{user?.resume_usage}</span> 
+                      <div className="text-slate-400 font-bold text-xs tracking-tight flex items-baseline gap-1">
+                          <span className="text-slate-900 font-black text-base">{user?.resume_usage}</span> 
                           <span className="text-slate-300 font-light">/</span> 
-                          <span className="text-slate-500 font-bold">{user?.resume_limit >= 9999 ? 'Ilimitado' : user?.resume_limit} Análises</span>
+                          <span className="text-slate-500 font-bold">{user?.resume_limit >= 9999 ? 'Ilimitado' : `${user?.resume_limit} Análises`}</span>
                       </div>
                   </div>
               </div>
