@@ -17,10 +17,9 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
   // Remove slash final do origin se existir para evitar //
   const origin = window.location.origin.replace(/\/$/, '');
   
-  // ATUALIZAÇÃO: Link limpo baseado em caminho numérico puro (ex: vello.net.br/12345)
-  // Removido hash (#) para conformidade com a nova rota e removido query param
+  // ATUALIZAÇÃO: Usando Hash (#) para evitar erro 404 em servidores sem configuração SPA
   const shareUrl = job.short_code 
-      ? `${origin}/${job.short_code}`
+      ? `${origin}/#${job.short_code}`
       : `${origin}/?uploadJobId=${job.id}`;
 
   useEffect(() => {

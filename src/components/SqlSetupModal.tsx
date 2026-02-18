@@ -1,51 +1,59 @@
 import React, { useState } from 'react';
-import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Wrench, ShieldCheck } from 'lucide-react';
+import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Wrench, ShieldCheck, Unlock } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
 }
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'FIX_LINKS' | 'CRON' | 'PERMISSIONS'>('FIX_LINKS');
+  const [activeTab, setActiveTab] = useState<'FIX_ACCESS' | 'CRON' | 'PERMISSIONS'>('FIX_ACCESS');
 
-  // SCRIPT V34: CORREÇÃO COMPLETA DE LINKS PÚBLICOS
-  const fixLinksSql = `
--- --- SCRIPT V34: CORREÇÃO DE LINKS E PERMISSÕES ---
--- Execute este script para garantir que os links públicos funcionem.
+  // SCRIPT V35: CORREÇÃO TOTAL DE ACESSO (O "MARTELO")
+  const fixAccessSql = `
+-- --- SCRIPT V35: CORREÇÃO TOTAL DE ACESSO PÚBLICO ---
+-- Execute este script para eliminar o "Erro de Permissão" nas vagas.
 
 BEGIN;
 
--- 1. Garante que RLS está ativo
+-- 1. Garante permissões básicas no Schema
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
+
+-- 2. Ativa RLS (Segurança a nível de linha)
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 
--- 2. Remove políticas antigas de leitura para evitar conflito
+-- 3. REMOVE TODAS AS POLÍTICAS ANTIGAS DE LEITURA (LIMPEZA TOTAL)
+-- Isso evita conflitos com políticas mal configuradas anteriormente
 DROP POLICY IF EXISTS "Enable read access for all" ON public.jobs;
 DROP POLICY IF EXISTS "Public Read Jobs" ON public.jobs;
+DROP POLICY IF EXISTS "read_jobs" ON public.jobs;
+DROP POLICY IF EXISTS "anon_read_jobs" ON public.jobs;
+DROP POLICY IF EXISTS "Anyone can select jobs" ON public.jobs;
 
--- 3. CRIA A POLÍTICA CORRETA DE LEITURA PÚBLICA
+-- 4. CRIA A POLÍTICA ÚNICA E DEFINITIVA DE LEITURA
+-- Permite que qualquer um (anon ou logado) leia todas as vagas
 CREATE POLICY "Enable read access for all" ON public.jobs 
 FOR SELECT 
 TO anon, authenticated 
 USING (true);
 
--- 4. Garante permissão de atualização para o dono (para pausar/editar)
+-- 5. Garante permissão de atualização para o dono (para pausar/editar)
 DROP POLICY IF EXISTS "Enable update for owners" ON public.jobs;
 CREATE POLICY "Enable update for owners" ON public.jobs 
 FOR UPDATE TO authenticated 
 USING (auth.uid() = user_id) 
 WITH CHECK (auth.uid() = user_id);
 
--- 5. Garante colunas essenciais e gera códigos para vagas antigas
-ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
+-- 6. Garante estrutura da tabela (Short Code)
 ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS short_code text;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS is_paused boolean DEFAULT false;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS auto_analyze boolean DEFAULT false;
 
--- Gera código de 6 dígitos para quem não tem (evita link quebrado)
-UPDATE public.jobs 
-SET short_code = floor(random() * (999999 - 100000 + 1) + 100000)::text 
-WHERE short_code IS NULL;
+-- 7. Garante índice único para performance do link
+ALTER TABLE public.jobs DROP CONSTRAINT IF EXISTS jobs_short_code_key;
+CREATE UNIQUE INDEX IF NOT EXISTS jobs_short_code_idx ON public.jobs (short_code);
 
--- 6. Recarrega permissões
-GRANT SELECT ON TABLE public.jobs TO anon, authenticated;
+-- 8. Recarrega configurações do PostgREST
 NOTIFY pgrst, 'reload config';
 
 COMMIT;
@@ -70,16 +78,16 @@ SELECT cron.schedule(
 `.trim();
 
   const permissionsSql = `
--- --- SCRIPT V28: RESET DE PERMISSÕES GERAIS ---
+-- --- SCRIPT V28: RESET DE PERMISSÕES DE CANDIDATOS ---
 ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
 
--- Permite insert público de currículos
+-- Permite insert público de currículos (Upload)
 DROP POLICY IF EXISTS "Enable insert for all" ON public.candidates;
 CREATE POLICY "Enable insert for all" ON public.candidates 
 FOR INSERT TO anon, authenticated 
 WITH CHECK (true);
 
--- Permite leitura de currículos para quem tem acesso (autenticado)
+-- Permite leitura de currículos APENAS para usuários autenticados (Recrutadores)
 DROP POLICY IF EXISTS "Enable select for authenticated" ON public.candidates;
 CREATE POLICY "Enable select for authenticated" ON public.candidates 
 FOR SELECT TO authenticated 
@@ -90,7 +98,7 @@ USING (true);
       switch(activeTab) {
           case 'CRON': return cronSql;
           case 'PERMISSIONS': return permissionsSql;
-          default: return fixLinksSql;
+          default: return fixAccessSql;
       }
   };
 
@@ -111,7 +119,7 @@ USING (true);
                </div>
                <div>
                  <h2 className="text-xl font-bold text-white">Scripts de Banco de Dados</h2>
-                 <p className="text-zinc-400 text-sm">Execute para corrigir erros de permissão e dados.</p>
+                 <p className="text-zinc-400 text-sm">Correções de permissão e manutenção.</p>
                </div>
              </div>
              <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-6 h-6" /></button>
@@ -119,22 +127,22 @@ USING (true);
           
           <div className="flex px-6 gap-6 mt-2 overflow-x-auto">
             <button 
-              onClick={() => setActiveTab('FIX_LINKS')}
-              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_LINKS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+              onClick={() => setActiveTab('FIX_ACCESS')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'FIX_ACCESS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Wrench className="w-4 h-4" /> Script V34 (Corrigir Links)
+              <Unlock className="w-4 h-4" /> Script V35 (Corrigir Acesso)
             </button>
             <button 
               onClick={() => setActiveTab('PERMISSIONS')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'PERMISSIONS' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <ShieldCheck className="w-4 h-4" /> Reset Permissões
+              <ShieldCheck className="w-4 h-4" /> V28 (Candidatos)
             </button>
             <button 
               onClick={() => setActiveTab('CRON')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'CRON' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Clock className="w-4 h-4" /> Script V27 (Auto Limpeza)
+              <Clock className="w-4 h-4" /> V27 (Auto Limpeza)
             </button>
           </div>
         </div>
