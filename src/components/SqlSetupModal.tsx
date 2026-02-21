@@ -134,8 +134,36 @@ COMMIT;
   `.trim();
 
   const cronSql = `
--- --- SCRIPT V27: AUTO LIMPEZA ---
+-- --- SCRIPT V50: AUTO LIMPEZA COMPLETA (DB + STORAGE) ---
+
+-- 1. Habilita a extensão pg_cron (se disponível no plano)
 CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- 2. Função para deletar o arquivo do Storage quando o registro for deletado
+CREATE OR REPLACE FUNCTION public.delete_old_resume_file()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Tenta deletar o arquivo do bucket 'resumes'
+  DELETE FROM storage.objects 
+  WHERE bucket_id = 'resumes' 
+  AND name = OLD.file_path;
+  
+  RETURN OLD;
+EXCEPTION WHEN OTHERS THEN
+  -- Evita que erro no storage impeça a deleção do registro
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. Cria o Trigger (remove anterior se existir para evitar duplicidade)
+DROP TRIGGER IF EXISTS on_candidate_delete ON public.candidates;
+CREATE TRIGGER on_candidate_delete
+BEFORE DELETE ON public.candidates
+FOR EACH ROW
+EXECUTE FUNCTION public.delete_old_resume_file();
+
+-- 4. Agenda a limpeza diária às 03:00 AM
+SELECT cron.unschedule('cleanup');
 SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHERE created_at < NOW() - INTERVAL '10 days'$$);
 `.trim();
 
@@ -187,7 +215,7 @@ SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHE
               onClick={() => setActiveTab('CRON')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'CRON' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
-              <Clock className="w-4 h-4" /> V27 (Auto Limpeza)
+              <Clock className="w-4 h-4" /> V50 (Auto Limpeza)
             </button>
           </div>
         </div>

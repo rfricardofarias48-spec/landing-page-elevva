@@ -81,6 +81,7 @@ export interface User {
     public_link: boolean;
     priority_support: boolean;
   };
+  salesperson?: string; // NOVO: Nome do vendedor (apenas admin)
 }
 
 // Interface para o Dashboard do Admin
@@ -97,6 +98,7 @@ export interface AdminUserProfile {
   resume_usage?: number; // Adicionado para coluna da tabela
   last_active?: string;
   subscription_status?: 'active' | 'past_due' | 'canceled' | 'trialing'; // Novo campo para cancelamentos
+  salesperson?: string; // NOVO: Nome do vendedor
 }
 
 export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD';

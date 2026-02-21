@@ -1277,6 +1277,9 @@ const App: React.FC = () => {
                       <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
                           <div className={`bg-[#CCF300] h-full rounded-full`} style={{ width: `${Math.min(100, (user?.resume_usage! / (user?.resume_limit || 1)) * 100)}%` }}></div>
                       </div>
+                      <p className="text-[9px] font-bold text-slate-400 mt-3 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Retenção automática de 10 dias
+                      </p>
                   </div>
                   <FileText className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-110 transition-transform duration-500" />
               </div>
@@ -1408,58 +1411,84 @@ const App: React.FC = () => {
                   <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Free Plan */}
-                  <div className="bg-white border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">FREE</span>
-                      <div className="text-slate-900 mb-6 flex items-center justify-center h-[72px]">
-                          <span className="text-5xl font-black tracking-tighter">Grátis</span>
+                  <div className="bg-white border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">FREE</span>
+                      <div className="text-slate-900 mb-4 flex items-center justify-center h-[60px]">
+                          <span className="text-4xl font-black tracking-tighter">Grátis</span>
                       </div>
-                      <div className="space-y-1 mb-8 text-sm font-bold text-slate-600">
+                      <div className="space-y-1 mb-6 text-xs font-bold text-slate-600">
                           <p>3 Vagas</p>
                           <p>25 Currículos/mês</p>
                       </div>
-                      <button disabled className="w-full bg-black text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest cursor-default border-2 border-black opacity-90">
+                      <button disabled className="w-full bg-black text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest cursor-default border-2 border-black opacity-90">
                           (Atual)
                       </button>
                   </div>
 
                   {/* Mensal */}
-                  <div className="bg-white border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Mensal</span>
-                      <div className="text-slate-900 mb-6 flex items-baseline justify-center h-[72px]">
-                          <span className="text-xl font-bold mr-1 text-slate-400">R$</span>
-                          <span className="text-6xl font-black tracking-tighter">329</span>
-                          <span className="text-xl font-bold text-slate-400">,90</span>
-                          <span className="text-[10px] font-bold text-slate-400 ml-1">/MÊS</span>
+                  <div className="bg-white border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Mensal</span>
+                      <div className="text-slate-900 mb-4 flex items-baseline justify-center h-[60px]">
+                          <span className="text-lg font-bold mr-1 text-slate-400">R$</span>
+                          <span className="text-5xl font-black tracking-tighter">289</span>
+                          <span className="text-lg font-bold text-slate-400">,90</span>
+                          <span className="text-[9px] font-bold text-slate-400 ml-1">/MÊS</span>
                       </div>
-                      <div className="space-y-1 mb-8 text-sm font-bold text-slate-600">
+                      <div className="space-y-1 mb-6 text-xs font-bold text-slate-600">
                           <p>5 Vagas</p>
                           <p>+ Link Público</p>
                       </div>
-                      <button onClick={() => handleUpgrade('MENSAL')} className="w-full bg-black text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-zinc-800 transition-colors">
+                      <button onClick={() => handleUpgrade('MENSAL')} className="w-full bg-black text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-zinc-800 transition-colors">
+                          ESCOLHER PLANO
+                      </button>
+                  </div>
+
+                  {/* Trimestral */}
+                  <div className="bg-white border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Trimestral</span>
+                      <div className="mb-4 h-[60px] flex flex-col items-center justify-center">
+                          <div className="flex items-baseline text-slate-900">
+                              <span className="text-lg font-bold mr-1 text-slate-400">R$</span>
+                              <span className="text-5xl font-black tracking-tighter">249</span>
+                              <span className="text-lg font-bold text-slate-400">,90</span>
+                              <span className="text-[9px] font-bold text-slate-400 ml-1">/MÊS</span>
+                          </div>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Total de R$ 749,70</span>
+                      </div>
+                      <div className="space-y-1 mb-6 text-xs font-bold text-slate-600">
+                          <p>10 Vagas</p>
+                          <p>+ Link Público</p>
+                          <p className="text-emerald-600">Economize 14%</p>
+                      </div>
+                      <button onClick={() => handleUpgrade('TRIMESTRAL')} className="w-full bg-black text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-zinc-800 transition-colors">
                           ESCOLHER PLANO
                       </button>
                   </div>
 
                   {/* Anual - Destaque */}
-                  <div className="bg-black border-[3px] border-black rounded-[2.5rem] p-8 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 overflow-hidden shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
-                      <div className="absolute top-0 right-0 bg-[#CCF300] text-black text-[10px] font-black px-4 py-2 rounded-bl-2xl uppercase tracking-widest z-10">
+                  <div className="bg-black border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                      <div className="absolute top-0 right-0 bg-[#CCF300] text-black text-[9px] font-black px-3 py-1.5 rounded-bl-xl uppercase tracking-widest z-10">
                           Melhor Valor
                       </div>
                       
-                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 mt-2">Anual</span>
-                      <div className="text-white mb-6 flex items-baseline justify-center h-[72px]">
-                          <span className="text-xl font-bold mr-1 text-zinc-500">R$</span>
-                          <span className="text-6xl font-black tracking-tighter">289</span>
-                          <span className="text-xl font-bold text-zinc-500">,90</span>
-                          <span className="text-[10px] font-bold text-zinc-600 ml-1">/MÊS</span>
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 mt-1">Anual</span>
+                      <div className="mb-4 h-[60px] flex flex-col items-center justify-center">
+                          <div className="flex items-baseline text-white">
+                              <span className="text-lg font-bold mr-1 text-zinc-500">R$</span>
+                              <span className="text-5xl font-black tracking-tighter">229</span>
+                              <span className="text-lg font-bold text-zinc-500">,90</span>
+                              <span className="text-[9px] font-bold text-zinc-600 ml-1">/MÊS</span>
+                          </div>
+                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wide">Total de R$ 2.758,80</span>
                       </div>
-                      <div className="space-y-1 mb-8 text-sm font-bold text-white">
+                      <div className="space-y-1 mb-6 text-xs font-bold text-white">
                           <p>Vagas Ilimitadas</p>
                           <p className="text-[#CCF300]">+ Link Público</p>
+                          <p className="text-emerald-400">Economize 20%</p>
                       </div>
-                      <button onClick={() => handleUpgrade('ANUAL')} className="w-full bg-[#CCF300] text-black font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-[#bce000] transition-colors">
+                      <button onClick={() => handleUpgrade('ANUAL')} className="w-full bg-[#CCF300] text-black font-black py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-[#bce000] transition-colors">
                           ESCOLHER PLANO
                       </button>
                   </div>
