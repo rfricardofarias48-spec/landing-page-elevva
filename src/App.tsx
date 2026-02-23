@@ -16,10 +16,10 @@ import {
   Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles
 } from 'lucide-react';
 
-const INFINITE_PAY_LINKS = {
-    MENSAL: "https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j", 
-    TRIMESTRAL: "https://invoice.infinitepay.io/plans/velorh/trimestral-link-here", // Placeholder, user needs to update
-    ANUAL: "https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP"
+const CHECKOUT_LINKS = {
+    MENSAL: "https://pay.kiwify.com.br/x8O8Zqo", 
+    TRIMESTRAL: "https://pay.kiwify.com.br/E3STYGy",
+    ANUAL: "https://pay.kiwify.com.br/HHT3IkF"
 };
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'BILLING' | 'SETTINGS';
@@ -862,10 +862,10 @@ const App: React.FC = () => {
 
   const confirmUpgrade = () => {
       if (!user || !pendingUpgradePlan) return;
-      const link = INFINITE_PAY_LINKS[pendingUpgradePlan as keyof typeof INFINITE_PAY_LINKS];
+      const link = CHECKOUT_LINKS[pendingUpgradePlan as keyof typeof CHECKOUT_LINKS];
       if (!link) return;
       const separator = link.includes('?') ? '&' : '?';
-      const finalUrl = `${link}${separator}customer_email=${encodeURIComponent(user.email)}`;
+      const finalUrl = `${link}${separator}email=${encodeURIComponent(user.email)}`;
       window.open(finalUrl, '_blank');
       setShowUpgradeModal(false);
       setPendingUpgradePlan(null);
@@ -1018,30 +1018,32 @@ const App: React.FC = () => {
 
               // --- AUTO ANALYZE LOGIC ---
               if (publicJobData.autoAnalyze && publicJobData.criteria && insertedCandidate) {
-                  try {
-                      // 1. Converter arquivo para base64
-                      const base64 = await fileToBase64(file);
-                      
-                      // 2. Chamar IA
-                      // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
-                      await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
-                      
-                      const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
-                      
-                      // 3. Salvar Resultado
-                      await supabase.from('candidates')
-                          .update({ 
-                              status: 'COMPLETED',
-                              analysis_result: result,
-                              match_score: result.matchScore 
-                          })
-                          .eq('id', insertedCandidate.id);
+                  // Fire-and-forget: Executa análise em background para não travar a UI do candidato
+                  (async () => {
+                      try {
+                          // 1. Converter arquivo para base64
+                          const base64 = await fileToBase64(file);
                           
-                  } catch (analyzeErr) {
-                      console.error("Erro na auto-análise:", analyzeErr);
-                      // Se falhar, deixa como PENDING ou ERROR? Melhor ERROR para o recrutador ver.
-                      await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
-                  }
+                          // 2. Chamar IA
+                          // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
+                          await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
+                          
+                          const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
+                          
+                          // 3. Salvar Resultado
+                          await supabase.from('candidates')
+                              .update({ 
+                                  status: 'COMPLETED',
+                                  analysis_result: result,
+                                  match_score: result.matchScore 
+                              })
+                              .eq('id', insertedCandidate.id);
+                              
+                      } catch (analyzeErr) {
+                          console.error("Erro na auto-análise (Background):", analyzeErr);
+                          await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
+                      }
+                  })();
               }
           }
       }
