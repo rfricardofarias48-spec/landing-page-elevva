@@ -205,6 +205,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
              <div className="flex items-center justify-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
                 <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Powered by</span>
                 <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-4 w-auto" />
+                <span className="text-[8px] font-mono text-slate-300 ml-2">v1.0.5</span>
              </div>
         </div>
 

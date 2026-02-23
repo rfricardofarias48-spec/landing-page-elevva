@@ -13,13 +13,13 @@ import { SqlSetupModal } from './components/SqlSetupModal';
 import { 
   Plus, LogOut, Search, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, Share2, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles
+  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles, AlertTriangle
 } from 'lucide-react';
 
-const INFINITE_PAY_LINKS = {
-    MENSAL: "https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j", 
-    TRIMESTRAL: "https://invoice.infinitepay.io/plans/velorh/trimestral-link-here", // Placeholder, user needs to update
-    ANUAL: "https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP"
+const PAYMENT_LINKS = {
+    MENSAL: "https://pay.kiwify.com.br/x8O8Zqo", 
+    TRIMESTRAL: "https://pay.kiwify.com.br/E3STYGy",
+    ANUAL: "https://pay.kiwify.com.br/HHT3IkF"
 };
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'BILLING' | 'SETTINGS';
@@ -862,7 +862,7 @@ const App: React.FC = () => {
 
   const confirmUpgrade = () => {
       if (!user || !pendingUpgradePlan) return;
-      const link = INFINITE_PAY_LINKS[pendingUpgradePlan as keyof typeof INFINITE_PAY_LINKS];
+      const link = PAYMENT_LINKS[pendingUpgradePlan as keyof typeof PAYMENT_LINKS];
       if (!link) return;
       const separator = link.includes('?') ? '&' : '?';
       const finalUrl = `${link}${separator}customer_email=${encodeURIComponent(user.email)}`;
