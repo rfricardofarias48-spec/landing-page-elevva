@@ -1419,7 +1419,7 @@ const App: React.FC = () => {
           {/* Upgrade Options */}
           <div>
               <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tight flex items-center gap-2">
-                  <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade
+                  <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade {/* Updated Plans */}
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
