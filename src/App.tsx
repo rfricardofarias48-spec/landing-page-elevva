@@ -2091,9 +2091,9 @@ const App: React.FC = () => {
       )}
 
       {/* Floating Footer Area: Legal Buttons + WhatsApp */}
-      <div className="fixed bottom-0 right-6 z-50 flex items-end gap-4 pb-4">
+      <div className="fixed bottom-0 right-6 z-50 flex items-end gap-4 pb-2">
           {/* Legal Buttons Container - Text Only */}
-          <div className="flex items-center gap-4 animate-fade-in hidden md:flex mr-2 mb-2">
+          <div className="flex items-center gap-4 animate-fade-in hidden md:flex mr-2 mb-1">
                 <button 
                     onClick={() => setShowTerms(true)} 
                     className="text-[10px] font-black text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-widest shadow-sm"
