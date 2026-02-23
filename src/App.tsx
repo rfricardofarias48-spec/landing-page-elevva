@@ -16,10 +16,10 @@ import {
   Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles
 } from 'lucide-react';
 
-const CHECKOUT_LINKS = {
-    MENSAL: "https://pay.kiwify.com.br/x8O8Zqo", 
-    TRIMESTRAL: "https://pay.kiwify.com.br/E3STYGy",
-    ANUAL: "https://pay.kiwify.com.br/HHT3IkF"
+const INFINITE_PAY_LINKS = {
+    MENSAL: "https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j", 
+    TRIMESTRAL: "https://invoice.infinitepay.io/plans/velorh/trimestral-link-here", // Placeholder, user needs to update
+    ANUAL: "https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP"
 };
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'BILLING' | 'SETTINGS';
@@ -862,10 +862,10 @@ const App: React.FC = () => {
 
   const confirmUpgrade = () => {
       if (!user || !pendingUpgradePlan) return;
-      const link = CHECKOUT_LINKS[pendingUpgradePlan as keyof typeof CHECKOUT_LINKS];
+      const link = INFINITE_PAY_LINKS[pendingUpgradePlan as keyof typeof INFINITE_PAY_LINKS];
       if (!link) return;
       const separator = link.includes('?') ? '&' : '?';
-      const finalUrl = `${link}${separator}email=${encodeURIComponent(user.email)}`;
+      const finalUrl = `${link}${separator}customer_email=${encodeURIComponent(user.email)}`;
       window.open(finalUrl, '_blank');
       setShowUpgradeModal(false);
       setPendingUpgradePlan(null);
@@ -1018,32 +1018,30 @@ const App: React.FC = () => {
 
               // --- AUTO ANALYZE LOGIC ---
               if (publicJobData.autoAnalyze && publicJobData.criteria && insertedCandidate) {
-                  // Fire-and-forget: Executa análise em background para não travar a UI do candidato
-                  (async () => {
-                      try {
-                          // 1. Converter arquivo para base64
-                          const base64 = await fileToBase64(file);
+                  try {
+                      // 1. Converter arquivo para base64
+                      const base64 = await fileToBase64(file);
+                      
+                      // 2. Chamar IA
+                      // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
+                      await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
+                      
+                      const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
+                      
+                      // 3. Salvar Resultado
+                      await supabase.from('candidates')
+                          .update({ 
+                              status: 'COMPLETED',
+                              analysis_result: result,
+                              match_score: result.matchScore 
+                          })
+                          .eq('id', insertedCandidate.id);
                           
-                          // 2. Chamar IA
-                          // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
-                          await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
-                          
-                          const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
-                          
-                          // 3. Salvar Resultado
-                          await supabase.from('candidates')
-                              .update({ 
-                                  status: 'COMPLETED',
-                                  analysis_result: result,
-                                  match_score: result.matchScore 
-                              })
-                              .eq('id', insertedCandidate.id);
-                              
-                      } catch (analyzeErr) {
-                          console.error("Erro na auto-análise (Background):", analyzeErr);
-                          await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
-                      }
-                  })();
+                  } catch (analyzeErr) {
+                      console.error("Erro na auto-análise:", analyzeErr);
+                      // Se falhar, deixa como PENDING ou ERROR? Melhor ERROR para o recrutador ver.
+                      await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
+                  }
               }
           }
       }
@@ -1815,49 +1813,49 @@ const App: React.FC = () => {
         {/* VIEW: JOB DETAILS */}
         {view === 'JOB_DETAILS' && activeJob && (
            <div className="w-full h-full flex flex-col animate-fade-in relative p-4 md:p-8">
-            <div className="bg-slate-50 rounded-[2.5rem] p-8 mb-8 border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-6 md:gap-4">
-               <div className="relative z-10 flex items-center gap-6 w-full md:flex-1 min-w-0">
-                 <button onClick={() => setView('DASHBOARD')} className="group p-4 rounded-2xl bg-black hover:bg-zinc-900 text-white border-2 border-black transition-all duration-300 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-none hover:translate-y-1 flex items-center justify-center shrink-0">
+            <div className="bg-slate-100 rounded-2xl p-4 mb-6 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-4 md:gap-4">
+               <div className="relative z-10 flex items-center gap-4 w-full md:flex-1 min-w-0">
+                 <button onClick={() => setView('DASHBOARD')} className="group p-3 rounded-xl bg-black hover:bg-zinc-900 text-white border-2 border-black transition-all duration-300 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-none hover:translate-y-1 flex items-center justify-center shrink-0">
                    <ArrowLeft className="w-5 h-5 text-[#CCF300] transition-colors" />
                  </button>
                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 md:gap-4 flex-wrap">
-                        <h1 className="text-xl md:text-3xl font-bold text-slate-900 tracking-tight truncate" title={activeJob.title}>{activeJob.title}</h1>
+                    <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                        <h1 className="text-base md:text-xl font-bold text-slate-900 tracking-tight truncate" title={activeJob.title}>{activeJob.title}</h1>
                         <div className="flex items-center gap-1 shrink-0">
-                            <button onClick={() => handleEditJobSetup(activeJob)} className="p-2 text-slate-300 hover:text-black bg-transparent hover:bg-slate-200 rounded-xl transition-all" title="Editar vaga"><Pencil className="w-5 h-5" /></button>
+                            <button onClick={() => handleEditJobSetup(activeJob)} className="p-1.5 text-slate-400 hover:text-black bg-transparent hover:bg-slate-300 rounded-lg transition-all" title="Editar vaga"><Pencil className="w-4 h-4" /></button>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4 mt-2 ml-1 flex-wrap">
-                      <p className="text-slate-500 text-xs md:text-sm font-bold whitespace-nowrap">{activeJob.candidates.length} Currículos</p>
-                      <div className="text-xs text-slate-400 flex items-center gap-1 border-l-2 border-slate-200 pl-3 font-medium whitespace-nowrap">
-                          Uso: <span className={`${user!.resume_usage >= user!.resume_limit ? 'text-red-500 font-bold' : 'text-slate-600'}`}>{user!.resume_usage} / {user!.resume_limit >= 9999 ? '∞' : user!.resume_limit}</span>
+                    <div className="flex items-center gap-3 mt-1 ml-1 flex-wrap">
+                      <p className="text-slate-600 text-xs font-bold whitespace-nowrap">{activeJob.candidates.length} Currículos</p>
+                      <div className="text-xs text-slate-500 flex items-center gap-1 border-l-2 border-slate-300 pl-3 font-medium whitespace-nowrap">
+                          Uso: <span className={`${user!.resume_usage >= user!.resume_limit ? 'text-red-600 font-bold' : 'text-slate-700'}`}>{user!.resume_usage} / {user!.resume_limit >= 9999 ? '∞' : user!.resume_limit}</span>
                       </div>
                     </div>
                  </div>
                </div>
-               <div className="relative z-10 flex gap-3 mt-4 md:mt-0 w-full md:w-auto justify-start md:justify-end md:ml-auto items-center overflow-x-auto md:overflow-visible pb-2 md:pb-0 custom-scrollbar md:custom-scrollbar-none">
+               <div className="relative z-10 flex gap-2 mt-3 md:mt-0 w-full md:w-auto justify-start md:justify-end md:ml-auto items-center overflow-x-auto md:overflow-visible pb-2 md:pb-0 custom-scrollbar md:custom-scrollbar-none">
                  <input type="file" multiple accept="application/pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
                  
-                 <button onClick={handleOpenShareModal} className="flex-none bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-5 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none whitespace-nowrap"><Share2 className="w-5 h-5 mr-2 text-black"/> Link</button>
+                 <button onClick={handleOpenShareModal} className="flex-none bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-4 py-3 rounded-xl font-black text-xs flex items-center transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none whitespace-nowrap"><Share2 className="w-4 h-4 mr-2 text-black"/> Link</button>
                  
                  {activeJob.candidates.some(c=>c.isSelected) && (
-                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-6 py-4 rounded-xl font-black text-sm flex items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-5 h-5 mr-2"/> Relatório</button>
+                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-4 py-3 rounded-xl font-black text-xs flex items-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-4 h-4 mr-2"/> Relatório</button>
                  )}
                  
-                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-6 py-4 rounded-xl font-black text-sm flex items-center transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-5 h-5 mr-2 text-[#CCF300]"/> Upload</button>
+                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs flex items-center transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-4 h-4 mr-2 text-[#CCF300]"/> Upload</button>
                  
                  {activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
-                   <button onClick={runAnalysis} className="flex-none bg-[#CCF300] hover:bg-[#bce000] text-black border-2 border-black px-8 py-4 rounded-xl font-black text-sm flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
+                   <button onClick={runAnalysis} className="flex-none bg-[#CCF300] hover:bg-[#bce000] text-black border-2 border-black px-5 py-3 rounded-xl font-black text-xs flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-4 h-4 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
                  )}
                  
                  {activeJob.candidates.length > 0 && (
                     !confirmClearAll ? (
-                       <button onClick={() => setConfirmClearAll(true)} className="flex-none bg-white text-slate-400 hover:text-red-500 px-4 py-4 rounded-xl hover:bg-red-50 transition-colors border-2 border-slate-200 hover:border-red-500 shadow-sm group relative" title="Limpar todos os currículos"><Trash2 className="w-5 h-5"/></button>
+                       <button onClick={() => setConfirmClearAll(true)} className="flex-none bg-white text-slate-400 hover:text-red-500 px-3 py-3 rounded-xl hover:bg-red-50 transition-colors border-2 border-slate-300 hover:border-red-500 shadow-sm group relative" title="Limpar todos os currículos"><Trash2 className="w-4 h-4"/></button>
                     ) : (
-                       <div className="flex-none flex items-center gap-2 bg-red-50 p-1.5 rounded-xl border-2 border-red-100 animate-fade-in shadow-lg h-[60px]">
-                           <span className="text-[10px] font-black text-red-500 px-2 uppercase hidden md:inline">Apagar Tudo?</span>
-                           <button onClick={handleClearAllCandidates} className="w-10 h-full flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors shadow-md active:scale-95 border border-red-700" title="Confirmar exclusão de TODOS"><CheckCircle2 className="w-5 h-5" /></button>
-                           <button onClick={() => setConfirmClearAll(false)} className="w-10 h-full flex items-center justify-center rounded-lg bg-white border-2 border-slate-200 text-slate-400 hover:text-slate-600 transition-colors active:scale-95" title="Cancelar"><X className="w-5 h-5" /></button>
+                       <div className="flex-none flex items-center gap-2 bg-red-50 p-1 rounded-xl border-2 border-red-100 animate-fade-in shadow-lg h-[48px]">
+                           <span className="text-[9px] font-black text-red-500 px-2 uppercase hidden md:inline">Apagar Tudo?</span>
+                           <button onClick={handleClearAllCandidates} className="w-8 h-full flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors shadow-md active:scale-95 border border-red-700" title="Confirmar exclusão de TODOS"><CheckCircle2 className="w-4 h-4" /></button>
+                           <button onClick={() => setConfirmClearAll(false)} className="w-8 h-full flex items-center justify-center rounded-lg bg-white border-2 border-slate-200 text-slate-400 hover:text-slate-600 transition-colors active:scale-95" title="Cancelar"><X className="w-4 h-4" /></button>
                        </div>
                     )
                  )}
