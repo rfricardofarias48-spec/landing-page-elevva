@@ -6,25 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint ."
+    "preview": "vite preview"
   },
   "dependencies": {
     "@google/genai": "^1.40.0",
-    "@supabase/supabase-js": "2.39.0",
-    "@vitejs/plugin-react": "^5.1.4",
+    "react-dom": "^19.2.4",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "@supabase/supabase-js": "2.39.0",
+    "@vitejs/plugin-react": "^5.1.4",
     "vite": "^7.3.1"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "autoprefixer": "^10.4.24",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.2.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
