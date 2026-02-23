@@ -7,7 +7,42 @@ interface Props {
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
   // Define FIX_ADMIN (V43) como padrão para resolver o erro atual
-  const [activeTab, setActiveTab] = useState<'FIX_ADMIN' | 'FIX_ACCESS' | 'CRON'>('FIX_ADMIN');
+  const [activeTab, setActiveTab] = useState<'FIX_ADMIN' | 'FIX_ACCESS' | 'CRON' | 'V51' | 'V52'>('FIX_ADMIN');
+
+  // SCRIPT V51: ATUALIZAÇÃO PARA PLANO TRIMESTRAL
+  const v51Sql = `
+-- --- SCRIPT V51: SUPORTE AO PLANO TRIMESTRAL ---
+-- Atualiza a definição da tabela de anúncios para suportar o novo plano
+
+BEGIN;
+
+-- 1. Atualiza o valor padrão da coluna target_plans para incluir TRIMESTRAL
+ALTER TABLE public.announcements 
+ALTER COLUMN target_plans 
+SET DEFAULT '{FREE,MENSAL,TRIMESTRAL,ANUAL}';
+
+-- 2. Atualiza registros existentes para garantir compatibilidade (opcional)
+-- UPDATE public.announcements SET target_plans = array_append(target_plans, 'TRIMESTRAL') WHERE NOT ('TRIMESTRAL' = ANY(target_plans));
+
+COMMIT;
+  `.trim();
+
+  // SCRIPT V52: SUPORTE A AFILIADOS (SALESPERSON)
+  const v52Sql = `
+-- --- SCRIPT V52: SUPORTE A AFILIADOS ---
+-- Adiciona a coluna para rastrear o vendedor responsável
+
+BEGIN;
+
+-- 1. Adiciona a coluna salesperson na tabela profiles
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS salesperson text;
+
+-- 2. Garante que o Admin possa ver e editar (Policies já cobrem, mas reforçando)
+-- As políticas existentes de "Update profiles" e "Read profiles" já permitem acesso total ao Admin.
+
+COMMIT;
+  `.trim();
 
   // SCRIPT V43: CORREÇÃO DEFINITIVA DE PERMISSÕES ADMIN (ANTI-RECURSÃO)
   const fixAdminSql = `
@@ -171,6 +206,8 @@ SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHE
       switch(activeTab) {
           case 'CRON': return cronSql;
           case 'FIX_ACCESS': return fixAccessSql;
+          case 'V51': return v51Sql;
+          case 'V52': return v52Sql;
           default: return fixAdminSql;
       }
   };
@@ -216,6 +253,18 @@ SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHE
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'CRON' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
               <Clock className="w-4 h-4" /> V50 (Auto Limpeza)
+            </button>
+            <button 
+              onClick={() => setActiveTab('V51')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'V51' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <Wrench className="w-4 h-4" /> V51 (Plano Trimestral)
+            </button>
+            <button 
+              onClick={() => setActiveTab('V52')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'V52' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <ShieldCheck className="w-4 h-4" /> V52 (Afiliados)
             </button>
           </div>
         </div>

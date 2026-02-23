@@ -294,11 +294,12 @@ export const AdminDashboard: React.FC = () => {
 
       const stats = {
           FREE: { count: 0, price: 0, revenue: 0 },
-          MENSAL: { count: 0, price: 329.90, revenue: 0 },
-          TRIMESTRAL: { count: 0, price: 329.90, revenue: 0 },
-          ANUAL: { count: 0, price: 289.90, revenue: 0 },
+          MENSAL: { count: 0, price: 289.90, revenue: 0 },
+          TRIMESTRAL: { count: 0, price: 749.70, revenue: 0 },
+          ANUAL: { count: 0, price: 2758.80, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
+          mrr: 0, // Monthly Recurring Revenue (Normalized)
           payingUsers: 0,
           totalResumeUsage: 0 
       };
@@ -309,6 +310,11 @@ export const AdminDashboard: React.FC = () => {
               stats[u.plan].count++;
               // @ts-ignore
               stats[u.plan].revenue += stats[u.plan].price;
+
+              // Calculate MRR
+              if (u.plan === 'MENSAL') stats.mrr += stats.MENSAL.price;
+              if (u.plan === 'TRIMESTRAL') stats.mrr += (stats.TRIMESTRAL.price / 3);
+              if (u.plan === 'ANUAL') stats.mrr += (stats.ANUAL.price / 12);
           }
           stats.totalResumeUsage += (u.resume_usage || 0);
       });
@@ -392,7 +398,7 @@ export const AdminDashboard: React.FC = () => {
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-zinc-900 rounded-2xl"><DollarSign className="w-6 h-6 text-[#CCF300]"/></div>
                 </div>
-                <h3 className="text-4xl font-black text-white">R$ {currentFinancials.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                <h3 className="text-4xl font-black text-white">R$ {currentFinancials.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">MRR Atual (Estimado)</p>
             </div>
         </div>
@@ -707,7 +713,7 @@ export const AdminDashboard: React.FC = () => {
 
   const renderFinance = () => {
       const stats = getFinancialData();
-      const arpu = stats.payingUsers > 0 ? stats.totalRevenue / stats.payingUsers : 0;
+      const arpu = stats.payingUsers > 0 ? stats.mrr / stats.payingUsers : 0;
       
       const recentTransactions = users
           .filter(u => u.plan !== 'FREE')
@@ -742,12 +748,12 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">MRR (Receita Recorrente)</p>
                           <h3 className="text-5xl font-black text-white tracking-tighter mb-2">
-                              R$ {stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              R$ {stats.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </h3>
                           <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mt-4">
                               <TrendingUp className="w-4 h-4 text-emerald-500" />
                               <span className="text-emerald-500">Projeção Anual:</span> 
-                              R$ {(stats.totalRevenue * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              R$ {(stats.mrr * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </div>
                       </div>
                       <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-800/30 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>

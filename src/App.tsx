@@ -18,6 +18,7 @@ import {
 
 const INFINITE_PAY_LINKS = {
     MENSAL: "https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j", 
+    TRIMESTRAL: "https://invoice.infinitepay.io/plans/velorh/trimestral-link-here", // Placeholder, user needs to update
     ANUAL: "https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP"
 };
 
@@ -80,6 +81,8 @@ const App: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [pendingUpgradePlan, setPendingUpgradePlan] = useState<PlanType | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
@@ -853,11 +856,19 @@ const App: React.FC = () => {
   
   const handleUpgrade = (planKey: string) => {
       if (!user) return;
-      const link = INFINITE_PAY_LINKS[planKey as keyof typeof INFINITE_PAY_LINKS];
+      setPendingUpgradePlan(planKey as PlanType);
+      setShowUpgradeModal(true);
+  };
+
+  const confirmUpgrade = () => {
+      if (!user || !pendingUpgradePlan) return;
+      const link = INFINITE_PAY_LINKS[pendingUpgradePlan as keyof typeof INFINITE_PAY_LINKS];
       if (!link) return;
       const separator = link.includes('?') ? '&' : '?';
       const finalUrl = `${link}${separator}customer_email=${encodeURIComponent(user.email)}`;
       window.open(finalUrl, '_blank');
+      setShowUpgradeModal(false);
+      setPendingUpgradePlan(null);
   };
 
   // --- CANDIDATES ---
@@ -2040,6 +2051,33 @@ const App: React.FC = () => {
                           {isSavingRecovery ? <Loader2 className="w-5 h-5 animate-spin"/> : "Salvar Nova Senha"}
                       </button>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* UPGRADE CONFIRMATION MODAL */}
+      {showUpgradeModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+              <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl relative animate-slide-up border-4 border-black text-center">
+                  <button onClick={() => setShowUpgradeModal(false)} className="absolute top-6 right-6 p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 hover:border-black text-slate-400 hover:text-black">
+                      <X className="w-5 h-5"/>
+                  </button>
+
+                  <div className="w-20 h-20 bg-[#CCF300] rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-4 border-black">
+                      <AlertTriangle className="w-10 h-10 text-black" />
+                  </div>
+
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-4">Atenção</h2>
+                  <p className="text-slate-600 font-bold text-sm mb-8 leading-relaxed">
+                      Importante: Utilize o <span className="text-black font-black underline decoration-[#CCF300] decoration-4 underline-offset-2">mesmo e-mail de cadastro</span> da plataforma para realizar o pagamento e garantir a liberação imediata.
+                  </p>
+
+                  <button 
+                      onClick={confirmUpgrade}
+                      className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black"
+                  >
+                      Entendi, ir para pagamento <ArrowRight className="w-4 h-4" />
+                  </button>
               </div>
           </div>
       )}
