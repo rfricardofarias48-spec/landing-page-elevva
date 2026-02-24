@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
+import './index.css';
 import App from './App';
 
 interface ErrorBoundaryProps {
@@ -92,6 +93,9 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
+
+// Clear any existing content to prevent duplication
+rootElement.innerHTML = '';
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(

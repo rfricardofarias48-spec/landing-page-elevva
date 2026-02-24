@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
 
   // Tenta encontrar a chave em todas as variações possíveis (Vercel, Local, Prefixo VITE)
-  const apiKey = env.VITE_API_KEY || env.API_KEY || env.GOOGLE_API_KEY || process.env.VITE_API_KEY || process.env.API_KEY || "";
+  const apiKey = env.GEMINI_API_KEY || env.VITE_API_KEY || env.API_KEY || env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.VITE_API_KEY || process.env.API_KEY || "";
 
   // Log para debug no terminal de build (Vercel Logs)
   if (apiKey) {
@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
     define: {
       // Define a chave globalmente para o navegador de forma segura
       // Isso permite acessar tanto via process.env.API_KEY quanto import.meta.env.VITE_API_KEY
+      'process.env.GEMINI_API_KEY': JSON.stringify(apiKey),
       'process.env.API_KEY': JSON.stringify(apiKey),
       'import.meta.env.VITE_API_KEY': JSON.stringify(apiKey),
       
@@ -42,7 +43,8 @@ export default defineConfig(({ mode }) => {
       }
     },
     server: {
-      port: 5173,
+      port: 3000,
+      host: '0.0.0.0',
     },
   };
 });
