@@ -1016,32 +1016,34 @@ const App: React.FC = () => {
 
               if (dbError) throw dbError;
 
-              // --- AUTO ANALYZE LOGIC ---
+              // --- AUTO ANALYZE LOGIC (BACKGROUND) ---
               if (publicJobData.autoAnalyze && publicJobData.criteria && insertedCandidate) {
-                  try {
-                      // 1. Converter arquivo para base64
-                      const base64 = await fileToBase64(file);
-                      
-                      // 2. Chamar IA
-                      // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
-                      await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
-                      
-                      const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
-                      
-                      // 3. Salvar Resultado
-                      await supabase.from('candidates')
-                          .update({ 
-                              status: 'COMPLETED',
-                              analysis_result: result,
-                              match_score: result.matchScore 
-                          })
-                          .eq('id', insertedCandidate.id);
+                  // Fire and forget - não espera a análise terminar para liberar a UI
+                  (async () => {
+                      try {
+                          // 1. Converter arquivo para base64
+                          const base64 = await fileToBase64(file);
                           
-                  } catch (analyzeErr) {
-                      console.error("Erro na auto-análise:", analyzeErr);
-                      // Se falhar, deixa como PENDING ou ERROR? Melhor ERROR para o recrutador ver.
-                      await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
-                  }
+                          // 2. Chamar IA
+                          // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
+                          await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
+                          
+                          const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
+                          
+                          // 3. Salvar Resultado
+                          await supabase.from('candidates')
+                              .update({ 
+                                  status: 'COMPLETED',
+                                  analysis_result: result,
+                                  match_score: result.matchScore 
+                              })
+                              .eq('id', insertedCandidate.id);
+                              
+                      } catch (analyzeErr) {
+                          console.error("Erro na auto-análise (background):", analyzeErr);
+                          await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
+                      }
+                  })();
               }
           }
       }
