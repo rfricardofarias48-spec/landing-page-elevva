@@ -77,6 +77,7 @@ export interface User {
   resume_limit: number;   // Máximo de currículos (ciclo ou total)
   resume_usage: number;   // Currículos já usados
   subscription_status?: 'active' | 'past_due' | 'canceled' | 'trialing';
+  current_period_end?: string; // NOVO: Data de renovação do plano
   features?: {
     public_link: boolean;
     priority_support: boolean;
@@ -98,6 +99,7 @@ export interface AdminUserProfile {
   resume_usage?: number; // Adicionado para coluna da tabela
   last_active?: string;
   subscription_status?: 'active' | 'past_due' | 'canceled' | 'trialing'; // Novo campo para cancelamentos
+  current_period_end?: string; // NOVO: Data de renovação do plano
   salesperson?: string; // NOVO: Nome do vendedor
 }
 

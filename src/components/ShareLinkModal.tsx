@@ -105,14 +105,14 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in font-sans">
-      <div className="bg-white border-2 border-black rounded-[2.5rem] w-full max-w-lg shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden relative animate-slide-up">
+      <div className="bg-white border border-slate-100 rounded-3xl w-full max-w-lg shadow-[0px_4px_20px_rgba(0,0,0,0.05)] overflow-hidden relative animate-slide-up">
         
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 hover:border-black text-slate-400 hover:text-black z-20 group">
+        <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 hover:border-slate-300 text-slate-400 hover:text-black z-20 group">
             <X className="w-5 h-5 group-hover:scale-110 transition-transform"/>
         </button>
 
         <div className="p-8 pb-6">
-           <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] transform -rotate-3 border-2 border-black">
+           <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-lg transform -rotate-3 border border-zinc-800">
               <LinkIcon className="w-8 h-8 text-[#CCF300]" />
            </div>
            
@@ -121,7 +121,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
         </div>
 
         <div className="px-8 space-y-6 pb-8">
-            <div className="bg-slate-50 rounded-2xl p-6 border-2 border-slate-200">
+            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Vaga Selecionada</p>
                 <p className="text-slate-900 font-black text-xl tracking-tight leading-tight line-clamp-2">{job.title}</p>
             </div>
@@ -129,7 +129,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
             {/* TOGGLES */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Auto Analyze Card */}
-                <div className={`p-5 rounded-3xl border-2 transition-all relative overflow-hidden group ${job.auto_analyze ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-400'}`}>
+                <div className={`p-5 rounded-3xl border transition-all relative overflow-hidden group ${job.auto_analyze ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-400'}`}>
                     <div className="flex justify-between items-start mb-4 relative z-10">
                         <div className={`p-2 rounded-xl ${job.auto_analyze ? 'bg-zinc-800 text-[#CCF300]' : 'bg-slate-100 text-slate-400'}`}>
                             <Zap className="w-6 h-6 fill-current" />
@@ -146,7 +146,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                 </div>
 
                 {/* Link Active Card */}
-                <div className={`p-5 rounded-3xl border-2 transition-all relative overflow-hidden group ${!job.is_paused ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-200 text-slate-400'}`}>
+                <div className={`p-5 rounded-3xl border transition-all relative overflow-hidden group ${!job.is_paused ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-200 text-slate-400'}`}>
                     <div className="flex justify-between items-start mb-4 relative z-10">
                          <div className={`p-2 rounded-xl ${!job.is_paused ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                             <div className={`w-3 h-3 rounded-full ${!job.is_paused ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
@@ -166,7 +166,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
             </div>
 
             {isBlobOrLocal && (
-                <div className="bg-amber-50 border-2 border-amber-100 rounded-xl p-4 flex gap-3">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3">
                     <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
                     <div>
                         <h4 className="text-amber-700 font-bold text-xs uppercase mb-1">Modo de Pré-visualização</h4>
@@ -180,13 +180,13 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
             <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-1">Link Público</label>
                 <div className="flex gap-2">
-                    <div className="flex-1 bg-white border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-mono truncate flex items-center gap-3 text-slate-600 font-bold shadow-sm">
+                    <div className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono truncate flex items-center gap-3 text-slate-600 font-bold shadow-sm">
                         <Globe className="w-4 h-4 shrink-0 text-slate-400" />
                         <span className="truncate">{shareUrl}</span>
                     </div>
                     <button 
                         onClick={handleCopy}
-                        className={`px-6 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-none border-2 border-black ${copied ? 'bg-[#CCF300] text-black' : 'bg-black text-white hover:bg-slate-900'}`}
+                        className={`px-6 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-lg hover:translate-y-0.5 hover:shadow-md ${copied ? 'bg-[#CCF300] text-black' : 'bg-black text-white hover:bg-slate-900'}`}
                     >
                         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                         {copied ? 'Copiado' : 'Copiar'}
@@ -201,7 +201,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
         </div>
         
         {/* Footer Brand */}
-        <div className="bg-slate-50 p-4 text-center border-t-2 border-slate-100">
+        <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
              <div className="flex items-center justify-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
                 <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Powered by</span>
                 <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-4 w-auto" />

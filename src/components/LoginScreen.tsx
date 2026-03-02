@@ -89,13 +89,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-[#CCF300] selection:text-black flex items-center justify-center p-4 relative overflow-hidden">
        
        {/* Card Centralizado */}
-       <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 md:p-10 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative z-10 animate-slide-up border-2 border-black">
+       <div className="bg-white rounded-3xl w-full max-w-md p-8 md:p-10 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] relative z-10 animate-slide-up border border-slate-100">
           
           <div className="flex flex-col items-center text-center mb-8">
              <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="ELEVVA" className="h-12 w-auto mb-6 object-contain" />
              
-             <div className="inline-flex p-3 rounded-2xl bg-[#CCF300] mb-5 border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-                {authMode === 'FORGOT' ? <Key className="w-6 h-6 text-black" /> : <Lock className="w-6 h-6 text-black" />}
+             <div className="inline-flex p-3 rounded-2xl bg-[#CCF300]/10 mb-5 border border-[#CCF300]/20">
+                {authMode === 'FORGOT' ? <Key className="w-6 h-6 text-[#CCF300]" /> : <Lock className="w-6 h-6 text-[#CCF300]" />}
              </div>
              
              <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -113,7 +113,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
           <form onSubmit={handleSubmit} className="space-y-4">
               {/* Google Login Button (Apenas em Login/Register) */}
               {onGoogleLogin && authMode !== 'FORGOT' && (
-                  <button type="button" onClick={handleGoogleClick} disabled={isGoogleLoading} className="w-full bg-white border-2 border-slate-200 text-slate-700 font-bold py-4 rounded-xl hover:bg-slate-50 hover:border-black transition-all flex items-center justify-center gap-3 relative shadow-sm active:scale-[0.98]">
+                  <button type="button" onClick={handleGoogleClick} disabled={isGoogleLoading} className="w-full bg-white border border-slate-200 text-slate-700 font-bold py-4 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-3 relative shadow-sm active:scale-[0.98]">
                       {isGoogleLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                           <>
                           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="G" />
@@ -134,25 +134,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
               {authMode === 'REGISTER' && (
                   <>
                       <div className="relative group">
-                          <User className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-black transition-colors" />
-                          <input type="text" value={name} onChange={e=>{setName(e.target.value); clearMessages();}} placeholder="Nome Completo" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
+                          <User className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+                          <input type="text" value={name} onChange={e=>{setName(e.target.value); clearMessages();}} placeholder="Nome Completo" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-slate-900 focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
                       </div>
                       <div className="relative group">
-                          <Phone className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-black transition-colors" />
-                          <input type="tel" value={phone} onChange={e=>{setPhone(e.target.value); clearMessages();}} placeholder="WhatsApp" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
+                          <Phone className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+                          <input type="tel" value={phone} onChange={e=>{setPhone(e.target.value); clearMessages();}} placeholder="WhatsApp" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-slate-900 focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
                       </div>
                   </>
               )}
               
               <div className="relative group">
-                  <Mail className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-black transition-colors" />
-                  <input type="email" value={email} onChange={e=>{setEmail(e.target.value); clearMessages();}} placeholder="Email Corporativo" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
+                  <Mail className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+                  <input type="email" value={email} onChange={e=>{setEmail(e.target.value); clearMessages();}} placeholder="Email Corporativo" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-slate-900 focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
               </div>
 
               {authMode !== 'FORGOT' && (
                   <div className="relative group">
-                      <Lock className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-black transition-colors" />
-                      <input type="password" value={password} onChange={e=>{setPassword(e.target.value); clearMessages();}} placeholder="Senha" className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
+                      <Lock className="w-5 h-5 absolute left-4 top-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+                      <input type="password" value={password} onChange={e=>{setPassword(e.target.value); clearMessages();}} placeholder="Senha" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-sm font-bold focus:outline-none focus:border-slate-900 focus:bg-white transition-all placeholder:font-medium text-slate-900 placeholder:text-slate-400" required />
                   </div>
               )}
 
@@ -179,7 +179,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
                   </div>
               )}
 
-              <button type="submit" disabled={isLoading} className="w-full bg-black text-white font-bold py-4 rounded-xl hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none disabled:opacity-70 disabled:transform-none border-2 border-black mt-4">
+              <button type="submit" disabled={isLoading} className="w-full bg-black text-white font-bold py-4 rounded-xl hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:opacity-70 disabled:transform-none mt-4">
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin"/> : (
                       authMode === 'LOGIN' ? 'Acessar Painel' : 
                       authMode === 'REGISTER' ? 'Criar Conta Grátis' : 

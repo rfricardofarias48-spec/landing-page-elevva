@@ -216,7 +216,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                 </p>
             </div>
 
-            <div className="bg-white rounded-[2rem] p-6 md:p-10 shadow-xl shadow-zinc-100/50 border border-zinc-200 relative">
+            <div className="bg-white rounded-3xl p-6 md:p-10 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 relative">
                 {hasApplied ? (
                     <div className="text-center py-12">
                          <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-100">
@@ -228,16 +228,16 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                     </div>
                 ) : isPaused ? (
                     <div className="text-center py-12 animate-fade-in relative overflow-hidden rounded-xl">
-                         <div className="w-20 h-20 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg relative z-10">
-                            <Lock className="w-8 h-8 text-zinc-400" />
+                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-sm relative z-10">
+                            <Lock className="w-8 h-8 text-slate-400" />
                          </div>
-                         <h3 className="text-2xl font-black text-zinc-900 mb-2 tracking-tight">Processo Encerrado</h3>
-                         <p className="text-zinc-500 text-sm font-bold max-w-xs mx-auto leading-relaxed mb-8">
+                         <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Processo Encerrado</h3>
+                         <p className="text-slate-500 text-sm font-bold max-w-xs mx-auto leading-relaxed mb-8">
                              Esta vaga já foi preenchida ou o período de inscrições foi encerrado pelo recrutador.
                          </p>
-                         <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-4 inline-flex items-center gap-3">
-                             <Ban className="w-4 h-4 text-zinc-400" />
-                             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Upload Bloqueado</span>
+                         <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 inline-flex items-center gap-3">
+                             <Ban className="w-4 h-4 text-slate-400" />
+                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Bloqueado</span>
                          </div>
                     </div>
                 ) : (
@@ -364,7 +364,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                         <button 
                             type="submit"
                             disabled={uploading || !selectedFile}
-                            className="w-full rounded-xl py-4 bg-black hover:bg-zinc-800 text-white font-bold shadow-lg transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                            className="w-full rounded-xl py-4 bg-black hover:bg-slate-900 text-white font-bold shadow-lg transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                         >
                                 {uploading ? (
                                     <>

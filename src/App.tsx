@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './services/supabaseClient';
 import { analyzeResume } from './services/geminiService';
-import { Job, Candidate, CandidateStatus, User, ViewState, AnalysisResult, Announcement } from './types';
+import { Job, Candidate, CandidateStatus, User, ViewState, Announcement } from './types';
 import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
 import { LoginScreen } from './components/LoginScreen';
@@ -11,16 +11,10 @@ import { InterviewReportModal } from './components/InterviewReportModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
 import { 
-  Plus, LogOut, Search, Settings, LayoutDashboard, User as UserIcon, 
-  ArrowLeft, Pencil, Share2, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, Crown, ArrowUpRight, Save, Key, Mail, Lock, Database, FileText, Check, ArrowRight, ShieldCheck, FileWarning, ExternalLink, RefreshCcw, Clock, Sparkles, AlertTriangle
+  Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
+  ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ArrowRight, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check
 } from 'lucide-react';
-
-const PAYMENT_LINKS = {
-    MENSAL: "https://pay.kiwify.com.br/x8O8Zqo", 
-    TRIMESTRAL: "https://pay.kiwify.com.br/E3STYGy",
-    ANUAL: "https://pay.kiwify.com.br/HHT3IkF"
-};
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'BILLING' | 'SETTINGS';
 
@@ -74,15 +68,14 @@ const App: React.FC = () => {
   
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [pendingUpgradePlan, setPendingUpgradePlan] = useState<PlanType | null>(null);
+  // const [showUpgradeModal, setShowUpgradeModal] = useState(false); // Removed
+  // const [pendingUpgradePlan, setPendingUpgradePlan] = useState<PlanType | null>(null); // Removed
   const [showReport, setShowReport] = useState(false);
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
@@ -321,7 +314,7 @@ const App: React.FC = () => {
   }, []);
 
   // --- RETENTION POLICY CLEANUP ---
-  const runDataRetentionCleanup = async (userId: string) => {
+  const runDataRetentionCleanup = async () => {
     // Apaga currículos com mais de 10 dias
     const RETENTION_DAYS = 10;
     const cutoffDate = new Date();
@@ -425,7 +418,11 @@ const App: React.FC = () => {
       const profile = data ? {
         ...data,
         role: isAdmin ? 'ADMIN' : (data.role || 'USER'), // Força Admin se email bater
-        name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário' // Fallback para não quebrar a UI
+        name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário', // Fallback para não quebrar a UI
+        job_limit: data.job_limit ?? 3,
+        resume_limit: data.resume_limit ?? 25,
+        resume_usage: data.resume_usage ?? 0,
+        plan: data.plan || 'FREE'
       } : {
         id: userId,
         email: email,
@@ -449,7 +446,7 @@ const App: React.FC = () => {
       await Promise.all([
           fetchJobs(userId),
           fetchAnnouncements(),
-          runDataRetentionCleanup(userId) // Executa limpeza ao carregar
+          runDataRetentionCleanup() // Executa limpeza ao carregar
       ]);
 
     } catch (error) {
@@ -706,7 +703,7 @@ const App: React.FC = () => {
   };
 
   const fetchPublicJobByCode = async (code: string) => {
-      const { data, error } = await supabase.from('jobs').select('id, title, criteria, auto_analyze, is_paused').eq('short_code', code).single();
+      const { data } = await supabase.from('jobs').select('id, title, criteria, auto_analyze, is_paused').eq('short_code', code).single();
       if (data) {
           setPublicUploadJobId(data.id);
           setPublicJobData({ 
@@ -854,22 +851,8 @@ const App: React.FC = () => {
       else alert("Perfil atualizado!");
   };
   
-  const handleUpgrade = (planKey: string) => {
-      if (!user) return;
-      setPendingUpgradePlan(planKey as PlanType);
-      setShowUpgradeModal(true);
-  };
+  // handleUpgrade removed
 
-  const confirmUpgrade = () => {
-      if (!user || !pendingUpgradePlan) return;
-      const link = PAYMENT_LINKS[pendingUpgradePlan as keyof typeof PAYMENT_LINKS];
-      if (!link) return;
-      const separator = link.includes('?') ? '&' : '?';
-      const finalUrl = `${link}${separator}customer_email=${encodeURIComponent(user.email)}`;
-      window.open(finalUrl, '_blank');
-      setShowUpgradeModal(false);
-      setPendingUpgradePlan(null);
-  };
 
   // --- CANDIDATES ---
   const fileToBase64 = (file: File): Promise<string> => {
@@ -1016,34 +999,32 @@ const App: React.FC = () => {
 
               if (dbError) throw dbError;
 
-              // --- AUTO ANALYZE LOGIC (BACKGROUND) ---
+              // --- AUTO ANALYZE LOGIC ---
               if (publicJobData.autoAnalyze && publicJobData.criteria && insertedCandidate) {
-                  // Fire and forget - não espera a análise terminar para liberar a UI
-                  (async () => {
-                      try {
-                          // 1. Converter arquivo para base64
-                          const base64 = await fileToBase64(file);
+                  try {
+                      // 1. Converter arquivo para base64
+                      const base64 = await fileToBase64(file);
+                      
+                      // 2. Chamar IA
+                      // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
+                      await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
+                      
+                      const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
+                      
+                      // 3. Salvar Resultado
+                      await supabase.from('candidates')
+                          .update({ 
+                              status: 'COMPLETED',
+                              analysis_result: result,
+                              match_score: result.matchScore 
+                          })
+                          .eq('id', insertedCandidate.id);
                           
-                          // 2. Chamar IA
-                          // Atualiza status para ANALYZING (visível se o recrutador estiver olhando)
-                          await supabase.from('candidates').update({ status: 'ANALYZING' }).eq('id', insertedCandidate.id);
-                          
-                          const result = await analyzeResume(base64, publicJobData.title, publicJobData.criteria);
-                          
-                          // 3. Salvar Resultado
-                          await supabase.from('candidates')
-                              .update({ 
-                                  status: 'COMPLETED',
-                                  analysis_result: result,
-                                  match_score: result.matchScore 
-                              })
-                              .eq('id', insertedCandidate.id);
-                              
-                      } catch (analyzeErr) {
-                          console.error("Erro na auto-análise (background):", analyzeErr);
-                          await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
-                      }
-                  })();
+                  } catch (analyzeErr) {
+                      console.error("Erro na auto-análise:", analyzeErr);
+                      // Se falhar, deixa como PENDING ou ERROR? Melhor ERROR para o recrutador ver.
+                      await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', insertedCandidate.id);
+                  }
               }
           }
       }
@@ -1240,7 +1221,7 @@ const App: React.FC = () => {
           {/* HEADER DE RECEPÇÃO - ULTRA COMPACTO */}
           <div className="flex items-center gap-3">
               <div className="relative shrink-0 group cursor-default">
-                  <div className="absolute inset-0 bg-[#CCF300] rounded-xl translate-x-1 translate-y-1 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:translate-y-1.5"></div>
+                  <div className="absolute inset-0 bg-[#84cc16] rounded-xl translate-x-1 translate-y-1 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:translate-y-1.5"></div>
                   <div className="w-12 h-12 bg-black rounded-xl relative flex items-center justify-center text-white text-lg font-black border-2 border-black z-10 shadow-sm">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
@@ -1251,7 +1232,7 @@ const App: React.FC = () => {
                       Olá, {(user?.name || 'Usuário').split(' ')[0]}
                   </h1>
                   <div className="flex items-center gap-2">
-                      <div className="bg-[#CCF300] text-black text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border border-[#CCF300] shadow-sm">
+                      <div className="bg-[#84cc16] text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border border-[#84cc16] shadow-sm">
                           {user?.plan || 'FREE'}
                       </div>
                       <div className="text-slate-400 font-bold text-[10px] tracking-tight flex items-baseline gap-1">
@@ -1265,7 +1246,7 @@ const App: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* VAGAS ATIVAS */}
-              <div className="bg-white p-8 rounded-[2rem] border-2 border-black relative overflow-hidden group shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all">
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all">
                   <div className="relative z-10">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">VAGAS ATIVAS</p>
                       <div className="flex items-baseline gap-1">
@@ -1280,7 +1261,7 @@ const App: React.FC = () => {
               </div>
 
               {/* CURRÍCULOS */}
-              <div className="bg-white p-8 rounded-[2rem] border-2 border-black relative overflow-hidden group shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-all">
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all">
                   <div className="relative z-10">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CURRÍCULOS ANALISADOS</p>
                       <div className="flex items-baseline gap-1">
@@ -1288,7 +1269,7 @@ const App: React.FC = () => {
                         <span className="text-xl font-black text-slate-300">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
                       </div>
                       <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
-                          <div className={`bg-[#CCF300] h-full rounded-full`} style={{ width: `${Math.min(100, (user?.resume_usage! / (user?.resume_limit || 1)) * 100)}%` }}></div>
+                          <div className={`bg-[#84cc16] h-full rounded-full`} style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
                       </div>
                       <p className="text-[9px] font-bold text-slate-400 mt-3 flex items-center gap-1">
                         <Clock className="w-3 h-3" /> Retenção automática de 10 dias
@@ -1298,13 +1279,13 @@ const App: React.FC = () => {
               </div>
 
               {/* PLANO ATUAL */}
-              <div className="bg-black p-8 rounded-[2rem] border-2 border-black relative overflow-hidden flex flex-col justify-between shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <div className="bg-[#0a0a0a] p-8 rounded-3xl relative overflow-hidden flex flex-col justify-between shadow-2xl">
                    <div className="relative z-10">
                       <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">PLANO ATUAL</p>
                       <h3 className="text-5xl font-black text-white mb-2">{user?.plan}</h3>
                       <p className="text-zinc-400 text-xs font-medium">Faça upgrade para liberar recursos.</p>
                    </div>
-                   <button onClick={() => setCurrentTab('BILLING')} className="mt-6 w-full bg-[#CCF300] hover:bg-[#bce000] text-black font-black py-3 rounded-xl text-xs uppercase tracking-widest transition-transform active:scale-95 border-2 border-black">
+                   <button onClick={() => setCurrentTab('BILLING')} className="mt-6 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition-transform active:scale-95 border-2 border-black">
                        Ver Planos
                    </button>
                    <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-800 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
@@ -1315,7 +1296,7 @@ const App: React.FC = () => {
           {visibleAnnouncements.length > 0 && (
               <div className="animate-slide-up">
                   <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tight flex items-center gap-2">
-                      <Star className="w-5 h-5 text-[#CCF300] fill-current" /> Novidades & Ofertas
+                      <Star className="w-5 h-5 text-[#84cc16] fill-current" /> Novidades & Ofertas
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {visibleAnnouncements.map(ad => (
@@ -1324,11 +1305,11 @@ const App: React.FC = () => {
                             href={ad.linkUrl || '#'} 
                             target={ad.linkUrl ? "_blank" : undefined}
                             rel="noopener noreferrer"
-                            className={`block group relative rounded-[1.5rem] overflow-hidden border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all bg-white ${!ad.linkUrl ? 'cursor-default' : ''}`}
+                            className={`block group relative rounded-3xl overflow-hidden border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all bg-white ${!ad.linkUrl ? 'cursor-default' : ''}`}
                           >
                               <div className="h-48 overflow-hidden bg-slate-200 relative">
                                   <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                                  <div className="absolute top-3 left-3 bg-black text-[#CCF300] text-[9px] font-black px-2 py-1 rounded uppercase tracking-widest border border-black">
+                                  <div className="absolute top-3 left-3 bg-black text-[#84cc16] text-[9px] font-black px-2 py-1 rounded uppercase tracking-widest border border-black">
                                       Anúncio
                                   </div>
                               </div>
@@ -1350,7 +1331,7 @@ const App: React.FC = () => {
               <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tight">Atividade Recente</h3>
               <div className="space-y-4">
                   {jobs.length > 0 ? jobs.slice(0, 3).map(j => (
-                      <div key={j.id} onClick={() => { setActiveJob(j); setView('JOB_DETAILS'); setCurrentTab('JOBS'); }} className="bg-white p-6 rounded-[1.5rem] border-2 border-slate-100 hover:border-black transition-all cursor-pointer flex justify-between items-center group shadow-sm hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5">
+                      <div key={j.id} onClick={() => { setActiveJob(j); setView('JOB_DETAILS'); setCurrentTab('JOBS'); }} className="bg-white p-6 rounded-3xl border border-slate-100 hover:border-slate-200 transition-all cursor-pointer flex justify-between items-center group shadow-[0px_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.06)] hover:-translate-y-0.5">
                           <div>
                               <h4 className="font-black text-slate-900 text-lg group-hover:text-black transition-colors">{j.title}</h4>
                               <p className="text-xs text-slate-400 font-bold mt-1">{j.candidates.length} currículos • Criada em {new Date(j.createdAt).toLocaleDateString()}</p>
@@ -1378,40 +1359,44 @@ const App: React.FC = () => {
           </div>
 
           {/* Current Plan Card - Black */}
-          <div className="bg-black rounded-[2.5rem] p-10 md:p-12 relative overflow-hidden text-white shadow-2xl">
+          <div className="bg-black rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden text-white shadow-2xl">
               <div className="relative z-10">
-                  <div className="flex items-center gap-4 mb-6">
-                      <span className="text-[#CCF300] font-black text-xs uppercase tracking-widest">Plano Ativo</span>
-                      <span className="bg-zinc-800 text-zinc-500 px-3 py-1 rounded text-[10px] font-mono">Renova em: --/--/----</span>
+                  <div className="flex items-center gap-4 mb-4">
+                      <span className="text-[#84cc16] font-black text-xs uppercase tracking-widest">Plano Ativo</span>
+                      {user?.plan !== 'FREE' && (
+                          <span className="bg-zinc-800 text-zinc-500 px-3 py-1 rounded text-[10px] font-mono">
+                              Renova em: {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) ? new Date(user.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
+                          </span>
+                      )}
                   </div>
                   
                   <div className="flex justify-between items-start">
-                      <h3 className="text-7xl font-black tracking-tighter text-white mb-10">{user?.plan}</h3>
-                      <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800">
-                          <Zap className="w-8 h-8 text-zinc-600" />
+                      <h3 className="text-6xl font-black tracking-tighter text-white mb-6">{user?.plan}</h3>
+                      <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800">
+                          <Zap className="w-6 h-6 text-zinc-600" />
                       </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Vagas Bar */}
                       <div>
-                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">
                               <span>Vagas Ativas</span>
                               <span className="text-white">{user?.job_limit >= 9999 ? '∞' : `${jobs.length} / ${user?.job_limit}`}</span>
                           </div>
-                          <div className="w-full bg-zinc-900 h-3 rounded-full overflow-hidden border border-zinc-800">
+                          <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-zinc-800">
                               <div className="bg-zinc-600 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
                           </div>
                       </div>
 
                       {/* Curriculos Bar */}
                       <div>
-                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">
                               <span>Currículos Analisados</span>
                               <span className="text-white">{user?.resume_limit >= 9999 ? '∞' : `${user?.resume_usage} / ${user?.resume_limit}`}</span>
                           </div>
-                          <div className="w-full bg-zinc-900 h-3 rounded-full overflow-hidden border border-zinc-800">
-                              <div className="bg-zinc-600 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (user?.resume_usage! / (user?.resume_limit || 1)) * 100)}%` }}></div>
+                          <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-zinc-800">
+                              <div className="bg-zinc-600 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
                           </div>
                       </div>
                   </div>
@@ -1424,86 +1409,140 @@ const App: React.FC = () => {
                   <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade {/* Updated Plans */}
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {/* Free Plan */}
-                  <div className="bg-white border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">FREE</span>
-                      <div className="text-slate-900 mb-4 flex items-center justify-center h-[60px]">
-                          <span className="text-4xl font-black tracking-tighter">Grátis</span>
+                  <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
+                      <div className="absolute -top-3 left-8 bg-[#84cc16] text-white text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest z-10">
+                          Experimente
                       </div>
-                      <div className="space-y-1 mb-6 text-xs font-bold text-slate-600">
-                          <p>3 Vagas</p>
-                          <p>25 Currículos/mês</p>
+                      <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4">Grátis</h4>
+                      <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Para testar a potência da IA.</p>
+                      
+                      <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                          <span className="text-sm font-bold mr-1">R$</span>
+                          <span className="text-6xl font-black tracking-tighter">0</span>
+                          <span className="text-xl font-bold">,00</span>
+                          <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                       </div>
-                      <button disabled className="w-full bg-black text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest cursor-default border-2 border-black opacity-90">
-                          (Atual)
+                      
+                      <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>25 Currículos / mês</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>3 Vagas</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>Exportação em PDF</span>
+                          </div>
+                      </div>
+                      <button disabled className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto">
+                          Criar Conta Grátis
                       </button>
                   </div>
 
                   {/* Mensal */}
-                  <div className="bg-white border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Mensal</span>
-                      <div className="text-slate-900 mb-4 flex items-baseline justify-center h-[60px]">
-                          <span className="text-lg font-bold mr-1 text-slate-400">R$</span>
-                          <span className="text-5xl font-black tracking-tighter">289</span>
-                          <span className="text-lg font-bold text-slate-400">,90</span>
-                          <span className="text-[9px] font-bold text-slate-400 ml-1">/MÊS</span>
+                  <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
+                      <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Mensal <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
+                      <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Tração total para seu RH.</p>
+                      
+                      <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                          <span className="text-sm font-bold mr-1">R$</span>
+                          <span className="text-6xl font-black tracking-tighter">129</span>
+                          <span className="text-xl font-bold">,90</span>
+                          <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                       </div>
-                      <div className="space-y-1 mb-6 text-xs font-bold text-slate-600">
-                          <p>5 Vagas</p>
-                          <p>+ Link Público</p>
+                      
+                      <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>5 Vagas</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>Análise Ilimitada de Currículos</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>Ranking Automático</span>
+                          </div>
                       </div>
-                      <button onClick={() => handleUpgrade('MENSAL')} className="w-full bg-black text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-zinc-800 transition-colors">
-                          ESCOLHER PLANO
-                      </button>
+                      <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
+                          Assinar Mensal
+                      </a>
                   </div>
 
                   {/* Trimestral */}
-                  <div className="bg-white border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Trimestral</span>
-                      <div className="mb-4 h-[60px] flex flex-col items-center justify-center">
-                          <div className="flex items-baseline text-slate-900">
-                              <span className="text-lg font-bold mr-1 text-slate-400">R$</span>
-                              <span className="text-5xl font-black tracking-tighter">249</span>
-                              <span className="text-lg font-bold text-slate-400">,90</span>
-                              <span className="text-[9px] font-bold text-slate-400 ml-1">/MÊS</span>
+                  <div className="bg-[#0a0a0a] rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full">
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#84cc16] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
+                          <Star className="w-3 h-3 fill-black" /> Mais Popular
+                      </div>
+                      
+                      <h4 className="text-2xl font-black text-white mb-2 mt-4 flex items-center gap-2">Trimestral <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
+                      <p className="text-sm text-zinc-400 font-medium mb-6 min-h-[48px]">Total de R$ 359,70 cobrado trimestralmente.</p>
+                      
+                      <div className="text-white mb-8 flex items-baseline h-[60px]">
+                          <span className="text-sm font-bold mr-1">R$</span>
+                          <span className="text-6xl font-black tracking-tighter">119</span>
+                          <span className="text-xl font-bold">,90</span>
+                          <span className="text-xs font-bold text-zinc-500 ml-1">/MÊS</span>
+                      </div>
+                      
+                      <div className="space-y-4 mb-8 text-sm font-medium text-zinc-300 flex-1">
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                              <span>10 Vagas</span>
                           </div>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Total de R$ 749,70</span>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                              <span>Análise Ilimitada de Currículos</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                              <span>Ranking Automático</span>
+                          </div>
                       </div>
-                      <div className="space-y-1 mb-6 text-xs font-bold text-slate-600">
-                          <p>10 Vagas</p>
-                          <p>+ Link Público</p>
-                          <p className="text-emerald-600">Economize 14%</p>
-                      </div>
-                      <button onClick={() => handleUpgrade('TRIMESTRAL')} className="w-full bg-black text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-zinc-800 transition-colors">
-                          ESCOLHER PLANO
-                      </button>
+                      <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors mt-auto text-center block">
+                          Assinar Trimestral
+                      </a>
                   </div>
 
                   {/* Anual - Destaque */}
-                  <div className="bg-black border-[3px] border-black rounded-[2rem] p-6 flex flex-col items-center text-center relative group hover:-translate-y-1 transition-transform duration-300 overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                      <div className="absolute top-0 right-0 bg-[#CCF300] text-black text-[9px] font-black px-3 py-1.5 rounded-bl-xl uppercase tracking-widest z-10">
-                          Melhor Valor
+                  <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-[#84cc16] h-full">
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-black text-[#84cc16] text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
+                          <Star className="w-3 h-3 fill-[#84cc16]" /> Melhor Valor
                       </div>
                       
-                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 mt-1">Anual</span>
-                      <div className="mb-4 h-[60px] flex flex-col items-center justify-center">
-                          <div className="flex items-baseline text-white">
-                              <span className="text-lg font-bold mr-1 text-zinc-500">R$</span>
-                              <span className="text-5xl font-black tracking-tighter">229</span>
-                              <span className="text-lg font-bold text-zinc-500">,90</span>
-                              <span className="text-[9px] font-bold text-zinc-600 ml-1">/MÊS</span>
+                      <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Anual <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
+                      <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Total de R$ 1.198,80 cobrado anualmente.</p>
+                      
+                      <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                          <span className="text-sm font-bold mr-1">R$</span>
+                          <span className="text-6xl font-black tracking-tighter">99</span>
+                          <span className="text-xl font-bold">,90</span>
+                          <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
+                      </div>
+                      
+                      <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>Vagas Ilimitadas</span>
                           </div>
-                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wide">Total de R$ 2.758,80</span>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>Análise Ilimitada de Currículos</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                              <span>Atendimento Prioritário</span>
+                          </div>
                       </div>
-                      <div className="space-y-1 mb-6 text-xs font-bold text-white">
-                          <p>Vagas Ilimitadas</p>
-                          <p className="text-[#CCF300]">+ Link Público</p>
-                          <p className="text-emerald-400">Economize 20%</p>
-                      </div>
-                      <button onClick={() => handleUpgrade('ANUAL')} className="w-full bg-[#CCF300] text-black font-black py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-[#bce000] transition-colors">
-                          ESCOLHER PLANO
-                      </button>
+                      <a href="https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
+                          Assinar Anual
+                      </a>
                   </div>
               </div>
           </div>
@@ -1517,7 +1556,7 @@ const App: React.FC = () => {
             <p className="text-slate-500 font-bold">Gerencie seus dados pessoais e segurança.</p>
          </div>
 
-         <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-200 shadow-sm">
+         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-[0px_4px_20px_rgba(0,0,0,0.05)]">
              <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><UserIcon className="w-5 h-5"/> Dados Pessoais</h3>
              <div className="space-y-4 max-w-lg">
                  <div>
@@ -1549,7 +1588,7 @@ const App: React.FC = () => {
                  </div>
                  <div className="pt-2">
                     <button onClick={handleUpdateProfile} disabled={changingPassword} className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center gap-2 disabled:opacity-50">
-                        {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#CCF300]" />} Salvar Alterações
+                        {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#84cc16]" />} Salvar Alterações
                     </button>
                  </div>
              </div>
@@ -1669,10 +1708,6 @@ const App: React.FC = () => {
       setShowCreateModal(true);
   };
 
-  const handleOpenShareModal = () => {
-      if (activeJob) setShowShareModal(true);
-  };
-
   // Helper para atualizar job localmente no modal de share
   const handleJobUpdate = (updatedJob: Job) => {
       setJobs(prev => prev.map(j => j.id === updatedJob.id ? updatedJob : j));
@@ -1682,17 +1717,17 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen bg-white flex overflow-hidden font-sans text-slate-900 selection:bg-[#CCF300] selection:text-black">
+    <div className="h-screen bg-white flex overflow-hidden font-sans text-slate-900 selection:bg-[#84cc16] selection:text-white">
       
       {/* SIDEBAR */}
       <aside className="w-20 lg:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 z-40">
         <div className="h-24 flex items-center justify-center lg:justify-start lg:px-6 border-b border-slate-100">
            <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-14 w-auto hidden lg:block" />
-            <div className="w-10 h-10 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#CCF300] font-black text-xl">E</div>
+            <div className="w-10 h-10 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#84cc16] font-black text-xl">E</div>
             {/* Added plan badge back if user exists */}
             {user && (
                  <span className={`hidden lg:inline-flex ml-3 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
-                     user.plan === 'ANUAL' ? 'bg-black text-[#CCF300] border-black' :
+                     user.plan === 'ANUAL' ? 'bg-black text-[#84cc16] border-black' :
                      user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500 border-zinc-200' : 'bg-black text-white border-black'
                  }`}>
                      {user.plan}
@@ -1761,7 +1796,7 @@ const App: React.FC = () => {
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
                           <div>
-                              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Painel de Vagas</h1>
+                              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Painel de Vagas<span className="text-[#84cc16]">.</span></h1>
                               <p className="text-slate-500 font-bold mt-1 text-sm">Gerencie seus processos seletivos.</p>
                           </div>
                           
@@ -1777,7 +1812,7 @@ const App: React.FC = () => {
 
                               <button 
                                 onClick={() => { setShowCreateModal(true); setIsEditing(false); }}
-                                className="flex-1 md:flex-none justify-center bg-black text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black transition-all"
+                                className="flex-1 md:flex-none justify-center bg-[#84cc16] hover:bg-[#65a30d] text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
                               >
                                  <Plus className="w-5 h-5" /> Nova Vaga
                               </button>
@@ -1815,10 +1850,10 @@ const App: React.FC = () => {
         {/* VIEW: JOB DETAILS */}
         {view === 'JOB_DETAILS' && activeJob && (
            <div className="w-full h-full flex flex-col animate-fade-in relative p-4 md:p-8">
-            <div className="bg-slate-100 rounded-2xl p-4 mb-6 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-4 md:gap-4">
+            <div className="bg-white rounded-3xl p-4 mb-6 border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-4 md:gap-4">
                <div className="relative z-10 flex items-center gap-4 w-full md:flex-1 min-w-0">
-                 <button onClick={() => setView('DASHBOARD')} className="group p-3 rounded-xl bg-black hover:bg-zinc-900 text-white border-2 border-black transition-all duration-300 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-none hover:translate-y-1 flex items-center justify-center shrink-0">
-                   <ArrowLeft className="w-5 h-5 text-[#CCF300] transition-colors" />
+                 <button onClick={() => setView('DASHBOARD')} className="group p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition-all duration-300 flex items-center justify-center shrink-0">
+                   <ArrowLeft className="w-5 h-5 transition-colors" />
                  </button>
                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 md:gap-3 flex-wrap">
@@ -1830,7 +1865,7 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-3 mt-1 ml-1 flex-wrap">
                       <p className="text-slate-600 text-xs font-bold whitespace-nowrap">{activeJob.candidates.length} Currículos</p>
                       <div className="text-xs text-slate-500 flex items-center gap-1 border-l-2 border-slate-300 pl-3 font-medium whitespace-nowrap">
-                          Uso: <span className={`${user!.resume_usage >= user!.resume_limit ? 'text-red-600 font-bold' : 'text-slate-700'}`}>{user!.resume_usage} / {user!.resume_limit >= 9999 ? '∞' : user!.resume_limit}</span>
+                          Uso: <span className={`${(user?.resume_usage || 0) >= (user?.resume_limit || 0) ? 'text-red-600 font-bold' : 'text-slate-700'}`}>{user?.resume_usage || 0} / {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
                       </div>
                     </div>
                  </div>
@@ -1838,16 +1873,14 @@ const App: React.FC = () => {
                <div className="relative z-10 flex gap-2 mt-3 md:mt-0 w-full md:w-auto justify-start md:justify-end md:ml-auto items-center overflow-x-auto md:overflow-visible pb-2 md:pb-0 custom-scrollbar md:custom-scrollbar-none">
                  <input type="file" multiple accept="application/pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
                  
-                 <button onClick={handleOpenShareModal} className="flex-none bg-[#CCF300] hover:bg-[#bce000] border-2 border-black text-black px-4 py-3 rounded-xl font-black text-xs flex items-center transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none whitespace-nowrap"><Share2 className="w-4 h-4 mr-2 text-black"/> Link</button>
-                 
                  {activeJob.candidates.some(c=>c.isSelected) && (
                    <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-4 py-3 rounded-xl font-black text-xs flex items-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-4 h-4 mr-2"/> Relatório</button>
                  )}
                  
-                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs flex items-center transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-4 h-4 mr-2 text-[#CCF300]"/> Upload</button>
+                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs flex items-center transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(132,204,22,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-4 h-4 mr-2 text-[#84cc16]"/> Upload</button>
                  
                  {activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
-                   <button onClick={runAnalysis} className="flex-none bg-[#CCF300] hover:bg-[#bce000] text-black border-2 border-black px-5 py-3 rounded-xl font-black text-xs flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-4 h-4 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
+                   <button onClick={runAnalysis} className="flex-none bg-[#84cc16] hover:bg-[#65a30d] text-white border-2 border-black px-5 py-3 rounded-xl font-black text-xs flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-4 h-4 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
                  )}
                  
                  {activeJob.candidates.length > 0 && (
@@ -1865,9 +1898,9 @@ const App: React.FC = () => {
             </div>
 
             {analysisMetrics.timeTaken && !analysisMetrics.isAnalyzing && (
-                <div className="bg-[#CCF300]/20 border-2 border-[#CCF300] p-4 rounded-2xl mb-4 flex justify-between items-center animate-slide-up shadow-sm shrink-0">
+                <div className="bg-[#84cc16]/20 border-2 border-[#84cc16] p-4 rounded-2xl mb-4 flex justify-between items-center animate-slide-up shadow-sm shrink-0">
                     <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 rounded-2xl bg-[#CCF300] flex items-center justify-center border-2 border-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                       <div className="w-12 h-12 rounded-2xl bg-[#84cc16] flex items-center justify-center border-2 border-black text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                            <Timer className="w-6 h-6" />
                        </div>
                        <div>
@@ -1875,7 +1908,7 @@ const App: React.FC = () => {
                            <p className="text-slate-900 text-xs font-bold mt-1">Processamos <strong>{analysisMetrics.processedCount} currículos</strong> em <strong>{analysisMetrics.timeTaken}</strong>.</p>
                        </div>
                     </div>
-                    <button onClick={() => setAnalysisMetrics(prev => ({...prev, timeTaken: null}))} className="p-2 hover:bg-[#CCF300]/30 rounded-lg text-black transition-colors"><X className="w-5 h-5" /></button>
+                    <button onClick={() => setAnalysisMetrics(prev => ({...prev, timeTaken: null}))} className="p-2 hover:bg-[#84cc16]/30 rounded-lg text-black transition-colors"><X className="w-5 h-5" /></button>
                 </div>
             )}
             
@@ -1890,7 +1923,7 @@ const App: React.FC = () => {
                  </div>
                ) : (
                  <>
-                    {isDragging && (<div className="mb-6 p-8 border-4 border-dashed border-black bg-[#CCF300]/10 rounded-2xl flex items-center justify-center text-black font-black uppercase tracking-widest animate-pulse"><CloudUpload className="w-8 h-8 mr-4" /> Solte para adicionar</div>)}
+                    {isDragging && (<div className="mb-6 p-8 border-4 border-dashed border-black bg-[#84cc16]/10 rounded-2xl flex items-center justify-center text-black font-black uppercase tracking-widest animate-pulse"><CloudUpload className="w-8 h-8 mr-4" /> Solte para adicionar</div>)}
                     {[...activeJob.candidates].sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>(<AnalysisResultCard key={c.id} candidate={c} index={i} onToggleSelection={c.status===CandidateStatus.COMPLETED?handleToggleSelection:undefined} onDelete={handleDeleteCandidate}/>))}
                  </>
                )}
@@ -1911,7 +1944,7 @@ const App: React.FC = () => {
                   <div className="mb-8">
                       {/* Icone: Fundo Preto, Icone Lime */}
                       <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-xl transform -rotate-3 border-2 border-black">
-                          <Briefcase className="w-8 h-8 text-[#CCF300]" />
+                          <Briefcase className="w-8 h-8 text-[#84cc16]" />
                       </div>
                       <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">{isEditing ? 'Editar Vaga' : 'Nova Vaga'}</h2>
                       <p className="text-slate-500 font-bold text-sm">Defina os critérios para a IA analisar.</p>
@@ -1933,7 +1966,7 @@ const App: React.FC = () => {
                           <textarea name="criteria" defaultValue={isEditing ? activeJob?.criteria : ''} required placeholder="Liste os requisitos chave (ex: React, Inglês Fluente, 3 anos de xp...)" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] placeholder:font-medium placeholder:text-slate-400" />
                       </div>
 
-                      <button type="submit" className="w-full bg-black text-white font-black py-5 rounded-2xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 border-b-4 border-[#CCF300] hover:border-[#CCF300] mt-6">
+                      <button type="submit" className="w-full bg-black text-white font-black py-5 rounded-2xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 border-b-4 border-[#84cc16] hover:border-[#84cc16] mt-6">
                           {isEditing ? 'Salvar Alterações' : 'Criar Vaga com IA'}
                       </button>
                   </form>
@@ -1988,7 +2021,7 @@ const App: React.FC = () => {
                   </button>
 
                   <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] border-4 border-white">
-                      <Sparkles className="w-10 h-10 text-[#CCF300]" />
+                      <Sparkles className="w-10 h-10 text-[#84cc16]" />
                   </div>
 
                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Bem-vindo(a)!</h2>
@@ -2026,7 +2059,7 @@ const App: React.FC = () => {
               <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl relative animate-slide-up border-4 border-black text-center">
                   
                   <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] border-4 border-white">
-                      <Key className="w-10 h-10 text-[#CCF300]" />
+                      <Key className="w-10 h-10 text-[#84cc16]" />
                   </div>
 
                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Redefinir Senha</h2>
@@ -2053,33 +2086,6 @@ const App: React.FC = () => {
                           {isSavingRecovery ? <Loader2 className="w-5 h-5 animate-spin"/> : "Salvar Nova Senha"}
                       </button>
                   </div>
-              </div>
-          </div>
-      )}
-
-      {/* UPGRADE CONFIRMATION MODAL */}
-      {showUpgradeModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
-              <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl relative animate-slide-up border-4 border-black text-center">
-                  <button onClick={() => setShowUpgradeModal(false)} className="absolute top-6 right-6 p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 hover:border-black text-slate-400 hover:text-black">
-                      <X className="w-5 h-5"/>
-                  </button>
-
-                  <div className="w-20 h-20 bg-[#CCF300] rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-4 border-black">
-                      <AlertTriangle className="w-10 h-10 text-black" />
-                  </div>
-
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-4">Atenção</h2>
-                  <p className="text-slate-600 font-bold text-sm mb-8 leading-relaxed">
-                      Importante: Utilize o <span className="text-black font-black underline decoration-[#CCF300] decoration-4 underline-offset-2">mesmo e-mail de cadastro</span> da plataforma para realizar o pagamento e garantir a liberação imediata.
-                  </p>
-
-                  <button 
-                      onClick={confirmUpgrade}
-                      className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black"
-                  >
-                      Entendi, ir para pagamento <ArrowRight className="w-4 h-4" />
-                  </button>
               </div>
           </div>
       )}
@@ -2117,10 +2123,10 @@ const App: React.FC = () => {
             href="https://wa.me/5551994396089" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="bg-[#25D366] hover:bg-[#20bd5a] text-white p-4 rounded-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 border-2 border-black transition-all group"
+            className="fixed bottom-6 right-6 w-12 h-12 bg-[#25D366] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-50"
             title="Falar no WhatsApp"
           >
-            <svg viewBox="0 0 24 24" className="w-8 h-8 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+            <svg viewBox="0 0 24 24" className="w-7 h-7 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
           </a>
       </div>
 

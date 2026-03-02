@@ -95,7 +95,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
         contentHtml = `
             <div class="p-6 max-w-[297mm] mx-auto">
-                <div class="flex justify-between items-center mb-2 pb-2 border-b-2 border-black">
+                <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-200">
                      <div class="flex flex-col">
                         <div class="flex items-center gap-3 mb-1">
                             <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" class="h-5 w-auto" />
@@ -111,7 +111,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="bg-slate-50 border-b-2 border-slate-200 text-slate-400 text-[9px] font-black uppercase tracking-widest">
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-400 text-[9px] font-black uppercase tracking-widest">
                             <th class="py-2 px-4"># Rank</th>
                             <th class="py-2 px-4">Candidato</th>
                             <th class="py-2 px-4">Localização</th>
@@ -168,7 +168,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                     </div>
 
                     <!-- CARD PRINCIPAL (Estilo AnalysisResultCard) -->
-                    <div class="flex-1 border-2 border-black rounded-[1.5rem] p-6 relative flex flex-col gap-4 overflow-hidden box-border bg-white">
+                    <div class="flex-1 border border-slate-200 rounded-[1.5rem] p-6 relative flex flex-col gap-4 overflow-hidden box-border bg-white shadow-sm">
                         
                         <!-- 1. HEADER DO CANDIDATO -->
                         <div class="flex items-center gap-4 shrink-0">
@@ -406,7 +406,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
              <button 
                 onClick={handlePrint}
-                className="bg-[#CCF300] hover:bg-[#bce000] text-black border-2 border-black px-5 py-3 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-lg hover:translate-y-0.5"
+                className="bg-[#CCF300] hover:bg-[#bce000] text-black border border-[#bce000] px-5 py-3 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-lg hover:translate-y-0.5 hover:shadow-md"
              >
                 <Printer className="w-4 h-4" /> Imprimir
              </button>
@@ -426,10 +426,10 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
             
             {/* --- MODO LISTA --- */}
             {viewMode === 'SUMMARY' && (
-              <div className="bg-white rounded-[2rem] border-2 border-black shadow-sm overflow-hidden">
+              <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b-2 border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest">
                       <th className="p-6"># Rank</th>
                       <th className="p-6">Candidato</th>
                       <th className="p-6">Localização</th>
@@ -487,7 +487,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                   const offset = circumference - (score / 10) * circumference;
 
                   return (
-                    <div key={c.id} className="bg-white border-2 border-black rounded-[2rem] p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] relative flex flex-col gap-6 overflow-hidden">
+                    <div key={c.id} className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] relative flex flex-col gap-6 overflow-hidden">
                     
                         {/* 1. HEADER DO CANDIDATO */}
                         <div className="flex items-center gap-6">
@@ -536,7 +536,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
                         {/* 3. GRID PRÓS E CONTRAS */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div className="bg-emerald-50/50 border-2 border-emerald-100 rounded-xl p-5">
+                                <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-5">
                                     <h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                                         <CheckCircle2 className="w-4 h-4" /> Pontos Fortes
                                     </h5>
@@ -550,7 +550,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                                     </ul>
                                 </div>
 
-                                <div className="bg-red-50/50 border-2 border-red-100 rounded-xl p-5">
+                                <div className="bg-red-50/50 border border-red-100 rounded-xl p-5">
                                     <h5 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                                         <XCircle className="w-4 h-4" /> Pontos de Atenção
                                     </h5>
@@ -567,13 +567,13 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
                         {/* 4. EXPERIÊNCIAS RECENTES */}
                         {c.result?.workHistory && c.result.workHistory.length > 0 && (
-                        <div className="mt-2 pt-4 border-t-2 border-slate-100">
+                        <div className="mt-2 pt-4 border-t border-slate-100">
                             <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                                 <Briefcase className="w-3 h-3" /> Experiências Recentes
                             </h5>
                             <div className="space-y-2">
                                 {c.result.workHistory.map((work, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-lg border-2 border-slate-100">
+                                <div key={idx} className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
                                     <div className="flex items-center gap-2">
                                         <Building2 className="w-3.5 h-3.5 text-slate-400" />
                                         <span className="font-bold text-slate-900">{work.company}</span>
@@ -591,7 +591,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                         )}
 
                         {/* 5. CONTATOS */}
-                        <div className="mt-auto pt-4 border-t-2 border-slate-100 flex items-center gap-3">
+                        <div className="mt-auto pt-4 border-t border-slate-100 flex items-center gap-3">
                             <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
                                 <Phone className="w-3 h-3" /> Contatos:
                             </h5>

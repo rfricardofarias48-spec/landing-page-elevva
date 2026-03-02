@@ -3,8 +3,8 @@ import { supabase } from '../services/supabaseClient';
 import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import { 
-  Users, Calendar, CreditCard, Search, Activity, Briefcase, 
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, ExternalLink, Filter, Clock, UserX, Wallet, Lock, Database, Copy, ToggleRight, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Crown, AlertTriangle, Banknote
+  Users, Calendar, CreditCard, Search, Activity, 
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -37,7 +37,6 @@ export const AdminDashboard: React.FC = () => {
 
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
-  const [newAdLink, setNewAdLink] = useState('');
   const [newAdImage, setNewAdImage] = useState<File | null>(null);
   const [newAdPreview, setNewAdPreview] = useState<string | null>(null);
   const [newAdPlans, setNewAdPlans] = useState<PlanType[]>(['FREE', 'MENSAL', 'ANUAL']);
@@ -45,7 +44,7 @@ export const AdminDashboard: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // State Financeiro
-  const [financeDate, setFinanceDate] = useState(new Date());
+  const [financeDate] = useState(new Date());
 
   // Error State
   const [dataError, setDataError] = useState<string | null>(null);
@@ -249,7 +248,7 @@ export const AdminDashboard: React.FC = () => {
 
           const { error: dbError } = await supabase.from('announcements').insert([{
               title: newAdTitle,
-              link_url: newAdLink || null,
+              link_url: null,
               image_path: uploadData.path,
               is_active: true,
               target_plans: newAdPlans
@@ -258,7 +257,6 @@ export const AdminDashboard: React.FC = () => {
 
           alert("Anúncio publicado com sucesso!");
           setNewAdTitle('');
-          setNewAdLink('');
           setNewAdImage(null);
           setNewAdPreview(null);
           setNewAdPlans(['FREE', 'MENSAL', 'ANUAL']);
@@ -294,9 +292,9 @@ export const AdminDashboard: React.FC = () => {
 
       const stats = {
           FREE: { count: 0, price: 0, revenue: 0 },
-          MENSAL: { count: 0, price: 289.90, revenue: 0 },
-          TRIMESTRAL: { count: 0, price: 749.70, revenue: 0 },
-          ANUAL: { count: 0, price: 2758.80, revenue: 0 },
+          MENSAL: { count: 0, price: 129.90, revenue: 0 },
+          TRIMESTRAL: { count: 0, price: 359.70, revenue: 0 },
+          ANUAL: { count: 0, price: 1198.80, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
           mrr: 0, // Monthly Recurring Revenue (Normalized)
@@ -306,9 +304,9 @@ export const AdminDashboard: React.FC = () => {
 
       historicalUsers.forEach(u => {
           if (u.plan in stats) {
-              // @ts-ignore
+              // @ts-expect-error: stats index signature
               stats[u.plan].count++;
-              // @ts-ignore
+              // @ts-expect-error: stats index signature
               stats[u.plan].revenue += stats[u.plan].price;
 
               // Calculate MRR
@@ -494,17 +492,6 @@ export const AdminDashboard: React.FC = () => {
                       </div>
 
                       <div>
-                          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 block">Link de Destino (Opcional)</label>
-                          <input 
-                              type="text" 
-                              value={newAdLink}
-                              onChange={(e) => setNewAdLink(e.target.value)}
-                              placeholder="https://..."
-                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
-                          />
-                      </div>
-
-                      <div>
                           <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 block flex items-center gap-2">
                               <Filter className="w-3 h-3"/> Visibilidade por Plano
                           </label>
@@ -561,7 +548,7 @@ export const AdminDashboard: React.FC = () => {
                       <div className="absolute top-4 left-4 bg-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-zinc-400 border border-zinc-200">Live Preview</div>
                       
                       {/* CARD SIMULADO */}
-                      <div className="w-full max-w-sm bg-white rounded-[1.5rem] border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden relative group cursor-default transform hover:-translate-y-1 transition-transform duration-300">
+                      <div className="w-full max-w-sm bg-white rounded-3xl border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] overflow-hidden relative group cursor-default transform hover:-translate-y-1 hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] transition-all duration-300">
                           <div className="h-40 bg-zinc-200 relative">
                               {newAdPreview ? (
                                   <img src={newAdPreview} className="w-full h-full object-cover" alt="Preview" />
@@ -578,9 +565,6 @@ export const AdminDashboard: React.FC = () => {
                               <h4 className="font-black text-lg text-zinc-900 leading-tight mb-2 line-clamp-2">
                                   {newAdTitle || 'Título do Anúncio'}
                               </h4>
-                              <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 uppercase tracking-wide">
-                                  Saiba mais <ExternalLink className="w-3 h-3" />
-                              </div>
                           </div>
                       </div>
                   </div>
@@ -599,7 +583,6 @@ export const AdminDashboard: React.FC = () => {
                                   <img src={ad.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover bg-zinc-100 border border-zinc-100" />
                                   <div className="flex-1 min-w-0">
                                       <h4 className="font-bold text-zinc-900 text-sm truncate">{ad.title}</h4>
-                                      <p className="text-xs text-zinc-500 truncate">{ad.linkUrl || 'Sem link'}</p>
                                       <div className="flex gap-1 mt-2">
                                           {ad.targetPlans.map(p => (
                                               <span key={p} className="text-[9px] bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded font-bold">{p}</span>
@@ -814,7 +797,7 @@ export const AdminDashboard: React.FC = () => {
                               <div className="flex justify-between items-end mb-2">
                                   <div>
                                       <span className="text-sm font-bold text-zinc-900 block">Plano Mensal</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 329,90 / mês</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 129,90 / mês</span>
                                   </div>
                                   <div className="text-right">
                                       <span className="text-lg font-black text-zinc-900">{stats.MENSAL.count}</span>
@@ -826,12 +809,29 @@ export const AdminDashboard: React.FC = () => {
                               </div>
                           </div>
 
+                          {/* Trimestral */}
+                          <div>
+                              <div className="flex justify-between items-end mb-2">
+                                  <div>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Trimestral</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 119,90 / mês (Cobrado trimestralmente)</span>
+                                  </div>
+                                  <div className="text-right">
+                                      <span className="text-lg font-black text-zinc-900">{stats.TRIMESTRAL.count}</span>
+                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
+                                  </div>
+                              </div>
+                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
+                                  <div className="bg-zinc-700 h-full rounded-full" style={{ width: `${(stats.TRIMESTRAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                              </div>
+                          </div>
+
                           {/* Anual */}
                           <div>
                               <div className="flex justify-between items-end mb-2">
                                   <div>
                                       <span className="text-sm font-bold text-zinc-900 block">Plano Anual</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 289,90 / mês (Cobrado anualmente)</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 99,90 / mês (Cobrado anualmente)</span>
                                   </div>
                                   <div className="text-right">
                                       <span className="text-lg font-black text-zinc-900">{stats.ANUAL.count}</span>
@@ -1023,6 +1023,11 @@ export const AdminDashboard: React.FC = () => {
                                     <p className="text-xs text-zinc-400 font-bold mt-1">
                                         {selectedUser.plan === 'FREE' ? 'Limites: 3 Vagas / 25 CVs' : selectedUser.plan === 'MENSAL' ? 'Limites: 5 Vagas / 150 CVs' : selectedUser.plan === 'TRIMESTRAL' ? 'Limites: 10 Vagas / 450 CVs' : 'Limites: ILIMITADO'}
                                     </p>
+                                    {selectedUser.plan !== 'FREE' && selectedUser.current_period_end && (
+                                        <p className="text-xs text-zinc-500 font-bold mt-2">
+                                            Renova em: {selectedUser.current_period_end && !isNaN(new Date(selectedUser.current_period_end).getTime()) ? new Date(selectedUser.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>
