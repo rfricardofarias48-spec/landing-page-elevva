@@ -436,6 +436,10 @@ const App: React.FC = () => {
 
       setUser(profile);
       
+      if (isAdmin) {
+          setView('DASHBOARD');
+      }
+      
       if (needsNameUpdate && profile.role !== 'ADMIN') {
           setShowNameModal(true);
       } else {
