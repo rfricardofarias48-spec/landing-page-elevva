@@ -51,7 +51,7 @@ export interface Job {
   is_paused?: boolean; // NOVO: Impedir novos uploads
 }
 
-export type PlanType = 'FREE' | 'MENSAL' | 'TRIMESTRAL' | 'ANUAL';
+export type PlanType = 'FREE' | 'MENSAL' | 'TRIMESTRAL' | 'ANUAL' | 'ENTERPRISE';
 
 export interface Announcement {
   id: string;
@@ -83,6 +83,9 @@ export interface User {
     priority_support: boolean;
   };
   salesperson?: string; // NOVO: Nome do vendedor (apenas admin)
+  instancia_evolution?: string;
+  telefone_agente?: string;
+  status_automacao?: boolean;
 }
 
 // Interface para o Dashboard do Admin
@@ -101,6 +104,9 @@ export interface AdminUserProfile {
   subscription_status?: 'active' | 'past_due' | 'canceled' | 'trialing'; // Novo campo para cancelamentos
   current_period_end?: string; // NOVO: Data de renovação do plano
   salesperson?: string; // NOVO: Nome do vendedor
+  instancia_evolution?: string;
+  telefone_agente?: string;
+  status_automacao?: boolean;
 }
 
 export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD';

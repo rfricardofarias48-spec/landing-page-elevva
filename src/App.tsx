@@ -419,8 +419,8 @@ const App: React.FC = () => {
         ...data,
         role: isAdmin ? 'ADMIN' : (data.role || 'USER'), // Força Admin se email bater
         name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário', // Fallback para não quebrar a UI
-        job_limit: data.job_limit ?? 3,
-        resume_limit: data.resume_limit ?? 25,
+        job_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.job_limit ?? 3),
+        resume_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.resume_limit ?? 25),
         resume_usage: data.resume_usage ?? 0,
         plan: data.plan || 'FREE'
       } : {
@@ -1236,7 +1236,11 @@ const App: React.FC = () => {
                       Olá, {(user?.name || 'Usuário').split(' ')[0]}
                   </h1>
                   <div className="flex items-center gap-2">
-                      <div className="bg-[#84cc16] text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border border-[#84cc16] shadow-sm">
+                      <div className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border shadow-sm ${
+                          user?.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white border-purple-600' :
+                          user?.plan === 'ANUAL' ? 'bg-black text-[#84cc16] border-black' :
+                          user?.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500 border-zinc-200' : 'bg-[#84cc16] text-white border-[#84cc16]'
+                      }`}>
                           {user?.plan || 'FREE'}
                       </div>
                       <div className="text-slate-400 font-bold text-[10px] tracking-tight flex items-baseline gap-1">
@@ -1407,149 +1411,202 @@ const App: React.FC = () => {
               </div>
           </div>
 
-          {/* Upgrade Options */}
-          <div>
-              <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tight flex items-center gap-2">
-                  <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade {/* Updated Plans */}
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {/* Free Plan */}
-                  <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
-                      <div className="absolute -top-3 left-8 bg-[#84cc16] text-white text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest z-10">
-                          Experimente
-                      </div>
-                      <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4">Grátis</h4>
-                      <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Para testar a potência da IA.</p>
-                      
-                      <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
-                          <span className="text-sm font-bold mr-1">R$</span>
-                          <span className="text-6xl font-black tracking-tighter">0</span>
-                          <span className="text-xl font-bold">,00</span>
-                          <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
-                      </div>
-                      
-                      <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>25 Currículos / mês</span>
+          {/* Upgrade Options or Enterprise Details */}
+          {user?.plan === 'ENTERPRISE' ? (
+              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
+                  <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-2">
+                      <Star className="w-6 h-6 text-[#84cc16] fill-[#84cc16]" /> Detalhes da Assinatura
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div>
+                          <h4 className="text-xl font-black text-slate-900 mb-2">Enterprise</h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6">Plano ilimitado com integração automatizada via n8n.</p>
+                          
+                          <div className="text-slate-900 mb-8 flex items-baseline">
+                              <span className="text-sm font-bold mr-1">R$</span>
+                              <span className="text-6xl font-black tracking-tighter">1.250</span>
+                              <span className="text-xl font-bold">,00</span>
+                              <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                           </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>3 Vagas</span>
+                          
+                          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                              <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Vencimento da próxima fatura</p>
+                              <p className="text-lg font-bold text-slate-900">
+                                  {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) 
+                                      ? new Date(user.current_period_end).toLocaleDateString('pt-BR') 
+                                      : 'Consulte seu gerente de contas'}
+                              </p>
                           </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>Exportação em PDF</span>
-                          </div>
-                      </div>
-                      <button disabled className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto">
-                          Criar Conta Grátis
-                      </button>
-                  </div>
-
-                  {/* Mensal */}
-                  <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
-                      <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Mensal <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
-                      <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Tração total para seu RH.</p>
-                      
-                      <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
-                          <span className="text-sm font-bold mr-1">R$</span>
-                          <span className="text-6xl font-black tracking-tighter">129</span>
-                          <span className="text-xl font-bold">,90</span>
-                          <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                       </div>
                       
-                      <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>5 Vagas</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>Análise Ilimitada de Currículos</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>Ranking Automático</span>
-                          </div>
-                      </div>
-                      <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
-                          Assinar Mensal
-                      </a>
-                  </div>
-
-                  {/* Trimestral */}
-                  <div className="bg-[#0a0a0a] rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full">
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#84cc16] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
-                          <Star className="w-3 h-3 fill-black" /> Mais Popular
-                      </div>
-                      
-                      <h4 className="text-2xl font-black text-white mb-2 mt-4 flex items-center gap-2">Trimestral <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
-                      <p className="text-sm text-zinc-400 font-medium mb-6 min-h-[48px]">Total de R$ 359,70 cobrado trimestralmente.</p>
-                      
-                      <div className="text-white mb-8 flex items-baseline h-[60px]">
-                          <span className="text-sm font-bold mr-1">R$</span>
-                          <span className="text-6xl font-black tracking-tighter">119</span>
-                          <span className="text-xl font-bold">,90</span>
-                          <span className="text-xs font-bold text-zinc-500 ml-1">/MÊS</span>
-                      </div>
-                      
-                      <div className="space-y-4 mb-8 text-sm font-medium text-zinc-300 flex-1">
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
-                              <span>10 Vagas</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
-                              <span>Análise Ilimitada de Currículos</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
-                              <span>Ranking Automático</span>
+                      <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 flex flex-col justify-center">
+                          <h5 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">Benefícios Inclusos</h5>
+                          <div className="space-y-4 text-sm font-medium text-slate-600">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
+                                  <span className="font-bold text-slate-900">Vagas Ilimitadas</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
+                                  <span className="font-bold text-slate-900">Análise Ilimitada de Currículos</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
+                                  <span className="font-bold text-slate-900">Integração via Webhook (n8n)</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
+                                  <span className="font-bold text-slate-900">Atendimento Dedicado</span>
+                              </div>
                           </div>
                       </div>
-                      <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors mt-auto text-center block">
-                          Assinar Trimestral
-                      </a>
-                  </div>
-
-                  {/* Anual - Destaque */}
-                  <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-[#84cc16] h-full">
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-black text-[#84cc16] text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
-                          <Star className="w-3 h-3 fill-[#84cc16]" /> Melhor Valor
-                      </div>
-                      
-                      <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Anual <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
-                      <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Total de R$ 1.198,80 cobrado anualmente.</p>
-                      
-                      <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
-                          <span className="text-sm font-bold mr-1">R$</span>
-                          <span className="text-6xl font-black tracking-tighter">99</span>
-                          <span className="text-xl font-bold">,90</span>
-                          <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
-                      </div>
-                      
-                      <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>Vagas Ilimitadas</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>Análise Ilimitada de Currículos</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                              <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                              <span>Atendimento Prioritário</span>
-                          </div>
-                      </div>
-                      <a href="https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
-                          Assinar Anual
-                      </a>
                   </div>
               </div>
-          </div>
+          ) : (
+              <div>
+                  <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tight flex items-center gap-2">
+                      <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade {/* Updated Plans */}
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Free Plan */}
+                      <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
+                          <div className="absolute -top-3 left-8 bg-[#84cc16] text-white text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest z-10">
+                              Experimente
+                          </div>
+                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4">Grátis</h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Para testar a potência da IA.</p>
+                          
+                          <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                              <span className="text-sm font-bold mr-1">R$</span>
+                              <span className="text-6xl font-black tracking-tighter">0</span>
+                              <span className="text-xl font-bold">,00</span>
+                              <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
+                          </div>
+                          
+                          <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>25 Currículos / mês</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>3 Vagas</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Exportação em PDF</span>
+                              </div>
+                          </div>
+                          <button disabled className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto">
+                              Criar Conta Grátis
+                          </button>
+                      </div>
+
+                      {/* Mensal */}
+                      <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
+                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Mensal <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Tração total para seu RH.</p>
+                          
+                          <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                              <span className="text-sm font-bold mr-1">R$</span>
+                              <span className="text-6xl font-black tracking-tighter">129</span>
+                              <span className="text-xl font-bold">,90</span>
+                              <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
+                          </div>
+                          
+                          <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>5 Vagas</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Análise Ilimitada de Currículos</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Ranking Automático</span>
+                              </div>
+                          </div>
+                          <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
+                              Assinar Mensal
+                          </a>
+                      </div>
+
+                      {/* Trimestral */}
+                      <div className="bg-[#0a0a0a] rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full">
+                          <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#84cc16] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
+                              <Star className="w-3 h-3 fill-black" /> Mais Popular
+                          </div>
+                          
+                          <h4 className="text-2xl font-black text-white mb-2 mt-4 flex items-center gap-2">Trimestral <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
+                          <p className="text-sm text-zinc-400 font-medium mb-6 min-h-[48px]">Total de R$ 359,70 cobrado trimestralmente.</p>
+                          
+                          <div className="text-white mb-8 flex items-baseline h-[60px]">
+                              <span className="text-sm font-bold mr-1">R$</span>
+                              <span className="text-6xl font-black tracking-tighter">119</span>
+                              <span className="text-xl font-bold">,90</span>
+                              <span className="text-xs font-bold text-zinc-500 ml-1">/MÊS</span>
+                          </div>
+                          
+                          <div className="space-y-4 mb-8 text-sm font-medium text-zinc-300 flex-1">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                                  <span>10 Vagas</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                                  <span>Análise Ilimitada de Currículos</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                                  <span>Ranking Automático</span>
+                              </div>
+                          </div>
+                          <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors mt-auto text-center block">
+                              Assinar Trimestral
+                          </a>
+                      </div>
+
+                      {/* Anual - Destaque */}
+                      <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-[#84cc16] h-full">
+                          <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-black text-[#84cc16] text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
+                              <Star className="w-3 h-3 fill-[#84cc16]" /> Melhor Valor
+                          </div>
+                          
+                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Anual <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Total de R$ 1.198,80 cobrado anualmente.</p>
+                          
+                          <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                              <span className="text-sm font-bold mr-1">R$</span>
+                              <span className="text-6xl font-black tracking-tighter">99</span>
+                              <span className="text-xl font-bold">,90</span>
+                              <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
+                          </div>
+                          
+                          <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Vagas Ilimitadas</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Análise Ilimitada de Currículos</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Atendimento Prioritário</span>
+                              </div>
+                          </div>
+                          <a href="https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
+                              Assinar Anual
+                          </a>
+                      </div>
+                  </div>
+              </div>
+          )}
       </div>
   );
 
@@ -1725,18 +1782,9 @@ const App: React.FC = () => {
       
       {/* SIDEBAR */}
       <aside className="w-20 lg:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 z-40">
-        <div className="h-24 flex items-center justify-center lg:justify-start lg:px-6 border-b border-slate-100">
-           <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-14 w-auto hidden lg:block" />
-            <div className="w-10 h-10 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#84cc16] font-black text-xl">E</div>
-            {/* Added plan badge back if user exists */}
-            {user && (
-                 <span className={`hidden lg:inline-flex ml-3 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
-                     user.plan === 'ANUAL' ? 'bg-black text-[#84cc16] border-black' :
-                     user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500 border-zinc-200' : 'bg-black text-white border-black'
-                 }`}>
-                     {user.plan}
-                 </span>
-            )}
+        <div className="py-6 flex flex-col items-center justify-center border-b border-slate-100 relative">
+           <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-14 w-auto hidden lg:block object-contain mb-2" />
+            <div className="w-10 h-10 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#84cc16] font-black text-xl shrink-0">E</div>
         </div>
         
         <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto custom-scrollbar">
@@ -1883,7 +1931,7 @@ const App: React.FC = () => {
                  
                  <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs flex items-center transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(132,204,22,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-4 h-4 mr-2 text-[#84cc16]"/> Upload</button>
                  
-                 {activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
+                 {user?.plan !== 'ENTERPRISE' && activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
                    <button onClick={runAnalysis} className="flex-none bg-[#84cc16] hover:bg-[#65a30d] text-white border-2 border-black px-5 py-3 rounded-xl font-black text-xs flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-4 h-4 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
                  )}
                  

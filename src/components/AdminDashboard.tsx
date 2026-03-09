@@ -35,11 +35,17 @@ export const AdminDashboard: React.FC = () => {
   const [isEditingSalesperson, setIsEditingSalesperson] = useState(false);
   const [tempSalesperson, setTempSalesperson] = useState(''); 
 
+  // States para Edição Enterprise
+  const [isEditingEnterprise, setIsEditingEnterprise] = useState(false);
+  const [tempInstancia, setTempInstancia] = useState('');
+  const [tempTelefoneAgente, setTempTelefoneAgente] = useState('');
+  const [tempStatusAutomacao, setTempStatusAutomacao] = useState(false);
+
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
   const [newAdImage, setNewAdImage] = useState<File | null>(null);
   const [newAdPreview, setNewAdPreview] = useState<string | null>(null);
-  const [newAdPlans, setNewAdPlans] = useState<PlanType[]>(['FREE', 'MENSAL', 'ANUAL']);
+  const [newAdPlans, setNewAdPlans] = useState<PlanType[]>(['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL', 'ENTERPRISE']);
   const [isPostingAd, setIsPostingAd] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -160,7 +166,7 @@ export const AdminDashboard: React.FC = () => {
       } else if (newPlan === 'TRIMESTRAL') {
           newJobLimit = 10;
           newResumeLimit = 450;
-      } else if (newPlan === 'ANUAL') {
+      } else if (newPlan === 'ANUAL' || newPlan === 'ENTERPRISE') {
           newJobLimit = 9999;
           newResumeLimit = 9999;
       }
@@ -214,6 +220,37 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
+  const handleUpdateEnterprise = async () => {
+      if (!selectedUser) return;
+      setActionLoading(true);
+      try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ 
+                instancia_evolution: tempInstancia,
+                telefone_agente: tempTelefoneAgente,
+                status_automacao: tempStatusAutomacao
+            })
+            .eq('id', selectedUser.id);
+
+          if (error) throw error;
+
+          const updatedUser = { 
+              ...selectedUser, 
+              instancia_evolution: tempInstancia,
+              telefone_agente: tempTelefoneAgente,
+              status_automacao: tempStatusAutomacao
+          };
+          setSelectedUser(updatedUser);
+          setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
+          setIsEditingEnterprise(false);
+      } catch (err: any) {
+          alert("Erro ao atualizar dados Enterprise: " + err.message);
+      } finally {
+          setActionLoading(false);
+      }
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
@@ -259,7 +296,7 @@ export const AdminDashboard: React.FC = () => {
           setNewAdTitle('');
           setNewAdImage(null);
           setNewAdPreview(null);
-          setNewAdPlans(['FREE', 'MENSAL', 'ANUAL']);
+          setNewAdPlans(['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL', 'ENTERPRISE']);
           fetchData();
       } catch (err: any) {
           alert("Erro ao postar anúncio: " + err.message);
@@ -295,6 +332,7 @@ export const AdminDashboard: React.FC = () => {
           MENSAL: { count: 0, price: 129.90, revenue: 0 },
           TRIMESTRAL: { count: 0, price: 359.70, revenue: 0 },
           ANUAL: { count: 0, price: 1198.80, revenue: 0 },
+          ENTERPRISE: { count: 0, price: 1250.00, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
           mrr: 0, // Monthly Recurring Revenue (Normalized)
@@ -313,12 +351,13 @@ export const AdminDashboard: React.FC = () => {
               if (u.plan === 'MENSAL') stats.mrr += stats.MENSAL.price;
               if (u.plan === 'TRIMESTRAL') stats.mrr += (stats.TRIMESTRAL.price / 3);
               if (u.plan === 'ANUAL') stats.mrr += (stats.ANUAL.price / 12);
+              if (u.plan === 'ENTERPRISE') stats.mrr += stats.ENTERPRISE.price;
           }
           stats.totalResumeUsage += (u.resume_usage || 0);
       });
 
-      stats.payingUsers = stats.MENSAL.count + stats.TRIMESTRAL.count + stats.ANUAL.count;
-      stats.totalRevenue = stats.MENSAL.revenue + stats.TRIMESTRAL.revenue + stats.ANUAL.revenue;
+      stats.payingUsers = stats.MENSAL.count + stats.TRIMESTRAL.count + stats.ANUAL.count + stats.ENTERPRISE.count;
+      stats.totalRevenue = stats.MENSAL.revenue + stats.TRIMESTRAL.revenue + stats.ANUAL.revenue + stats.ENTERPRISE.revenue;
 
       return stats;
   };
@@ -451,7 +490,7 @@ export const AdminDashboard: React.FC = () => {
                           {filteredUsers.map(user => (
                               <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-6"><div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div><div className="text-xs text-zinc-500">{user.email}</div></td>
-                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ANUAL' ? 'bg-[#CCF300] text-black' : user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
+                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'ANUAL' ? 'bg-[#CCF300] text-black' : user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{new Date(user.created_at).toLocaleDateString('pt-BR')}</span></td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}</span></td>
                                   <td className="p-6"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div></div><span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span></div></td>
@@ -495,8 +534,8 @@ export const AdminDashboard: React.FC = () => {
                           <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 block flex items-center gap-2">
                               <Filter className="w-3 h-3"/> Visibilidade por Plano
                           </label>
-                          <div className="flex gap-2">
-                              {(['FREE', 'MENSAL', 'ANUAL'] as PlanType[]).map(plan => (
+                          <div className="flex flex-wrap gap-2">
+                              {(['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL', 'ENTERPRISE'] as PlanType[]).map(plan => (
                                   <button
                                       key={plan}
                                       onClick={() => togglePlan(plan)}
@@ -842,6 +881,23 @@ export const AdminDashboard: React.FC = () => {
                                   <div className="bg-[#CCF300] h-full rounded-full" style={{ width: `${(stats.ANUAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
                               </div>
                           </div>
+
+                          {/* Enterprise */}
+                          <div>
+                              <div className="flex justify-between items-end mb-2">
+                                  <div>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Enterprise</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 1.250,00 / mês</span>
+                                  </div>
+                                  <div className="text-right">
+                                      <span className="text-lg font-black text-zinc-900">{stats.ENTERPRISE.count}</span>
+                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
+                                  </div>
+                              </div>
+                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
+                                  <div className="bg-purple-600 h-full rounded-full" style={{ width: `${(stats.ENTERPRISE.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                              </div>
+                          </div>
                       </div>
 
                       <div className="mt-8 pt-6 border-t border-zinc-100 flex justify-between items-center text-xs font-bold text-zinc-500">
@@ -1015,6 +1071,9 @@ export const AdminDashboard: React.FC = () => {
                                         <button onClick={() => handleUpdatePlan('ANUAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#CCF300] text-black border-[#CCF300] hover:bg-[#bce000]">
                                             <span>ANUAL</span> <span className="text-[10px] text-black/60 font-normal">Ilimitado</span>
                                         </button>
+                                        <button onClick={() => handleUpdatePlan('ENTERPRISE')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
+                                            <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + n8n</span>
+                                        </button>
                                     </div>
                                 </div>
                             ) : (
@@ -1031,6 +1090,96 @@ export const AdminDashboard: React.FC = () => {
                                 </div>
                             )}
                         </div>
+
+                        {selectedUser.plan === 'ENTERPRISE' && (
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 relative group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações Enterprise (n8n)</p>
+                                    <button 
+                                        onClick={() => {
+                                            if (isEditingEnterprise) {
+                                                setIsEditingEnterprise(false);
+                                            } else {
+                                                setTempInstancia(selectedUser.instancia_evolution || '');
+                                                setTempTelefoneAgente(selectedUser.telefone_agente || '');
+                                                setTempStatusAutomacao(selectedUser.status_automacao || false);
+                                                setIsEditingEnterprise(true);
+                                            }
+                                        }} 
+                                        className="text-slate-400 hover:text-slate-900 transition-colors bg-white p-1 rounded-md border border-slate-200" 
+                                        title="Editar Configurações"
+                                    >
+                                        {isEditingEnterprise ? <X className="w-4 h-4"/> : <Edit3 className="w-4 h-4" />}
+                                    </button>
+                                </div>
+
+                                {isEditingEnterprise ? (
+                                    <div className="space-y-3 animate-fade-in">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 block mb-1">Instância Evolution</label>
+                                                <input
+                                                    type="text"
+                                                    value={tempInstancia}
+                                                    onChange={(e) => setTempInstancia(e.target.value)}
+                                                    placeholder="Ex: cliente_xyz"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 block mb-1">Telefone do Agente</label>
+                                                <input
+                                                    type="text"
+                                                    value={tempTelefoneAgente}
+                                                    onChange={(e) => setTempTelefoneAgente(e.target.value)}
+                                                    placeholder="Ex: 5511999999999"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="statusAutomacao"
+                                                    checked={tempStatusAutomacao}
+                                                    onChange={(e) => setTempStatusAutomacao(e.target.checked)}
+                                                    className="w-4 h-4 text-black rounded border-slate-300 focus:ring-black"
+                                                />
+                                                <label htmlFor="statusAutomacao" className="text-sm font-bold text-slate-900 cursor-pointer">
+                                                    Ativar Automação (Bot)
+                                                </label>
+                                            </div>
+                                            <button
+                                                onClick={handleUpdateEnterprise}
+                                                disabled={actionLoading}
+                                                className="bg-black text-white px-4 py-2 rounded-lg hover:bg-slate-800 transition-colors font-bold text-sm flex justify-center items-center gap-2"
+                                            >
+                                                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4" />}
+                                                Salvar
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Instância</span>
+                                            <span className="text-sm font-bold text-slate-900">{selectedUser.instancia_evolution || <span className="text-slate-400 italic font-normal">Não configurada</span>}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Telefone</span>
+                                            <span className="text-sm font-bold text-slate-900">{selectedUser.telefone_agente || <span className="text-slate-400 italic font-normal">Não configurado</span>}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Status</span>
+                                            <span className={`text-xs font-bold px-2 py-1 rounded-md inline-block ${selectedUser.status_automacao ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                                                {selectedUser.status_automacao ? 'Ativo' : 'Inativo'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
