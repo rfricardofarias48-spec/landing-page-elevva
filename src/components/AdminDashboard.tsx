@@ -92,7 +92,11 @@ export const AdminDashboard: React.FC = () => {
             resume_usage: u.resume_usage || 0,
             last_active: u.updated_at || u.created_at, 
             subscription_status: u.subscription_status,
-            salesperson: u.salesperson // Mapeia o vendedor
+            current_period_end: u.current_period_end,
+            salesperson: u.salesperson, // Mapeia o vendedor
+            instancia_evolution: u.instancia_evolution,
+            telefone_agente: u.telefone_agente,
+            status_automacao: u.status_automacao
           };
       });
 
@@ -184,9 +188,15 @@ export const AdminDashboard: React.FC = () => {
 
           if (error) throw error;
 
-          const updatedUser = { ...selectedUser, plan: newPlan };
+          const updatedUser = { 
+              ...selectedUser, 
+              plan: newPlan,
+              job_limit: newJobLimit,
+              resume_limit: newResumeLimit,
+              subscription_status: 'active' as const
+          };
           setSelectedUser(updatedUser);
-          setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, plan: newPlan } : u));
+          setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
           setIsEditingPlan(false);
           alert(`✅ Sucesso! Plano alterado para ${newPlan}.`);
 
