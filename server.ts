@@ -26,33 +26,33 @@ app.get("/api/health", (req, res) => {
 // Tarefa 4: Rota GET (Listagem Dinâmica de Vagas)
 app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
   try {
-    // 1. Validar API Key
+    // 1. Validar API Key e Instância
     const authHeader = req.headers.authorization;
-    const expectedKey = process.env.ENTERPRISE_API_KEY;
-    
-    if (!expectedKey) {
-      return res.status(500).json({ error: "Server configuration error: ENTERPRISE_API_KEY is not set." });
-    }
-
-    if (!authHeader || authHeader !== `Bearer ${expectedKey}`) {
-      return res.status(401).json({ error: "Unauthorized: Invalid or missing API Key." });
-    }
-
-    // 2. Obter instância da query string
     const instancia = req.query.instancia as string;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Unauthorized: Missing or invalid Authorization header." });
+    }
+
+    const token = authHeader.split(' ')[1];
+
     if (!instancia) {
       return res.status(400).json({ error: "Missing 'instancia' query parameter." });
     }
 
-    // 3. Consultar o usuário dono da instância
+    // 2. Consultar o usuário dono da instância e validar o token
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("id, plan, status_automacao")
+      .select("id, plan, status_automacao, api_token")
       .eq("instancia_evolution", instancia)
       .single();
 
     if (userError || !user) {
       return res.status(403).json({ error: "Instância não encontrada ou usuário inválido." });
+    }
+
+    if (user.api_token !== token) {
+      return res.status(401).json({ error: "Unauthorized: Invalid API Key for this instance." });
     }
 
     if (user.plan !== "ENTERPRISE") {
@@ -63,7 +63,7 @@ app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
       return res.status(403).json({ error: "Acesso negado: Automação desativada para esta instância." });
     }
 
-    // 4. Buscar vagas ativas do usuário
+    // 3. Buscar vagas ativas do usuário
     const { data: vagas, error: vagasError } = await supabase
       .from("jobs")
       .select("id, title")
@@ -75,17 +75,14 @@ app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
       return res.status(500).json({ error: "Erro ao buscar vagas ativas." });
     }
 
-    // 5. Formatar a resposta
+    // 4. Formatar a resposta
     const vagasFormatadas = vagas.map((vaga, index) => ({
       opcao: index + 1,
       id_vaga: vaga.id,
       titulo: vaga.title
     }));
 
-    return res.status(200).json({
-      sucesso: true,
-      vagas: vagasFormatadas
-    });
+    return res.status(200).json(vagasFormatadas);
 
   } catch (error: any) {
     console.error("Webhook Error:", error);
@@ -237,4 +234,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
