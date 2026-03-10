@@ -1,9 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
-import { analyzeResume } from "./src/services/geminiService.ts";
+import { analyzeResume } from "./src/services/geminiService.js";
 
 dotenv.config();
 
@@ -220,6 +219,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

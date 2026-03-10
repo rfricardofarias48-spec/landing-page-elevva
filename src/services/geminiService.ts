@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { AnalysisResult } from "../types";
+import { AnalysisResult } from "../types.js";
 
 // Schema de resposta esperado
 const analysisSchema: Schema = {
