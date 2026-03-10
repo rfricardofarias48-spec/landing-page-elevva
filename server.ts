@@ -25,33 +25,41 @@ app.get("/api/health", (req, res) => {
 // Tarefa 4: Rota GET (Listagem Dinâmica de Vagas)
 app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
   try {
-    // 1. Validar API Key e Instância
-    const authHeader = req.headers.authorization;
-    const instancia = req.query.instancia as string;
+    // 1. Extração e Limpeza Segura
+    const token = req.headers.authorization || '';
+    const tokenLimpo = token.replace(/^Bearer\s+/i, '').trim();
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // 2. Limpeza da Instância
+    const instancia = req.query.instancia || '';
+    const instanciaLimpa = String(instancia).trim();
+
+    if (!tokenLimpo) {
       return res.status(401).json({ error: "Unauthorized: Missing or invalid Authorization header." });
     }
 
-    const token = authHeader.split(' ')[1];
-
-    if (!instancia) {
+    if (!instanciaLimpa) {
       return res.status(400).json({ error: "Missing 'instancia' query parameter." });
     }
 
-    // 2. Consultar o usuário dono da instância e validar o token
+    // 3. Logs de Raio-X
+    console.log('--- INICIANDO DEBUG WEBHOOK ---');
+    console.log('Instância Query:', instanciaLimpa);
+    console.log('Token Limpo:', tokenLimpo);
+
+    // 4. A Consulta
     const { data: user, error: userError } = await supabase
       .from("profiles")
       .select("id, plan, status_automacao, api_token")
-      .eq("instancia_evolution", instancia)
+      .eq('api_token', tokenLimpo)
+      .eq('instancia_evolution', instanciaLimpa)
       .single();
 
+    // 5. Log do Resultado
     if (userError || !user) {
+      console.log('--- ERRO SUPABASE ---');
+      console.log('Erro:', userError);
+      console.log('Usuário retornado:', user);
       return res.status(403).json({ error: "Instância não encontrada ou usuário inválido." });
-    }
-
-    if (user.api_token !== token) {
-      return res.status(401).json({ error: "Unauthorized: Invalid API Key for this instance." });
     }
 
     if (user.plan !== "ENTERPRISE") {
