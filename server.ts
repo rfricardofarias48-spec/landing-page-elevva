@@ -13,8 +13,8 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" })); // Increase limit for base64 PDFs
 
 // Initialize Supabase for backend
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiZnR0Z3RudG50dWlpbWJxemd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMTUwODksImV4cCI6MjA4NTg5MTA4OX0.H36Kv-PzK8Ab8FN5HzAWO5S_y8t-z8gExl5GsDBQchs';
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiZnR0Z3RudG50dWlpbWJxemd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMTUwODksImV4cCI6MjA4NTg5MTA4OX0.H36Kv-PzK8Ab8FN5HzAWO5S_y8t-z8gExl5GsDBQchs';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // API routes FIRST
@@ -59,7 +59,12 @@ app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
       console.log('--- ERRO SUPABASE ---');
       console.log('Erro:', userError);
       console.log('Usuário retornado:', user);
-      return res.status(403).json({ error: "Instância não encontrada ou usuário inválido." });
+      return res.status(403).json({ 
+        error: "Instância não encontrada ou usuário inválido.",
+        details: userError ? userError.message : "Nenhum usuário encontrado com esses dados.",
+        hint: userError ? userError.hint : null,
+        code: userError ? userError.code : null
+      });
     }
 
     if (user.plan !== "ENTERPRISE") {
