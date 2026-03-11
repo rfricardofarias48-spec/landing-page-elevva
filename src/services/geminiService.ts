@@ -86,7 +86,7 @@ export const analyzeResume = async (
 ): Promise<AnalysisResult> => {
   
   // 1. Verificação de Segurança (Runtime)
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY;
   
   if (!apiKey || apiKey.length < 10) {
       console.error("ERRO CRÍTICO: Chave de API não encontrada ou inválida.", { keyLength: apiKey?.length });
