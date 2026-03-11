@@ -156,7 +156,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
 
     const { data: jobData, error: jobError } = await supabaseAdmin
       .from("jobs")
-      .select("title, requirements, user_id")
+      .select("title, criteria, user_id")
       .eq("id", finalJobId)
       .single();
 
@@ -217,7 +217,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     // The prompt implies "IMEDIATAMENTE acionar a função interna... Atualizar o registro". Let's do it asynchronously to not block the webhook response, or synchronously if it's fast. Gemini might take a few seconds. Let's do it synchronously so the webhook gets the final status, or asynchronously and return 202 Accepted.
     // Let's do it synchronously for simplicity, as it's an API endpoint.
     
-    const analysisResult = await analyzeResume(base64Data, jobData.title, jobData.requirements || "");
+    const analysisResult = await analyzeResume(base64Data, jobData.title, jobData.criteria || "");
 
     let finalStatus = "REPROVADO";
     if (analysisResult.matchScore >= 7) finalStatus = "APROVADO";
