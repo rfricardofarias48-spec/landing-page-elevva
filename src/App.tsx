@@ -1976,7 +1976,7 @@ const App: React.FC = () => {
                ) : (
                  <>
                     {isDragging && (<div className="mb-6 p-8 border-4 border-dashed border-black bg-[#84cc16]/10 rounded-2xl flex items-center justify-center text-black font-black uppercase tracking-widest animate-pulse"><CloudUpload className="w-8 h-8 mr-4" /> Solte para adicionar</div>)}
-                    {[...activeJob.candidates].sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>(<AnalysisResultCard key={c.id} candidate={c} index={i} onToggleSelection={c.status===CandidateStatus.COMPLETED?handleToggleSelection:undefined} onDelete={handleDeleteCandidate}/>))}
+                    {[...activeJob.candidates].sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>(<AnalysisResultCard key={c.id} candidate={c} index={i} onToggleSelection={[CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) ? () => handleToggleSelection(c.id) : undefined} onDelete={() => handleDeleteCandidate(c.id)}/>))}
                  </>
                )}
             </div>

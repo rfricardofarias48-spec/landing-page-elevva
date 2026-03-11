@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
       // Isso permite acessar tanto via process.env.API_KEY quanto import.meta.env.VITE_API_KEY
       'process.env.GEMINI_API_KEY': JSON.stringify(apiKey),
       'process.env.API_KEY': JSON.stringify(apiKey),
+      'process.env.GOOGLE_API_KEY': JSON.stringify(apiKey),
       'import.meta.env.VITE_API_KEY': JSON.stringify(apiKey),
       
       // Definições do Supabase

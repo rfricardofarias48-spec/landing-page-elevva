@@ -128,7 +128,7 @@ export const analyzeResume = async (
   // Modelo principal: Gemini 3 Flash Preview (Rápido e Inteligente)
   const modelsToTry = [
     "gemini-3-flash-preview",
-    "gemini-2.0-flash-exp"
+    "gemini-2.5-flash"
   ];
 
   const safetySettings = [
