@@ -197,7 +197,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
           user_id: jobData.user_id, // Vinculando o dono da vaga ao candidato
           "Nome Completo": finalName,
           "WhatsApp com DDD": finalPhone,
-          file_name: fileName,
+          filename: fileName,
           file_path: filePath,
           status: "ANALISANDO",
           match_score: 0,
