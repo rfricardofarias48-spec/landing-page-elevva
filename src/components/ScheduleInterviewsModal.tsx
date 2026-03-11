@@ -106,9 +106,10 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
         status: 'AGUARDANDO_RESPOSTA',
       }));
 
-      const { error: insertError } = await supabase
+      const { data: insertedInterviews, error: insertError } = await supabase
         .from('interviews')
-        .insert(interviewsToInsert);
+        .insert(interviewsToInsert)
+        .select();
 
       if (insertError) throw insertError;
 
@@ -128,11 +129,15 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
               title: job.title,
               company: 'Empresa' // Você pode adicionar o nome da empresa se tiver no job
             },
-            candidates: selectedCandidates.map(c => ({
-              id: c.id,
-              name: c.result?.candidateName || c.fileName,
-              phone: c.whatsapp || c.result?.phoneNumbers?.[0] || ''
-            })),
+            candidates: selectedCandidates.map(c => {
+              const interview = insertedInterviews?.find(i => i.candidate_id === c.id);
+              return {
+                id: c.id,
+                interview_id: interview?.id,
+                name: c.result?.candidateName || c.fileName,
+                phone: c.whatsapp || c.result?.phoneNumbers?.[0] || ''
+              };
+            }),
             slots: insertedSlots
           })
         });

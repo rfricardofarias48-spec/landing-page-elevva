@@ -358,10 +358,26 @@ const App: React.FC = () => {
         }
 
         if (oldCandidates && oldCandidates.length > 0) {
-            console.log(`🧹 Iniciando limpeza de ${oldCandidates.length} currículos expirados (>10 dias)...`);
+            // 1.5 Verificar quais candidatos têm entrevistas agendadas
+            const { data: interviews } = await supabase
+                .from('interviews')
+                .select('candidate_id')
+                .in('candidate_id', oldCandidates.map(c => c.id));
+            
+            const candidatesWithInterviews = new Set(interviews?.map(i => i.candidate_id) || []);
+            
+            // Filtra apenas os candidatos que NÃO têm entrevistas
+            const candidatesToDelete = oldCandidates.filter(c => !candidatesWithInterviews.has(c.id));
+
+            if (candidatesToDelete.length === 0) {
+                console.log("✅ Limpeza de retenção: Nenhum currículo para apagar (os antigos possuem entrevistas).");
+                return;
+            }
+
+            console.log(`🧹 Iniciando limpeza de ${candidatesToDelete.length} currículos expirados (>10 dias)...`);
 
             // 2. Apagar Arquivos do Storage
-            const filesToRemove = oldCandidates.map(c => c.file_path).filter(Boolean);
+            const filesToRemove = candidatesToDelete.map(c => c.file_path).filter(Boolean);
             if (filesToRemove.length > 0) {
                 const { error: storageError } = await supabase.storage
                     .from('resumes')
@@ -371,7 +387,7 @@ const App: React.FC = () => {
             }
 
             // 3. Apagar Registros do Banco
-            const idsToRemove = oldCandidates.map(c => c.id);
+            const idsToRemove = candidatesToDelete.map(c => c.id);
             const { error: dbError } = await supabase
                 .from('candidates')
                 .delete()
@@ -686,7 +702,7 @@ const App: React.FC = () => {
       .select(`
         *,
         jobs!inner (title, user_id),
-        candidates (whatsapp, analysis_result),
+        candidates (analysis_result, "WhatsApp com DDD"),
         interview_slots (slot_date, slot_time, format, location)
       `)
       .eq('jobs.user_id', userId)
@@ -701,7 +717,7 @@ const App: React.FC = () => {
       ...i,
       job_title: i.jobs?.title,
       candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
-      candidate_phone: i.candidates?.whatsapp || i.candidates?.analysis_result?.phoneNumbers?.[0] || '',
+      candidate_phone: i.candidates?.['WhatsApp com DDD'] || i.candidates?.analysis_result?.phoneNumbers?.[0] || '',
       scheduled_date: i.interview_slots?.slot_date,
       scheduled_time: i.interview_slots?.slot_time,
       format: i.interview_slots?.format,
