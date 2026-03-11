@@ -195,12 +195,13 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
         {
           job_id: finalJobId,
           user_id: jobData.user_id, // Vinculando o dono da vaga ao candidato
-          name: finalName,
-          phone: finalPhone,
+          "Nome Completo": finalName,
+          "WhatsApp com DDD": finalPhone,
+          file_name: fileName,
           file_path: filePath,
           status: "ANALISANDO",
           match_score: 0,
-          ai_analysis: null,
+          analysis_result: null,
         },
       ])
       .select()
@@ -228,7 +229,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
       .update({
         status: finalStatus,
         match_score: analysisResult.matchScore,
-        ai_analysis: analysisResult,
+        analysis_result: analysisResult,
       })
       .eq("id", candidateData.id);
 
