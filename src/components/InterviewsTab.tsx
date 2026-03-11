@@ -1,6 +1,7 @@
-import React from 'react';
-import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { Interview } from '../types';
+import { supabase } from '../services/supabaseClient';
 
 interface Props {
   interviews: Interview[];
@@ -8,6 +9,9 @@ interface Props {
 }
 
 export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegration }) => {
+  const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
+  const [isCanceling, setIsCanceling] = useState(false);
+
   if (interviews.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
@@ -20,31 +24,93 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'PENDING': return <AlertCircle className="w-4 h-4 text-amber-500" />;
-      case 'SCHEDULED': return <Calendar className="w-4 h-4 text-blue-500" />;
-      case 'COMPLETED': return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
-      case 'CANCELED': return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'AGUARDANDO_RESPOSTA': return <AlertCircle className="w-4 h-4 text-amber-500" />;
+      case 'AGENDADA': return <Calendar className="w-4 h-4 text-blue-500" />;
+      case 'COMPLETED':
+      case 'REALIZADA': return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+      case 'CANCELADA': return <XCircle className="w-4 h-4 text-red-500" />;
       default: return <Clock className="w-4 h-4 text-slate-400" />;
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'PENDING': return 'Aguardando Candidato';
-      case 'SCHEDULED': return 'Agendada';
-      case 'COMPLETED': return 'Concluída';
-      case 'CANCELED': return 'Cancelada';
+      case 'AGUARDANDO_RESPOSTA': return 'Aguardando Candidato';
+      case 'AGENDADA': return 'Agendada';
+      case 'COMPLETED':
+      case 'REALIZADA': return 'Concluída';
+      case 'CANCELADA': return 'Cancelada';
       default: return status;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'PENDING': return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'SCHEDULED': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'COMPLETED': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'CANCELED': return 'bg-red-50 text-red-700 border-red-200';
+      case 'AGUARDANDO_RESPOSTA': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'AGENDADA': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'COMPLETED':
+      case 'REALIZADA': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'CANCELADA': return 'bg-red-50 text-red-700 border-red-200';
       default: return 'bg-slate-50 text-slate-700 border-slate-200';
+    }
+  };
+
+  const handleCancelInterview = async () => {
+    if (!interviewToCancel) return;
+    setIsCanceling(true);
+
+    try {
+      // 1. Update interview status
+      const { error: interviewError } = await supabase
+        .from('interviews')
+        .update({ status: 'CANCELADA' })
+        .eq('id', interviewToCancel.id);
+
+      if (interviewError) throw interviewError;
+
+      // 2. Update slot if exists
+      if (interviewToCancel.slot_id) {
+        const { error: slotError } = await supabase
+          .from('interview_slots')
+          .update({ is_booked: false })
+          .eq('id', interviewToCancel.slot_id);
+          
+        if (slotError) console.error("Erro ao liberar slot:", slotError);
+      }
+
+      // 3. Webhook n8n
+      const webhookUrl = import.meta.env.VITE_N8N_CANCEL_WEBHOOK;
+      if (webhookUrl) {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate: {
+              id: interviewToCancel.candidate_id,
+              name: interviewToCancel.candidate_name,
+              phone: interviewToCancel.candidate_phone
+            },
+            job: {
+              title: interviewToCancel.job_title
+            },
+            slot: {
+              date: interviewToCancel.scheduled_date,
+              time: interviewToCancel.scheduled_time,
+              format: interviewToCancel.format
+            }
+          })
+        }).catch(err => console.error("Erro ao notificar n8n:", err));
+      }
+
+      // Optimistic update - this will be overwritten by the realtime subscription soon
+      interviewToCancel.status = 'CANCELADA';
+      
+    } catch (error) {
+      console.error("Erro ao cancelar entrevista:", error);
+      alert("Ocorreu um erro ao cancelar a entrevista. Tente novamente.");
+    } finally {
+      setIsCanceling(false);
+      setInterviewToCancel(null);
     }
   };
 
@@ -82,6 +148,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
               <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
               <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data & Hora</th>
               <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Link</th>
+              <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -131,11 +198,62 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
                     <span className="text-slate-300">-</span>
                   )}
                 </td>
+                <td className="py-4 text-right">
+                  {(interview.status === 'AGENDADA' || interview.status === 'AGUARDANDO_RESPOSTA') && (
+                    <button
+                      onClick={() => setInterviewToCancel(interview)}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+                      title="Cancelar Entrevista"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* MODAL DE CANCELAMENTO */}
+      {interviewToCancel && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl relative animate-slide-up border border-slate-200">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-red-200">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Cancelar Entrevista?</h3>
+            <p className="text-slate-500 mb-8">
+              Tem certeza que deseja cancelar esta entrevista com <strong className="text-slate-700">{interviewToCancel.candidate_name}</strong>? O candidato será notificado via WhatsApp.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setInterviewToCancel(null)}
+                disabled={isCanceling}
+                className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors disabled:opacity-50"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={handleCancelInterview}
+                disabled={isCanceling}
+                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isCanceling ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Cancelando...
+                  </>
+                ) : (
+                  'Sim, cancelar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

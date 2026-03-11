@@ -686,7 +686,7 @@ const App: React.FC = () => {
       .select(`
         *,
         jobs!inner (title, user_id),
-        candidates (analysis_result),
+        candidates (whatsapp, analysis_result),
         interview_slots (slot_date, slot_time, format, location)
       `)
       .eq('jobs.user_id', userId)
@@ -701,6 +701,7 @@ const App: React.FC = () => {
       ...i,
       job_title: i.jobs?.title,
       candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
+      candidate_phone: i.candidates?.whatsapp || i.candidates?.analysis_result?.phoneNumbers?.[0] || '',
       scheduled_date: i.interview_slots?.slot_date,
       scheduled_time: i.interview_slots?.slot_time,
       format: i.interview_slots?.format,

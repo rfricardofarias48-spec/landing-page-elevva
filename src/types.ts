@@ -123,6 +123,7 @@ export interface Interview {
   created_at: string;
   // Relational data for UI
   candidate_name?: string;
+  candidate_phone?: string;
   job_title?: string;
   scheduled_date?: string;
   scheduled_time?: string;
