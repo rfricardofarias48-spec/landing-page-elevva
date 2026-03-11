@@ -117,11 +117,19 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     }
 
     // 2. Parse JSON Payload
-    const { id_vaga, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
+    // O n8n está enviando 'vaga_id' ao invés de 'id_vaga' de acordo com o print
+    const { vaga_id, id_vaga, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
+    
+    // Fallback para pegar o ID da vaga de qualquer um dos campos
+    const finalJobId = vaga_id || id_vaga;
 
-    if (!id_vaga || !telefone_candidato || !nome_candidato || !arquivo_base64 || !mimetype) {
-      return res.status(400).json({ error: "Missing required fields in payload." });
+    if (!finalJobId || !arquivo_base64 || !mimetype) {
+      return res.status(400).json({ error: "Missing required fields in payload (vaga_id/id_vaga, arquivo_base64, mimetype)." });
     }
+
+    // Fallbacks para nome e telefone caso o agente não envie
+    const finalName = nome_candidato || "Candidato via WhatsApp";
+    const finalPhone = telefone_candidato || "Não informado";
 
     // 4. Validation: Check mimetype and size
     if (mimetype !== "application/pdf") {
@@ -138,21 +146,37 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     }
 
     // Fetch Job Details to get title and criteria for Gemini
-    const { data: jobData, error: jobError } = await supabase
+    console.log('--- INICIANDO BUSCA DA VAGA ---');
+    console.log('ID da Vaga recebido no body:', finalJobId);
+
+    // Criando um client Supabase Admin (Service Role) para garantir bypass do RLS
+    const adminSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
+    const adminSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+    const supabaseAdmin = createClient(adminSupabaseUrl, adminSupabaseKey);
+
+    const { data: jobData, error: jobError } = await supabaseAdmin
       .from("jobs")
-      .select("title, requirements")
-      .eq("id", id_vaga)
+      .select("title, requirements, user_id")
+      .eq("id", finalJobId)
       .single();
 
     if (jobError || !jobData) {
-      return res.status(404).json({ error: "Job (id_vaga) not found." });
+      console.log('--- ERRO AO BUSCAR VAGA NO SUPABASE ---');
+      console.log('Erro retornado:', jobError);
+      console.log('Dados retornados:', jobData);
+      
+      return res.status(404).json({ 
+        error: "Vaga não encontrada",
+        received_id: finalJobId,
+        detalhes: jobError || "Nenhum registro retornado para este ID."
+      });
     }
 
     // 5. Flow: Upload to Supabase Storage
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
-    const filePath = `${id_vaga}/${fileName}`;
+    const filePath = `${finalJobId}/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseAdmin.storage
       .from("resumes")
       .upload(filePath, buffer, {
         contentType: "application/pdf",
@@ -165,13 +189,14 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     }
 
     // Insert Candidate Record with "ANALISANDO" status initially
-    const { data: candidateData, error: insertError } = await supabase
+    const { data: candidateData, error: insertError } = await supabaseAdmin
       .from("candidates")
       .insert([
         {
-          job_id: id_vaga,
-          name: nome_candidato,
-          phone: telefone_candidato,
+          job_id: finalJobId,
+          user_id: jobData.user_id, // Vinculando o dono da vaga ao candidato
+          name: finalName,
+          phone: finalPhone,
           file_path: filePath,
           status: "ANALISANDO",
           match_score: 0,
@@ -198,7 +223,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     if (analysisResult.matchScore >= 7) finalStatus = "APROVADO";
     else if (analysisResult.matchScore >= 4) finalStatus = "EM_ANALISE";
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from("candidates")
       .update({
         status: finalStatus,
