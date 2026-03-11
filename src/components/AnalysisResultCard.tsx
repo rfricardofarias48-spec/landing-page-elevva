@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Candidate, CandidateStatus } from '../types';
-import { CheckCircle2, XCircle, FileText, Loader2, MapPin, ThumbsUp, Trash2, Check, X, ChevronDown, ChevronUp, Briefcase, Phone, Quote, Building2, Clock, Eye, CloudUpload } from 'lucide-react';
+import { CheckCircle2, XCircle, FileText, Loader2, MapPin, ThumbsUp, Trash2, Check, X, ChevronDown, Briefcase, Phone, Quote, Building2, Clock, Eye, CloudUpload } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
@@ -63,7 +63,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
     setExpanded(!expanded);
   };
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = () => {
     setExpanded(!expanded);
   };
 

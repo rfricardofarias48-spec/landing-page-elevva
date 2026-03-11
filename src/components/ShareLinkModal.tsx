@@ -44,7 +44,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
         };
         migrateJob();
     }
-  }, [job]);
+  }, [job, onUpdateJob]);
 
   const handleCopy = async () => {
     try {

@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { CheckCircle2, ArrowLeft, FileText, Loader2, ShieldCheck, AlertTriangle, X, ArrowUp, CloudUpload, User, Phone, Send, Briefcase, Zap, Ban, Lock } from 'lucide-react';
+import { CheckCircle2, ArrowLeft, FileText, Loader2, ShieldCheck, AlertTriangle, X, ArrowUp, Send, Briefcase, Zap, Ban, Lock } from 'lucide-react';
 
 interface Props {
   jobTitle: string;

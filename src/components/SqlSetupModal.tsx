@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Database, X, ExternalLink, Clock, ToggleRight, Wrench, ShieldCheck, Unlock, Crown } from 'lucide-react';
+import { Copy, Database, X, ExternalLink, Clock, Wrench, ShieldCheck, Unlock, Crown } from 'lucide-react';
 
 interface Props {
   onClose: () => void;

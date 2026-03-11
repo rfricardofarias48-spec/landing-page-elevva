@@ -43,7 +43,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
             } else {
                 setSuccessMessage(result.message || 'Email enviado!');
             }
-        } catch (err) {
+        } catch {
             setError("Ocorreu um erro inesperado.");
         } finally {
             setIsLoading(false);
@@ -64,7 +64,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
         // Limpa campos sensíveis
         setPassword('');
       }
-    } catch (err) {
+    } catch {
       setError("Ocorreu um erro inesperado.");
     } finally {
       setIsLoading(false);
@@ -80,7 +80,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
       setTimeout(() => {
           setIsGoogleLoading(false);
       }, 8000); 
-    } catch (e) {
+    } catch {
       setIsGoogleLoading(false);
     }
   };

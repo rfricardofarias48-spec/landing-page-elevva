@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Job } from '../types';
-import { Briefcase, ChevronRight, Users, Trash2, Pin, Sparkles, Pencil, Share2, Check, X } from 'lucide-react';
+import { Briefcase, ChevronRight, Users, Trash2, Pin, Sparkles, Pencil, Check, X } from 'lucide-react';
 
 interface JobCardProps {
   job: Job;
@@ -9,11 +9,10 @@ interface JobCardProps {
   onDelete: (id: string) => void;
   onPin: (id: string) => void;
   onEdit: (job: Job) => void;
-  onShare: (job: Job) => void;
   isDeleting?: boolean;
 }
 
-export const JobCard: React.FC<JobCardProps> = ({ job, onClick, onDelete, onPin, onEdit, onShare, isDeleting = false }) => {
+export const JobCard: React.FC<JobCardProps> = ({ job, onClick, onDelete, onPin, onEdit, isDeleting = false }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleMouseLeave = () => {
@@ -28,11 +27,6 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick, onDelete, onPin,
   const handleEditClick = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
     onEdit(job);
-  };
-
-  const handleShareClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    onShare(job);
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
@@ -50,7 +44,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onClick, onDelete, onPin,
       setConfirmDelete(false);
   };
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = () => {
     if (isDeleting) return;
     onClick(job);
   };

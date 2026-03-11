@@ -35,6 +35,7 @@ export interface Candidate {
   status: CandidateStatus;
   result?: AnalysisResult;
   isSelected?: boolean; // Novo campo para controle de seleção
+  whatsapp?: string; // WhatsApp real do banco de dados
 }
 
 export interface Job {
@@ -86,6 +87,8 @@ export interface User {
   instancia_evolution?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
+  google_refresh_token?: string; // NOVO: Token do Google Calendar
+  has_calendar_integration?: boolean; // NOVO: Flag de integração
 }
 
 // Interface para o Dashboard do Admin
@@ -107,6 +110,24 @@ export interface AdminUserProfile {
   instancia_evolution?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
+  google_refresh_token?: string;
+  has_calendar_integration?: boolean;
+}
+
+export interface Interview {
+  id: string;
+  job_id: string;
+  candidate_id: string;
+  slot_id?: string;
+  status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA';
+  created_at: string;
+  // Relational data for UI
+  candidate_name?: string;
+  job_title?: string;
+  scheduled_date?: string;
+  scheduled_time?: string;
+  meeting_link?: string;
+  format?: string;
 }
 
 export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD';

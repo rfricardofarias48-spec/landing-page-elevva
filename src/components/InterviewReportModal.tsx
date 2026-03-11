@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Candidate } from '../types';
-import { X, Printer, Phone, MapPin, Briefcase, CheckCircle2, List, LayoutTemplate, Quote, AlertCircle, Building2, Clock, XCircle } from 'lucide-react';
+import { X, Printer, Phone, MapPin, Briefcase, CheckCircle2, List, LayoutTemplate, Quote, Building2, Clock, XCircle } from 'lucide-react';
 
 interface Props {
   jobTitle: string;

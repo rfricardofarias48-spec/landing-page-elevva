@@ -202,7 +202,7 @@ export const analyzeResume = async (
   };
 };
 
-export const analyzeText = async (resumeText: string): Promise<AnalysisResult> => {
+export const analyzeText = async (): Promise<AnalysisResult> => {
   return {
     candidateName: "Função Desativada",
     matchScore: 0,

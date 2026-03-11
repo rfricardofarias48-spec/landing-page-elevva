@@ -10,13 +10,15 @@ import { PublicUploadScreen } from './components/PublicUploadScreen';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
+import { ScheduleInterviewsModal } from './components/ScheduleInterviewsModal';
+import { InterviewsTab } from './components/InterviewsTab';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ArrowRight, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ArrowRight, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar
 } from 'lucide-react';
 
-type UserTab = 'OVERVIEW' | 'JOBS' | 'BILLING' | 'SETTINGS';
+type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
 const mapCandidateFromDB = (c: any): Candidate => ({
@@ -26,7 +28,8 @@ const mapCandidateFromDB = (c: any): Candidate => ({
   filePath: c.file_path,
   status: c.status as CandidateStatus,
   result: c.analysis_result,
-  isSelected: c.is_selected
+  isSelected: c.is_selected,
+  whatsapp: c['WhatsApp com DDD'] // Mapeia a coluna exata do banco
 });
 
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
@@ -69,9 +72,11 @@ const App: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [interviews, setInterviews] = useState<any[]>([]);
   
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   // const [showUpgradeModal, setShowUpgradeModal] = useState(false); // Removed
@@ -196,8 +201,24 @@ const App: React.FC = () => {
       )
       .subscribe();
 
+    const interviewChannel = supabase.channel(`interviews-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'interviews',
+        },
+        () => {
+          // Re-fetch interviews when any change happens
+          fetchInterviews(user.id);
+        }
+      )
+      .subscribe();
+
     return () => {
         supabase.removeChannel(profileChannel);
+        supabase.removeChannel(interviewChannel);
     }
   }, [user?.id]);
 
@@ -249,12 +270,13 @@ const App: React.FC = () => {
              
              // Se tiver sessão, busca o perfil.
              // IMPORTANTE: Passamos o created_at da sessão para garantir a verificação de conta nova
-             fetchUserProfile(session.user.id, session.user.email!, session.user.created_at);
+             fetchUserProfile(session.user.id, session.user.email!, session.user.created_at, session.provider_refresh_token);
         } else {
              // Se não tiver sessão (logout ou inicial), para o loading
              setLoading(false);
              setUser(null);
              setJobs([]);
+             setInterviews([]);
              setView('DASHBOARD');
              setIsOAuthUser(false);
         }
@@ -363,7 +385,7 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchUserProfile = async (userId: string, email: string, sessionCreatedAt?: string) => {
+  const fetchUserProfile = async (userId: string, email: string, sessionCreatedAt?: string, providerRefreshToken?: string) => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
@@ -375,6 +397,19 @@ const App: React.FC = () => {
           setLoading(false);
           alert("Acesso Negado: Sua conta foi suspensa temporariamente. Entre em contato com o suporte.");
           return; // Interrompe o carregamento
+      }
+
+      // --- ATUALIZAÇÃO DO TOKEN DO GOOGLE CALENDAR ---
+      if (providerRefreshToken) {
+          await supabase.from('profiles').update({
+              google_refresh_token: providerRefreshToken,
+              has_calendar_integration: true
+          }).eq('id', userId);
+          
+          if (data) {
+              data.google_refresh_token = providerRefreshToken;
+              data.has_calendar_integration = true;
+          }
       }
       // ---------------------------------------------
 
@@ -449,6 +484,7 @@ const App: React.FC = () => {
       // Inicia processos paralelos
       await Promise.all([
           fetchJobs(userId),
+          fetchInterviews(userId),
           fetchAnnouncements(),
           runDataRetentionCleanup() // Executa limpeza ao carregar
       ]);
@@ -623,7 +659,9 @@ const App: React.FC = () => {
         // Tenta usar a origem atual para redirecionamento
         // ATENÇÃO: Se estiver rodando em localhost:5173, certifique-se de que essa URL
         // está adicionada no painel do Supabase > Auth > Redirect URLs
-        redirectTo: window.location.origin 
+        redirectTo: window.location.origin,
+        scopes: 'https://www.googleapis.com/auth/calendar.events email profile',
+        queryParams: { access_type: 'offline', prompt: 'consent' }
       }
     });
 
@@ -641,6 +679,37 @@ const App: React.FC = () => {
   };
 
   // --- DATA FETCHING ---
+  const fetchInterviews = async (userId: string) => {
+    // We need to fetch interviews where the job belongs to the current user
+    const { data, error } = await supabase
+      .from('interviews')
+      .select(`
+        *,
+        jobs!inner (title, user_id),
+        candidates (analysis_result),
+        interview_slots (slot_date, slot_time, format, location)
+      `)
+      .eq('jobs.user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar entrevistas:", error);
+      return;
+    }
+
+    const formattedInterviews = data.map((i: any) => ({
+      ...i,
+      job_title: i.jobs?.title,
+      candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
+      scheduled_date: i.interview_slots?.slot_date,
+      scheduled_time: i.interview_slots?.slot_time,
+      format: i.interview_slots?.format,
+      meeting_link: i.interview_slots?.location
+    }));
+
+    setInterviews(formattedInterviews);
+  };
+
   const fetchJobs = async (userId: string) => {
     const { data, error } = await supabase
       .from('jobs')
@@ -1803,6 +1872,13 @@ const App: React.FC = () => {
                 <span className="hidden lg:block font-bold text-sm">Minhas Vagas</span>
             </button>
             <button 
+                onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); }}
+                className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'ENTREVISTAS' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
+            >
+                <Calendar className="w-6 h-6 lg:mr-3" />
+                <span className="hidden lg:block font-bold text-sm">Entrevistas</span>
+            </button>
+            <button 
                 onClick={() => { setCurrentTab('BILLING'); setView('DASHBOARD'); }}
                 className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'BILLING' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
             >
@@ -1844,6 +1920,7 @@ const App: React.FC = () => {
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
+               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} hasCalendarIntegration={user?.has_calendar_integration} />}
                {currentTab === 'JOBS' && (
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
@@ -1926,23 +2003,26 @@ const App: React.FC = () => {
                  <input type="file" multiple accept="application/pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
                  
                  {activeJob.candidates.some(c=>c.isSelected) && (
-                   <button onClick={()=>setShowReport(true)} className="flex-none bg-white border-2 border-black text-black px-4 py-3 rounded-xl font-black text-xs flex items-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all whitespace-nowrap"><FileCheck className="w-4 h-4 mr-2"/> Relatório</button>
+                   <>
+                     <button onClick={()=>setShowInterviewModal(true)} className="flex-none justify-center bg-[#CCF300] hover:bg-[#b8db00] text-black px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(204,243,0,0.4)] hover:shadow-[0_6px_20px_rgba(204,243,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Clock className="w-5 h-5"/> Agendar Entrevistas</button>
+                     <button onClick={()=>setShowReport(true)} className="flex-none justify-center bg-white hover:bg-slate-50 text-slate-900 px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap border border-slate-200"><FileCheck className="w-5 h-5"/> Relatório</button>
+                   </>
                  )}
                  
-                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none bg-black hover:bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-xs flex items-center transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(132,204,22,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black whitespace-nowrap"><Upload className="w-4 h-4 mr-2 text-[#84cc16]"/> Upload</button>
+                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none justify-center bg-slate-900 hover:bg-black text-white px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(0,0,0,0.4)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Upload className="w-5 h-5 text-[#84cc16]"/> Upload</button>
                  
                  {user?.plan !== 'ENTERPRISE' && activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
-                   <button onClick={runAnalysis} className="flex-none bg-[#84cc16] hover:bg-[#65a30d] text-white border-2 border-black px-5 py-3 rounded-xl font-black text-xs flex flex-row items-center gap-2 whitespace-nowrap animate-pulse shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all"><Play className="w-4 h-4 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
+                   <button onClick={runAnalysis} className="flex-none justify-center bg-[#84cc16] hover:bg-[#65a30d] text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap animate-pulse"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
                  )}
                  
                  {activeJob.candidates.length > 0 && (
                     !confirmClearAll ? (
-                       <button onClick={() => setConfirmClearAll(true)} className="flex-none bg-white text-slate-400 hover:text-red-500 px-3 py-3 rounded-xl hover:bg-red-50 transition-colors border-2 border-slate-300 hover:border-red-500 shadow-sm group relative" title="Limpar todos os currículos"><Trash2 className="w-4 h-4"/></button>
+                       <button onClick={() => setConfirmClearAll(true)} className="flex-none justify-center bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 px-4 py-3 rounded-2xl flex items-center shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(239,68,68,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all border border-slate-200 hover:border-red-200 group relative" title="Limpar todos os currículos"><Trash2 className="w-5 h-5"/></button>
                     ) : (
-                       <div className="flex-none flex items-center gap-2 bg-red-50 p-1 rounded-xl border-2 border-red-100 animate-fade-in shadow-lg h-[48px]">
-                           <span className="text-[9px] font-black text-red-500 px-2 uppercase hidden md:inline">Apagar Tudo?</span>
-                           <button onClick={handleClearAllCandidates} className="w-8 h-full flex items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors shadow-md active:scale-95 border border-red-700" title="Confirmar exclusão de TODOS"><CheckCircle2 className="w-4 h-4" /></button>
-                           <button onClick={() => setConfirmClearAll(false)} className="w-8 h-full flex items-center justify-center rounded-lg bg-white border-2 border-slate-200 text-slate-400 hover:text-slate-600 transition-colors active:scale-95" title="Cancelar"><X className="w-4 h-4" /></button>
+                       <div className="flex-none flex items-center gap-2 bg-red-50 p-1.5 rounded-2xl border border-red-100 animate-fade-in shadow-lg h-[48px]">
+                           <span className="text-[10px] font-bold text-red-500 px-2 uppercase hidden md:inline">Apagar Tudo?</span>
+                           <button onClick={handleClearAllCandidates} className="w-9 h-full flex items-center justify-center rounded-xl bg-red-600 text-white hover:bg-red-500 transition-colors shadow-md active:scale-95 border border-red-700" title="Confirmar exclusão de TODOS"><CheckCircle2 className="w-4 h-4" /></button>
+                           <button onClick={() => setConfirmClearAll(false)} className="w-9 h-full flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-600 transition-colors active:scale-95" title="Cancelar"><X className="w-4 h-4" /></button>
                        </div>
                     )
                  )}
@@ -1984,6 +2064,22 @@ const App: React.FC = () => {
         )}
 
       </main>
+
+      {/* SCHEDULE INTERVIEWS MODAL */}
+      {showInterviewModal && activeJob && user && (
+        <ScheduleInterviewsModal
+          job={activeJob}
+          user_id={user.id}
+          has_calendar_integration={user.has_calendar_integration}
+          onClose={() => setShowInterviewModal(false)}
+          onSuccess={() => {
+            setShowInterviewModal(false);
+            fetchInterviews(user.id);
+            setCurrentTab('ENTREVISTAS');
+            setView('DASHBOARD');
+          }}
+        />
+      )}
 
       {/* CREATE JOB MODAL */}
       {showCreateModal && (
