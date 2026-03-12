@@ -20,6 +20,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
   const [days, setDays] = useState<DaySlot[]>([{ date: '', times: [''] }]);
   const [interviewFormat, setInterviewFormat] = useState<'ONLINE' | 'PRESENCIAL'>('ONLINE');
   const [address, setAddress] = useState('');
+  const [interviewerName, setInterviewerName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -85,6 +86,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
             job_id: job.id,
             format: interviewFormat,
             location: interviewFormat === 'PRESENCIAL' ? address.trim() : null,
+            interviewer_name: interviewerName.trim() || null,
             slot_date: day.date,
             slot_time: time,
             is_booked: false
@@ -176,6 +178,21 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
           
           {/* Formato da Entrevista */}
           <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200">
+            <div className="mb-6">
+              <label className="block text-xs font-black text-slate-900 uppercase tracking-widest mb-2">
+                Nome do Entrevistador
+              </label>
+              <input
+                type="text"
+                value={interviewerName}
+                onChange={(e) => setInterviewerName(e.target.value)}
+                placeholder="Ex: João Silva"
+                className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:border-black focus:ring-0 transition-colors"
+                required
+              />
+              <p className="text-[10px] text-slate-500 mt-1 font-bold">O candidato será informado de quem irá entrevistá-lo.</p>
+            </div>
+
             <label className="block text-xs font-black text-slate-900 uppercase tracking-widest mb-3">
               Formato da Entrevista
             </label>

@@ -702,8 +702,8 @@ const App: React.FC = () => {
       .select(`
         *,
         jobs!inner (title, user_id),
-        candidates (analysis_result, "WhatsApp com DDD"),
-        interview_slots (slot_date, slot_time, format, location)
+        candidates (analysis_result, "WhatsApp com DDD", file_path),
+        interview_slots (slot_date, slot_time, format, location, interviewer_name)
       `)
       .eq('jobs.user_id', userId)
       .order('created_at', { ascending: false });
@@ -718,10 +718,12 @@ const App: React.FC = () => {
       job_title: i.jobs?.title,
       candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
       candidate_phone: i.candidates?.['WhatsApp com DDD'] || i.candidates?.analysis_result?.phoneNumbers?.[0] || '',
+      candidate_file_path: i.candidates?.file_path,
       scheduled_date: i.interview_slots?.slot_date,
       scheduled_time: i.interview_slots?.slot_time,
       format: i.interview_slots?.format,
-      meeting_link: i.interview_slots?.location
+      meeting_link: i.interview_slots?.location,
+      interviewer_name: i.interview_slots?.interviewer_name
     }));
 
     setInterviews(formattedInterviews);

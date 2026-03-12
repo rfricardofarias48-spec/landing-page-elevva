@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.interview_slots (
     job_id UUID REFERENCES public.jobs(id) ON DELETE CASCADE,
     format TEXT NOT NULL CHECK (format IN ('ONLINE', 'PRESENCIAL')),
     location TEXT,
+    interviewer_name TEXT,
     slot_date DATE NOT NULL,
     slot_time TIME NOT NULL,
     is_booked BOOLEAN DEFAULT false,

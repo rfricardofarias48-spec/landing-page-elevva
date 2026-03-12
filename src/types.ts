@@ -119,16 +119,19 @@ export interface Interview {
   job_id: string;
   candidate_id: string;
   slot_id?: string;
-  status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA';
+  status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'CONFIRMADA' | 'REMARCADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA';
+  lembrete_enviado?: boolean;
   created_at: string;
   // Relational data for UI
   candidate_name?: string;
   candidate_phone?: string;
+  candidate_file_path?: string;
   job_title?: string;
   scheduled_date?: string;
   scheduled_time?: string;
   meeting_link?: string;
   format?: string;
+  interviewer_name?: string;
 }
 
 export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD';
