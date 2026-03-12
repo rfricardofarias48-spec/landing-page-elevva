@@ -388,6 +388,20 @@ const App: React.FC = () => {
 
             // 3. Apagar Registros do Banco
             const idsToRemove = candidatesToDelete.map(c => c.id);
+            
+            // Find if these candidates have any interviews with booked slots
+            const { data: interviewsData } = await supabase
+                .from('interviews')
+                .select('slot_id')
+                .in('candidate_id', idsToRemove)
+                .not('slot_id', 'is', null);
+                
+            if (interviewsData && interviewsData.length > 0) {
+                const slotIds = interviewsData.map(i => i.slot_id);
+                // Delete the slots completely to prevent orphaned slots
+                await supabase.from('interview_slots').delete().in('id', slotIds);
+            }
+            
             const { error: dbError } = await supabase
                 .from('candidates')
                 .delete()
@@ -884,6 +898,9 @@ const App: React.FC = () => {
   };
 
   const handleDeleteJob = async (id: string) => {
+      // Delete interview slots associated with this job first to prevent orphaned slots
+      await supabase.from('interview_slots').delete().eq('job_id', id);
+      
       await supabase.from('jobs').delete().eq('id', id);
       setJobs(prev => prev.filter(j => j.id !== id));
   };
@@ -1266,6 +1283,19 @@ const App: React.FC = () => {
       
       // Se for um item de erro, apenas remove da tela (não chama API, pois ID não existe no DB)
       if (!isErrorItem) {
+          // Find if this candidate has any interviews with booked slots
+          const { data: interviewsData } = await supabase
+              .from('interviews')
+              .select('slot_id')
+              .eq('candidate_id', id)
+              .not('slot_id', 'is', null);
+              
+          if (interviewsData && interviewsData.length > 0) {
+              const slotIds = interviewsData.map(i => i.slot_id);
+              // Delete the slots completely to prevent orphaned slots
+              await supabase.from('interview_slots').delete().in('id', slotIds);
+          }
+          
           await supabase.from('candidates').delete().eq('id', id);
       }
       
@@ -1278,6 +1308,20 @@ const App: React.FC = () => {
 
   const handleClearAllCandidates = async () => {
       if (!activeJob) return;
+      
+      // Find all interviews for this job
+      const { data: interviewsData } = await supabase
+          .from('interviews')
+          .select('slot_id')
+          .eq('job_id', activeJob.id)
+          .not('slot_id', 'is', null);
+          
+      if (interviewsData && interviewsData.length > 0) {
+          const slotIds = interviewsData.map(i => i.slot_id);
+          // Delete the slots completely to prevent orphaned slots
+          await supabase.from('interview_slots').delete().in('id', slotIds);
+      }
+      
       await supabase.from('candidates').delete().eq('job_id', activeJob.id);
       setActiveJob({ ...activeJob, candidates: [] });
       setJobs(prev => prev.map(j => j.id === activeJob.id ? { ...j, candidates: [] } : j));

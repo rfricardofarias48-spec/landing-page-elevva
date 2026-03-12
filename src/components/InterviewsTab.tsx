@@ -103,23 +103,23 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
     setIsCanceling(true);
 
     try {
-      // 1. Update interview status
-      const { error: interviewError } = await supabase
-        .from('interviews')
-        .update({ status: 'CANCELADA' })
-        .eq('id', interviewToCancel.id);
-
-      if (interviewError) throw interviewError;
-
-      // 2. Update slot if exists
+      // 1. Delete the interview slot if it exists (this will free up the slot or remove it)
       if (interviewToCancel.slot_id) {
         const { error: slotError } = await supabase
           .from('interview_slots')
-          .update({ is_booked: false })
+          .delete()
           .eq('id', interviewToCancel.slot_id);
           
-        if (slotError) console.error("Erro ao liberar slot:", slotError);
+        if (slotError) console.error("Erro ao deletar slot:", slotError);
       }
+
+      // 2. Delete the interview record
+      const { error: interviewError } = await supabase
+        .from('interviews')
+        .delete()
+        .eq('id', interviewToCancel.id);
+
+      if (interviewError) throw interviewError;
 
       // 3. Webhook n8n
       const webhookUrl = import.meta.env.VITE_N8N_CANCEL_WEBHOOK;
@@ -147,7 +147,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
       }
 
       // Optimistic update - this will be overwritten by the realtime subscription soon
-      interviewToCancel.status = 'CANCELADA';
+      // We don't need to update status, we just let the realtime subscription remove it
       
     } catch (error) {
       console.error("Erro ao cancelar entrevista:", error);
