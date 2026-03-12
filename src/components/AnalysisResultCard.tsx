@@ -241,8 +241,8 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
                {result.workHistory && result.workHistory.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-slate-100"><h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Briefcase className="w-3 h-3" /> Experiências Recentes</h5><div className="space-y-2">{result.workHistory.map((work, idx) => (<div key={idx} className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl border border-slate-100"><div className="flex items-center gap-2"><Building2 className="w-3.5 h-3.5 text-slate-400" /><span className="font-bold text-slate-900">{work.company}</span><span className="text-slate-300">•</span><span className="text-slate-500 font-bold">{work.role}</span></div><div className="flex items-center gap-1.5 text-slate-500 font-bold bg-white px-2 py-0.5 rounded border border-slate-200"><Clock className="w-3 h-3" />{work.duration}</div></div>))}</div></div>
                )}
-              {result.phoneNumbers && result.phoneNumbers.length > 0 && (
-                <div className="mt-6 pt-4 border-t-2 border-slate-100 flex items-center gap-3"><h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Phone className="w-3 h-3" /> Contatos:</h5><div className="flex flex-wrap gap-2">{result.phoneNumbers.map((phone, idx) => (<span key={idx} className="text-[11px] font-bold bg-slate-50 text-slate-900 px-2 py-1 rounded border border-slate-200">{phone}</span>))}</div></div>
+              {candidate.whatsapp && (
+                <div className="mt-6 pt-4 border-t-2 border-slate-100 flex items-center gap-3"><h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Phone className="w-3 h-3" /> WhatsApp:</h5><div className="flex flex-wrap gap-2"><span className="text-[11px] font-bold bg-slate-50 text-slate-900 px-2 py-1 rounded border border-slate-200">{candidate.whatsapp}</span></div></div>
               )}
           </div>
         )}

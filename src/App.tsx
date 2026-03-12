@@ -717,7 +717,7 @@ const App: React.FC = () => {
       ...i,
       job_title: i.jobs?.title,
       candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
-      candidate_phone: i.candidates?.['WhatsApp com DDD'] || i.candidates?.analysis_result?.phoneNumbers?.[0] || '',
+      candidate_phone: i.candidates?.['WhatsApp com DDD'] || '',
       candidate_file_path: i.candidates?.file_path,
       scheduled_date: i.interview_slots?.slot_date,
       scheduled_time: i.interview_slots?.slot_time,
@@ -1108,7 +1108,8 @@ const App: React.FC = () => {
                           .update({ 
                               status: 'COMPLETED',
                               analysis_result: result,
-                              match_score: result.matchScore 
+                              match_score: result.matchScore,
+                              "WhatsApp com DDD": insertedCandidate['WhatsApp com DDD'] || result.phoneNumbers?.[0] || null
                           })
                           .eq('id', insertedCandidate.id);
                           
@@ -1169,7 +1170,8 @@ const App: React.FC = () => {
                 .update({ 
                     status: 'COMPLETED',
                     analysis_result: result,
-                    match_score: result.matchScore 
+                    match_score: result.matchScore,
+                    "WhatsApp com DDD": candidate.whatsapp || result.phoneNumbers?.[0] || null
                 })
                 .eq('id', candidate.id);
             
@@ -1185,7 +1187,7 @@ const App: React.FC = () => {
                     ...prev,
                     candidates: prev.candidates.map(c => 
                         c.id === candidate.id 
-                        ? { ...c, status: CandidateStatus.COMPLETED, result: result } 
+                        ? { ...c, status: CandidateStatus.COMPLETED, result: result, whatsapp: c.whatsapp || result.phoneNumbers?.[0] || undefined } 
                         : c
                     )
                 };

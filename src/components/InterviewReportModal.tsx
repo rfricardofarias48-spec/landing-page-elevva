@@ -83,7 +83,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                     </td>
                     <td class="py-2 px-4 align-middle">
                         <div class="text-xs font-mono font-bold text-slate-600 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded inline-block">
-                            ${c.result?.phoneNumbers[0] || '--'}
+                            ${c.whatsapp || '--'}
                         </div>
                     </td>
                     <td class="py-2 px-4 align-middle text-right">
@@ -276,14 +276,14 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                         <!-- 5. CONTATOS -->
                         <div class="mt-auto pt-3 border-t border-slate-100 flex items-center gap-2 shrink-0">
                              <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                ${Icons.Phone} Contatos:
+                                ${Icons.Phone} WhatsApp:
                              </h5>
                              <div class="flex flex-wrap gap-1.5">
-                                ${c.result?.phoneNumbers.map(phone => `
+                                ${c.whatsapp ? `
                                     <span class="text-[10px] font-bold bg-slate-50 text-slate-900 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
-                                      ${phone}
+                                      ${c.whatsapp}
                                     </span>
-                                `).join('')}
+                                ` : ''}
                              </div>
                         </div>
 
@@ -459,7 +459,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                           </td>
                           <td className="p-6 align-middle">
                              <div className="text-sm font-mono font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2 py-1 rounded inline-block">
-                                {c.result?.phoneNumbers[0] || '--'}
+                                {c.whatsapp || '--'}
                              </div>
                           </td>
                           <td className="p-6 align-middle text-right">
@@ -593,14 +593,14 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                         {/* 5. CONTATOS */}
                         <div className="mt-auto pt-4 border-t border-slate-100 flex items-center gap-3">
                             <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                <Phone className="w-3 h-3" /> Contatos:
+                                <Phone className="w-3 h-3" /> WhatsApp:
                             </h5>
                             <div className="flex flex-wrap gap-2">
-                                {c.result?.phoneNumbers.map((phone, i) => (
-                                    <span key={i} className="text-[11px] font-bold bg-slate-50 text-slate-900 px-2 py-1 rounded border border-slate-200 font-mono">
-                                    {phone}
+                                {c.whatsapp && (
+                                    <span className="text-[11px] font-bold bg-slate-50 text-slate-900 px-2 py-1 rounded border border-slate-200 font-mono">
+                                    {c.whatsapp}
                                     </span>
-                                ))}
+                                )}
                             </div>
                         </div>
 

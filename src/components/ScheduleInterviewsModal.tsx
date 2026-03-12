@@ -137,7 +137,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
                 id: c.id,
                 interview_id: interview?.id,
                 name: c.result?.candidateName || c.fileName,
-                phone: c.whatsapp || c.result?.phoneNumbers?.[0] || ''
+                phone: c.whatsapp || ''
               };
             }),
             slots: insertedSlots
