@@ -1298,6 +1298,31 @@ const App: React.FC = () => {
       }
   };
 
+  const handleToggleSelectAll = async () => {
+      if (!activeJob) return;
+      
+      const selectableCandidates = activeJob.candidates.filter(c => 
+          [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)
+      );
+      
+      if (selectableCandidates.length === 0) return;
+
+      const allSelected = selectableCandidates.every(c => c.isSelected);
+      const newSelectedState = !allSelected;
+
+      // Update DB
+      const idsToUpdate = selectableCandidates.map(c => c.id);
+      await supabase.from('candidates').update({ is_selected: newSelectedState }).in('id', idsToUpdate);
+
+      // Update Local State
+      setActiveJob({
+          ...activeJob,
+          candidates: activeJob.candidates.map(c => 
+              idsToUpdate.includes(c.id) ? { ...c, isSelected: newSelectedState } : c
+          )
+      });
+  };
+
   // --- RENDERING HELPERS ---
 
   const renderOverview = () => {
@@ -2023,6 +2048,20 @@ const App: React.FC = () => {
                <div className="relative z-10 flex gap-2 mt-3 md:mt-0 w-full md:w-auto justify-start md:justify-end md:ml-auto items-center overflow-x-auto md:overflow-visible pb-2 md:pb-0 custom-scrollbar md:custom-scrollbar-none">
                  <input type="file" multiple accept="application/pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
                  
+                 {activeJob.candidates.length > 0 && (
+                   <button 
+                     onClick={handleToggleSelectAll} 
+                     disabled={activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).length === 0}
+                     className={`flex-none justify-center px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap border ${
+                       activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).length === 0
+                       ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70'
+                       : 'bg-white hover:bg-slate-50 text-slate-900 shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 active:translate-y-0 border-slate-200'
+                     }`}
+                   >
+                     <CheckCircle2 className="w-5 h-5"/> {activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).length > 0 && activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).every(c => c.isSelected) ? 'Desmarcar Todos' : 'Marcar Todos'}
+                   </button>
+                 )}
+
                  {activeJob.candidates.some(c=>c.isSelected) && (
                    <>
                      <button onClick={()=>setShowInterviewModal(true)} className="flex-none justify-center bg-[#CCF300] hover:bg-[#b8db00] text-black px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(204,243,0,0.4)] hover:shadow-[0_6px_20px_rgba(204,243,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Clock className="w-5 h-5"/> Agendar Entrevistas</button>
