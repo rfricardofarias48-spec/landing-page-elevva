@@ -118,7 +118,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
 
     // 2. Parse JSON Payload
     // O n8n está enviando 'vaga_id' ao invés de 'id_vaga' de acordo com o print
-    const { vaga_id, id_vaga, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
+    const { vaga_id, id_vaga, telefone, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
     
     // Fallback para pegar o ID da vaga de qualquer um dos campos
     const finalJobId = vaga_id || id_vaga;
@@ -129,7 +129,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
 
     // Fallbacks para nome e telefone caso o agente não envie
     const finalName = nome_candidato || "Candidato via WhatsApp";
-    const finalPhone = telefone_candidato || "Não informado";
+    const finalPhone = telefone || telefone_candidato || "Não informado";
 
     // 4. Validation: Check mimetype and size
     if (mimetype !== "application/pdf") {
@@ -188,28 +188,68 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
       return res.status(500).json({ error: "Failed to upload file to storage." });
     }
 
-    // Insert Candidate Record with "ANALISANDO" status initially
-    const { data: candidateData, error: insertError } = await supabaseAdmin
-      .from("candidates")
-      .insert([
-        {
-          job_id: finalJobId,
-          user_id: jobData.user_id, // Vinculando o dono da vaga ao candidato
-          "Nome Completo": finalName,
-          "WhatsApp com DDD": finalPhone,
+    // [NOVO PASSO] Verificar se o candidato já existe pelo telefone e vaga
+    let candidateData;
+
+    if (finalPhone !== "Não informado") {
+      const { data: existingCandidate, error: searchError } = await supabaseAdmin
+        .from("candidates")
+        .select("*")
+        .eq("job_id", finalJobId)
+        .eq("WhatsApp com DDD", finalPhone)
+        .maybeSingle();
+
+      if (!searchError && existingCandidate) {
+        candidateData = existingCandidate;
+      }
+    }
+
+    if (candidateData) {
+      // UPDATE: Candidato já existe (criado pelo bot)
+      const { data: updatedCandidate, error: updateError } = await supabaseAdmin
+        .from("candidates")
+        .update({
+          "Nome Completo": finalName !== "Candidato via WhatsApp" ? finalName : candidateData["Nome Completo"],
           filename: fileName,
           file_path: filePath,
           status: "ANALISANDO",
           match_score: 0,
           analysis_result: null,
-        },
-      ])
-      .select()
-      .single();
+        })
+        .eq("id", candidateData.id)
+        .select()
+        .single();
 
-    if (insertError || !candidateData) {
-      console.error("Database Insert Error:", insertError);
-      return res.status(500).json({ error: "Failed to insert candidate record." });
+      if (updateError || !updatedCandidate) {
+        console.error("Database Update Error (Existing Candidate):", updateError);
+        return res.status(500).json({ error: "Failed to update existing candidate record." });
+      }
+      candidateData = updatedCandidate;
+    } else {
+      // INSERT: Candidato não existe
+      const { data: newCandidate, error: insertError } = await supabaseAdmin
+        .from("candidates")
+        .insert([
+          {
+            job_id: finalJobId,
+            user_id: jobData.user_id, // Vinculando o dono da vaga ao candidato
+            "Nome Completo": finalName,
+            "WhatsApp com DDD": finalPhone,
+            filename: fileName,
+            file_path: filePath,
+            status: "ANALISANDO",
+            match_score: 0,
+            analysis_result: null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertError || !newCandidate) {
+        console.error("Database Insert Error:", insertError);
+        return res.status(500).json({ error: "Failed to insert candidate record." });
+      }
+      candidateData = newCandidate;
     }
 
     // Immediately trigger Gemini Analysis

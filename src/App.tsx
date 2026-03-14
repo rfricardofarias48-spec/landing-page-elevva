@@ -216,9 +216,25 @@ const App: React.FC = () => {
       )
       .subscribe();
 
+    const interviewSlotsChannel = supabase.channel(`interview_slots-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'interview_slots',
+        },
+        () => {
+          // Re-fetch interviews when any slot change happens
+          fetchInterviews(user.id);
+        }
+      )
+      .subscribe();
+
     return () => {
         supabase.removeChannel(profileChannel);
         supabase.removeChannel(interviewChannel);
+        supabase.removeChannel(interviewSlotsChannel);
     }
   }, [user?.id]);
 
@@ -897,7 +913,43 @@ const App: React.FC = () => {
       setIsEditing(false);
   };
 
+  const notifyN8nInterviewCanceled = async (interviewsToCancel: any[]) => {
+    const webhookUrl = import.meta.env.VITE_N8N_CANCEL_WEBHOOK;
+    if (!webhookUrl || !interviewsToCancel || interviewsToCancel.length === 0) return;
+
+    for (const interview of interviewsToCancel) {
+      try {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate: {
+              id: interview.candidate_id,
+              name: interview.candidate_name,
+              phone: interview.candidate_phone
+            },
+            job: {
+              title: interview.job_title
+            },
+            slot: {
+              date: interview.scheduled_date,
+              time: interview.scheduled_time,
+              format: interview.format,
+              interviewer_name: interview.interviewer_name
+            }
+          })
+        });
+      } catch (err) {
+        console.error("Erro ao notificar n8n sobre cancelamento:", err);
+      }
+    }
+  };
+
   const handleDeleteJob = async (id: string) => {
+      // Notificar n8n sobre entrevistas canceladas
+      const interviewsToCancel = interviews.filter(i => i.job_id === id);
+      await notifyN8nInterviewCanceled(interviewsToCancel);
+
       // Delete interview slots associated with this job first to prevent orphaned slots
       await supabase.from('interview_slots').delete().eq('job_id', id);
       
@@ -1283,6 +1335,10 @@ const App: React.FC = () => {
       
       // Se for um item de erro, apenas remove da tela (não chama API, pois ID não existe no DB)
       if (!isErrorItem) {
+          // Notificar n8n sobre entrevistas canceladas
+          const interviewsToCancel = interviews.filter(i => i.candidate_id === id);
+          await notifyN8nInterviewCanceled(interviewsToCancel);
+
           // Find if this candidate has any interviews with booked slots
           const { data: interviewsData } = await supabase
               .from('interviews')
@@ -1309,6 +1365,10 @@ const App: React.FC = () => {
   const handleClearAllCandidates = async () => {
       if (!activeJob) return;
       
+      // Notificar n8n sobre entrevistas canceladas
+      const interviewsToCancel = interviews.filter(i => i.job_id === activeJob.id);
+      await notifyN8nInterviewCanceled(interviewsToCancel);
+
       // Find all interviews for this job
       const { data: interviewsData } = await supabase
           .from('interviews')

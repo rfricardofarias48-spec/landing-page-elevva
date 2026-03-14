@@ -11,4 +11,5 @@ BEGIN;
 
   -- Adiciona a tabela à publicação (ignora se já estiver adicionada)
   ALTER PUBLICATION supabase_realtime ADD TABLE public.interviews;
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.interview_slots;
 COMMIT;
