@@ -117,6 +117,9 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     }
 
     // 2. Parse JSON Payload
+    console.log('--- PAYLOAD RECEBIDO DO N8N ---');
+    console.log(JSON.stringify(req.body, null, 2));
+    
     // O n8n está enviando 'vaga_id' ao invés de 'id_vaga' de acordo com o print
     const { vaga_id, id_vaga, telefone, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
     
@@ -128,8 +131,12 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     }
 
     // Fallbacks para nome e telefone caso o agente não envie
+    // Tenta pegar de várias chaves possíveis para garantir
+    const rawPhone = telefone || telefone_candidato || req.body.phone || req.body.Phone || req.body.Telefone;
     const finalName = nome_candidato || "Candidato via WhatsApp";
-    const finalPhone = telefone || telefone_candidato || "Não informado";
+    const finalPhone = rawPhone ? String(rawPhone).trim() : "Não informado";
+    
+    console.log('Telefone extraído:', finalPhone);
 
     // 4. Validation: Check mimetype and size
     if (mimetype !== "application/pdf") {
@@ -201,6 +208,22 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
 
       if (!searchError && existingCandidate) {
         candidateData = existingCandidate;
+      }
+    } else {
+      // Fallback: Se o n8n não enviou o telefone (veio vazio), tenta encontrar a linha vazia que o bot criou
+      console.log("Telefone não recebido do n8n. Tentando encontrar candidato recém-criado pelo bot (sem currículo)...");
+      const { data: recentCandidate, error: recentError } = await supabaseAdmin
+        .from("candidates")
+        .select("*")
+        .eq("job_id", finalJobId)
+        .is("filename", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+        
+      if (!recentError && recentCandidate) {
+        candidateData = recentCandidate;
+        console.log("Candidato encontrado por fallback (linha vazia do bot):", candidateData.id);
       }
     }
 
