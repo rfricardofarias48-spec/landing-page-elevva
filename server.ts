@@ -147,8 +147,9 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
 
     // [NOVO] SUPER FALLBACK PARA DESCUBRIR A VAGA PELO TELEFONE
     // Se o webhook não recebeu a vaga, mas temos o telefone, vamos procurar a linha que o bot criou
-    if (!cleanJobId && finalPhone !== "Não informado") {
-        console.log("job_id não recebido ou inválido. Tentando descobrir a vaga pelo telefone do candidato...");
+    // MESMO QUE O N8N ENVIE UMA VAGA, VAMOS PRIORIZAR A VAGA QUE O BOT REGISTROU PARA EVITAR DUPLICIDADE
+    if (finalPhone !== "Não informado") {
+        console.log("Buscando a vaga real que o bot registrou para este telefone...");
         
         const { data: pendingCandidate } = await supabaseAdmin
             .from("candidates")
@@ -160,8 +161,11 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
             .maybeSingle();
 
         if (pendingCandidate && pendingCandidate.job_id) {
+            if (cleanJobId && cleanJobId !== pendingCandidate.job_id) {
+                console.log(`ALERTA: O n8n enviou a vaga ${cleanJobId}, mas o bot registrou o candidato na vaga ${pendingCandidate.job_id}. Corrigindo para a vaga do bot para evitar duplicidade!`);
+            }
             cleanJobId = pendingCandidate.job_id;
-            console.log("Vaga descoberta com sucesso pelo telefone:", cleanJobId);
+            console.log("Vaga definida com sucesso pelo telefone:", cleanJobId);
         }
     }
 
