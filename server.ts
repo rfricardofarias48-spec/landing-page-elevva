@@ -124,11 +124,13 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     const { job_id, vaga_id, id_vaga, telefone, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
     
     // Fallback para pegar o ID da vaga de qualquer um dos campos (priorizando job_id)
-    const finalJobId = job_id || vaga_id || id_vaga;
+    const rawJobId = job_id || vaga_id || id_vaga;
 
-    if (!finalJobId || !arquivo_base64 || !mimetype) {
+    if (!rawJobId || !arquivo_base64 || !mimetype) {
       return res.status(400).json({ error: "Missing required fields in payload (job_id, arquivo_base64, mimetype)." });
     }
+
+    const cleanJobId = String(rawJobId).trim();
 
     // Fallbacks para nome e telefone caso o agente não envie
     // Tenta pegar de várias chaves possíveis para garantir
@@ -154,18 +156,42 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
 
     // Fetch Job Details to get title and criteria for Gemini
     console.log('--- INICIANDO BUSCA DA VAGA ---');
-    console.log('ID da Vaga recebido no body:', finalJobId);
+    console.log('Identificador da Vaga recebido no body:', cleanJobId);
 
     // Criando um client Supabase Admin (Service Role) para garantir bypass do RLS
     const adminSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
     const adminSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
     const supabaseAdmin = createClient(adminSupabaseUrl, adminSupabaseKey);
 
-    const { data: jobData, error: jobError } = await supabaseAdmin
-      .from("jobs")
-      .select("title, criteria, user_id")
-      .eq("id", finalJobId)
-      .single();
+    // [NOVO PASSO] Busca inteligente da vaga (por ID ou por Título)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanJobId);
+    
+    let jobData = null;
+    let jobError = null;
+
+    if (isUUID) {
+      // Busca por ID
+      const { data, error } = await supabaseAdmin
+        .from("jobs")
+        .select("id, title, criteria, user_id")
+        .eq("id", cleanJobId)
+        .single();
+      jobData = data;
+      jobError = error;
+    } else {
+      // Busca por Título (caso o n8n envie o nome da vaga por engano)
+      console.log('Identificador não é um UUID válido. Buscando vaga pelo título...');
+      const { data, error } = await supabaseAdmin
+        .from("jobs")
+        .select("id, title, criteria, user_id")
+        .ilike("title", cleanJobId)
+        .eq("is_paused", false) // Prioriza vagas abertas
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      jobData = data;
+      jobError = error;
+    }
 
     if (jobError || !jobData) {
       console.log('--- ERRO AO BUSCAR VAGA NO SUPABASE ---');
@@ -174,10 +200,13 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
       
       return res.status(404).json({ 
         error: "Vaga não encontrada",
-        received_id: finalJobId,
-        detalhes: jobError || "Nenhum registro retornado para este ID."
+        received_id: cleanJobId,
+        detalhes: jobError || "Nenhum registro retornado para este ID ou Título."
       });
     }
+
+    // Atualiza o finalJobId para o ID real encontrado no banco (útil se a busca foi por título)
+    const finalJobId = jobData.id;
 
     // 5. Flow: Upload to Supabase Storage
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.pdf`;
