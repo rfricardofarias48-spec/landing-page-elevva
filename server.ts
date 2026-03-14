@@ -125,12 +125,12 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     
     // Fallback para pegar o ID da vaga de qualquer um dos campos (priorizando job_id)
     const rawJobId = job_id || vaga_id || id_vaga;
+    let cleanJobId = rawJobId ? String(rawJobId).trim() : "";
 
-    if (!rawJobId || !arquivo_base64 || !mimetype) {
-      return res.status(400).json({ error: "Missing required fields in payload (job_id, arquivo_base64, mimetype)." });
+    // Se o n8n não conseguiu resolver a variável, ela chega como a própria string da variável
+    if (cleanJobId === "{{ $json.job_id }}" || cleanJobId === "undefined" || cleanJobId === "null") {
+        cleanJobId = "";
     }
-
-    const cleanJobId = String(rawJobId).trim();
 
     // Fallbacks para nome e telefone caso o agente não envie
     // Tenta pegar de várias chaves possíveis para garantir
@@ -139,6 +139,35 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     const finalPhone = rawPhone ? String(rawPhone).trim() : "Não informado";
     
     console.log('Telefone extraído:', finalPhone);
+
+    // Criando um client Supabase Admin (Service Role) para garantir bypass do RLS
+    const adminSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
+    const adminSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+    const supabaseAdmin = createClient(adminSupabaseUrl, adminSupabaseKey);
+
+    // [NOVO] SUPER FALLBACK PARA DESCUBRIR A VAGA PELO TELEFONE
+    // Se o webhook não recebeu a vaga, mas temos o telefone, vamos procurar a linha que o bot criou
+    if (!cleanJobId && finalPhone !== "Não informado") {
+        console.log("job_id não recebido ou inválido. Tentando descobrir a vaga pelo telefone do candidato...");
+        
+        const { data: pendingCandidate } = await supabaseAdmin
+            .from("candidates")
+            .select("job_id")
+            .eq("WhatsApp com DDD", finalPhone)
+            .is("filename", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (pendingCandidate && pendingCandidate.job_id) {
+            cleanJobId = pendingCandidate.job_id;
+            console.log("Vaga descoberta com sucesso pelo telefone:", cleanJobId);
+        }
+    }
+
+    if (!cleanJobId || !arquivo_base64 || !mimetype) {
+      return res.status(400).json({ error: "Missing required fields in payload (job_id, arquivo_base64, mimetype)." });
+    }
 
     // 4. Validation: Check mimetype and size
     if (mimetype !== "application/pdf") {
@@ -157,11 +186,6 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     // Fetch Job Details to get title and criteria for Gemini
     console.log('--- INICIANDO BUSCA DA VAGA ---');
     console.log('Identificador da Vaga recebido no body:', cleanJobId);
-
-    // Criando um client Supabase Admin (Service Role) para garantir bypass do RLS
-    const adminSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
-    const adminSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
-    const supabaseAdmin = createClient(adminSupabaseUrl, adminSupabaseKey);
 
     // [NOVO PASSO] Busca inteligente da vaga (por ID ou por Título)
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanJobId);
@@ -316,12 +340,18 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     if (analysisResult.matchScore >= 7) finalStatus = "APROVADO";
     else if (analysisResult.matchScore >= 4) finalStatus = "EM_ANALISE";
 
+    // Atualiza o nome se a IA encontrou um nome válido no currículo
+    const newName = analysisResult.candidateName && analysisResult.candidateName !== "Não identificado" 
+      ? analysisResult.candidateName 
+      : candidateData["Nome Completo"];
+
     const { error: updateError } = await supabaseAdmin
       .from("candidates")
       .update({
         status: finalStatus,
         match_score: analysisResult.matchScore,
         analysis_result: analysisResult,
+        "Nome Completo": newName,
       })
       .eq("id", candidateData.id);
 
