@@ -120,14 +120,14 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     console.log('--- PAYLOAD RECEBIDO DO N8N ---');
     console.log(JSON.stringify(req.body, null, 2));
     
-    // O n8n está enviando 'vaga_id' ao invés de 'id_vaga' de acordo com o print
-    const { vaga_id, id_vaga, telefone, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
+    // Agora aceitamos 'job_id' para facilitar o JSON no n8n (mantendo os antigos como fallback)
+    const { job_id, vaga_id, id_vaga, telefone, telefone_candidato, nome_candidato, arquivo_base64, mimetype } = req.body;
     
-    // Fallback para pegar o ID da vaga de qualquer um dos campos
-    const finalJobId = vaga_id || id_vaga;
+    // Fallback para pegar o ID da vaga de qualquer um dos campos (priorizando job_id)
+    const finalJobId = job_id || vaga_id || id_vaga;
 
     if (!finalJobId || !arquivo_base64 || !mimetype) {
-      return res.status(400).json({ error: "Missing required fields in payload (vaga_id/id_vaga, arquivo_base64, mimetype)." });
+      return res.status(400).json({ error: "Missing required fields in payload (job_id, arquivo_base64, mimetype)." });
     }
 
     // Fallbacks para nome e telefone caso o agente não envie
