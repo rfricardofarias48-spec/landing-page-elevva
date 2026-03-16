@@ -1352,18 +1352,9 @@ const App: React.FC = () => {
                   await supabase.from('interview_slots').delete().in('id', slotIds);
               }
               
-              // Check if we should delete unbooked slots for this job
+              // Sempre deletar os horários não agendados (livres) dessa vaga
               const jobId = interviewsData[0].job_id;
-              const { data: pendingInterviews } = await supabase
-                  .from('interviews')
-                  .select('id')
-                  .eq('job_id', jobId)
-                  .eq('status', 'AGUARDANDO_RESPOSTA')
-                  .neq('candidate_id', id);
-                  
-              if (!pendingInterviews || pendingInterviews.length === 0) {
-                  await supabase.from('interview_slots').delete().eq('job_id', jobId).eq('is_booked', false);
-              }
+              await supabase.from('interview_slots').delete().eq('job_id', jobId).eq('is_booked', false);
           }
           
           await supabase.from('candidates').delete().eq('id', id);
