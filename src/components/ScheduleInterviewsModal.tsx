@@ -106,6 +106,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
         job_id: job.id,
         candidate_id: candidate.id,
         status: 'AGUARDANDO_RESPOSTA',
+        interviewer_name: interviewerName.trim() || null,
       }));
 
       const { data: insertedInterviews, error: insertError } = await supabase
