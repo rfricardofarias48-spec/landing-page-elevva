@@ -121,6 +121,22 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
 
       if (interviewError) throw interviewError;
 
+      // 2.5 Cleanup unbooked slots if no more interviews are waiting for this job
+      const { data: pendingInterviews, error: pendingError } = await supabase
+        .from('interviews')
+        .select('id')
+        .eq('job_id', interviewToCancel.job_id)
+        .eq('status', 'AGUARDANDO_RESPOSTA');
+        
+      if (!pendingError && (!pendingInterviews || pendingInterviews.length === 0)) {
+        // No more candidates waiting to book slots for this job, delete unbooked slots
+        await supabase
+          .from('interview_slots')
+          .delete()
+          .eq('job_id', interviewToCancel.job_id)
+          .eq('is_booked', false);
+      }
+
       // 3. Webhook n8n
       const webhookUrl = import.meta.env.VITE_N8N_CANCEL_WEBHOOK;
       if (webhookUrl) {

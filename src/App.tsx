@@ -1339,17 +1339,31 @@ const App: React.FC = () => {
           const interviewsToCancel = interviews.filter(i => i.candidate_id === id);
           await notifyN8nInterviewCanceled(interviewsToCancel);
 
-          // Find if this candidate has any interviews with booked slots
+          // Find if this candidate has any interviews
           const { data: interviewsData } = await supabase
               .from('interviews')
-              .select('slot_id')
-              .eq('candidate_id', id)
-              .not('slot_id', 'is', null);
+              .select('slot_id, job_id')
+              .eq('candidate_id', id);
               
           if (interviewsData && interviewsData.length > 0) {
-              const slotIds = interviewsData.map(i => i.slot_id);
-              // Delete the slots completely to prevent orphaned slots
-              await supabase.from('interview_slots').delete().in('id', slotIds);
+              const slotIds = interviewsData.map(i => i.slot_id).filter(Boolean);
+              if (slotIds.length > 0) {
+                  // Delete the booked slots completely to prevent orphaned slots
+                  await supabase.from('interview_slots').delete().in('id', slotIds);
+              }
+              
+              // Check if we should delete unbooked slots for this job
+              const jobId = interviewsData[0].job_id;
+              const { data: pendingInterviews } = await supabase
+                  .from('interviews')
+                  .select('id')
+                  .eq('job_id', jobId)
+                  .eq('status', 'AGUARDANDO_RESPOSTA')
+                  .neq('candidate_id', id);
+                  
+              if (!pendingInterviews || pendingInterviews.length === 0) {
+                  await supabase.from('interview_slots').delete().eq('job_id', jobId).eq('is_booked', false);
+              }
           }
           
           await supabase.from('candidates').delete().eq('id', id);
@@ -1369,18 +1383,8 @@ const App: React.FC = () => {
       const interviewsToCancel = interviews.filter(i => i.job_id === activeJob.id);
       await notifyN8nInterviewCanceled(interviewsToCancel);
 
-      // Find all interviews for this job
-      const { data: interviewsData } = await supabase
-          .from('interviews')
-          .select('slot_id')
-          .eq('job_id', activeJob.id)
-          .not('slot_id', 'is', null);
-          
-      if (interviewsData && interviewsData.length > 0) {
-          const slotIds = interviewsData.map(i => i.slot_id);
-          // Delete the slots completely to prevent orphaned slots
-          await supabase.from('interview_slots').delete().in('id', slotIds);
-      }
+      // Delete ALL interview slots for this job since we are clearing all candidates
+      await supabase.from('interview_slots').delete().eq('job_id', activeJob.id);
       
       await supabase.from('candidates').delete().eq('job_id', activeJob.id);
       setActiveJob({ ...activeJob, candidates: [] });
