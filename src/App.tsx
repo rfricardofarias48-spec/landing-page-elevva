@@ -73,6 +73,7 @@ const App: React.FC = () => {
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [interviews, setInterviews] = useState<any[]>([]);
+  const [initialSelectedInterview, setInitialSelectedInterview] = useState<any | null>(null);
   
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1411,6 +1412,13 @@ const App: React.FC = () => {
   const handleToggleSelection = async (id: string) => {
       if (!activeJob) return;
       const candidate = activeJob.candidates.find(c => c.id === id);
+      
+      // Prevent selecting if candidate has an active interview
+      const hasActiveInterview = interviews.some(int => int.candidate_id === id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status));
+      if (hasActiveInterview && !candidate?.isSelected) {
+          return; // Don't allow selecting, but allow deselecting if somehow selected
+      }
+
       if (candidate) {
           const newSelected = !candidate.isSelected;
           await supabase.from('candidates').update({ is_selected: newSelected }).eq('id', id);
@@ -1426,7 +1434,8 @@ const App: React.FC = () => {
       if (!activeJob) return;
       
       const selectableCandidates = activeJob.candidates.filter(c => 
-          [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)
+          [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) &&
+          !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
       );
       
       if (selectableCandidates.length === 0) return;
@@ -1458,6 +1467,9 @@ const App: React.FC = () => {
           return ad.targetPlans.includes(userPlan);
       });
 
+      const totalResumesAnalyzed = user?.resume_usage || 0;
+      const hoursSaved = Math.round((totalResumesAnalyzed * 10) / 60);
+
       return (
       <div className="space-y-8 animate-fade-in max-w-6xl mx-auto font-sans pt-2">
           
@@ -1482,61 +1494,86 @@ const App: React.FC = () => {
                       }`}>
                           {user?.plan || 'FREE'}
                       </div>
-                      <div className="text-slate-400 font-bold text-[10px] tracking-tight flex items-baseline gap-1">
-                          <span className="text-slate-900 font-black text-sm">{user?.resume_usage}</span> 
-                          <span className="text-slate-300 font-light">/</span> 
-                          <span className="text-slate-500 font-bold">{user?.resume_limit >= 9999 ? 'Ilimitado' : `${user?.resume_limit} Análises`}</span>
-                      </div>
                   </div>
               </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* VAGAS ATIVAS */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all">
-                  <div className="relative z-10">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">VAGAS ATIVAS</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-6xl font-black text-slate-900">{jobs.length}</span>
-                        <span className="text-xl font-black text-slate-300">/ {user?.job_limit >= 9999 ? '∞' : user?.job_limit}</span>
+          {/* RESUMO DE IMPACTO */}
+          <div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                  {/* VAGAS ATIVAS */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
+                      <div className="relative z-10">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">VAGAS ATIVAS</p>
+                          <div className="flex items-baseline gap-1 mb-4">
+                              <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{jobs.length}</span>
+                              <span className="text-lg font-bold text-slate-300">/ {user?.job_limit >= 9999 ? '∞' : user?.job_limit}</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-[#0f172a] h-full rounded-full" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
+                          </div>
                       </div>
-                      <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
-                          <div className="bg-slate-900 h-full rounded-full" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
-                      </div>
+                      <Briefcase className="absolute -right-6 -bottom-6 w-32 h-32 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
                   </div>
-                  <Briefcase className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-110 transition-transform duration-500" />
-              </div>
 
-              {/* CURRÍCULOS */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all">
-                  <div className="relative z-10">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CURRÍCULOS ANALISADOS</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-6xl font-black text-slate-900">{user?.resume_usage}</span>
-                        <span className="text-xl font-black text-slate-300">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
+                  {/* CURRÍCULOS ANALISADOS */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
+                      <div className="relative z-10">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">CURRÍCULOS ANALISADOS</p>
+                          <div className="flex items-baseline gap-1 mb-4">
+                              <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{totalResumesAnalyzed}</span>
+                              <span className="text-lg font-bold text-slate-300">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
+                              <div className="bg-[#84cc16] h-full rounded-full" style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
+                          </div>
+                          <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1.5">
+                              <Clock className="w-3 h-3" /> Retenção automática de 10 dias
+                          </p>
                       </div>
-                      <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
-                          <div className={`bg-[#84cc16] h-full rounded-full`} style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
-                      </div>
-                      <p className="text-[9px] font-bold text-slate-400 mt-3 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Retenção automática de 10 dias
-                      </p>
+                      <FileText className="absolute -right-6 -bottom-6 w-32 h-32 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
                   </div>
-                  <FileText className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-110 transition-transform duration-500" />
-              </div>
 
-              {/* PLANO ATUAL */}
-              <div className="bg-[#0a0a0a] p-8 rounded-3xl relative overflow-hidden flex flex-col justify-between shadow-2xl">
-                   <div className="relative z-10">
-                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">PLANO ATUAL</p>
-                      <h3 className="text-5xl font-black text-white mb-2">{user?.plan}</h3>
-                      <p className="text-zinc-400 text-xs font-medium">Faça upgrade para liberar recursos.</p>
-                   </div>
-                   <button onClick={() => setCurrentTab('BILLING')} className="mt-6 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition-transform active:scale-95 border-2 border-black">
-                       Ver Planos
-                   </button>
-                   <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-800 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
+                  {/* PLANO ATUAL */}
+                  <div className="bg-[#0a0a0a] p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between shadow-2xl">
+                       <div className="relative z-10">
+                          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
+                          <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{user?.plan || 'FREE'}</h3>
+                          <p className="text-zinc-400 text-xs font-medium">Faça upgrade para liberar recursos.</p>
+                       </div>
+                       <button onClick={() => setCurrentTab('BILLING')} className="mt-6 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition-transform active:scale-95">
+                           VER PLANOS
+                       </button>
+                  </div>
               </div>
+          </div>
+
+          {/* SEU AGENTE EM AÇÃO */}
+          <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+              <div className="relative z-10 flex-1">
+                  <div className="flex items-center gap-2 mb-3">
+                      <div className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                      </div>
+                      <span className="text-xs font-black text-emerald-600 uppercase tracking-widest">Online e operando</span>
+                  </div>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight mb-2">Seu Agente em Ação</h3>
+                  <p className="text-slate-500 font-medium text-sm md:text-base">O Bento está atendendo candidatos no WhatsApp neste momento.</p>
+              </div>
+              
+              <div className="relative z-10 w-full md:w-auto shrink-0">
+                  <a 
+                      href="https://app.chatwoot.com" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-white px-6 py-4 rounded-2xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                      <span className="text-lg">💬</span> Acompanhar Conversas ao Vivo
+                  </a>
+              </div>
+              
+              <div className="absolute right-0 bottom-0 w-64 h-64 bg-emerald-50 rounded-full blur-[80px] opacity-50 -mr-20 -mb-20 pointer-events-none"></div>
           </div>
 
           {/* ANÚNCIOS (NOVOS) - FILTRADOS POR PLANO */}
@@ -1573,26 +1610,24 @@ const App: React.FC = () => {
                   </div>
               </div>
           )}
-          
-          <div>
-              <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tight">Atividade Recente</h3>
-              <div className="space-y-4">
-                  {jobs.length > 0 ? jobs.slice(0, 3).map(j => (
-                      <div key={j.id} onClick={() => { setActiveJob(j); setView('JOB_DETAILS'); setCurrentTab('JOBS'); }} className="bg-white p-6 rounded-3xl border border-slate-100 hover:border-slate-200 transition-all cursor-pointer flex justify-between items-center group shadow-[0px_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.06)] hover:-translate-y-0.5">
-                          <div>
-                              <h4 className="font-black text-slate-900 text-lg group-hover:text-black transition-colors">{j.title}</h4>
-                              <p className="text-xs text-slate-400 font-bold mt-1">{j.candidates.length} currículos • Criada em {new Date(j.createdAt).toLocaleDateString()}</p>
-                          </div>
-                          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all border border-slate-200 group-hover:border-black">
-                              <ArrowRight className="w-4 h-4" />
-                          </div>
-                      </div>
-                  )) : (
-                      <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50">
-                          <p className="text-slate-400 font-bold text-sm">Nenhuma atividade recente.</p>
-                      </div>
-                  )}
+
+          {/* TEMPO ECONOMIZADO (MOVIDO PARA O FINAL) */}
+          <div className="bg-[#CCF300] p-6 md:p-8 rounded-3xl relative overflow-hidden group shadow-[0px_8px_30px_rgba(204,243,0,0.4)] hover:shadow-[0px_10px_40px_rgba(204,243,0,0.6)] transition-all border-2 border-[#bce000] flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="relative z-10 flex-1 text-center md:text-left">
+                  <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center mb-4 shadow-inner mx-auto md:mx-0">
+                      <Clock className="w-6 h-6 text-[#CCF300]" />
+                  </div>
+                  <p className="text-xs font-black text-black/60 uppercase tracking-widest mb-1">Impacto Real</p>
+                  <h3 className="text-2xl md:text-3xl font-black text-black tracking-tight mb-2">Você já economizou <span className="text-4xl md:text-5xl tracking-tighter">{hoursSaved}</span> horas de trabalho manual.</h3>
+                  <p className="text-black/70 font-bold text-base">Isso é tempo que você pode focar no que realmente importa: as pessoas.</p>
               </div>
+              <div className="relative z-10 shrink-0">
+                  <div className="bg-black text-white px-6 py-4 rounded-3xl text-center shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-300">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#CCF300] mb-1">Entrevistas Agendadas</p>
+                      <span className="text-5xl font-black tracking-tighter">{interviews.length}</span>
+                  </div>
+              </div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-[80px] opacity-40 -mr-10 -mt-10 pointer-events-none"></div>
           </div>
       </div>
   );
@@ -2090,7 +2125,7 @@ const App: React.FC = () => {
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
-               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} hasCalendarIntegration={user?.has_calendar_integration} />}
+               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} hasCalendarIntegration={user?.has_calendar_integration} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} />}
                {currentTab === 'JOBS' && (
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
@@ -2172,19 +2207,26 @@ const App: React.FC = () => {
                <div className="relative z-10 flex gap-2 mt-3 md:mt-0 w-full md:w-auto justify-start md:justify-end md:ml-auto items-center overflow-x-auto md:overflow-visible pb-2 md:pb-0 custom-scrollbar md:custom-scrollbar-none">
                  <input type="file" multiple accept="application/pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
                  
-                 {activeJob.candidates.length > 0 && (
-                   <button 
-                     onClick={handleToggleSelectAll} 
-                     disabled={activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).length === 0}
-                     className={`flex-none justify-center px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap border ${
-                       activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).length === 0
-                       ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70'
-                       : 'bg-white hover:bg-slate-50 text-slate-900 shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 active:translate-y-0 border-slate-200'
-                     }`}
-                   >
-                     <CheckCircle2 className="w-5 h-5"/> {activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).length > 0 && activeJob.candidates.filter(c => [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string)).every(c => c.isSelected) ? 'Desmarcar Todos' : 'Marcar Todos'}
-                   </button>
-                 )}
+                 {activeJob.candidates.length > 0 && (() => {
+                   const selectableCandidates = activeJob.candidates.filter(c => 
+                     [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) &&
+                     !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
+                   );
+                   const allSelected = selectableCandidates.length > 0 && selectableCandidates.every(c => c.isSelected);
+                   return (
+                     <button 
+                       onClick={handleToggleSelectAll} 
+                       disabled={selectableCandidates.length === 0}
+                       className={`flex-none justify-center px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap border ${
+                         selectableCandidates.length === 0
+                         ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70'
+                         : 'bg-white hover:bg-slate-50 text-slate-900 shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 active:translate-y-0 border-slate-200'
+                       }`}
+                     >
+                       <CheckCircle2 className="w-5 h-5"/> {allSelected ? 'Desmarcar Todos' : 'Marcar Todos'}
+                     </button>
+                   );
+                 })()}
 
                  {activeJob.candidates.some(c=>c.isSelected) && (
                    <>
@@ -2240,7 +2282,23 @@ const App: React.FC = () => {
                ) : (
                  <>
                     {isDragging && (<div className="mb-6 p-8 border-4 border-dashed border-black bg-[#84cc16]/10 rounded-2xl flex items-center justify-center text-black font-black uppercase tracking-widest animate-pulse"><CloudUpload className="w-8 h-8 mr-4" /> Solte para adicionar</div>)}
-                    {[...activeJob.candidates].sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>(<AnalysisResultCard key={c.id} candidate={c} index={i} onToggleSelection={[CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) ? () => handleToggleSelection(c.id) : undefined} onDelete={() => handleDeleteCandidate(c.id)}/>))}
+                    {[...activeJob.candidates].sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>{
+                      const activeInterview = interviews.find(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status));
+                      return (
+                        <AnalysisResultCard 
+                          key={c.id} 
+                          candidate={c} 
+                          index={i} 
+                          activeInterview={activeInterview}
+                          onGoToInterview={(interview) => {
+                            setInitialSelectedInterview(interview);
+                            setCurrentTab('ENTREVISTAS');
+                          }}
+                          onToggleSelection={[CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) ? () => handleToggleSelection(c.id) : undefined} 
+                          onDelete={() => handleDeleteCandidate(c.id)}
+                        />
+                      );
+                    })}
                  </>
                )}
             </div>
@@ -2252,7 +2310,13 @@ const App: React.FC = () => {
       {/* SCHEDULE INTERVIEWS MODAL */}
       {showInterviewModal && activeJob && user && (
         <ScheduleInterviewsModal
-          job={activeJob}
+          job={{
+            ...activeJob,
+            candidates: activeJob.candidates.map(c => ({
+              ...c,
+              isSelected: c.isSelected && !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
+            }))
+          }}
           user_id={user.id}
           has_calendar_integration={user.has_calendar_integration}
           onClose={() => setShowInterviewModal(false)}

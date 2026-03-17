@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Candidate, CandidateStatus } from '../types';
-import { CheckCircle2, XCircle, FileText, Loader2, MapPin, ThumbsUp, Trash2, Check, X, ChevronDown, Briefcase, Phone, Quote, Building2, Clock, Eye, CloudUpload } from 'lucide-react';
+import { Candidate, CandidateStatus, Interview } from '../types';
+import { CheckCircle2, XCircle, FileText, Loader2, MapPin, ThumbsUp, Trash2, Check, X, ChevronDown, Briefcase, Phone, Quote, Building2, Clock, Eye, CloudUpload, CalendarClock } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
 interface Props {
@@ -9,9 +9,11 @@ interface Props {
   onToggleSelection?: (id: string) => void;
   onDelete?: (id: string) => void;
   index?: number; 
+  activeInterview?: Interview;
+  onGoToInterview?: (interview: Interview) => void;
 }
 
-export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelection, onDelete, index = 0 }) => {
+export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelection, onDelete, index = 0, activeInterview, onGoToInterview }) => {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -204,6 +206,16 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
                   <div className="flex items-center gap-3">
                     <h4 className="font-black text-slate-900 text-base tracking-tight truncate">{result.candidateName}</h4>
                     {candidate.isSelected && <span className="bg-[#CCF300] text-black text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded shadow-sm shrink-0 border border-black/10">Selecionado</span>}
+                    {activeInterview && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onGoToInterview?.(activeInterview); }}
+                        className="flex items-center gap-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded shadow-sm shrink-0 border border-blue-200 transition-colors cursor-pointer"
+                        title="Ver entrevista agendada"
+                      >
+                        <CalendarClock className="w-3 h-3" />
+                        Em Entrevista
+                      </button>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center text-[11px] text-slate-500 font-bold mt-1 gap-3 uppercase tracking-wide">
                     <span className="flex items-center bg-slate-50 px-2 py-1 rounded border border-slate-200 text-slate-700"><Briefcase className="w-3 h-3 mr-1.5 text-slate-400" />{candidate.result?.yearsExperience || 'Exp. N/A'}</span>
@@ -223,7 +235,18 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
                           <button onClick={handleCancelDelete} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"><X className="w-3.5 h-3.5" /></button>
                       </div>
                     )}
-                    <button onClick={handleToggle} className={`flex items-center px-4 h-9 rounded-xl text-xs font-black transition-all transform active:scale-95 border cursor-pointer shadow-sm hover:translate-y-0.5 hover:shadow-none ${candidate.isSelected ? 'bg-[#CCF300] text-black border-[#CCF300] hover:bg-[#bce000]' : 'bg-black text-white border-black hover:bg-slate-800'}`}>
+                    <button 
+                      onClick={activeInterview ? undefined : handleToggle} 
+                      disabled={!!activeInterview}
+                      className={`flex items-center px-4 h-9 rounded-xl text-xs font-black transition-all transform border shadow-sm ${
+                        activeInterview 
+                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70' 
+                          : candidate.isSelected 
+                            ? 'bg-[#CCF300] text-black border-[#CCF300] hover:bg-[#bce000] active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer' 
+                            : 'bg-black text-white border-black hover:bg-slate-800 active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer'
+                      }`}
+                      title={activeInterview ? "Candidato já possui entrevista em andamento" : ""}
+                    >
                         <ThumbsUp className={`w-3.5 h-3.5 mr-2 pointer-events-none ${candidate.isSelected ? 'fill-current' : ''}`} />{candidate.isSelected ? 'Aprovado' : 'Aprovar'}
                     </button>
                 </div>

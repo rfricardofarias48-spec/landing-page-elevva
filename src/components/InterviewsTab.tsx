@@ -8,12 +8,22 @@ import autoTable from 'jspdf-autotable';
 interface Props {
   interviews: Interview[];
   hasCalendarIntegration?: boolean;
+  initialSelectedInterview?: Interview | null;
+  onClearInitialSelectedInterview?: () => void;
 }
 
-export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegration }) => {
+export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegration, initialSelectedInterview, onClearInitialSelectedInterview }) => {
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
-  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
+  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
+
+  React.useEffect(() => {
+    if (initialSelectedInterview) {
+      setSelectedInterview(initialSelectedInterview);
+      onClearInitialSelectedInterview?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSelectedInterview]);
 
   // Filter states
   const [dateStart, setDateStart] = useState<string>('');
