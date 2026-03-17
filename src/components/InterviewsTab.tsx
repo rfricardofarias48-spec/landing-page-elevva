@@ -359,12 +359,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
                   {/* Entrevistador */}
                   <div className="flex items-center justify-center gap-2">
                     {interview.interviewer_name ? (
-                      <>
-                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black border border-slate-300">
-                          {interview.interviewer_name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-xs font-bold text-slate-700">{interview.interviewer_name}</span>
-                      </>
+                      <span className="text-xs font-bold text-slate-700">{interview.interviewer_name}</span>
                     ) : (
                       <span className="text-xs font-bold text-slate-400 italic">Não definido</span>
                     )}

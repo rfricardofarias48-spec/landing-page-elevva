@@ -743,6 +743,26 @@ const App: React.FC = () => {
       return;
     }
 
+    // Fetch interviewer names from slots as a fallback for old interviews
+    const jobIds = Array.from(new Set(data.map((i: any) => i.job_id)));
+    let interviewerMap = new Map();
+    
+    if (jobIds.length > 0) {
+      const { data: slotsData } = await supabase
+        .from('interview_slots')
+        .select('job_id, interviewer_name')
+        .in('job_id', jobIds)
+        .not('interviewer_name', 'is', null);
+
+      if (slotsData) {
+        slotsData.forEach(slot => {
+          if (!interviewerMap.has(slot.job_id)) {
+            interviewerMap.set(slot.job_id, slot.interviewer_name);
+          }
+        });
+      }
+    }
+
     const formattedInterviews = data.map((i: any) => ({
       ...i,
       job_title: i.jobs?.title,
@@ -753,7 +773,7 @@ const App: React.FC = () => {
       scheduled_time: i.interview_slots?.slot_time,
       format: i.interview_slots?.format,
       meeting_link: i.interview_slots?.location,
-      interviewer_name: i.interviewer_name || i.interview_slots?.interviewer_name
+      interviewer_name: i.interviewer_name || i.interview_slots?.interviewer_name || interviewerMap.get(i.job_id)
     }));
 
     setInterviews(formattedInterviews);
