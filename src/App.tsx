@@ -15,7 +15,7 @@ import { InterviewsTab } from './components/InterviewsTab';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ArrowRight, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar
 } from 'lucide-react';
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
@@ -2311,7 +2311,6 @@ const App: React.FC = () => {
               isSelected: c.isSelected && !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
             }))
           }}
-          user_id={user.id}
           onClose={() => setShowInterviewModal(false)}
           onSuccess={() => {
             setShowInterviewModal(false);

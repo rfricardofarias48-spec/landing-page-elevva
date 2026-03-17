@@ -5,7 +5,6 @@ import { supabase } from '../services/supabaseClient';
 
 interface Props {
   job: Job;
-  user_id: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -15,7 +14,7 @@ interface DaySlot {
   times: string[];
 }
 
-export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, onClose, onSuccess }) => {
+export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSuccess }) => {
   const [days, setDays] = useState<DaySlot[]>([{ date: '', times: [''] }]);
   const [interviewFormat, setInterviewFormat] = useState<'ONLINE' | 'PRESENCIAL'>('ONLINE');
   const [address, setAddress] = useState('');

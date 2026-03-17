@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Search, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText } from 'lucide-react';
+import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText } from 'lucide-react';
 import { Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
 import jsPDF from 'jspdf';
