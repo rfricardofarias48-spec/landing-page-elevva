@@ -1502,46 +1502,46 @@ const App: React.FC = () => {
           <div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                   {/* VAGAS ATIVAS */}
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
+                  <div className="bg-white p-7 rounded-[2rem] border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
                       <div className="relative z-10">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">VAGAS ATIVAS</p>
-                          <div className="flex items-baseline gap-1 mb-4">
-                              <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{jobs.length}</span>
-                              <span className="text-lg font-bold text-slate-300">/ {user?.job_limit >= 9999 ? '∞' : user?.job_limit}</span>
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">VAGAS ATIVAS</p>
+                          <div className="flex items-baseline gap-1 mb-5">
+                              <span className="text-6xl font-black text-[#0f172a] tracking-tighter leading-none">{jobs.length}</span>
+                              <span className="text-xl font-bold text-slate-300">/ {user?.job_limit >= 9999 ? '∞' : user?.job_limit}</span>
                           </div>
                           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                               <div className="bg-[#0f172a] h-full rounded-full" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
                           </div>
                       </div>
-                      <Briefcase className="absolute -right-6 -bottom-6 w-32 h-32 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
+                      <Briefcase className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
                   </div>
 
                   {/* CURRÍCULOS ANALISADOS */}
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
+                  <div className="bg-white p-7 rounded-[2rem] border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
                       <div className="relative z-10">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">CURRÍCULOS ANALISADOS</p>
-                          <div className="flex items-baseline gap-1 mb-4">
-                              <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{totalResumesAnalyzed}</span>
-                              <span className="text-lg font-bold text-slate-300">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CURRÍCULOS ANALISADOS</p>
+                          <div className="flex items-baseline gap-1 mb-5">
+                              <span className="text-6xl font-black text-[#0f172a] tracking-tighter leading-none">{totalResumesAnalyzed}</span>
+                              <span className="text-xl font-bold text-slate-300">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
                           </div>
                           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
                               <div className="bg-[#84cc16] h-full rounded-full" style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
                           </div>
-                          <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1.5">
-                              <Clock className="w-3 h-3" /> Retenção automática de 10 dias
+                          <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5" /> Retenção automática de 10 dias
                           </p>
                       </div>
-                      <FileText className="absolute -right-6 -bottom-6 w-32 h-32 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
+                      <FileText className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
                   </div>
 
                   {/* PLANO ATUAL */}
-                  <div className="bg-[#0a0a0a] p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between shadow-2xl">
+                  <div className="bg-[#0a0a0a] p-7 rounded-[2rem] relative overflow-hidden flex flex-col justify-between shadow-2xl">
                        <div className="relative z-10">
-                          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
-                          <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{user?.plan || 'FREE'}</h3>
-                          <p className="text-zinc-400 text-xs font-medium">Faça upgrade para liberar recursos.</p>
+                          <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
+                          <h3 className="text-5xl font-black text-white mb-2 tracking-tighter">{user?.plan || 'FREE'}</h3>
+                          <p className="text-zinc-400 text-sm font-medium">Faça upgrade para liberar recursos.</p>
                        </div>
-                       <button onClick={() => setCurrentTab('BILLING')} className="mt-6 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition-transform active:scale-95">
+                       <button onClick={() => setCurrentTab('BILLING')} className="mt-6 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95">
                            VER PLANOS
                        </button>
                   </div>
@@ -1612,22 +1612,26 @@ const App: React.FC = () => {
           )}
 
           {/* TEMPO ECONOMIZADO (MOVIDO PARA O FINAL) */}
-          <div className="bg-[#CCF300] p-6 md:p-8 rounded-3xl relative overflow-hidden group shadow-[0px_8px_30px_rgba(204,243,0,0.4)] hover:shadow-[0px_10px_40px_rgba(204,243,0,0.6)] transition-all border-2 border-[#bce000] flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="bg-[#84cc16] p-6 md:p-8 rounded-3xl relative overflow-hidden group shadow-[0px_8px_30px_rgba(132,204,22,0.4)] hover:shadow-[0px_10px_40px_rgba(132,204,22,0.6)] transition-all border-2 border-[#74b313] flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="relative z-10 flex-1 text-center md:text-left">
-                  <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center mb-4 shadow-inner mx-auto md:mx-0">
-                      <Clock className="w-6 h-6 text-[#CCF300]" />
+                  <div className="flex flex-col md:flex-row items-center md:items-start gap-4 mb-4">
+                      <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center shadow-inner shrink-0">
+                          <Clock className="w-6 h-6 text-[#84cc16]" />
+                      </div>
+                      <div>
+                          <p className="text-[10px] font-black text-black/60 uppercase tracking-widest mb-1">Impacto Real</p>
+                          <h3 className="text-xl md:text-2xl font-black text-black tracking-tight leading-tight">Você já economizou <span className="text-3xl md:text-4xl tracking-tighter">{hoursSaved}</span> horas de trabalho manual.</h3>
+                      </div>
                   </div>
-                  <p className="text-xs font-black text-black/60 uppercase tracking-widest mb-1">Impacto Real</p>
-                  <h3 className="text-2xl md:text-3xl font-black text-black tracking-tight mb-2">Você já economizou <span className="text-4xl md:text-5xl tracking-tighter">{hoursSaved}</span> horas de trabalho manual.</h3>
-                  <p className="text-black/70 font-bold text-base">Isso é tempo que você pode focar no que realmente importa: as pessoas.</p>
+                  <p className="text-black/70 font-bold text-sm md:ml-16">Isso é tempo que você pode focar no que realmente importa: as pessoas.</p>
               </div>
-              <div className="relative z-10 shrink-0">
-                  <div className="bg-black text-white px-6 py-4 rounded-3xl text-center shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-300">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#CCF300] mb-1">Entrevistas Agendadas</p>
-                      <span className="text-5xl font-black tracking-tighter">{interviews.length}</span>
+              <div className="relative z-10 shrink-0 mt-2 md:mt-0">
+                  <div className="bg-black text-white px-6 py-4 rounded-2xl text-center shadow-2xl transform rotate-2 hover:rotate-0 transition-transform duration-300">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[#84cc16] mb-1">Entrevistas Agendadas</p>
+                      <span className="text-4xl font-black tracking-tighter">{interviews.length}</span>
                   </div>
               </div>
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-[80px] opacity-40 -mr-10 -mt-10 pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-[80px] opacity-30 -mr-10 -mt-10 pointer-events-none"></div>
           </div>
       </div>
   );
