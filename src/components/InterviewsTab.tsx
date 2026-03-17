@@ -179,7 +179,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
     const tableRows: any[] = [];
     
     filteredInterviews.forEach(interview => {
-      const date = interview.scheduled_date ? new Date(interview.scheduled_date).toLocaleDateString('pt-BR') : 'A definir';
+      const date = interview.scheduled_date ? new Date(interview.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR') : 'A definir';
       const time = interview.scheduled_time || '-';
       const interviewData = [
         formatName(interview.candidate_name),
@@ -379,7 +379,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
                       <div className="flex flex-col items-center gap-1">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {new Date(interview.scheduled_date).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                          {new Date(interview.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
                         </div>
                         {interview.scheduled_time && (
                           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
@@ -508,7 +508,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Data e Hora</div>
                   <div className="text-sm font-black text-slate-700">
                     {selectedInterview.scheduled_date ? (
-                      `${new Date(selectedInterview.scheduled_date).toLocaleDateString('pt-BR')} ${selectedInterview.scheduled_time ? `às ${selectedInterview.scheduled_time}` : ''}`
+                      `${new Date(selectedInterview.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR')} ${selectedInterview.scheduled_time ? `às ${selectedInterview.scheduled_time}` : ''}`
                     ) : (
                       'A definir'
                     )}

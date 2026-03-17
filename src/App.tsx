@@ -763,18 +763,23 @@ const App: React.FC = () => {
       }
     }
 
-    const formattedInterviews = data.map((i: any) => ({
-      ...i,
-      job_title: i.jobs?.title,
-      candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
-      candidate_phone: i.candidates?.['WhatsApp com DDD'] || '',
-      candidate_file_path: i.candidates?.file_path,
-      scheduled_date: i.slot_date || i.interview_slots?.slot_date,
-      scheduled_time: i.slot_time || i.interview_slots?.slot_time,
-      format: i.interview_slots?.format,
-      meeting_link: i.meeting_link || i.interview_slots?.location,
-      interviewer_name: i.interviewer_name || i.interview_slots?.interviewer_name || interviewerMap.get(i.job_id)
-    }));
+    const formattedInterviews = data.map((i: any) => {
+      const rawTime = i.slot_time || i.interview_slots?.slot_time;
+      const formattedTime = rawTime ? rawTime.substring(0, 5) : undefined;
+
+      return {
+        ...i,
+        job_title: i.jobs?.title,
+        candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
+        candidate_phone: i.candidates?.['WhatsApp com DDD'] || '',
+        candidate_file_path: i.candidates?.file_path,
+        scheduled_date: i.slot_date || i.interview_slots?.slot_date,
+        scheduled_time: formattedTime,
+        format: i.interview_slots?.format,
+        meeting_link: i.meeting_link || i.interview_slots?.location,
+        interviewer_name: i.interviewer_name || i.interview_slots?.interviewer_name || interviewerMap.get(i.job_id)
+      };
+    });
 
     setInterviews(formattedInterviews);
   };
