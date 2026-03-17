@@ -287,7 +287,7 @@ const App: React.FC = () => {
              
              // Se tiver sessão, busca o perfil.
              // IMPORTANTE: Passamos o created_at da sessão para garantir a verificação de conta nova
-             fetchUserProfile(session.user.id, session.user.email!, session.user.created_at, session.provider_refresh_token);
+             fetchUserProfile(session.user.id, session.user.email!, session.user.created_at);
         } else {
              // Se não tiver sessão (logout ou inicial), para o loading
              setLoading(false);
@@ -432,7 +432,7 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchUserProfile = async (userId: string, email: string, sessionCreatedAt?: string, providerRefreshToken?: string) => {
+  const fetchUserProfile = async (userId: string, email: string, sessionCreatedAt?: string) => {
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
@@ -445,20 +445,6 @@ const App: React.FC = () => {
           alert("Acesso Negado: Sua conta foi suspensa temporariamente. Entre em contato com o suporte.");
           return; // Interrompe o carregamento
       }
-
-      // --- ATUALIZAÇÃO DO TOKEN DO GOOGLE CALENDAR ---
-      if (providerRefreshToken) {
-          await supabase.from('profiles').update({
-              google_refresh_token: providerRefreshToken,
-              has_calendar_integration: true
-          }).eq('id', userId);
-          
-          if (data) {
-              data.google_refresh_token = providerRefreshToken;
-              data.has_calendar_integration = true;
-          }
-      }
-      // ---------------------------------------------
 
       // Se houver erro de permissão (403/401/PGRST301), provavelmente é RLS
       const permissionError = error && (error.code === '42501' || error.code === 'PGRST301');
@@ -706,9 +692,7 @@ const App: React.FC = () => {
         // Tenta usar a origem atual para redirecionamento
         // ATENÇÃO: Se estiver rodando em localhost:5173, certifique-se de que essa URL
         // está adicionada no painel do Supabase > Auth > Redirect URLs
-        redirectTo: window.location.origin,
-        scopes: 'https://www.googleapis.com/auth/calendar.events email profile',
-        queryParams: { access_type: 'offline', prompt: 'consent' }
+        redirectTo: window.location.origin
       }
     });
 
@@ -2135,7 +2119,7 @@ const App: React.FC = () => {
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
-               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} hasCalendarIntegration={user?.has_calendar_integration} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} />}
+               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} />}
                {currentTab === 'JOBS' && (
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
@@ -2328,7 +2312,6 @@ const App: React.FC = () => {
             }))
           }}
           user_id={user.id}
-          has_calendar_integration={user.has_calendar_integration}
           onClose={() => setShowInterviewModal(false)}
           onSuccess={() => {
             setShowInterviewModal(false);

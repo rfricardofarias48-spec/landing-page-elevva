@@ -7,12 +7,11 @@ import autoTable from 'jspdf-autotable';
 
 interface Props {
   interviews: Interview[];
-  hasCalendarIntegration?: boolean;
   initialSelectedInterview?: Interview | null;
   onClearInitialSelectedInterview?: () => void;
 }
 
-export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegration, initialSelectedInterview, onClearInitialSelectedInterview }) => {
+export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview }) => {
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -237,17 +236,15 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, hasCalendarIntegrat
             <Download className="w-4 h-4" />
             Exportar
           </button>
-          {hasCalendarIntegration && (
-            <a
-              href="https://calendar.google.com/calendar/r"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all"
-            >
-              <Calendar className="w-4 h-4" />
-              Abrir Google Calendar
-            </a>
-          )}
+          <a
+            href="https://calendar.google.com/calendar/r"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all"
+          >
+            <Calendar className="w-4 h-4" />
+            Abrir Google Calendar
+          </a>
           <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100">
             <Calendar className="w-5 h-5 text-emerald-600" />
           </div>

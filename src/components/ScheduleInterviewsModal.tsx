@@ -6,7 +6,6 @@ import { supabase } from '../services/supabaseClient';
 interface Props {
   job: Job;
   user_id: string;
-  has_calendar_integration?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -16,7 +15,7 @@ interface DaySlot {
   times: string[];
 }
 
-export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_calendar_integration, onClose, onSuccess }) => {
+export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, onClose, onSuccess }) => {
   const [days, setDays] = useState<DaySlot[]>([{ date: '', times: [''] }]);
   const [interviewFormat, setInterviewFormat] = useState<'ONLINE' | 'PRESENCIAL'>('ONLINE');
   const [address, setAddress] = useState('');
@@ -126,7 +125,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, user_id, has_cal
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            calendar_integrated: has_calendar_integration || false,
+            calendar_integrated: true,
             job: {
               id: job.id,
               title: job.title,

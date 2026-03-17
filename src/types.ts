@@ -87,8 +87,6 @@ export interface User {
   instancia_evolution?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
-  google_refresh_token?: string; // NOVO: Token do Google Calendar
-  has_calendar_integration?: boolean; // NOVO: Flag de integração
 }
 
 // Interface para o Dashboard do Admin
@@ -110,8 +108,6 @@ export interface AdminUserProfile {
   instancia_evolution?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
-  google_refresh_token?: string;
-  has_calendar_integration?: boolean;
 }
 
 export interface Interview {
