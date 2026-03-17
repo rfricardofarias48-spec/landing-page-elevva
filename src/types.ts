@@ -119,6 +119,9 @@ export interface Interview {
   job_id: string;
   candidate_id: string;
   slot_id?: string;
+  slot_date?: string;
+  slot_time?: string;
+  meeting_link?: string;
   status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'CONFIRMADA' | 'REMARCADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA';
   lembrete_enviado?: boolean;
   created_at: string;
@@ -129,7 +132,6 @@ export interface Interview {
   job_title?: string;
   scheduled_date?: string;
   scheduled_time?: string;
-  meeting_link?: string;
   format?: string;
   interviewer_name?: string;
 }
