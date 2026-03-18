@@ -1443,14 +1443,13 @@ const App: React.FC = () => {
   };
 
   // --- RENDERING HELPERS ---
+  const normalizedPlan = user?.plan && ['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'].includes(user.plan) ? 'ESSENCIAL' : (user?.plan || 'ESSENCIAL');
 
   const renderOverview = () => {
       // Filtrar Anúncios baseados no plano do usuário
       const visibleAnnouncements = announcements.filter(ad => {
-          // Se o usuário não tiver plano definido (null), assume ESSENCIAL
-          const userPlan = user?.plan || 'ESSENCIAL';
           // Verifica se o plano do usuário está na lista de planos alvo do anúncio
-          return ad.targetPlans.includes(userPlan);
+          return ad.targetPlans.includes(normalizedPlan);
       });
 
       const totalResumesAnalyzed = user?.resume_usage || 0;
@@ -1638,7 +1637,7 @@ const App: React.FC = () => {
               <div className="bg-[#0a0a0a] p-6 rounded-[2rem] relative overflow-hidden flex flex-col justify-between shadow-xl">
                   <div className="relative z-10">
                       <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
-                      <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{user?.plan || 'ESSENCIAL'}</h3>
+                      <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{normalizedPlan}</h3>
                       <p className="text-zinc-400 text-sm font-medium">Faça upgrade para liberar recursos.</p>
                   </div>
                   <button onClick={() => setCurrentTab('BILLING')} className="mt-8 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 relative z-10">
@@ -1687,7 +1686,7 @@ const App: React.FC = () => {
   };
 
   const renderBilling = () => (
-      <div className="space-y-12 animate-fade-in max-w-[1400px] mx-auto font-sans p-4">
+      <div className="space-y-8 animate-fade-in max-w-[1400px] mx-auto font-sans p-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
@@ -1701,25 +1700,25 @@ const App: React.FC = () => {
           </div>
 
           {/* Current Plan Card - Black */}
-          <div className="bg-[#0a0a0a] rounded-[2rem] p-6 md:p-8 relative overflow-hidden text-white shadow-xl">
+          <div className="bg-[#0a0a0a] rounded-[2rem] p-5 md:p-6 relative overflow-hidden text-white shadow-xl">
               <div className="relative z-10">
-                  <div className="flex items-center gap-4 mb-4">
+                  <div className="flex items-center gap-4 mb-3">
                       <span className="text-[#84cc16] font-black text-[10px] uppercase tracking-widest">Plano Ativo</span>
-                      {user?.plan !== 'ESSENCIAL' && (
+                      {normalizedPlan !== 'ESSENCIAL' && (
                           <span className="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-[10px] font-bold tracking-wider">
                               Renova em: {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) ? new Date(user.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
                           </span>
                       )}
                   </div>
                   
-                  <div className="flex justify-between items-start mb-8">
-                      <h3 className="text-5xl md:text-6xl font-black tracking-tighter text-white">{user?.plan}</h3>
-                      <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800">
+                  <div className="flex justify-between items-start mb-6">
+                      <h3 className="text-4xl md:text-5xl font-black tracking-tighter text-white">{normalizedPlan}</h3>
+                      <div className="w-10 h-10 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800">
                           <Zap className="w-5 h-5 text-zinc-500" />
                       </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 gap-6">
                       {/* Vagas Bar */}
                       <div>
                           <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
@@ -1730,17 +1729,6 @@ const App: React.FC = () => {
                               <div className="bg-[#84cc16] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
                           </div>
                       </div>
-
-                      {/* Curriculos Bar */}
-                      <div>
-                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
-                              <span>Currículos Analisados</span>
-                              <span className="text-white">{user?.resume_limit >= 9999 ? '∞' : `${user?.resume_usage} / ${user?.resume_limit}`}</span>
-                          </div>
-                          <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
-                              <div className="bg-[#84cc16] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
-                          </div>
-                      </div>
                   </div>
               </div>
               <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-zinc-800 rounded-full blur-[80px] opacity-30 pointer-events-none"></div>
@@ -1748,19 +1736,19 @@ const App: React.FC = () => {
 
           {/* Upgrade Options */}
           <div>
-              <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tighter flex items-center gap-2">
+              <h3 className="text-xl font-black text-slate-900 mb-6 tracking-tighter flex items-center gap-2">
                   <ArrowUpRight className="w-5 h-5" /> Planos Disponíveis
               </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {/* Plano Essencial */}
-                      <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 h-full">
-                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 tracking-tighter">Plano Essencial</h4>
-                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Para equipes enxutas e recrutamento ágil.</p>
+                      <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 h-full min-h-[450px]">
+                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-2 tracking-tighter">Essencial</h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6">Para equipes enxutas e recrutamento ágil.</p>
                           
-                          <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                          <div className="text-slate-900 mb-6 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">499</span>
+                              <span className="text-5xl font-black tracking-tighter">499</span>
                               <span className="text-xl font-bold">,90</span>
                               <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                           </div>
@@ -1779,29 +1767,38 @@ const App: React.FC = () => {
                                   <span>Exportação em PDF</span>
                               </div>
                           </div>
-                          {user?.plan === 'ESSENCIAL' ? (
-                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm mt-auto text-center block cursor-not-allowed">
-                                  Seu Plano Atual
-                              </button>
+                          {normalizedPlan === 'ESSENCIAL' ? (
+                              <div className="mt-auto pt-4">
+                                  <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm text-center block cursor-not-allowed mb-2">
+                                      Seu Plano Atual
+                                  </button>
+                                  {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) && (
+                                      <p className="text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                          Renova em: {new Date(user.current_period_end).toLocaleDateString('pt-BR')}
+                                      </p>
+                                  )}
+                              </div>
                           ) : (
-                              <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
-                                  {user?.plan === 'PRO' || user?.plan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial'}
-                              </a>
+                              <div className="mt-auto pt-4">
+                                  <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 text-center block">
+                                      {normalizedPlan === 'PRO' || normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial'}
+                                  </a>
+                              </div>
                           )}
                       </div>
 
                       {/* Plano Pro */}
-                      <div className="bg-[#0a0a0a] rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full">
+                      <div className="bg-[#0a0a0a] rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full min-h-[450px]">
                           <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#84cc16] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
                               <Star className="w-3 h-3 fill-black" /> Mais Popular
                           </div>
                           
-                          <h4 className="text-2xl font-black text-white mb-2 mt-4 flex items-center gap-2 tracking-tighter">Plano Pro <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
-                          <p className="text-sm text-zinc-400 font-medium mb-6 min-h-[48px]">Tração total para seu RH com mais vagas.</p>
+                          <h4 className="text-2xl font-black text-white mb-2 mt-2 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
+                          <p className="text-sm text-zinc-400 font-medium mb-6">Tração total para seu RH com mais vagas.</p>
                           
-                          <div className="text-white mb-8 flex items-baseline h-[60px]">
+                          <div className="text-white mb-6 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">799</span>
+                              <span className="text-5xl font-black tracking-tighter">799</span>
                               <span className="text-xl font-bold">,90</span>
                               <span className="text-xs font-bold text-zinc-500 ml-1">/MÊS</span>
                           </div>
@@ -1820,23 +1817,32 @@ const App: React.FC = () => {
                                   <span>Ranking Automático</span>
                               </div>
                           </div>
-                          {user?.plan === 'PRO' ? (
-                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-2xl text-sm mt-auto text-center block cursor-not-allowed">
-                                  Seu Plano Atual
-                              </button>
+                          {normalizedPlan === 'PRO' ? (
+                              <div className="mt-auto pt-4">
+                                  <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-2xl text-sm text-center block cursor-not-allowed mb-2">
+                                      Seu Plano Atual
+                                  </button>
+                                  {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) && (
+                                      <p className="text-center text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                                          Renova em: {new Date(user.current_period_end).toLocaleDateString('pt-BR')}
+                                      </p>
+                                  )}
+                              </div>
                           ) : (
-                              <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors mt-auto text-center block">
-                                  {user?.plan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade'}
-                              </a>
+                              <div className="mt-auto pt-4">
+                                  <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors text-center block">
+                                      {normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade'}
+                                  </a>
+                              </div>
                           )}
                       </div>
 
                       {/* Enterprise */}
-                      <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
-                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2 tracking-tighter">Enterprise</h4>
-                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Solução sob medida para grandes operações.</p>
+                      <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full min-h-[450px]">
+                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-2 flex items-center gap-2 tracking-tighter">Enterprise</h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6">Solução sob medida para grandes operações.</p>
                           
-                          <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
+                          <div className="text-slate-900 mb-6 flex items-baseline">
                               <span className="text-4xl font-black tracking-tighter">A consultar</span>
                           </div>
                           
@@ -1858,14 +1864,23 @@ const App: React.FC = () => {
                                   <span>Atendimento Prioritário</span>
                               </div>
                           </div>
-                          {user?.plan === 'ENTERPRISE' ? (
-                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm mt-auto text-center block cursor-not-allowed">
-                                  Seu Plano Atual
-                              </button>
+                          {normalizedPlan === 'ENTERPRISE' ? (
+                              <div className="mt-auto pt-4">
+                                  <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm text-center block cursor-not-allowed mb-2">
+                                      Seu Plano Atual
+                                  </button>
+                                  {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) && (
+                                      <p className="text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                          Renova em: {new Date(user.current_period_end).toLocaleDateString('pt-BR')}
+                                      </p>
+                                  )}
+                              </div>
                           ) : (
-                              <a href="mailto:contato@velorh.com.br" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
-                                  Falar com Consultor
-                              </a>
+                              <div className="mt-auto pt-4">
+                                  <a href="mailto:contato@velorh.com.br" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 text-center block">
+                                      Falar com Consultor
+                                  </a>
+                              </div>
                           )}
                       </div>
                   </div>
@@ -2235,7 +2250,7 @@ const App: React.FC = () => {
                  
                  <button onClick={()=>fileInputRef.current?.click()} className="flex-none justify-center bg-slate-900 hover:bg-black text-white px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(0,0,0,0.4)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Upload className="w-5 h-5 text-[#84cc16]"/> Upload</button>
                  
-                 {user?.plan !== 'ENTERPRISE' && activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
+                 {normalizedPlan !== 'ENTERPRISE' && activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
                    <button onClick={runAnalysis} className="flex-none justify-center bg-[#84cc16] hover:bg-[#65a30d] text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap animate-pulse"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
                  )}
                  
