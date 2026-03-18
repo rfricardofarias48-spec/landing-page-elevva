@@ -168,8 +168,8 @@ export const analyzeResume = async (
       
       return parsed;
 
-    } catch (error: any) {
-      const isRateLimit = error.status === 429 || (error.message && error.message.includes("429"));
+    } catch (error: unknown) {
+      const isRateLimit = (error as { status?: number }).status === 429 || (error instanceof Error && error.message.includes("429"));
       
       if (isRateLimit) {
          console.warn(`Rate limit hit for ${modelName}.`);

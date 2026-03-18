@@ -45,7 +45,7 @@ export const AdminDashboard: React.FC = () => {
   const [newAdTitle, setNewAdTitle] = useState('');
   const [newAdImage, setNewAdImage] = useState<File | null>(null);
   const [newAdPreview, setNewAdPreview] = useState<string | null>(null);
-  const [newAdPlans, setNewAdPlans] = useState<PlanType[]>(['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL', 'ENTERPRISE']);
+  const [newAdPlans, setNewAdPlans] = useState<PlanType[]>(['ESSENCIAL', 'PRO', 'ENTERPRISE']);
   const [isPostingAd, setIsPostingAd] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,15 +77,22 @@ export const AdminDashboard: React.FC = () => {
       const { data: adsData, error: adsError } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
       if (adsError && adsError.code !== '42P01') console.error("Erro ao buscar anúncios:", adsError);
 
-      const mappedUsers: AdminUserProfile[] = profilesData.map((u: any) => {
-          const userJobs = jobsData?.filter((j: any) => j.user_id === u.id) || [];
+      const mappedUsers: AdminUserProfile[] = profilesData.map((u: Record<string, unknown>) => {
+          const userJobs = jobsData?.filter((j: Record<string, unknown>) => j.user_id === u.id) || [];
+          
+          // Mapeamento de planos antigos para ESSENCIAL (exceto ADMIN)
+          let currentPlan = u.plan as string;
+          if (['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'].includes(currentPlan)) {
+              currentPlan = 'ESSENCIAL';
+          }
+
           return {
             id: u.id,
             email: u.email,
             name: u.name,
             phone: u.phone,
             role: u.role,
-            plan: u.plan,
+            plan: currentPlan,
             status: u.status || 'ACTIVE',
             created_at: u.created_at,
             jobs_count: userJobs.length,
@@ -100,7 +107,7 @@ export const AdminDashboard: React.FC = () => {
           };
       });
 
-      const mappedJobs: AdminJob[] = jobsData?.map((j: any) => {
+      const mappedJobs: AdminJob[] = jobsData?.map((j: Record<string, unknown>) => {
           const owner = mappedUsers.find(u => u.id === j.user_id);
           return {
               id: j.id,
@@ -113,8 +120,8 @@ export const AdminDashboard: React.FC = () => {
           };
       }) || [];
 
-      const mappedAds: Announcement[] = adsData?.map((a: any) => {
-          const { data } = supabase.storage.from('marketing').getPublicUrl(a.image_path);
+      const mappedAds: Announcement[] = adsData?.map((a: Record<string, unknown>) => {
+          const { data } = supabase.storage.from('marketing').getPublicUrl(a.image_path as string);
           return {
               id: a.id,
               title: a.title,
@@ -122,7 +129,7 @@ export const AdminDashboard: React.FC = () => {
               linkUrl: a.link_url,
               isActive: a.is_active,
               createdAt: a.created_at,
-              targetPlans: a.target_plans || ['FREE', 'MENSAL', 'ANUAL']
+              targetPlans: a.target_plans || ['ESSENCIAL', 'PRO', 'ENTERPRISE']
           };
       }) || [];
 
@@ -130,9 +137,9 @@ export const AdminDashboard: React.FC = () => {
       setAllJobs(mappedJobs);
       setAds(mappedAds);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro crítico no Admin:", error);
-      setDataError(error.message);
+      setDataError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -150,8 +157,8 @@ export const AdminDashboard: React.FC = () => {
           if (selectedUser && selectedUser.id === user.id) {
               setSelectedUser({ ...selectedUser, status: newStatus });
           }
-      } catch (err: any) {
-          alert("Erro ao atualizar status: " + err.message);
+      } catch (err: unknown) {
+          alert("Erro ao atualizar status: " + (err instanceof Error ? err.message : String(err)));
       } finally {
           setActionLoading(false);
       }
@@ -162,17 +169,12 @@ export const AdminDashboard: React.FC = () => {
       setActionLoading(true);
 
       let newJobLimit = 3;
-      let newResumeLimit = 25;
+      const newResumeLimit = 9999; // Unlimited for all plans
 
-      if (newPlan === 'MENSAL') {
-          newJobLimit = 5;
-          newResumeLimit = 150;
-      } else if (newPlan === 'TRIMESTRAL') {
+      if (newPlan === 'PRO') {
           newJobLimit = 10;
-          newResumeLimit = 450;
-      } else if (newPlan === 'ANUAL' || newPlan === 'ENTERPRISE') {
+      } else if (newPlan === 'ENTERPRISE' || newPlan === 'ADMIN') {
           newJobLimit = 9999;
-          newResumeLimit = 9999;
       }
 
       try {
@@ -200,7 +202,7 @@ export const AdminDashboard: React.FC = () => {
           setIsEditingPlan(false);
           alert(`✅ Sucesso! Plano alterado para ${newPlan}.`);
 
-      } catch (err: any) {
+      } catch (err: unknown) {
           console.error("Erro ao atualizar plano:", err);
           alert("Erro ao atualizar plano. Verifique se o Script V43 foi executado.");
       } finally {
@@ -223,8 +225,8 @@ export const AdminDashboard: React.FC = () => {
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, salesperson: tempSalesperson } : u));
           setIsEditingSalesperson(false);
-      } catch (err: any) {
-          alert("Erro ao atualizar vendedor: " + err.message);
+      } catch (err: unknown) {
+          alert("Erro ao atualizar vendedor: " + (err instanceof Error ? err.message : String(err)));
       } finally {
           setActionLoading(false);
       }
@@ -254,8 +256,8 @@ export const AdminDashboard: React.FC = () => {
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
           setIsEditingEnterprise(false);
-      } catch (err: any) {
-          alert("Erro ao atualizar dados Enterprise: " + err.message);
+      } catch (err: unknown) {
+          alert("Erro ao atualizar dados Enterprise: " + (err instanceof Error ? err.message : String(err)));
       } finally {
           setActionLoading(false);
       }
@@ -306,10 +308,10 @@ export const AdminDashboard: React.FC = () => {
           setNewAdTitle('');
           setNewAdImage(null);
           setNewAdPreview(null);
-          setNewAdPlans(['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL', 'ENTERPRISE']);
+          setNewAdPlans(['ESSENCIAL', 'PRO', 'ENTERPRISE']);
           fetchData();
-      } catch (err: any) {
-          alert("Erro ao postar anúncio: " + err.message);
+      } catch (err: unknown) {
+          alert("Erro ao postar anúncio: " + (err instanceof Error ? err.message : String(err)));
       } finally {
           setIsPostingAd(false);
       }
@@ -321,8 +323,8 @@ export const AdminDashboard: React.FC = () => {
           const { error } = await supabase.from('announcements').delete().eq('id', id);
           if (error) throw error;
           setAds(prev => prev.filter(a => a.id !== id));
-      } catch (err: any) {
-          alert("Erro ao apagar: " + err.message);
+      } catch (err: unknown) {
+          alert("Erro ao apagar: " + (err instanceof Error ? err.message : String(err)));
       }
   };
   
@@ -338,11 +340,9 @@ export const AdminDashboard: React.FC = () => {
       });
 
       const stats = {
-          FREE: { count: 0, price: 0, revenue: 0 },
-          MENSAL: { count: 0, price: 129.90, revenue: 0 },
-          TRIMESTRAL: { count: 0, price: 359.70, revenue: 0 },
-          ANUAL: { count: 0, price: 1198.80, revenue: 0 },
-          ENTERPRISE: { count: 0, price: 1250.00, revenue: 0 },
+          ESSENCIAL: { count: 0, price: 499.90, revenue: 0 },
+          PRO: { count: 0, price: 799.90, revenue: 0 },
+          ENTERPRISE: { count: 0, price: 0, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
           mrr: 0, // Monthly Recurring Revenue (Normalized)
@@ -358,16 +358,15 @@ export const AdminDashboard: React.FC = () => {
               stats[u.plan].revenue += stats[u.plan].price;
 
               // Calculate MRR
-              if (u.plan === 'MENSAL') stats.mrr += stats.MENSAL.price;
-              if (u.plan === 'TRIMESTRAL') stats.mrr += (stats.TRIMESTRAL.price / 3);
-              if (u.plan === 'ANUAL') stats.mrr += (stats.ANUAL.price / 12);
+              if (u.plan === 'ESSENCIAL') stats.mrr += stats.ESSENCIAL.price;
+              if (u.plan === 'PRO') stats.mrr += stats.PRO.price;
               if (u.plan === 'ENTERPRISE') stats.mrr += stats.ENTERPRISE.price;
           }
           stats.totalResumeUsage += (u.resume_usage || 0);
       });
 
-      stats.payingUsers = stats.MENSAL.count + stats.TRIMESTRAL.count + stats.ANUAL.count + stats.ENTERPRISE.count;
-      stats.totalRevenue = stats.MENSAL.revenue + stats.TRIMESTRAL.revenue + stats.ANUAL.revenue + stats.ENTERPRISE.revenue;
+      stats.payingUsers = stats.ESSENCIAL.count + stats.PRO.count + stats.ENTERPRISE.count;
+      stats.totalRevenue = stats.ESSENCIAL.revenue + stats.PRO.revenue + stats.ENTERPRISE.revenue;
 
       return stats;
   };
@@ -415,7 +414,7 @@ export const AdminDashboard: React.FC = () => {
     return (
     <div className="space-y-8 animate-fade-in">
         <div>
-            <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Visão Geral</h2>
+            <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Visão Geral</h2>
             <p className="text-zinc-500 font-medium">Métricas de hoje, {new Date().toLocaleDateString('pt-BR')}</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -458,24 +457,29 @@ export const AdminDashboard: React.FC = () => {
           u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
           u.email.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      const totalFree = users.filter(u => u.plan === 'FREE').length;
-      const totalPaid = users.filter(u => u.plan !== 'FREE').length;
+      const totalEssencial = users.filter(u => u.plan === 'ESSENCIAL').length;
+      const totalPro = users.filter(u => u.plan === 'PRO').length;
+      const totalEnterprise = users.filter(u => u.plan === 'ENTERPRISE').length;
 
       return (
           <div className="space-y-6 animate-fade-in">
               <div className="flex justify-between items-center">
                   <div>
-                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Usuários</h2>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Usuários</h2>
                       <p className="text-zinc-500 font-medium">Gerencie o acesso à plataforma.</p>
                   </div>
                   <div className="flex gap-4">
                       <div className="bg-white border border-zinc-200 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Free</span>
-                          <span className="text-lg font-black text-zinc-900">{totalFree}</span>
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Essencial</span>
+                          <span className="text-lg font-black text-zinc-900">{totalEssencial}</span>
                       </div>
                       <div className="bg-black text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Pagos</span>
-                          <span className="text-lg font-black text-[#CCF300]">{totalPaid}</span>
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Pro</span>
+                          <span className="text-lg font-black text-[#84cc16]">{totalPro}</span>
+                      </div>
+                      <div className="bg-zinc-800 text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Enterprise</span>
+                          <span className="text-lg font-black text-purple-400">{totalEnterprise}</span>
                       </div>
                   </div>
                   <div className="relative">
@@ -500,7 +504,7 @@ export const AdminDashboard: React.FC = () => {
                           {filteredUsers.map(user => (
                               <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-6"><div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div><div className="text-xs text-zinc-500">{user.email}</div></td>
-                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'ANUAL' ? 'bg-[#CCF300] text-black' : user.plan === 'FREE' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
+                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'PRO' ? 'bg-[#84cc16] text-black' : user.plan === 'ESSENCIAL' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{new Date(user.created_at).toLocaleDateString('pt-BR')}</span></td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}</span></td>
                                   <td className="p-6"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div></div><span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span></div></td>
@@ -518,7 +522,7 @@ export const AdminDashboard: React.FC = () => {
   const renderAdsManager = () => (
       <div className="space-y-8 animate-fade-in h-[calc(100vh-140px)] flex flex-col">
           <div>
-              <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Gerenciador de Anúncios</h2>
+              <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Gerenciador de Anúncios</h2>
               <p className="text-zinc-500 font-medium">Crie cards visíveis para todos os usuários.</p>
           </div>
 
@@ -545,7 +549,7 @@ export const AdminDashboard: React.FC = () => {
                               <Filter className="w-3 h-3"/> Visibilidade por Plano
                           </label>
                           <div className="flex flex-wrap gap-2">
-                              {(['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL', 'ENTERPRISE'] as PlanType[]).map(plan => (
+                              {(['ESSENCIAL', 'PRO', 'ENTERPRISE'] as PlanType[]).map(plan => (
                                   <button
                                       key={plan}
                                       onClick={() => togglePlan(plan)}
@@ -651,27 +655,28 @@ export const AdminDashboard: React.FC = () => {
   );
 
   const renderCommissions = () => {
-      const salesStats: Record<string, { name: string, clients: number, monthly: number, annual: number, commission: number }> = {};
+      const salesStats: Record<string, { name: string, clients: number, essencial: number, pro: number, enterprise: number, commission: number }> = {};
 
       users.forEach(user => {
-          if (user.salesperson && user.plan !== 'FREE') {
+          if (user.salesperson && user.plan !== 'ADMIN') {
               const key = user.salesperson.trim().toLowerCase();
               const name = user.salesperson.trim();
               
               if (!salesStats[key]) {
-                  salesStats[key] = { name, clients: 0, monthly: 0, annual: 0, commission: 0 };
+                  salesStats[key] = { name, clients: 0, essencial: 0, pro: 0, enterprise: 0, commission: 0 };
               }
 
               salesStats[key].clients++;
 
-              if (user.plan === 'MENSAL') {
-                  salesStats[key].monthly++;
+              if (user.plan === 'ESSENCIAL') {
+                  salesStats[key].essencial++;
                   salesStats[key].commission += 100;
-              } else if (user.plan === 'TRIMESTRAL') {
-                   salesStats[key].commission += 300; // 3 meses
-              } else if (user.plan === 'ANUAL') {
-                  salesStats[key].annual++;
-                  salesStats[key].commission += 1200; // 12 meses
+              } else if (user.plan === 'PRO') {
+                   salesStats[key].pro++;
+                   salesStats[key].commission += 200;
+              } else if (user.plan === 'ENTERPRISE') {
+                  salesStats[key].enterprise++;
+                  salesStats[key].commission += 300;
               }
           }
       });
@@ -682,7 +687,7 @@ export const AdminDashboard: React.FC = () => {
       return (
           <div className="space-y-8 animate-fade-in">
               <div>
-                  <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Comissões</h2>
+                  <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Comissões</h2>
                   <p className="text-zinc-500 font-medium">Gestão de vendedores e pagamentos.</p>
               </div>
 
@@ -709,7 +714,7 @@ export const AdminDashboard: React.FC = () => {
                           <tr>
                               <th className="p-6">Vendedor</th>
                               <th className="p-6">Clientes Ativos</th>
-                              <th className="p-6">Vendas (Mensal/Anual)</th>
+                              <th className="p-6">Vendas (Essencial/Pro/Ent)</th>
                               <th className="p-6 text-right">Comissão Total (Est.)</th>
                           </tr>
                       </thead>
@@ -720,8 +725,9 @@ export const AdminDashboard: React.FC = () => {
                                   <td className="p-6 font-bold text-zinc-600">{stat.clients}</td>
                                   <td className="p-6">
                                       <div className="flex gap-2">
-                                          <span className="bg-black text-white px-2 py-1 rounded text-[10px] font-bold">{stat.monthly} Mensais</span>
-                                          <span className="bg-[#CCF300] text-black px-2 py-1 rounded text-[10px] font-bold">{stat.annual} Anuais</span>
+                                          <span className="bg-zinc-100 text-zinc-500 px-2 py-1 rounded text-[10px] font-bold">{stat.essencial} Essencial</span>
+                                          <span className="bg-[#84cc16] text-black px-2 py-1 rounded text-[10px] font-bold">{stat.pro} Pro</span>
+                                          <span className="bg-purple-600 text-white px-2 py-1 rounded text-[10px] font-bold">{stat.enterprise} Ent</span>
                                       </div>
                                   </td>
                                   <td className="p-6 text-right font-black text-emerald-600 text-lg">
@@ -748,7 +754,7 @@ export const AdminDashboard: React.FC = () => {
       const arpu = stats.payingUsers > 0 ? stats.mrr / stats.payingUsers : 0;
       
       const recentTransactions = users
-          .filter(u => u.plan !== 'FREE')
+          .filter(u => u.plan !== 'ADMIN')
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 5);
 
@@ -756,7 +762,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="space-y-8 animate-fade-in pb-12">
               <div className="flex justify-between items-end">
                   <div>
-                      <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Faturamento</h2>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Faturamento</h2>
                       <p className="text-zinc-500 font-medium">Gestão financeira e métricas de receita.</p>
                   </div>
                   <div className="bg-white px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-500 shadow-sm flex items-center gap-2">
@@ -841,54 +847,37 @@ export const AdminDashboard: React.FC = () => {
                       </h3>
                       
                       <div className="space-y-6">
-                          {/* Mensal */}
+                          {/* Essencial */}
                           <div>
                               <div className="flex justify-between items-end mb-2">
                                   <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Mensal</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 129,90 / mês</span>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Essencial</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 499,90 / mês</span>
                                   </div>
                                   <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.MENSAL.count}</span>
+                                      <span className="text-lg font-black text-zinc-900">{stats.ESSENCIAL.count}</span>
                                       <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
                                   </div>
                               </div>
                               <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-zinc-900 h-full rounded-full" style={{ width: `${(stats.MENSAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                                  <div className="bg-zinc-900 h-full rounded-full" style={{ width: `${(stats.ESSENCIAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
                               </div>
                           </div>
 
-                          {/* Trimestral */}
+                          {/* Pro */}
                           <div>
                               <div className="flex justify-between items-end mb-2">
                                   <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Trimestral</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 119,90 / mês (Cobrado trimestralmente)</span>
+                                      <span className="text-sm font-bold text-zinc-900 block">Plano Pro</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 799,90 / mês</span>
                                   </div>
                                   <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.TRIMESTRAL.count}</span>
+                                      <span className="text-lg font-black text-zinc-900">{stats.PRO.count}</span>
                                       <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
                                   </div>
                               </div>
                               <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-zinc-700 h-full rounded-full" style={{ width: `${(stats.TRIMESTRAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
-                              </div>
-                          </div>
-
-                          {/* Anual */}
-                          <div>
-                              <div className="flex justify-between items-end mb-2">
-                                  <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Anual</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 99,90 / mês (Cobrado anualmente)</span>
-                                  </div>
-                                  <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.ANUAL.count}</span>
-                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
-                                  </div>
-                              </div>
-                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-[#CCF300] h-full rounded-full" style={{ width: `${(stats.ANUAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                                  <div className="bg-[#84cc16] h-full rounded-full" style={{ width: `${(stats.PRO.count / (stats.payingUsers || 1)) * 100}%` }}></div>
                               </div>
                           </div>
 
@@ -897,7 +886,7 @@ export const AdminDashboard: React.FC = () => {
                               <div className="flex justify-between items-end mb-2">
                                   <div>
                                       <span className="text-sm font-bold text-zinc-900 block">Plano Enterprise</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 1.250,00 / mês</span>
+                                      <span className="text-xs text-zinc-500 font-medium">A consultar</span>
                                   </div>
                                   <div className="text-right">
                                       <span className="text-lg font-black text-zinc-900">{stats.ENTERPRISE.count}</span>
@@ -911,7 +900,6 @@ export const AdminDashboard: React.FC = () => {
                       </div>
 
                       <div className="mt-8 pt-6 border-t border-zinc-100 flex justify-between items-center text-xs font-bold text-zinc-500">
-                          <span>Total Free: <strong className="text-zinc-900">{stats.FREE.count}</strong></span>
                           <span>Conversão: <strong className="text-zinc-900">{((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}%</strong></span>
                       </div>
                   </div>
@@ -943,7 +931,7 @@ export const AdminDashboard: React.FC = () => {
                                           </div>
                                           <div className="text-right">
                                               <p className="text-sm font-black text-emerald-600">
-                                                  + R$ {user.plan === 'ANUAL' ? '289,90' : '329,90'}
+                                                  + R$ {user.plan === 'ENTERPRISE' ? 'A consultar' : user.plan === 'PRO' ? '799,90' : '499,90'}
                                               </p>
                                               <p className="text-[10px] text-zinc-400">
                                                   {new Date(user.created_at).toLocaleDateString('pt-BR')}
@@ -1069,20 +1057,17 @@ export const AdminDashboard: React.FC = () => {
                                 <div className="space-y-2 animate-fade-in">
                                     <p className="text-xs text-zinc-500 font-medium mb-2">Selecione o novo plano. Os limites serão atualizados automaticamente.</p>
                                     <div className="grid grid-cols-1 gap-2">
-                                        <button onClick={() => handleUpdatePlan('FREE')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
-                                            <span>FREE</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas / 25 CVs</span>
+                                        <button onClick={() => handleUpdatePlan('ESSENCIAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
+                                            <span>ESSENCIAL</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas / CVs Ilimitados</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('MENSAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
-                                            <span>MENSAL</span> <span className="text-[10px] text-zinc-400 font-normal">5 Vagas / 150 CVs</span>
-                                        </button>
-                                        <button onClick={() => handleUpdatePlan('TRIMESTRAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-black border-black hover:bg-zinc-50">
-                                            <span>TRIMESTRAL</span> <span className="text-[10px] text-zinc-500 font-normal">10 Vagas / 450 CVs</span>
-                                        </button>
-                                        <button onClick={() => handleUpdatePlan('ANUAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#CCF300] text-black border-[#CCF300] hover:bg-[#bce000]">
-                                            <span>ANUAL</span> <span className="text-[10px] text-black/60 font-normal">Ilimitado</span>
+                                        <button onClick={() => handleUpdatePlan('PRO')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#84cc16] text-black border-[#84cc16] hover:bg-[#65a30d]">
+                                            <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas / CVs Ilimitados</span>
                                         </button>
                                         <button onClick={() => handleUpdatePlan('ENTERPRISE')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
                                             <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + n8n</span>
+                                        </button>
+                                        <button onClick={() => handleUpdatePlan('ADMIN')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
+                                            <span>ADMIN</span> <span className="text-[10px] text-zinc-400 font-normal">Acesso Total</span>
                                         </button>
                                     </div>
                                 </div>
@@ -1090,9 +1075,9 @@ export const AdminDashboard: React.FC = () => {
                                 <div>
                                     <p className="text-3xl font-black text-zinc-900">{selectedUser.plan}</p>
                                     <p className="text-xs text-zinc-400 font-bold mt-1">
-                                        {selectedUser.plan === 'FREE' ? 'Limites: 3 Vagas / 25 CVs' : selectedUser.plan === 'MENSAL' ? 'Limites: 5 Vagas / 150 CVs' : selectedUser.plan === 'TRIMESTRAL' ? 'Limites: 10 Vagas / 450 CVs' : 'Limites: ILIMITADO'}
+                                        {selectedUser.plan === 'ESSENCIAL' ? 'Limites: 3 Vagas / CVs Ilimitados' : selectedUser.plan === 'PRO' ? 'Limites: 10 Vagas / CVs Ilimitados' : 'Limites: ILIMITADO'}
                                     </p>
-                                    {selectedUser.plan !== 'FREE' && selectedUser.current_period_end && (
+                                    {selectedUser.plan !== 'ADMIN' && selectedUser.current_period_end && (
                                         <p className="text-xs text-zinc-500 font-bold mt-2">
                                             Renova em: {selectedUser.current_period_end && !isNaN(new Date(selectedUser.current_period_end).getTime()) ? new Date(selectedUser.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
                                         </p>

@@ -185,7 +185,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     doc.text('Relatório de Entrevistas', 14, 22);
     
     const tableColumn = ["Candidato", "Vaga", "Entrevistador", "Status", "Data", "Hora"];
-    const tableRows: any[] = [];
+    const tableRows: (string | undefined)[][] = [];
     
     filteredInterviews.forEach(interview => {
       const date = interview.scheduled_date ? new Date(interview.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR') : 'A definir';
@@ -222,16 +222,21 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
   };
 
   return (
-    <div className="bg-white rounded-[2rem] border-2 border-slate-100 p-8 shadow-sm animate-fade-in relative overflow-hidden">
+    <div className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] animate-fade-in relative overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Entrevistas<span className="text-[#84cc16]">.</span></h1>
-          <p className="text-slate-500 font-bold mt-1 text-sm">Acompanhe os agendamentos feitos pelo agente.</p>
-        </div>
         <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
+            <Calendar className="w-6 h-6 text-[#84cc16]" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Entrevistas</h1>
+            <p className="text-slate-500 font-medium mt-1 text-sm">Acompanhe os agendamentos feitos pelo agente.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
           <button
             onClick={handleExportPDF}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm"
           >
             <Download className="w-4 h-4" />
             Exportar
@@ -240,19 +245,16 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             href="https://calendar.google.com/calendar/r"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm"
           >
-            <Calendar className="w-4 h-4" />
-            Abrir Google Calendar
+            <img src="https://img.icons8.com/color/480/google-calendar--v2.png" alt="Google Calendar" className="w-4 h-4" />
+            Abrir Agenda
           </a>
-          <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100">
-            <Calendar className="w-5 h-5 text-emerald-600" />
-          </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-4 mb-8 p-5 bg-slate-50 rounded-2xl border border-slate-200">
+      <div className="flex flex-wrap items-end gap-4 mb-8 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
         <div className="flex items-center gap-2 w-full mb-2">
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-bold text-slate-700">Filtros</span>
@@ -264,7 +266,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             type="date"
             value={dateStart}
             onChange={(e) => setDateStart(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#CCF300] focus:border-transparent"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent shadow-sm"
           />
         </div>
         
@@ -274,7 +276,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             type="date"
             value={dateEnd}
             onChange={(e) => setDateEnd(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#CCF300] focus:border-transparent"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent shadow-sm"
           />
         </div>
 
@@ -283,7 +285,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           <select
             value={jobFilter}
             onChange={(e) => setJobFilter(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#CCF300] focus:border-transparent appearance-none"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent appearance-none shadow-sm"
           >
             <option value="">Todos os cargos</option>
             {uniqueJobs.map(job => (
@@ -297,7 +299,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           <select
             value={interviewerFilter}
             onChange={(e) => setInterviewerFilter(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#CCF300] focus:border-transparent appearance-none"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent appearance-none shadow-sm"
           >
             <option value="">Todos os entrevistadores</option>
             {uniqueInterviewers.map(interviewer => (
@@ -322,43 +324,43 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[900px] flex flex-col gap-3">
+        <div className="min-w-[900px] flex flex-col">
           {/* Header */}
-          <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.5fr_0.5fr] gap-4 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl mb-3 items-center">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center relative after:content-[''] after:absolute after:right-[-8px] after:top-1/2 after:-translate-y-1/2 after:h-4 after:w-px after:bg-slate-300">Candidato</div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center relative after:content-[''] after:absolute after:right-[-8px] after:top-1/2 after:-translate-y-1/2 after:h-4 after:w-px after:bg-slate-300">Vaga</div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center relative after:content-[''] after:absolute after:right-[-8px] after:top-1/2 after:-translate-y-1/2 after:h-4 after:w-px after:bg-slate-300">Entrevistador</div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center relative after:content-[''] after:absolute after:right-[-8px] after:top-1/2 after:-translate-y-1/2 after:h-4 after:w-px after:bg-slate-300">Status</div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center relative after:content-[''] after:absolute after:right-[-8px] after:top-1/2 after:-translate-y-1/2 after:h-4 after:w-px after:bg-slate-300">Data & Hora</div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center relative after:content-[''] after:absolute after:right-[-8px] after:top-1/2 after:-translate-y-1/2 after:h-4 after:w-px after:bg-slate-300">Link</div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Ações</div>
+          <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.5fr_0.5fr] gap-4 px-6 py-4 border-b border-slate-100 mb-2 items-center">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Candidato</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Vaga</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Entrevistador</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Data & Hora</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Link</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Ações</div>
           </div>
 
           {/* Rows */}
           {filteredInterviews.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 font-bold">Nenhuma entrevista encontrada com os filtros atuais.</div>
+            <div className="py-12 text-center text-slate-500 font-medium">Nenhuma entrevista encontrada com os filtros atuais.</div>
           ) : (
             filteredInterviews.map((interview) => {
               const isActive = interview.status === 'AGENDADA' || interview.status === 'CONFIRMADA' || interview.status === 'REMARCADA' || interview.status === 'COMPLETED' || interview.status === 'REALIZADA';
               const rowClasses = isActive
-                ? 'bg-[#CCF300]/5 border-[#CCF300] ring-1 ring-[#CCF300] shadow-[0px_4px_20px_rgba(204,243,0,0.1)]'
-                : 'bg-white border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200 hover:shadow-[0px_4px_25px_rgba(0,0,0,0.06)]';
+                ? 'bg-[#84cc16]/5 border-transparent'
+                : 'bg-white border-b border-slate-50 hover:bg-slate-50/50';
 
               return (
                 <div 
                   key={interview.id} 
                   onClick={() => setSelectedInterview(interview)}
-                  className={`grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.5fr_0.5fr] gap-4 items-center px-6 py-3 rounded-2xl border group cursor-pointer ${rowClasses}`}
+                  className={`grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.5fr_0.5fr] gap-4 items-center px-6 py-4 rounded-2xl transition-all cursor-pointer ${rowClasses}`}
                 >
                   
                   {/* Candidato */}
                   <div className="text-center">
-                    <div className="font-black text-sm text-slate-900">{formatName(interview.candidate_name)}</div>
+                    <div className="font-bold text-sm text-slate-900">{formatName(interview.candidate_name)}</div>
                   </div>
 
                   {/* Vaga */}
                   <div className="text-center">
-                    <div className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                    <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                       {interview.job_title || 'Vaga'}
                     </div>
                   </div>
@@ -366,15 +368,15 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                   {/* Entrevistador */}
                   <div className="flex items-center justify-center gap-2">
                     {interview.interviewer_name ? (
-                      <span className="text-xs font-bold text-slate-700">{interview.interviewer_name}</span>
+                      <span className="text-xs font-medium text-slate-700">{interview.interviewer_name}</span>
                     ) : (
-                      <span className="text-xs font-bold text-slate-400 italic">Não definido</span>
+                      <span className="text-xs font-medium text-slate-400 italic">Não definido</span>
                     )}
                   </div>
 
                   {/* Status */}
                   <div className="flex justify-center">
-                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest border transition-all ${getStatusColor(interview.status)}`}>
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${getStatusColor(interview.status)}`}>
                       {getStatusIcon(interview.status)}
                       {getStatusText(interview.status)}
                     </div>
@@ -389,14 +391,14 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                           {new Date(interview.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
                         </div>
                         {interview.scheduled_time && (
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
                             {interview.scheduled_time}
                           </div>
                         )}
                       </div>
                     ) : (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                         A definir
                       </span>
                     )}
@@ -410,7 +412,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-black text-[#CCF300] hover:bg-[#CCF300] hover:text-black hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all border-2 border-transparent hover:border-black"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 text-slate-600 hover:bg-[#84cc16] hover:text-white transition-all"
                         title="Entrar na Reunião"
                       >
                         <Video className="w-4 h-4" />
@@ -424,7 +426,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                   <div className="flex justify-center gap-2">
                     <button
                       onClick={(e) => handleOpenPdf(e, interview.candidate_file_path)}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:bg-slate-50 hover:text-slate-600 hover:border-slate-200 border-2 border-transparent transition-all"
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all"
                       title="Abrir PDF"
                     >
                       <Eye className="w-4 h-4" />
@@ -435,7 +437,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                           e.stopPropagation();
                           setInterviewToCancel(interview);
                         }}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-200 border-2 border-transparent transition-all"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
                         title="Cancelar Entrevista"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -468,7 +470,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                 <User className="w-8 h-8 text-[#a3c200]" />
               </div>
               <div>
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">{selectedInterview.candidate_name}</h3>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">{selectedInterview.candidate_name}</h3>
                 <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest mt-2 border transition-all ${getStatusColor(selectedInterview.status)}`}>
                   {getStatusIcon(selectedInterview.status)}
                   {getStatusText(selectedInterview.status)}
@@ -570,7 +572,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
               <AlertCircle className="w-8 h-8 text-red-500" />
             </div>
             
-            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Cancelar Entrevista?</h3>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-2">Cancelar Entrevista?</h3>
             <p className="text-slate-500 mb-8">
               Tem certeza que deseja cancelar esta entrevista com <strong className="text-slate-700">{interviewToCancel.candidate_name}</strong>? O candidato será notificado via WhatsApp.
             </p>

@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-declare const Deno: any;
+declare const Deno: {
+    serve: (handler: (req: Request) => Promise<Response>) => void;
+    env: { get: (key: string) => string | undefined };
+};
 
 console.log("InfinitePay Webhook Handler Iniciado")
 

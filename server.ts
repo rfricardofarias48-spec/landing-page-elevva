@@ -96,9 +96,9 @@ app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
 
     return res.status(200).json(vagasFormatadas);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Webhook Error:", error);
-    return res.status(500).json({ error: "Internal server error.", details: error.message });
+    return res.status(500).json({ error: "Internal server error.", details: error instanceof Error ? error.message : String(error) });
   }
 });
 
@@ -375,9 +375,9 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Webhook Error:", error);
-    return res.status(500).json({ error: "Internal server error.", details: error.message });
+    return res.status(500).json({ error: "Internal server error.", details: error instanceof Error ? error.message : String(error) });
   }
 });
 

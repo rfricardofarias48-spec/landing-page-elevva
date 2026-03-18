@@ -72,7 +72,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                         <span class="font-black text-slate-900 text-lg">#${index + 1}</span>
                     </td>
                     <td class="py-2 px-4 align-middle">
-                        <div class="font-black text-slate-900 text-sm tracking-tight">${c.result?.candidateName}</div>
+                        <div class="font-black text-slate-900 text-sm tracking-tighter">${c.result?.candidateName}</div>
                         <div class="text-slate-400 text-[10px] font-bold mt-0.5 flex items-center gap-1 uppercase tracking-wide">
                             ${Icons.Briefcase} ${c.result?.yearsExperience || 'N/A'}
                         </div>
@@ -101,7 +101,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                             <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" class="h-5 w-auto" />
                             <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-l border-slate-300 pl-3">Relatório Oficial &bull; ${currentDate}</span>
                         </div>
-                        <h1 class="text-xl font-black text-slate-900 tracking-tight">Candidatos Selecionados</h1>
+                        <h1 class="text-xl font-black text-slate-900 tracking-tighter">Candidatos Selecionados</h1>
                      </div>
                      <div class="text-right">
                         <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Vaga</div>
@@ -188,7 +188,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
                              <!-- Nome e Detalhes -->
                              <div class="flex-1">
-                                 <h1 class="text-xl font-black text-slate-900 tracking-tight uppercase leading-none mb-1.5">
+                                 <h1 class="text-xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-1.5">
                                     ${c.result?.candidateName}
                                  </h1>
                                  
@@ -373,7 +373,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                 </div>
                 <span className="text-zinc-500 text-xs font-bold">{currentDate}</span>
              </div>
-             <h2 className="text-3xl font-black text-white tracking-tight leading-none">Candidatos Selecionados</h2>
+             <h2 className="text-3xl font-black text-white tracking-tighter leading-none">Candidatos Selecionados</h2>
              <p className="text-zinc-400 text-sm font-medium">Vaga: <span className="text-white font-bold">{jobTitle}</span></p>
           </div>
 
@@ -448,7 +448,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                              <span className="font-black text-slate-900 text-xl">#{index + 1}</span>
                           </td>
                           <td className="p-6 align-middle">
-                             <div className="font-black text-slate-900 text-base tracking-tight">{c.result?.candidateName}</div>
+                             <div className="font-black text-slate-900 text-base tracking-tighter">{c.result?.candidateName}</div>
                              <div className="text-slate-400 text-xs font-bold mt-1 flex items-center gap-1 uppercase tracking-wide">
                                <Briefcase className="w-3 h-3" /> {c.result?.yearsExperience || 'N/A'}
                              </div>
@@ -507,7 +507,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
                             {/* Nome e Detalhes */}
                             <div className="flex-1">
-                                <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase leading-none mb-2">
+                                <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-2">
                                     {c.result?.candidateName}
                                 </h1>
                                 

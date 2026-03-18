@@ -33,7 +33,7 @@ BEGIN;
 -- 1. Atualiza o valor padrão da coluna target_plans para incluir TRIMESTRAL
 ALTER TABLE public.announcements 
 ALTER COLUMN target_plans 
-SET DEFAULT '{FREE,MENSAL,TRIMESTRAL,ANUAL}';
+SET DEFAULT '{ESSENCIAL,PRO,ENTERPRISE}';
 
 -- 2. Atualiza registros existentes para garantir compatibilidade (opcional)
 -- UPDATE public.announcements SET target_plans = array_append(target_plans, 'TRIMESTRAL') WHERE NOT ('TRIMESTRAL' = ANY(target_plans));
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   name text,
   phone text,
   role text DEFAULT 'USER',
-  plan text DEFAULT 'FREE',
+  plan text DEFAULT 'ESSENCIAL',
   job_limit int DEFAULT 3,
   resume_limit int DEFAULT 25,
   resume_usage int DEFAULT 0,
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS public.announcements (
     image_path text NOT NULL,
     is_active boolean DEFAULT true,
     created_at timestamptz DEFAULT now(),
-    target_plans text[] DEFAULT '{FREE,MENSAL,ANUAL}'
+    target_plans text[] DEFAULT '{ESSENCIAL,PRO,ENTERPRISE}'
 );
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE public.announcements TO anon, authenticated;

@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   // Carrega variáveis de ambiente do diretório atual
   // O terceiro parâmetro '' garante que carregamos envs sem prefixo VITE_ (como API_KEY)
-  const env = loadEnv(mode, (process as any).cwd(), '');
+  const env = loadEnv(mode, process.cwd(), '');
 
   // Tenta encontrar a chave em todas as variações possíveis (Vercel, Local, Prefixo VITE)
   const apiKey = env.GEMINI_API_KEY || env.VITE_API_KEY || env.API_KEY || env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || process.env.VITE_API_KEY || process.env.API_KEY || "";

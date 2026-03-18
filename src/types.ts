@@ -52,7 +52,7 @@ export interface Job {
   is_paused?: boolean; // NOVO: Impedir novos uploads
 }
 
-export type PlanType = 'FREE' | 'MENSAL' | 'TRIMESTRAL' | 'ANUAL' | 'ENTERPRISE';
+export type PlanType = 'ESSENCIAL' | 'PRO' | 'ENTERPRISE' | 'ADMIN';
 
 export interface Announcement {
   id: string;

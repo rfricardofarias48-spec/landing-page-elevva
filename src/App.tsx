@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './services/supabaseClient';
 import { analyzeResume } from './services/geminiService';
 import { Job, Candidate, CandidateStatus, User, ViewState, Announcement } from './types';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
 import { LoginScreen } from './components/LoginScreen';
@@ -21,9 +22,9 @@ import {
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
-const mapCandidateFromDB = (c: any): Candidate => ({
-  id: c.id,
-  file: new File([], c.filename || 'currículo.pdf'), // Placeholder file object
+const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => ({
+  id: c.id as string,
+  file: new File([], (c.filename as string) || 'currículo.pdf'), // Placeholder file object
   fileName: c.filename,
   filePath: c.file_path,
   status: c.status as CandidateStatus,
@@ -72,8 +73,8 @@ const App: React.FC = () => {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [interviews, setInterviews] = useState<any[]>([]);
-  const [initialSelectedInterview, setInitialSelectedInterview] = useState<any | null>(null);
+  const [interviews, setInterviews] = useState<Record<string, unknown>[]>([]);
+  const [initialSelectedInterview, setInitialSelectedInterview] = useState<Record<string, unknown> | null>(null);
   
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -185,10 +186,10 @@ const App: React.FC = () => {
         (payload) => {
           setUser(prev => {
               if (!prev) return null;
-              const newData = payload.new as any;
+              const newData = payload.new as Record<string, unknown>;
               
-              // Se o plano mudou (e não é FREE), notifica o usuário
-              if (prev.plan !== newData.plan && newData.plan !== 'FREE') {
+              // Se o plano mudou (e não é ESSENCIAL), notifica o usuário
+              if (prev.plan !== newData.plan && newData.plan !== 'ESSENCIAL') {
                   // Mostra alerta visual
                   setTimeout(() => {
                       alert(`🎉 Pagamento confirmado!\n\nSeu plano foi atualizado para ${newData.plan}. Todos os recursos foram liberados.`);
@@ -350,6 +351,7 @@ const App: React.FC = () => {
       subscription.unsubscribe();
       clearTimeout(safetyTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- RETENTION POLICY CLEANUP ---
@@ -488,16 +490,16 @@ const App: React.FC = () => {
         role: isAdmin ? 'ADMIN' : (data.role || 'USER'), // Força Admin se email bater
         name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário', // Fallback para não quebrar a UI
         job_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.job_limit ?? 3),
-        resume_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.resume_limit ?? 25),
+        resume_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.resume_limit ?? 9999),
         resume_usage: data.resume_usage ?? 0,
-        plan: data.plan || 'FREE'
+        plan: data.plan || 'ESSENCIAL'
       } : {
         id: userId,
         email: email,
         name: 'Usuário',
-        plan: 'FREE',
+        plan: 'ESSENCIAL',
         job_limit: 3,
-        resume_limit: 25, 
+        resume_limit: 9999, 
         resume_usage: 0,
         role: isAdmin ? 'ADMIN' : 'USER'
       };
@@ -552,9 +554,9 @@ const App: React.FC = () => {
         setUser({ ...user, name: tempName });
         // Marca como dispensado PERMANENTEMENTE para este usuário
         dismissWelcomeModal();
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Erro ao salvar nome:", err);
-        alert("Erro crítico ao salvar: " + err.message);
+        alert("Erro crítico ao salvar: " + (err instanceof Error ? err.message : String(err)));
     } finally {
         setIsSavingName(false);
     }
@@ -600,9 +602,9 @@ const App: React.FC = () => {
                  email,
                  name: name || 'Usuário',
                  phone,
-                 plan: 'FREE',
+                 plan: 'ESSENCIAL',
                  job_limit: 3,
-                 resume_limit: 25, 
+                 resume_limit: 9999, 
                  resume_usage: 0,
                  role: 'USER'
                }], { onConflict: 'id' });
@@ -635,8 +637,8 @@ const App: React.FC = () => {
         // -----------------------------------
       }
       return { success: false, error: result.error?.message };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   };
 
@@ -656,8 +658,8 @@ const App: React.FC = () => {
         }
 
         return { success: true, message: "Link enviado! Verifique seu email (inclusive SPAM)." };
-    } catch (e: any) {
-        return { success: false, error: e.message };
+    } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
   };
 
@@ -678,8 +680,8 @@ const App: React.FC = () => {
         setShowRecoveryModal(false);
         setRecoveryPassword('');
         // Opcional: Redirecionar para dashboard ou apenas fechar modal
-    } catch (error: any) {
-        alert("Erro ao redefinir senha: " + error.message);
+    } catch (error: unknown) {
+        alert("Erro ao redefinir senha: " + (error instanceof Error ? error.message : String(error)));
     } finally {
         setIsSavingRecovery(false);
     }
@@ -729,8 +731,8 @@ const App: React.FC = () => {
     }
 
     // Fetch interviewer names from slots as a fallback for old interviews
-    const jobIds = Array.from(new Set(data.map((i: any) => i.job_id)));
-    let interviewerMap = new Map();
+    const jobIds = Array.from(new Set(data.map((i: Record<string, unknown>) => i.job_id)));
+    const interviewerMap = new Map();
     
     if (jobIds.length > 0) {
       const { data: slotsData } = await supabase
@@ -748,8 +750,8 @@ const App: React.FC = () => {
       }
     }
 
-    const formattedInterviews = data.map((i: any) => {
-      const rawTime = i.slot_time || i.interview_slots?.slot_time;
+    const formattedInterviews = data.map((i: Record<string, unknown>) => {
+      const rawTime = (i.slot_time || (i.interview_slots as Record<string, unknown>)?.slot_time) as string | undefined;
       const formattedTime = rawTime ? rawTime.substring(0, 5) : undefined;
 
       return {
@@ -781,9 +783,9 @@ const App: React.FC = () => {
       return;
     }
 
-    const formattedJobs: Job[] = data.map((j: any) => ({
+    const formattedJobs: Job[] = data.map((j: Record<string, unknown>) => ({
       ...j,
-      createdAt: new Date(j.created_at).getTime(),
+      createdAt: new Date(j.created_at as string).getTime(),
       candidates: j.candidates ? j.candidates.map(mapCandidateFromDB) : []
     }));
 
@@ -806,8 +808,8 @@ const App: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-          const mappedAds: Announcement[] = data.map((a: any) => {
-              const { data: urlData } = supabase.storage.from('marketing').getPublicUrl(a.image_path);
+          const mappedAds: Announcement[] = data.map((a: Record<string, unknown>) => {
+              const { data: urlData } = supabase.storage.from('marketing').getPublicUrl(a.image_path as string);
               return {
                   id: a.id,
                   title: a.title,
@@ -815,7 +817,7 @@ const App: React.FC = () => {
                   linkUrl: a.link_url,
                   isActive: a.is_active,
                   createdAt: a.created_at,
-                  targetPlans: a.target_plans || ['FREE', 'MENSAL', 'ANUAL'] // Map target plans
+                  targetPlans: a.target_plans || ['ESSENCIAL', 'PRO', 'ENTERPRISE'] // Map target plans
               };
           });
           setAnnouncements(mappedAds);
@@ -923,7 +925,7 @@ const App: React.FC = () => {
       setIsEditing(false);
   };
 
-  const notifyN8nInterviewCanceled = async (interviewsToCancel: any[]) => {
+  const notifyN8nInterviewCanceled = async (interviewsToCancel: Record<string, unknown>[]) => {
     const webhookUrl = import.meta.env.VITE_N8N_CANCEL_WEBHOOK;
     if (!webhookUrl || !interviewsToCancel || interviewsToCancel.length === 0) return;
 
@@ -1127,8 +1129,8 @@ const App: React.FC = () => {
                 setJobs(prev => prev.map(j => j.id === jobId ? { ...j, candidates: [finalCandidate, ...j.candidates] } : j));
             }
 
-        } catch (err: any) {
-            console.error("Upload failed details:", err.message);
+        } catch (err: unknown) {
+            console.error("Upload failed details:", err instanceof Error ? err.message : String(err));
             
             if (err.message && err.message.includes("violates not-null constraint") && err.message.includes("file_name")) {
                 alert("ERRO CRÍTICO DE BANCO DE DADOS: Coluna 'file_name' bloqueada.\n\nPor favor, vá em Configurações > Banco de Dados > e execute o SCRIPT V17.");
@@ -1275,7 +1277,7 @@ const App: React.FC = () => {
             processedGlobal++;
             setAnalysisMetrics(prev => ({ ...prev, processedCount: processedGlobal }));
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Analysis FAILURE for", candidate.fileName, err);
             
             await supabase.from('candidates').update({ status: 'ERROR' }).eq('id', candidate.id);
@@ -1445,8 +1447,8 @@ const App: React.FC = () => {
   const renderOverview = () => {
       // Filtrar Anúncios baseados no plano do usuário
       const visibleAnnouncements = announcements.filter(ad => {
-          // Se o usuário não tiver plano definido (null), assume FREE
-          const userPlan = user?.plan || 'FREE';
+          // Se o usuário não tiver plano definido (null), assume ESSENCIAL
+          const userPlan = user?.plan || 'ESSENCIAL';
           // Verifica se o plano do usuário está na lista de planos alvo do anúncio
           return ad.targetPlans.includes(userPlan);
       });
@@ -1454,10 +1456,20 @@ const App: React.FC = () => {
       const totalResumesAnalyzed = user?.resume_usage || 0;
       const hoursSaved = Math.round((totalResumesAnalyzed * 10) / 60);
 
+      const mockChartData = [
+        { name: 'Seg', candidatos: 12 },
+        { name: 'Ter', candidatos: 19 },
+        { name: 'Qua', candidatos: 15 },
+        { name: 'Qui', candidatos: 22 },
+        { name: 'Sex', candidatos: 30 },
+        { name: 'Sáb', candidatos: 10 },
+        { name: 'Dom', candidatos: 8 },
+      ];
+
       return (
-      <div className="space-y-8 animate-fade-in max-w-[1400px] mx-auto font-sans pt-2">
+      <div className="space-y-6 animate-fade-in max-w-[1400px] mx-auto font-sans pt-2">
           
-          {/* HEADER DE RECEPÇÃO - ULTRA COMPACTO */}
+          {/* HEADER DE RECEPÇÃO */}
           <div className="flex items-center gap-3">
               <div className="relative shrink-0 group cursor-default">
                   <div className="absolute inset-0 bg-[#84cc16] rounded-xl translate-x-1 translate-y-1 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:translate-y-1.5"></div>
@@ -1473,103 +1485,173 @@ const App: React.FC = () => {
               </div>
           </div>
 
-          {/* RESUMO DE IMPACTO */}
-          <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                  {/* VAGAS ATIVAS */}
-                  <div className="bg-white p-7 rounded-[2rem] border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
-                      <div className="relative z-10">
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">VAGAS ATIVAS</p>
-                          <div className="flex items-baseline gap-1 mb-5">
-                              <span className="text-6xl font-black text-[#0f172a] tracking-tighter leading-none">{jobs.length}</span>
-                              <span className="text-xl font-bold text-slate-300">/ {user?.job_limit >= 9999 ? '∞' : user?.job_limit}</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                              <div className="bg-[#0f172a] h-full rounded-full" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
-                          </div>
-                      </div>
-                      <Briefcase className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
+          {/* TOP CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              {/* VAGAS ATIVAS */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Vagas Ativas</p>
+                      <Briefcase className="w-5 h-5 text-slate-300" />
                   </div>
-
-                  {/* CURRÍCULOS ANALISADOS */}
-                  <div className="bg-white p-7 rounded-[2rem] border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
-                      <div className="relative z-10">
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CURRÍCULOS ANALISADOS</p>
-                          <div className="flex items-baseline gap-1 mb-5">
-                              <span className="text-6xl font-black text-[#0f172a] tracking-tighter leading-none">{totalResumesAnalyzed}</span>
-                              <span className="text-xl font-bold text-slate-300">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-3">
-                              <div className="bg-[#84cc16] h-full rounded-full" style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
-                          </div>
-                          <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5" /> Retenção automática de 10 dias
-                          </p>
-                      </div>
-                      <FileText className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
+                  <div className="flex items-baseline gap-1">
+                      <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{jobs.length}</span>
+                      <span className="text-sm font-bold text-slate-400">/ {user?.job_limit >= 9999 ? '∞' : user?.job_limit}</span>
                   </div>
+              </div>
 
-                  {/* AGENDA */}
-                  <div className="bg-white p-7 rounded-[2rem] border border-slate-100 relative overflow-hidden group shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all flex flex-col justify-between">
-                      <div className="relative z-10">
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">AGENDA</p>
-                          <div className="mb-4">
-                              <img src="https://img.icons8.com/color/480/google-calendar--v2.png" alt="Google Agenda" className="w-20 h-20" />
-                          </div>
-                          <p className="text-slate-500 text-xs font-medium">Acesse suas entrevistas.</p>
-                      </div>
-                      <button onClick={() => window.open('https://calendar.google.com', '_blank')} className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 flex items-center justify-center gap-2 relative z-10">
-                          ABRIR AGENDA
-                      </button>
-                      <Calendar className="absolute -right-6 -bottom-6 w-40 h-40 text-slate-50 transform -rotate-12 group-hover:scale-105 transition-transform duration-500 pointer-events-none" />
+              {/* CURRÍCULOS ANALISADOS */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Currículos Analisados</p>
+                      <FileText className="w-5 h-5 text-slate-300" />
                   </div>
+                  <div className="flex items-baseline gap-1">
+                      <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{totalResumesAnalyzed}</span>
+                      <span className="text-sm font-bold text-slate-400">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
+                  </div>
+              </div>
 
-                  {/* PLANO ATUAL */}
-                  <div className="bg-[#0a0a0a] p-7 rounded-[2rem] relative overflow-hidden flex flex-col justify-between shadow-2xl">
-                       <div className="relative z-10">
-                          <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
-                          <h3 className="text-5xl font-black text-white mb-2 tracking-tighter">{user?.plan || 'FREE'}</h3>
-                          <p className="text-zinc-400 text-sm font-medium">Faça upgrade para liberar recursos.</p>
-                       </div>
-                       <button onClick={() => setCurrentTab('BILLING')} className="mt-6 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 relative z-10">
-                           VER PLANOS
-                       </button>
+              {/* ENTREVISTAS */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Entrevistas</p>
+                      <Calendar className="w-5 h-5 text-slate-300" />
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                      <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{interviews.length}</span>
+                      <span className="text-sm font-bold text-slate-400">agendadas</span>
+                  </div>
+              </div>
+
+              {/* IMPACTO REAL */}
+              <div className="bg-zinc-900 p-6 rounded-[2rem] border border-zinc-800 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all text-white">
+                  <div className="flex items-center justify-between mb-4">
+                      <p className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">Horas Salvas</p>
+                      <Clock className="w-5 h-5 text-[#84cc16]" />
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                      <span className="text-5xl font-black text-white tracking-tighter leading-none">{hoursSaved}</span>
+                      <span className="text-sm font-bold text-zinc-500">horas</span>
                   </div>
               </div>
           </div>
 
-          {/* SEU AGENTE EM AÇÃO */}
-          <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
-              <div className="relative z-10 flex-1">
-                  <div className="flex items-center gap-2 mb-3">
-                      <div className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                      </div>
-                      <span className="text-xs font-black text-emerald-600 uppercase tracking-widest">Online e operando</span>
+          {/* MIDDLE SECTION */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+              {/* CHART */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] lg:col-span-2 flex flex-col">
+                  <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-black text-slate-900 tracking-tighter">Fluxo de Candidatos</h3>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Últimos 7 dias</span>
                   </div>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight mb-2">Seu Agente em Ação</h3>
-                  <p className="text-slate-500 font-medium text-sm md:text-base">Bento está atendendo candidatos no WhatsApp neste momento.</p>
+                  <div className="flex-1 min-h-[250px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={mockChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <defs>
+                                  <linearGradient id="colorCandidatos" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#84cc16" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="#84cc16" stopOpacity={0}/>
+                                  </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                              <Tooltip 
+                                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                                  itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
+                              />
+                              <Area type="monotone" dataKey="candidatos" stroke="#84cc16" strokeWidth={3} fillOpacity={1} fill="url(#colorCandidatos)" />
+                          </AreaChart>
+                      </ResponsiveContainer>
+                  </div>
               </div>
-              
-              <div className="relative z-10 w-full md:w-auto shrink-0">
-                  <a 
-                      href="https://app.chatwoot.com" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-white px-6 py-4 rounded-2xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0"
-                  >
-                      <span className="text-lg">💬</span> Acompanhar Conversas ao Vivo
-                  </a>
+
+              {/* AGENTE EM AÇÃO */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between relative overflow-hidden">
+                  <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-4">
+                          <div className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                          </div>
+                          <span className="text-xs font-black text-emerald-600 uppercase tracking-widest">Online e operando</span>
+                      </div>
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-2">Seu Agente em Ação</h3>
+                      <p className="text-slate-500 font-medium text-sm">Bento está atendendo candidatos no WhatsApp neste momento.</p>
+                  </div>
+                  
+                  <div className="relative z-10 mt-8">
+                      <a 
+                          href="https://app.chatwoot.com" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-white px-6 py-4 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0"
+                      >
+                          <span className="text-lg">💬</span> Acompanhar ao Vivo
+                      </a>
+                  </div>
+                  <div className="absolute right-0 bottom-0 w-48 h-48 bg-emerald-50 rounded-full blur-[60px] opacity-60 -mr-10 -mb-10 pointer-events-none"></div>
               </div>
-              
-              <div className="absolute right-0 bottom-0 w-64 h-64 bg-emerald-50 rounded-full blur-[80px] opacity-50 -mr-20 -mb-20 pointer-events-none"></div>
+          </div>
+
+          {/* BOTTOM SECTION */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+              {/* AGENDA */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] lg:col-span-2">
+                  <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-black text-slate-900 tracking-tighter flex items-center gap-2">
+                          <Calendar className="w-5 h-5 text-[#84cc16]" /> Próximas Entrevistas
+                      </h3>
+                      <button onClick={() => window.open('https://calendar.google.com', '_blank')} className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">
+                          Abrir Google Agenda <ExternalLink className="w-3 h-3" />
+                      </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                      {interviews.length > 0 ? (
+                          interviews.slice(0, 3).map((interview, idx) => (
+                              <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                                  <div className="flex items-center gap-4">
+                                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold">
+                                          {String(interview.candidate_name).charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                          <p className="font-black text-slate-900 text-sm">{String(interview.candidate_name)}</p>
+                                          <p className="text-xs text-slate-500 font-medium">{String(interview.job_title)}</p>
+                                      </div>
+                                  </div>
+                                  <div className="text-right">
+                                      <p className="font-bold text-slate-900 text-sm">{interview.scheduled_date ? new Date(String(interview.scheduled_date)).toLocaleDateString('pt-BR') : 'Sem data'}</p>
+                                      <p className="text-xs text-slate-500 font-medium">{interview.scheduled_time ? String(interview.scheduled_time) : 'Sem horário'}</p>
+                                  </div>
+                              </div>
+                          ))
+                      ) : (
+                          <div className="text-center py-8">
+                              <p className="text-slate-500 font-medium text-sm">Nenhuma entrevista agendada no momento.</p>
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* PLANO ATUAL */}
+              <div className="bg-[#0a0a0a] p-6 rounded-[2rem] relative overflow-hidden flex flex-col justify-between shadow-xl">
+                  <div className="relative z-10">
+                      <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
+                      <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{user?.plan || 'ESSENCIAL'}</h3>
+                      <p className="text-zinc-400 text-sm font-medium">Faça upgrade para liberar recursos.</p>
+                  </div>
+                  <button onClick={() => setCurrentTab('BILLING')} className="mt-8 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 relative z-10">
+                      VER PLANOS
+                  </button>
+                  <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-zinc-800 rounded-full blur-[50px] opacity-50 pointer-events-none"></div>
+              </div>
           </div>
 
           {/* ANÚNCIOS (NOVOS) - FILTRADOS POR PLANO */}
           {visibleAnnouncements.length > 0 && (
               <div className="animate-slide-up">
-                  <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tight flex items-center gap-2">
+                  <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tighter flex items-center gap-2">
                       <Star className="w-5 h-5 text-[#84cc16] fill-current" /> Novidades & Ofertas
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1579,7 +1661,7 @@ const App: React.FC = () => {
                             href={ad.linkUrl || '#'} 
                             target={ad.linkUrl ? "_blank" : undefined}
                             rel="noopener noreferrer"
-                            className={`block group relative rounded-3xl overflow-hidden border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all bg-white ${!ad.linkUrl ? 'cursor-default' : ''}`}
+                            className={`block group relative rounded-[2rem] overflow-hidden border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all bg-white ${!ad.linkUrl ? 'cursor-default' : ''}`}
                           >
                               <div className="h-48 overflow-hidden bg-slate-200 relative">
                                   <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -1600,258 +1682,162 @@ const App: React.FC = () => {
                   </div>
               </div>
           )}
-
-          {/* TEMPO ECONOMIZADO (MOVIDO PARA O FINAL) */}
-          <div className="bg-[#84cc16] p-6 md:p-8 rounded-3xl relative overflow-hidden group shadow-[0px_8px_30px_rgba(132,204,22,0.4)] hover:shadow-[0px_10px_40px_rgba(132,204,22,0.6)] transition-all border-2 border-[#74b313] flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="relative z-10 flex-1 text-center md:text-left">
-                  <div className="flex flex-col md:flex-row items-center md:items-start gap-4 mb-4">
-                      <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center shadow-inner shrink-0">
-                          <Clock className="w-6 h-6 text-[#84cc16]" />
-                      </div>
-                      <div>
-                          <p className="text-[10px] font-black text-black/60 uppercase tracking-widest mb-1">Impacto Real</p>
-                          <h3 className="text-xl md:text-2xl font-black text-black tracking-tight leading-tight">Você já economizou <span className="text-3xl md:text-4xl tracking-tighter">{hoursSaved}</span> horas de trabalho manual.</h3>
-                      </div>
-                  </div>
-                  <p className="text-black/70 font-bold text-sm md:ml-16">Isso é tempo que você pode focar no que realmente importa: as pessoas.</p>
-              </div>
-              <div className="relative z-10 shrink-0 mt-2 md:mt-0">
-                  <div className="bg-black text-white px-6 py-4 rounded-2xl text-center shadow-2xl transform rotate-2 hover:rotate-0 transition-transform duration-300">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-[#84cc16] mb-1">Entrevistas Agendadas</p>
-                      <span className="text-4xl font-black tracking-tighter">{interviews.length}</span>
-                  </div>
-              </div>
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full blur-[80px] opacity-30 -mr-10 -mt-10 pointer-events-none"></div>
-          </div>
       </div>
   );
   };
 
   const renderBilling = () => (
       <div className="space-y-12 animate-fade-in max-w-[1400px] mx-auto font-sans p-4">
-          <div>
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight">Minha Assinatura</h2>
-              <p className="text-slate-500 font-medium mt-1">Gerencie seu plano e limites de uso.</p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
+                      <CreditCard className="w-6 h-6 text-[#84cc16]" />
+                  </div>
+                  <div>
+                      <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Minha Assinatura</h2>
+                      <p className="text-slate-500 font-medium mt-1 text-sm">Gerencie seu plano e limites de uso.</p>
+                  </div>
+              </div>
           </div>
 
           {/* Current Plan Card - Black */}
-          <div className="bg-black rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden text-white shadow-2xl">
+          <div className="bg-[#0a0a0a] rounded-[2rem] p-6 md:p-8 relative overflow-hidden text-white shadow-xl">
               <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-4">
-                      <span className="text-[#84cc16] font-black text-xs uppercase tracking-widest">Plano Ativo</span>
-                      {user?.plan !== 'FREE' && (
-                          <span className="bg-zinc-800 text-zinc-500 px-3 py-1 rounded text-[10px] font-mono">
+                      <span className="text-[#84cc16] font-black text-[10px] uppercase tracking-widest">Plano Ativo</span>
+                      {user?.plan !== 'ESSENCIAL' && (
+                          <span className="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-[10px] font-bold tracking-wider">
                               Renova em: {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) ? new Date(user.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
                           </span>
                       )}
                   </div>
                   
-                  <div className="flex justify-between items-start">
-                      <h3 className="text-6xl font-black tracking-tighter text-white mb-6">{user?.plan}</h3>
+                  <div className="flex justify-between items-start mb-8">
+                      <h3 className="text-5xl md:text-6xl font-black tracking-tighter text-white">{user?.plan}</h3>
                       <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800">
-                          <Zap className="w-6 h-6 text-zinc-600" />
+                          <Zap className="w-5 h-5 text-zinc-500" />
                       </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Vagas Bar */}
                       <div>
-                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
                               <span>Vagas Ativas</span>
                               <span className="text-white">{user?.job_limit >= 9999 ? '∞' : `${jobs.length} / ${user?.job_limit}`}</span>
                           </div>
-                          <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-zinc-800">
-                              <div className="bg-zinc-600 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
+                          <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-[#84cc16] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
                           </div>
                       </div>
 
                       {/* Curriculos Bar */}
                       <div>
-                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">
+                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3">
                               <span>Currículos Analisados</span>
                               <span className="text-white">{user?.resume_limit >= 9999 ? '∞' : `${user?.resume_usage} / ${user?.resume_limit}`}</span>
                           </div>
-                          <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-zinc-800">
-                              <div className="bg-zinc-600 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
+                          <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-[#84cc16] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, ((user?.resume_usage || 0) / (user?.resume_limit || 1)) * 100)}%` }}></div>
                           </div>
                       </div>
                   </div>
               </div>
+              <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-zinc-800 rounded-full blur-[80px] opacity-30 pointer-events-none"></div>
           </div>
 
-          {/* Upgrade Options or Enterprise Details */}
-          {user?.plan === 'ENTERPRISE' ? (
-              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm">
-                  <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-2">
-                      <Star className="w-6 h-6 text-[#84cc16] fill-[#84cc16]" /> Detalhes da Assinatura
-                  </h3>
+          {/* Upgrade Options */}
+          <div>
+              <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tighter flex items-center gap-2">
+                  <ArrowUpRight className="w-5 h-5" /> Planos Disponíveis
+              </h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div>
-                          <h4 className="text-xl font-black text-slate-900 mb-2">Enterprise</h4>
-                          <p className="text-sm text-slate-500 font-medium mb-6">Plano ilimitado com integração automatizada via n8n.</p>
-                          
-                          <div className="text-slate-900 mb-8 flex items-baseline">
-                              <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">1.250</span>
-                              <span className="text-xl font-bold">,00</span>
-                              <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
-                          </div>
-                          
-                          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                              <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Vencimento da próxima fatura</p>
-                              <p className="text-lg font-bold text-slate-900">
-                                  {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) 
-                                      ? new Date(user.current_period_end).toLocaleDateString('pt-BR') 
-                                      : 'Consulte seu gerente de contas'}
-                              </p>
-                          </div>
-                      </div>
-                      
-                      <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 flex flex-col justify-center">
-                          <h5 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">Benefícios Inclusos</h5>
-                          <div className="space-y-4 text-sm font-medium text-slate-600">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
-                                  <span className="font-bold text-slate-900">Vagas Ilimitadas</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
-                                  <span className="font-bold text-slate-900">Análise Ilimitada de Currículos</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
-                                  <span className="font-bold text-slate-900">Integração via Webhook (n8n)</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-4 h-4 text-[#84cc16]" /></div>
-                                  <span className="font-bold text-slate-900">Atendimento Dedicado</span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          ) : (
-              <div>
-                  <h3 className="text-xl font-black text-slate-900 mb-8 tracking-tight flex items-center gap-2">
-                      <ArrowUpRight className="w-5 h-5" /> Opções de Upgrade {/* Updated Plans */}
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      {/* Free Plan */}
-                      <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
-                          <div className="absolute -top-3 left-8 bg-[#84cc16] text-white text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest z-10">
-                              Experimente
-                          </div>
-                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4">Grátis</h4>
-                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Para testar a potência da IA.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Plano Essencial */}
+                      <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 h-full">
+                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 tracking-tighter">Plano Essencial</h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Para equipes enxutas e recrutamento ágil.</p>
                           
                           <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">0</span>
-                              <span className="text-xl font-bold">,00</span>
+                              <span className="text-6xl font-black tracking-tighter">499</span>
+                              <span className="text-xl font-bold">,90</span>
                               <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                           </div>
                           
                           <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>25 Currículos / mês</span>
-                              </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
                                   <span>3 Vagas</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>Exportação em PDF</span>
-                              </div>
-                          </div>
-                          <button disabled className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto">
-                              Criar Conta Grátis
-                          </button>
-                      </div>
-
-                      {/* Mensal */}
-                      <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
-                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Mensal <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
-                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Tração total para seu RH.</p>
-                          
-                          <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
-                              <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">129</span>
-                              <span className="text-xl font-bold">,90</span>
-                              <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
-                          </div>
-                          
-                          <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>5 Vagas</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
                                   <span>Análise Ilimitada de Currículos</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>Ranking Automático</span>
+                                  <span>Exportação em PDF</span>
                               </div>
                           </div>
-                          <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
-                              Assinar Mensal
-                          </a>
+                          {user?.plan === 'ESSENCIAL' ? (
+                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm mt-auto text-center block cursor-not-allowed">
+                                  Seu Plano Atual
+                              </button>
+                          ) : (
+                              <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
+                                  {user?.plan === 'PRO' || user?.plan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial'}
+                              </a>
+                          )}
                       </div>
 
-                      {/* Trimestral */}
-                      <div className="bg-[#0a0a0a] rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full">
+                      {/* Plano Pro */}
+                      <div className="bg-[#0a0a0a] rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full">
                           <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#84cc16] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
                               <Star className="w-3 h-3 fill-black" /> Mais Popular
                           </div>
                           
-                          <h4 className="text-2xl font-black text-white mb-2 mt-4 flex items-center gap-2">Trimestral <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
-                          <p className="text-sm text-zinc-400 font-medium mb-6 min-h-[48px]">Total de R$ 359,70 cobrado trimestralmente.</p>
+                          <h4 className="text-2xl font-black text-white mb-2 mt-4 flex items-center gap-2 tracking-tighter">Plano Pro <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
+                          <p className="text-sm text-zinc-400 font-medium mb-6 min-h-[48px]">Tração total para seu RH com mais vagas.</p>
                           
                           <div className="text-white mb-8 flex items-baseline h-[60px]">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">119</span>
+                              <span className="text-6xl font-black tracking-tighter">799</span>
                               <span className="text-xl font-bold">,90</span>
                               <span className="text-xs font-bold text-zinc-500 ml-1">/MÊS</span>
                           </div>
                           
                           <div className="space-y-4 mb-8 text-sm font-medium text-zinc-300 flex-1">
                               <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                                  <div className="w-5 h-5 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#84cc16]" /></div>
                                   <span>10 Vagas</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                                  <div className="w-5 h-5 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#84cc16]" /></div>
                                   <span>Análise Ilimitada de Currículos</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-[#CCF300]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#CCF300]" /></div>
+                                  <div className="w-5 h-5 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#84cc16]" /></div>
                                   <span>Ranking Automático</span>
                               </div>
                           </div>
-                          <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors mt-auto text-center block">
-                              Assinar Trimestral
-                          </a>
+                          {user?.plan === 'PRO' ? (
+                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-2xl text-sm mt-auto text-center block cursor-not-allowed">
+                                  Seu Plano Atual
+                              </button>
+                          ) : (
+                              <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors mt-auto text-center block">
+                                  {user?.plan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade'}
+                              </a>
+                          )}
                       </div>
 
-                      {/* Anual - Destaque */}
-                      <div className="bg-white rounded-3xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-[#84cc16] h-full">
-                          <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-black text-[#84cc16] text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
-                              <Star className="w-3 h-3 fill-[#84cc16]" /> Melhor Valor
-                          </div>
-                          
-                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2">Anual <Zap className="w-5 h-5 text-slate-400 fill-slate-400" /></h4>
-                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Total de R$ 1.198,80 cobrado anualmente.</p>
+                      {/* Enterprise */}
+                      <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
+                          <h4 className="text-2xl font-black text-slate-900 mb-2 mt-4 flex items-center gap-2 tracking-tighter">Enterprise</h4>
+                          <p className="text-sm text-slate-500 font-medium mb-6 min-h-[48px]">Solução sob medida para grandes operações.</p>
                           
                           <div className="text-slate-900 mb-8 flex items-baseline h-[60px]">
-                              <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">99</span>
-                              <span className="text-xl font-bold">,90</span>
-                              <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
+                              <span className="text-4xl font-black tracking-tighter">A consultar</span>
                           </div>
                           
                           <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
@@ -1865,111 +1851,129 @@ const App: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Integração via Webhook (n8n)</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
                                   <span>Atendimento Prioritário</span>
                               </div>
                           </div>
-                          <a href="https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
-                              Assinar Anual
-                          </a>
+                          {user?.plan === 'ENTERPRISE' ? (
+                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm mt-auto text-center block cursor-not-allowed">
+                                  Seu Plano Atual
+                              </button>
+                          ) : (
+                              <a href="mailto:contato@velorh.com.br" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 mt-auto text-center block">
+                                  Falar com Consultor
+                              </a>
+                          )}
                       </div>
                   </div>
               </div>
-          )}
-      </div>
+          </div>
   );
 
   const renderSettings = () => (
-    <div className="space-y-8 animate-fade-in max-w-3xl mx-auto">
-         <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Configurações</h2>
-            <p className="text-slate-500 font-bold">Gerencie seus dados pessoais e segurança.</p>
-         </div>
-
-         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-[0px_4px_20px_rgba(0,0,0,0.05)]">
-             <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><UserIcon className="w-5 h-5"/> Dados Pessoais</h3>
-             <div className="space-y-4 max-w-lg">
-                 <div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nome Completo</label>
-                     <input 
-                       type="text" 
-                       value={user?.name || ''} 
-                       onChange={(e) => setUser(user ? {...user, name: e.target.value} : null)} 
-                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
-                     />
+    <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
+         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+             <div className="flex items-center gap-4">
+                 <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
+                     <Settings className="w-6 h-6 text-[#84cc16]" />
                  </div>
                  <div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Email de Acesso</label>
-                     <input 
-                       type="email" 
-                       value={user?.email || ''} 
-                       disabled
-                       className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm text-slate-500 cursor-not-allowed"
-                     />
-                 </div>
-                 <div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Telefone / WhatsApp</label>
-                     <input 
-                       type="text" 
-                       value={user?.phone || ''} 
-                       onChange={(e) => setUser(user ? {...user, phone: e.target.value} : null)} 
-                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
-                     />
-                 </div>
-                 <div className="pt-2">
-                    <button onClick={handleUpdateProfile} disabled={changingPassword} className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center gap-2 disabled:opacity-50">
-                        {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#84cc16]" />} Salvar Alterações
-                    </button>
+                     <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Configurações</h2>
+                     <p className="text-slate-500 font-medium mt-1 text-sm">Gerencie seus dados pessoais e segurança.</p>
                  </div>
              </div>
          </div>
 
-         <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-200 shadow-sm">
-             <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><Lock className="w-5 h-5"/> Segurança</h3>
-             
-             {isOAuthUser && (
-                 <div className="bg-blue-50 text-blue-700 p-4 rounded-xl mb-6 text-xs font-bold border border-blue-100 flex items-center gap-2">
-                     <ShieldCheck className="w-4 h-4" />
-                     Sua conta está vinculada ao Google. Você pode definir uma senha abaixo para também acessar via email.
-                 </div>
-             )}
-
-             <div className="space-y-4 max-w-lg">
-                 {!isOAuthUser && (
+         <div className="grid grid-cols-1 md:grid-cols-2 items-start gap-8">
+             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><UserIcon className="w-5 h-5 text-slate-400"/> Dados Pessoais</h3>
+                 <div className="space-y-4">
                      <div>
-                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Senha Atual</label>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nome Completo</label>
                          <input 
-                           type="password" 
-                           value={currentPassword}
-                           onChange={(e) => setSearchTerm(e.target.value)}
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
+                           type="text" 
+                           value={user?.name || ''} 
+                           onChange={(e) => setUser(user ? {...user, name: e.target.value} : null)} 
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
                          />
                      </div>
-                 )}
-                 <div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">{isOAuthUser ? 'Nova Senha' : 'Nova Senha'}</label>
-                     <input 
-                       type="password" 
-                       value={newPassword}
-                       onChange={(e) => setNewPassword(e.target.value)}
-                       placeholder={isOAuthUser ? "Crie uma senha segura" : ""}
-                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-black focus:ring-0 outline-none transition-all"
-                     />
+                     <div>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Email de Acesso</label>
+                         <input 
+                           type="email" 
+                           value={user?.email || ''} 
+                           disabled
+                           className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-500 cursor-not-allowed shadow-sm"
+                         />
+                     </div>
+                     <div>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Telefone / WhatsApp</label>
+                         <input 
+                           type="text" 
+                           value={user?.phone || ''} 
+                           onChange={(e) => setUser(user ? {...user, phone: e.target.value} : null)} 
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
+                         />
+                     </div>
+                     <div className="pt-4">
+                        <button onClick={handleUpdateProfile} disabled={changingPassword} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm">
+                            {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#84cc16]" />} Salvar Alterações
+                        </button>
+                     </div>
                  </div>
-                 <div className="pt-2">
-                    <button onClick={handleChangePassword} disabled={changingPassword} className="bg-white text-black border-2 border-slate-200 hover:border-black px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50">
-                        {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Key className="w-4 h-4" />} {isOAuthUser ? 'Definir Senha' : 'Alterar Senha'}
-                    </button>
+             </div>
+
+             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><Lock className="w-5 h-5 text-slate-400"/> Segurança</h3>
+                 
+                 {isOAuthUser && (
+                     <div className="bg-blue-50/50 text-blue-700 p-4 rounded-2xl mb-6 text-xs font-medium border border-blue-100 flex items-center gap-3">
+                         <ShieldCheck className="w-5 h-5 shrink-0" />
+                         Sua conta está vinculada ao Google. Você pode definir uma senha abaixo para também acessar via email.
+                     </div>
+                 )}
+
+                 <div className="space-y-4">
+                     {!isOAuthUser && (
+                         <div>
+                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Senha Atual</label>
+                             <input 
+                               type="password" 
+                               value={currentPassword}
+                               onChange={(e) => setSearchTerm(e.target.value)}
+                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
+                             />
+                         </div>
+                     )}
+                     <div>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">{isOAuthUser ? 'Nova Senha' : 'Nova Senha'}</label>
+                         <input 
+                           type="password" 
+                           value={newPassword}
+                           onChange={(e) => setNewPassword(e.target.value)}
+                           placeholder={isOAuthUser ? "Crie uma senha segura" : ""}
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
+                         />
+                     </div>
+                     <div className="pt-4">
+                        <button onClick={handleChangePassword} disabled={changingPassword} className="bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm">
+                            {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Key className="w-4 h-4 text-slate-400" />} {isOAuthUser ? 'Definir Senha' : 'Alterar Senha'}
+                        </button>
+                     </div>
                  </div>
              </div>
          </div>
 
          {/* Exibe apenas para ADMIN */}
          {user?.role === 'ADMIN' && (
-             <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-200 shadow-sm">
-                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2"><Database className="w-5 h-5"/> Banco de Dados</h3>
-                 <p className="text-sm text-slate-500 font-bold mb-4">Se estiver com problemas de upload ou permissão, use o script de correção.</p>
-                 <button onClick={() => setShowSqlModal(true)} className="bg-white text-black border-2 border-slate-200 hover:border-black px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2">
-                     <Settings className="w-4 h-4" /> Abrir Script V27
+             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><Database className="w-5 h-5 text-slate-400"/> Banco de Dados</h3>
+                 <p className="text-sm text-slate-500 font-medium mb-6">Se estiver com problemas de upload ou permissão, use o script de correção.</p>
+                 <button onClick={() => setShowSqlModal(true)} className="bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-sm">
+                     <Settings className="w-4 h-4 text-slate-400" /> Abrir Script V27
                  </button>
              </div>
          )}
@@ -2178,14 +2182,14 @@ const App: React.FC = () => {
         {/* VIEW: JOB DETAILS */}
         {view === 'JOB_DETAILS' && activeJob && (
            <div className="w-full h-full flex flex-col animate-fade-in relative p-4 md:p-8">
-            <div className="bg-white rounded-3xl p-4 mb-6 border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-4 md:gap-4">
+            <div className="bg-white rounded-[2rem] p-4 mb-6 border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col md:flex-row items-center relative transition-all shrink-0 gap-4 md:gap-4">
                <div className="relative z-10 flex items-center gap-4 w-full md:flex-1 min-w-0">
                  <button onClick={() => setView('DASHBOARD')} className="group p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition-all duration-300 flex items-center justify-center shrink-0">
                    <ArrowLeft className="w-5 h-5 transition-colors" />
                  </button>
                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                        <h1 className="text-base md:text-xl font-bold text-slate-900 tracking-tight truncate" title={activeJob.title}>{activeJob.title}</h1>
+                        <h1 className="text-base md:text-xl font-bold text-slate-900 tracking-tighter truncate" title={activeJob.title}>{activeJob.title}</h1>
                         <div className="flex items-center gap-1 shrink-0">
                             <button onClick={() => handleEditJobSetup(activeJob)} className="p-1.5 text-slate-400 hover:text-black bg-transparent hover:bg-slate-300 rounded-lg transition-all" title="Editar vaga"><Pencil className="w-4 h-4" /></button>
                         </div>
@@ -2270,7 +2274,7 @@ const App: React.FC = () => {
                     <div className={`p-8 rounded-[2rem] bg-slate-50 mb-6 transition-transform duration-300 border-2 border-slate-200 ${isDragging ? 'scale-125 bg-slate-100 border-black' : ''}`}>
                         <CloudUpload className={`w-16 h-16 ${isDragging ? 'text-black' : 'text-slate-300'}`} />
                     </div>
-                    <h3 className={`text-2xl font-black mb-2 transition-colors tracking-tight ${isDragging ? 'text-black' : 'text-slate-900'}`}>{isDragging ? 'Solte para Upload' : 'Arraste os PDFs aqui'}</h3>
+                    <h3 className={`text-2xl font-black mb-2 transition-colors tracking-tighter ${isDragging ? 'text-black' : 'text-slate-900'}`}>{isDragging ? 'Solte para Upload' : 'Arraste os PDFs aqui'}</h3>
                     <p className="text-slate-400 font-bold">ou use o botão Upload acima</p>
                  </div>
                ) : (

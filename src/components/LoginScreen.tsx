@@ -98,7 +98,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
                 {authMode === 'FORGOT' ? <Key className="w-6 h-6 text-[#CCF300]" /> : <Lock className="w-6 h-6 text-[#CCF300]" />}
              </div>
              
-             <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+             <h2 className="text-3xl font-black text-slate-900 tracking-tighter">
                 {authMode === 'LOGIN' ? 'Bem-vindo' : 
                  authMode === 'REGISTER' ? 'Crie sua conta' : 
                  'Recuperar Senha'}

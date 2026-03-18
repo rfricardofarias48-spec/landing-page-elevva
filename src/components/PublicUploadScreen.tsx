@@ -142,7 +142,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
         await onUpload([selectedFile]);
         localStorage.setItem(STORAGE_KEY, Date.now().toString());
         setSuccess(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Erro detalhado no upload:", err);
         
         let msg = "Erro ao enviar currículo.";
@@ -178,7 +178,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
              <CheckCircle2 className="w-12 h-12 text-emerald-500" />
            </div>
            
-           <h2 className="text-3xl font-extrabold text-zinc-900 mb-4 tracking-tight animate-slide-up delay-100">Candidatura Enviada</h2>
+           <h2 className="text-3xl font-extrabold text-zinc-900 mb-4 tracking-tighter animate-slide-up delay-100">Candidatura Enviada</h2>
            <p className="text-zinc-500 mb-10 text-lg leading-relaxed animate-slide-up delay-200">
              Obrigado pelo interesse na vaga de <strong className="text-zinc-900">{jobTitle}</strong>. 
              <br/>Nossa equipe analisará seu perfil em breve.
@@ -211,7 +211,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100 shadow-sm transform -rotate-3 hover:rotate-0 transition-transform duration-300">
                      <Zap className="w-5 h-5 text-blue-600" fill="currentColor" />
                 </div>
-                <p className="text-lg md:text-xl text-zinc-700 font-semibold leading-tight text-left md:text-center tracking-tight">
+                <p className="text-lg md:text-xl text-zinc-700 font-semibold leading-tight text-left md:text-center tracking-tighter">
                     Envie seu currículo em segundos. Simples, rápido e seguro.
                 </p>
             </div>
@@ -231,7 +231,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-sm relative z-10">
                             <Lock className="w-8 h-8 text-slate-400" />
                          </div>
-                         <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Processo Encerrado</h3>
+                         <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tighter">Processo Encerrado</h3>
                          <p className="text-slate-500 text-sm font-bold max-w-xs mx-auto leading-relaxed mb-8">
                              Esta vaga já foi preenchida ou o período de inscrições foi encerrado pelo recrutador.
                          </p>

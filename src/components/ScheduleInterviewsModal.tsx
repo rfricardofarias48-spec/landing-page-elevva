@@ -77,7 +77,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
     try {
       // 1. Insert into interview_slots
-      const slotsToInsert: any[] = [];
+      const slotsToInsert: Record<string, unknown>[] = [];
       validDays.forEach(day => {
         day.times.filter(t => t).forEach(time => {
           slotsToInsert.push({
@@ -148,7 +148,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
       }
 
       onSuccess();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erro ao agendar entrevistas:', err);
       setError(err.message || 'Erro ao agendar entrevistas. Tente novamente.');
     } finally {

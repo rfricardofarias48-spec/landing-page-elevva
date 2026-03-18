@@ -204,7 +204,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
               </div>
               <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3">
-                    <h4 className="font-black text-slate-900 text-base tracking-tight truncate">{result.candidateName}</h4>
+                    <h4 className="font-black text-slate-900 text-base tracking-tighter truncate">{result.candidateName}</h4>
                     {candidate.isSelected && <span className="bg-[#CCF300] text-black text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded shadow-sm shrink-0 border border-black/10">Selecionado</span>}
                     {activeInterview && (
                       <button 

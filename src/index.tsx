@@ -78,14 +78,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 // Monkey patch para evitar crash do Google Translate/Extensões
 if (typeof Node === 'function' && Node.prototype) {
   const originalRemoveChild = Node.prototype.removeChild;
-  Node.prototype.removeChild = function(child) {
+  Node.prototype.removeChild = function(...args: [Node]) {
+    const child = args[0];
     if (child.parentNode !== this) {
       if (console) {
         console.warn('[React Fix] Cannot remove a child from a different parent', child, this);
       }
       return child;
     }
-    return originalRemoveChild.apply(this, arguments as any);
+    return originalRemoveChild.apply(this, args);
   }
 }
 

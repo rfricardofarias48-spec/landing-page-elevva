@@ -123,7 +123,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
         <div className="px-8 space-y-6 pb-8">
             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Vaga Selecionada</p>
-                <p className="text-slate-900 font-black text-xl tracking-tight leading-tight line-clamp-2">{job.title}</p>
+                <p className="text-slate-900 font-black text-xl tracking-tighter leading-tight line-clamp-2">{job.title}</p>
             </div>
 
             {/* TOGGLES */}
