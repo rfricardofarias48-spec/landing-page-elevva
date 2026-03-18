@@ -25,12 +25,13 @@ type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
 const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => ({
   id: c.id as string,
   file: new File([], (c.filename as string) || 'currículo.pdf'), // Placeholder file object
-  fileName: c.filename,
-  filePath: c.file_path,
+  fileName: c.filename as string,
+  filePath: c.file_path as string,
   status: c.status as CandidateStatus,
-  result: c.analysis_result,
-  isSelected: c.is_selected,
-  whatsapp: c['WhatsApp com DDD'] // Mapeia a coluna exata do banco
+  result: c.analysis_result as unknown as AnalysisResult,
+  isSelected: c.is_selected as boolean,
+  whatsapp: c['WhatsApp com DDD'] as string, // Mapeia a coluna exata do banco
+  chatwoot_conversation_id: c.chatwoot_conversation_id as string
 });
 
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
@@ -1581,7 +1582,7 @@ const App: React.FC = () => {
                   
                   <div className="relative z-10 mt-8">
                       <a 
-                          href="https://app.chatwoot.com" 
+                          href="https://bot-chatwoot.5mljrq.easypanel.host/app/accounts/1/conversations" 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="w-full flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-white px-6 py-4 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0"

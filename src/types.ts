@@ -36,6 +36,7 @@ export interface Candidate {
   result?: AnalysisResult;
   isSelected?: boolean; // Novo campo para controle de seleção
   whatsapp?: string; // WhatsApp real do banco de dados
+  chatwoot_conversation_id?: string; // ID da conversa no Chatwoot
 }
 
 export interface Job {
