@@ -1877,7 +1877,7 @@ const App: React.FC = () => {
                               </div>
                           ) : (
                               <div className="mt-auto pt-4">
-                                  <a href="mailto:contato@velorh.com.br" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 text-center block">
+                                  <a href="https://wa.me/5551994396089" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 text-center block">
                                       Falar com Consultor
                                   </a>
                               </div>
