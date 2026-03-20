@@ -101,7 +101,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'CONFIRMADA': return 'bg-emerald-500 text-white shadow-[0_4px_14px_0_rgba(16,185,129,0.4)] border-transparent';
       case 'REMARCADA': return 'bg-purple-500 text-white shadow-[0_4px_14px_0_rgba(168,85,247,0.4)] border-transparent';
       case 'COMPLETED':
-      case 'REALIZADA': return 'bg-[#84cc16] text-white shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] border-transparent';
+      case 'REALIZADA': return 'bg-[#65a30d] text-white shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] border-transparent';
       case 'CANCELADA': return 'bg-red-500 text-white shadow-[0_4px_14px_0_rgba(239,68,68,0.4)] border-transparent';
       default: return 'bg-slate-800 text-white shadow-[0_4px_14px_0_rgba(30,41,59,0.4)] border-transparent';
     }
@@ -226,7 +226,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
-            <Calendar className="w-6 h-6 text-[#84cc16]" />
+            <Calendar className="w-6 h-6 text-[#65a30d]" />
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Entrevistas</h1>
@@ -266,7 +266,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             type="date"
             value={dateStart}
             onChange={(e) => setDateStart(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent shadow-sm"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d] focus:border-transparent shadow-sm"
           />
         </div>
         
@@ -276,7 +276,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             type="date"
             value={dateEnd}
             onChange={(e) => setDateEnd(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent shadow-sm"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d] focus:border-transparent shadow-sm"
           />
         </div>
 
@@ -285,7 +285,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           <select
             value={jobFilter}
             onChange={(e) => setJobFilter(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent appearance-none shadow-sm"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d] focus:border-transparent appearance-none shadow-sm"
           >
             <option value="">Todos os cargos</option>
             {uniqueJobs.map(job => (
@@ -299,7 +299,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           <select
             value={interviewerFilter}
             onChange={(e) => setInterviewerFilter(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent appearance-none shadow-sm"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d] focus:border-transparent appearance-none shadow-sm"
           >
             <option value="">Todos os entrevistadores</option>
             {uniqueInterviewers.map(interviewer => (
@@ -343,7 +343,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             filteredInterviews.map((interview) => {
               const isActive = interview.status === 'AGENDADA' || interview.status === 'CONFIRMADA' || interview.status === 'REMARCADA' || interview.status === 'COMPLETED' || interview.status === 'REALIZADA';
               const rowClasses = isActive
-                ? 'bg-[#84cc16]/5 border-transparent'
+                ? 'bg-[#65a30d]/5 border-transparent'
                 : 'bg-white border-b border-slate-50 hover:bg-slate-50/50';
 
               return (
@@ -412,7 +412,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 text-slate-600 hover:bg-[#84cc16] hover:text-white transition-all"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 text-slate-600 hover:bg-[#65a30d] hover:text-white transition-all"
                         title="Entrar na Reunião"
                       >
                         <Video className="w-4 h-4" />
@@ -466,7 +466,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             </button>
 
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-[#CCF300]/20 rounded-2xl flex items-center justify-center border border-[#CCF300]/30">
+              <div className="w-16 h-16 bg-[#84cc16]/20 rounded-2xl flex items-center justify-center border border-[#84cc16]/30">
                 <User className="w-8 h-8 text-[#a3c200]" />
               </div>
               <div>

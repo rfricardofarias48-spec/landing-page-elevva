@@ -25,7 +25,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
   });
 
   const getScoreColor = (score: number) => {
-    if (score >= 8.0) return '#CCF300'; // Lime
+    if (score >= 8.0) return '#84cc16'; // Lime
     if (score >= 5.0) return '#facc15'; // Yellow
     return '#ef4444'; // Red
   };
@@ -98,7 +98,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                 <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-200">
                      <div class="flex flex-col">
                         <div class="flex items-center gap-3 mb-1">
-                            <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" class="h-5 w-auto" />
+                            <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" class="h-8 w-auto" />
                             <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-l border-slate-300 pl-3">Relatório Oficial &bull; ${currentDate}</span>
                         </div>
                         <h1 class="text-xl font-black text-slate-900 tracking-tighter">Candidatos Selecionados</h1>
@@ -159,7 +159,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                     <!-- HEADER DA PÁGINA (LOGO + VAGA) -->
                     <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 shrink-0">
                          <div class="flex items-center gap-2">
-                             <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" class="h-5 w-auto" />
+                             <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" class="h-8 w-auto" />
                              <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest border-l border-slate-300 pl-2">Relatório Técnico &bull; ${currentDate}</span>
                          </div>
                          <div class="text-[9px] font-black uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded text-slate-500">
@@ -208,7 +208,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                         <!-- 2. RESUMO -->
                         <div class="w-full shrink-0 mb-2">
                             <h5 class="text-[9px] font-black text-black uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
-                                <span class="text-[#CCF300]">${Icons.Quote}</span> Análise Profissional
+                                <span class="text-[#84cc16]">${Icons.Quote}</span> Análise Profissional
                             </h5>
                             <p class="text-[11px] font-bold text-slate-700 leading-relaxed text-justify">
                                 ${c.result?.summary}
@@ -406,7 +406,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
 
              <button 
                 onClick={handlePrint}
-                className="bg-[#CCF300] hover:bg-[#bce000] text-black border border-[#bce000] px-5 py-3 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-lg hover:translate-y-0.5 hover:shadow-md"
+                className="bg-[#84cc16] hover:bg-[#65a30d] text-black border border-[#65a30d] px-5 py-3 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-lg hover:translate-y-0.5 hover:shadow-md"
              >
                 <Printer className="w-4 h-4" /> Imprimir
              </button>
@@ -527,7 +527,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                         {/* 2. RESUMO */}
                         <div className="w-full">
                             <h5 className="text-[10px] font-black text-black uppercase tracking-widest flex items-center gap-2 mb-2">
-                                <Quote className="w-3 h-3 fill-current text-[#CCF300]" /> Análise Profissional
+                                <Quote className="w-3 h-3 fill-current text-[#84cc16]" /> Análise Profissional
                             </h5>
                             <p className="text-sm font-bold text-slate-700 leading-relaxed text-justify">
                                 {c.result?.summary}

@@ -113,7 +113,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
 
         <div className="p-8 pb-6">
            <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-lg transform -rotate-3 border border-zinc-800">
-              <LinkIcon className="w-8 h-8 text-[#CCF300]" />
+              <LinkIcon className="w-8 h-8 text-[#84cc16]" />
            </div>
            
            <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Link de Candidatura</h2>
@@ -131,17 +131,17 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                 {/* Auto Analyze Card */}
                 <div className={`p-5 rounded-3xl border transition-all relative overflow-hidden group ${job.auto_analyze ? 'bg-black border-black text-white' : 'bg-white border-slate-200 text-slate-400'}`}>
                     <div className="flex justify-between items-start mb-4 relative z-10">
-                        <div className={`p-2 rounded-xl ${job.auto_analyze ? 'bg-zinc-800 text-[#CCF300]' : 'bg-slate-100 text-slate-400'}`}>
+                        <div className={`p-2 rounded-xl ${job.auto_analyze ? 'bg-zinc-800 text-[#84cc16]' : 'bg-slate-100 text-slate-400'}`}>
                             <Zap className="w-6 h-6 fill-current" />
                         </div>
                         <button 
                             onClick={handleToggleAutoAnalyze}
-                            className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 flex items-center ${job.auto_analyze ? 'bg-[#CCF300] justify-end' : 'bg-slate-200 justify-start'}`}
+                            className={`w-12 h-7 rounded-full p-1 transition-colors duration-300 flex items-center ${job.auto_analyze ? 'bg-[#84cc16] justify-end' : 'bg-slate-200 justify-start'}`}
                         >
                             <div className={`w-5 h-5 rounded-full shadow-sm transform transition-transform ${job.auto_analyze ? 'bg-black' : 'bg-white'}`} />
                         </button>
                     </div>
-                    <h3 className={`font-black uppercase text-xs tracking-widest mb-1 ${job.auto_analyze ? 'text-[#CCF300]' : 'text-slate-500'}`}>Análise Automática</h3>
+                    <h3 className={`font-black uppercase text-xs tracking-widest mb-1 ${job.auto_analyze ? 'text-[#84cc16]' : 'text-slate-500'}`}>Análise Automática</h3>
                     <p className="text-[10px] font-bold leading-tight opacity-80">IA processa e ranqueia cada currículo recebido.</p>
                 </div>
 
@@ -186,7 +186,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
                     </div>
                     <button 
                         onClick={handleCopy}
-                        className={`px-6 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-lg hover:translate-y-0.5 hover:shadow-md ${copied ? 'bg-[#CCF300] text-black' : 'bg-black text-white hover:bg-slate-900'}`}
+                        className={`px-6 rounded-xl font-black text-sm transition-all flex items-center gap-2 shadow-lg hover:translate-y-0.5 hover:shadow-md ${copied ? 'bg-[#84cc16] text-black' : 'bg-black text-white hover:bg-slate-900'}`}
                     >
                         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                         {copied ? 'Copiado' : 'Copiar'}
@@ -204,7 +204,7 @@ export const ShareLinkModal: React.FC<Props> = ({ job, onClose, onUpdateJob }) =
         <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
              <div className="flex items-center justify-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
                 <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Powered by</span>
-                <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-4 w-auto" />
+                <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-5 w-auto" />
                 <span className="text-[8px] font-mono text-slate-300 ml-2">v1.0.5</span>
              </div>
         </div>

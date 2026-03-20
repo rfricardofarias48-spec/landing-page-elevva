@@ -61,7 +61,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                  // Limpa cache e recarrega para a home
                  window.location.href = window.location.origin;
                }} 
-               className="w-full bg-black hover:bg-zinc-800 text-white font-bold py-4 rounded-xl transition-all shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] active:scale-95 flex items-center justify-center gap-2 border-2 border-black"
+               className="w-full bg-black hover:bg-zinc-800 text-white font-bold py-4 rounded-xl transition-all shadow-[4px_4px_0px_0px_rgba(132,204,22,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(132,204,22,1)] active:scale-95 flex items-center justify-center gap-2 border-2 border-black"
              >
                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
                Recarregar Aplicação

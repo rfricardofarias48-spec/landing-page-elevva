@@ -54,7 +54,7 @@ const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, o
             <p className="mt-4 text-xs text-slate-400 uppercase font-bold">Última atualização: {new Date().toLocaleDateString()}</p>
         </div>
         <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
-            <button onClick={onClose} className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] transition-all border-2 border-black">
+            <button onClick={onClose} className="bg-black text-white px-6 py-3 rounded-xl font-bold text-sm shadow-[4px_4px_0px_0px_rgba(132,204,22,1)] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(132,204,22,1)] transition-all border-2 border-black">
                 Entendido
             </button>
         </div>
@@ -1472,7 +1472,7 @@ const App: React.FC = () => {
           {/* HEADER DE RECEPÇÃO */}
           <div className="flex items-center gap-3">
               <div className="relative shrink-0 group cursor-default">
-                  <div className="absolute inset-0 bg-[#84cc16] rounded-xl translate-x-1 translate-y-1 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:translate-y-1.5"></div>
+                  <div className="absolute inset-0 bg-[#65a30d] rounded-xl translate-x-1 translate-y-1 transition-transform duration-300 group-hover:translate-x-1.5 group-hover:translate-y-1.5"></div>
                   <div className="w-12 h-12 bg-black rounded-xl relative flex items-center justify-center text-white text-lg font-black border-2 border-black z-10 shadow-sm">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
@@ -1527,7 +1527,7 @@ const App: React.FC = () => {
               <div className="bg-zinc-900 p-6 rounded-[2rem] border border-zinc-800 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_4px_25px_rgba(0,0,0,0.05)] transition-all text-white">
                   <div className="flex items-center justify-between mb-4">
                       <p className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">Horas Salvas</p>
-                      <Clock className="w-5 h-5 text-[#84cc16]" />
+                      <Clock className="w-5 h-5 text-[#65a30d]" />
                   </div>
                   <div className="flex items-baseline gap-1">
                       <span className="text-5xl font-black text-white tracking-tighter leading-none">{hoursSaved}</span>
@@ -1549,8 +1549,8 @@ const App: React.FC = () => {
                           <AreaChart data={mockChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                               <defs>
                                   <linearGradient id="colorCandidatos" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#84cc16" stopOpacity={0.3}/>
-                                      <stop offset="95%" stopColor="#84cc16" stopOpacity={0}/>
+                                      <stop offset="5%" stopColor="#65a30d" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="#65a30d" stopOpacity={0}/>
                                   </linearGradient>
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -1560,7 +1560,7 @@ const App: React.FC = () => {
                                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                                   itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
                               />
-                              <Area type="monotone" dataKey="candidatos" stroke="#84cc16" strokeWidth={3} fillOpacity={1} fill="url(#colorCandidatos)" />
+                              <Area type="monotone" dataKey="candidatos" stroke="#65a30d" strokeWidth={3} fillOpacity={1} fill="url(#colorCandidatos)" />
                           </AreaChart>
                       </ResponsiveContainer>
                   </div>
@@ -1585,7 +1585,7 @@ const App: React.FC = () => {
                           href="https://bot-chatwoot.5mljrq.easypanel.host/app/accounts/1/conversations" 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="w-full flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-white px-6 py-4 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0"
+                          className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-6 py-4 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0"
                       >
                           <span className="text-lg">💬</span> Acompanhar ao Vivo
                       </a>
@@ -1600,7 +1600,7 @@ const App: React.FC = () => {
               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] lg:col-span-2">
                   <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-black text-slate-900 tracking-tighter flex items-center gap-2">
-                          <Calendar className="w-5 h-5 text-[#84cc16]" /> Próximas Entrevistas
+                          <Calendar className="w-5 h-5 text-[#65a30d]" /> Próximas Entrevistas
                       </h3>
                       <button onClick={() => window.open('https://calendar.google.com', '_blank')} className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">
                           Abrir Google Agenda <ExternalLink className="w-3 h-3" />
@@ -1641,7 +1641,7 @@ const App: React.FC = () => {
                       <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{normalizedPlan}</h3>
                       <p className="text-zinc-400 text-sm font-medium">Faça upgrade para liberar recursos.</p>
                   </div>
-                  <button onClick={() => setCurrentTab('BILLING')} className="mt-8 w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 relative z-10">
+                  <button onClick={() => setCurrentTab('BILLING')} className="mt-8 w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 relative z-10">
                       VER PLANOS
                   </button>
                   <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-zinc-800 rounded-full blur-[50px] opacity-50 pointer-events-none"></div>
@@ -1652,7 +1652,7 @@ const App: React.FC = () => {
           {visibleAnnouncements.length > 0 && (
               <div className="animate-slide-up">
                   <h3 className="text-lg font-black text-slate-900 mb-6 tracking-tighter flex items-center gap-2">
-                      <Star className="w-5 h-5 text-[#84cc16] fill-current" /> Novidades & Ofertas
+                      <Star className="w-5 h-5 text-[#65a30d] fill-current" /> Novidades & Ofertas
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {visibleAnnouncements.map(ad => (
@@ -1665,7 +1665,7 @@ const App: React.FC = () => {
                           >
                               <div className="h-48 overflow-hidden bg-slate-200 relative">
                                   <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                                  <div className="absolute top-3 left-3 bg-black text-[#84cc16] text-[9px] font-black px-2 py-1 rounded uppercase tracking-widest border border-black">
+                                  <div className="absolute top-3 left-3 bg-black text-[#65a30d] text-[9px] font-black px-2 py-1 rounded uppercase tracking-widest border border-black">
                                       Anúncio
                                   </div>
                               </div>
@@ -1691,7 +1691,7 @@ const App: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
-                      <CreditCard className="w-6 h-6 text-[#84cc16]" />
+                      <CreditCard className="w-6 h-6 text-[#65a30d]" />
                   </div>
                   <div>
                       <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Minha Assinatura</h2>
@@ -1704,7 +1704,7 @@ const App: React.FC = () => {
           <div className="bg-[#0a0a0a] rounded-[2rem] p-5 md:p-6 relative overflow-hidden text-white shadow-xl">
               <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-3">
-                      <span className="text-[#84cc16] font-black text-[10px] uppercase tracking-widest">Plano Ativo</span>
+                      <span className="text-[#65a30d] font-black text-[10px] uppercase tracking-widest">Plano Ativo</span>
                       {normalizedPlan !== 'ESSENCIAL' && (
                           <span className="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-[10px] font-bold tracking-wider">
                               Renova em: {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) ? new Date(user.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
@@ -1727,7 +1727,7 @@ const App: React.FC = () => {
                               <span className="text-white">{user?.job_limit >= 9999 ? '∞' : `${jobs.length} / ${user?.job_limit}`}</span>
                           </div>
                           <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
-                              <div className="bg-[#84cc16] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
+                              <div className="bg-[#65a30d] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
                           </div>
                       </div>
                   </div>
@@ -1790,11 +1790,11 @@ const App: React.FC = () => {
 
                       {/* Plano Pro */}
                       <div className="bg-[#0a0a0a] rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full min-h-[450px]">
-                          <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#84cc16] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
+                          <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
                               <Star className="w-3 h-3 fill-black" /> Mais Popular
                           </div>
                           
-                          <h4 className="text-2xl font-black text-white mb-2 mt-2 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#84cc16] fill-[#84cc16]" /></h4>
+                          <h4 className="text-2xl font-black text-white mb-2 mt-2 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-6">Tração total para seu RH com mais vagas.</p>
                           
                           <div className="text-white mb-6 flex items-baseline">
@@ -1806,15 +1806,15 @@ const App: React.FC = () => {
                           
                           <div className="space-y-4 mb-8 text-sm font-medium text-zinc-300 flex-1">
                               <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#84cc16]" /></div>
+                                  <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
                                   <span>10 Vagas</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#84cc16]" /></div>
+                                  <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
                                   <span>Análise Ilimitada de Currículos</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                  <div className="w-5 h-5 rounded-full bg-[#84cc16]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#84cc16]" /></div>
+                                  <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
                                   <span>Ranking Automático</span>
                               </div>
                           </div>
@@ -1831,7 +1831,7 @@ const App: React.FC = () => {
                               </div>
                           ) : (
                               <div className="mt-auto pt-4">
-                                  <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold py-4 rounded-2xl text-sm transition-colors text-center block">
+                                  <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-2xl text-sm transition-colors text-center block">
                                       {normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade'}
                                   </a>
                               </div>
@@ -1894,7 +1894,7 @@ const App: React.FC = () => {
          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
              <div className="flex items-center gap-4">
                  <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
-                     <Settings className="w-6 h-6 text-[#84cc16]" />
+                     <Settings className="w-6 h-6 text-[#65a30d]" />
                  </div>
                  <div>
                      <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Configurações</h2>
@@ -1913,7 +1913,7 @@ const App: React.FC = () => {
                            type="text" 
                            value={user?.name || ''} 
                            onChange={(e) => setUser(user ? {...user, name: e.target.value} : null)} 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
                          />
                      </div>
                      <div>
@@ -1931,12 +1931,12 @@ const App: React.FC = () => {
                            type="text" 
                            value={user?.phone || ''} 
                            onChange={(e) => setUser(user ? {...user, phone: e.target.value} : null)} 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
                          />
                      </div>
                      <div className="pt-4">
                         <button onClick={handleUpdateProfile} disabled={changingPassword} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm">
-                            {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#84cc16]" />} Salvar Alterações
+                            {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#65a30d]" />} Salvar Alterações
                         </button>
                      </div>
                  </div>
@@ -1960,7 +1960,7 @@ const App: React.FC = () => {
                                type="password" 
                                value={currentPassword}
                                onChange={(e) => setSearchTerm(e.target.value)}
-                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
+                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
                              />
                          </div>
                      )}
@@ -1971,7 +1971,7 @@ const App: React.FC = () => {
                            value={newPassword}
                            onChange={(e) => setNewPassword(e.target.value)}
                            placeholder={isOAuthUser ? "Crie uma senha segura" : ""}
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16] outline-none transition-all shadow-sm"
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
                          />
                      </div>
                      <div className="pt-4">
@@ -2066,16 +2066,16 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen bg-white flex overflow-hidden font-sans text-slate-900 selection:bg-[#84cc16] selection:text-white">
+    <div className="h-screen bg-white flex overflow-hidden font-sans text-slate-900 selection:bg-[#65a30d] selection:text-white">
       
       {/* SIDEBAR */}
       <aside className="w-20 lg:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 z-40">
-        <div className="py-6 flex flex-col items-center justify-center border-b border-slate-100 relative">
-           <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-14 w-auto hidden lg:block object-contain mb-2" />
-            <div className="w-10 h-10 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#84cc16] font-black text-xl shrink-0">E</div>
+        <div className="h-20 flex flex-col items-center justify-center border-b border-slate-100 relative shrink-0">
+           <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-16 w-auto hidden lg:block object-contain scale-[1.35]" />
+            <div className="w-10 h-10 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#65a30d] font-black text-xl shrink-0">E</div>
         </div>
         
-        <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 pt-2 pb-6 px-3 space-y-2 overflow-y-auto custom-scrollbar">
             <button 
                 onClick={() => { setCurrentTab('OVERVIEW'); setView('DASHBOARD'); }}
                 className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'OVERVIEW' && view === 'DASHBOARD' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
@@ -2144,7 +2144,7 @@ const App: React.FC = () => {
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
                           <div>
-                              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Painel de Vagas<span className="text-[#84cc16]">.</span></h1>
+                              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Painel de Vagas<span className="text-[#65a30d]">.</span></h1>
                               <p className="text-slate-500 font-bold mt-1 text-sm">Gerencie seus processos seletivos.</p>
                           </div>
                           
@@ -2160,7 +2160,7 @@ const App: React.FC = () => {
 
                               <button 
                                 onClick={() => { setShowCreateModal(true); setIsEditing(false); }}
-                                className="flex-1 md:flex-none justify-center bg-[#84cc16] hover:bg-[#65a30d] text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                                className="flex-1 md:flex-none justify-center bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
                               >
                                  <Plus className="w-5 h-5" /> Nova Vaga
                               </button>
@@ -2244,15 +2244,15 @@ const App: React.FC = () => {
 
                  {activeJob.candidates.some(c=>c.isSelected) && (
                    <>
-                     <button onClick={()=>setShowInterviewModal(true)} className="flex-none justify-center bg-[#CCF300] hover:bg-[#b8db00] text-black px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(204,243,0,0.4)] hover:shadow-[0_6px_20px_rgba(204,243,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Clock className="w-5 h-5"/> Agendar Entrevistas</button>
+                     <button onClick={()=>setShowInterviewModal(true)} className="flex-none justify-center bg-[#84cc16] hover:bg-[#65a30d] text-black px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Clock className="w-5 h-5"/> Agendar Entrevistas</button>
                      <button onClick={()=>setShowReport(true)} className="flex-none justify-center bg-white hover:bg-slate-50 text-slate-900 px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap border border-slate-200"><FileCheck className="w-5 h-5"/> Relatório</button>
                    </>
                  )}
                  
-                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none justify-center bg-slate-900 hover:bg-black text-white px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(0,0,0,0.4)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Upload className="w-5 h-5 text-[#84cc16]"/> Upload</button>
+                 <button onClick={()=>fileInputRef.current?.click()} className="flex-none justify-center bg-slate-900 hover:bg-black text-white px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(0,0,0,0.4)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Upload className="w-5 h-5 text-[#65a30d]"/> Upload</button>
                  
                  {normalizedPlan !== 'ENTERPRISE' && activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
-                   <button onClick={runAnalysis} className="flex-none justify-center bg-[#84cc16] hover:bg-[#65a30d] text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(132,204,22,0.4)] hover:shadow-[0_6px_20px_rgba(132,204,22,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap animate-pulse"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
+                   <button onClick={runAnalysis} className="flex-none justify-center bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap animate-pulse"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
                  )}
                  
                  {activeJob.candidates.length > 0 && (
@@ -2270,9 +2270,9 @@ const App: React.FC = () => {
             </div>
 
             {analysisMetrics.timeTaken && !analysisMetrics.isAnalyzing && (
-                <div className="bg-[#84cc16]/20 border-2 border-[#84cc16] p-4 rounded-2xl mb-4 flex justify-between items-center animate-slide-up shadow-sm shrink-0">
+                <div className="bg-[#65a30d]/20 border-2 border-[#65a30d] p-4 rounded-2xl mb-4 flex justify-between items-center animate-slide-up shadow-sm shrink-0">
                     <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 rounded-2xl bg-[#84cc16] flex items-center justify-center border-2 border-black text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                       <div className="w-12 h-12 rounded-2xl bg-[#65a30d] flex items-center justify-center border-2 border-black text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                            <Timer className="w-6 h-6" />
                        </div>
                        <div>
@@ -2280,7 +2280,7 @@ const App: React.FC = () => {
                            <p className="text-slate-900 text-xs font-bold mt-1">Processamos <strong>{analysisMetrics.processedCount} currículos</strong> em <strong>{analysisMetrics.timeTaken}</strong>.</p>
                        </div>
                     </div>
-                    <button onClick={() => setAnalysisMetrics(prev => ({...prev, timeTaken: null}))} className="p-2 hover:bg-[#84cc16]/30 rounded-lg text-black transition-colors"><X className="w-5 h-5" /></button>
+                    <button onClick={() => setAnalysisMetrics(prev => ({...prev, timeTaken: null}))} className="p-2 hover:bg-[#65a30d]/30 rounded-lg text-black transition-colors"><X className="w-5 h-5" /></button>
                 </div>
             )}
             
@@ -2295,7 +2295,7 @@ const App: React.FC = () => {
                  </div>
                ) : (
                  <>
-                    {isDragging && (<div className="mb-6 p-8 border-4 border-dashed border-black bg-[#84cc16]/10 rounded-2xl flex items-center justify-center text-black font-black uppercase tracking-widest animate-pulse"><CloudUpload className="w-8 h-8 mr-4" /> Solte para adicionar</div>)}
+                    {isDragging && (<div className="mb-6 p-8 border-4 border-dashed border-black bg-[#65a30d]/10 rounded-2xl flex items-center justify-center text-black font-black uppercase tracking-widest animate-pulse"><CloudUpload className="w-8 h-8 mr-4" /> Solte para adicionar</div>)}
                     {[...activeJob.candidates].sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>{
                       const activeInterview = interviews.find(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status));
                       return (
@@ -2352,7 +2352,7 @@ const App: React.FC = () => {
                   <div className="mb-8">
                       {/* Icone: Fundo Preto, Icone Lime */}
                       <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-xl transform -rotate-3 border-2 border-black">
-                          <Briefcase className="w-8 h-8 text-[#84cc16]" />
+                          <Briefcase className="w-8 h-8 text-[#65a30d]" />
                       </div>
                       <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">{isEditing ? 'Editar Vaga' : 'Nova Vaga'}</h2>
                       <p className="text-slate-500 font-bold text-sm">Defina os critérios para a IA analisar.</p>
@@ -2374,7 +2374,7 @@ const App: React.FC = () => {
                           <textarea name="criteria" defaultValue={isEditing ? activeJob?.criteria : ''} required placeholder="Liste os requisitos chave (ex: React, Inglês Fluente, 3 anos de xp...)" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] placeholder:font-medium placeholder:text-slate-400" />
                       </div>
 
-                      <button type="submit" className="w-full bg-black text-white font-black py-5 rounded-2xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 border-b-4 border-[#84cc16] hover:border-[#84cc16] mt-6">
+                      <button type="submit" className="w-full bg-black text-white font-black py-5 rounded-2xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 border-b-4 border-[#65a30d] hover:border-[#65a30d] mt-6">
                           {isEditing ? 'Salvar Alterações' : 'Criar Vaga com IA'}
                       </button>
                   </form>
@@ -2428,8 +2428,8 @@ const App: React.FC = () => {
                       <LogOut className="w-5 h-5"/>
                   </button>
 
-                  <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] border-4 border-white">
-                      <Sparkles className="w-10 h-10 text-[#84cc16]" />
+                  <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(132,204,22,1)] border-4 border-white">
+                      <Sparkles className="w-10 h-10 text-[#65a30d]" />
                   </div>
 
                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Bem-vindo(a)!</h2>
@@ -2452,7 +2452,7 @@ const App: React.FC = () => {
                       <button 
                           onClick={handleSaveName}
                           disabled={isSavingName || !tempName.trim()}
-                          className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black disabled:opacity-70 disabled:transform-none"
+                          className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(132,204,22,1)] hover:shadow-[2px_2px_0px_0px_rgba(132,204,22,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black disabled:opacity-70 disabled:transform-none"
                       >
                           {isSavingName ? <Loader2 className="w-5 h-5 animate-spin"/> : "Começar Agora"}
                       </button>
@@ -2466,8 +2466,8 @@ const App: React.FC = () => {
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
               <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl relative animate-slide-up border-4 border-black text-center">
                   
-                  <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] border-4 border-white">
-                      <Key className="w-10 h-10 text-[#84cc16]" />
+                  <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(132,204,22,1)] border-4 border-white">
+                      <Key className="w-10 h-10 text-[#65a30d]" />
                   </div>
 
                   <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">Redefinir Senha</h2>
@@ -2489,7 +2489,7 @@ const App: React.FC = () => {
                       <button 
                           onClick={handleSetNewPassword}
                           disabled={isSavingRecovery || !recoveryPassword}
-                          className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(204,243,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(204,243,0,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black disabled:opacity-70 disabled:transform-none"
+                          className="w-full bg-black text-white font-black py-4 rounded-xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(132,204,22,1)] hover:shadow-[2px_2px_0px_0px_rgba(132,204,22,1)] hover:translate-y-0.5 active:translate-y-1 active:shadow-none border-2 border-black disabled:opacity-70 disabled:transform-none"
                       >
                           {isSavingRecovery ? <Loader2 className="w-5 h-5 animate-spin"/> : "Salvar Nova Senha"}
                       </button>
@@ -2531,7 +2531,7 @@ const App: React.FC = () => {
             href="https://wa.me/5551994396089" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="fixed bottom-10 right-6 w-12 h-12 bg-[#84cc16] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-50"
+            className="fixed bottom-10 right-6 w-12 h-12 bg-[#65a30d] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-50"
             title="Falar no WhatsApp"
           >
             <svg viewBox="0 0 24 24" className="w-7 h-7 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>

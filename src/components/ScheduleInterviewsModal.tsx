@@ -164,7 +164,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         </button>
         
         <div className="flex items-center gap-3 mb-6 flex-shrink-0">
-          <div className="w-12 h-12 bg-[#CCF300] rounded-xl flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <div className="w-12 h-12 bg-[#84cc16] rounded-xl flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
             <Calendar className="w-6 h-6 text-black" />
           </div>
           <div>
@@ -201,7 +201,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
                 onClick={() => setInterviewFormat('ONLINE')}
                 className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
                   interviewFormat === 'ONLINE' 
-                    ? 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(132,204,22,1)]' 
+                    ? 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(101,163,13,1)]' 
                     : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -212,7 +212,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
                 onClick={() => setInterviewFormat('PRESENCIAL')}
                 className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
                   interviewFormat === 'PRESENCIAL' 
-                    ? 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(132,204,22,1)]' 
+                    ? 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(101,163,13,1)]' 
                     : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -239,7 +239,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
           <div>
             <label className="block text-xs font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#84cc16]" /> Dias e Horários Disponíveis
+              <Clock className="w-4 h-4 text-[#65a30d]" /> Dias e Horários Disponíveis
             </label>
             
             <div className="space-y-4">
@@ -334,7 +334,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-[#CCF300] hover:bg-[#b8db00] text-black px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 border-black"
+              className="bg-[#84cc16] hover:bg-[#65a30d] text-black px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 border-black"
             >
               {isSubmitting ? (
                 <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />

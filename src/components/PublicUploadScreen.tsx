@@ -198,7 +198,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
   return (
     <div className="h-screen bg-slate-50 flex flex-col font-sans text-zinc-900 selection:bg-zinc-200 selection:text-black overflow-hidden relative">
       <div className="w-full py-4 px-6 md:px-12 flex justify-between items-center absolute top-0 left-0 z-50">
-        <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-16 md:h-20 w-auto object-contain select-none drop-shadow-sm" />
+        <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-20 md:h-24 w-auto object-contain select-none drop-shadow-sm" />
         
         <button onClick={onBack} className="bg-white/80 backdrop-blur-md hover:bg-white border border-zinc-200 text-zinc-600 hover:text-black transition-all text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full flex items-center gap-2 group shadow-sm hover:shadow-md">
            <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" /> Voltar
@@ -387,7 +387,7 @@ export const PublicUploadScreen: React.FC<Props> = ({ jobTitle, isPaused, onUplo
                             </p>
                             <div className="flex flex-col items-end opacity-60 hover:opacity-100 transition-opacity">
                                 <span className="text-[7px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Powered by</span>
-                                <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-8 w-auto object-contain select-none" />
+                                <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-10 w-auto object-contain select-none" />
                             </div>
                         </div>
                     </form>

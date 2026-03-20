@@ -375,8 +375,8 @@ export const AdminDashboard: React.FC = () => {
 
   const renderSidebar = () => (
     <div className="w-64 bg-white border-r border-zinc-200 flex flex-col fixed left-0 top-0 bottom-0 z-50">
-        <div className="p-8 border-b border-zinc-100">
-            <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="Logo" className="h-8 w-auto mb-2" />
+        <div className="h-20 flex flex-col items-start justify-center px-8 border-b border-zinc-100 shrink-0">
+            <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-10 w-auto mb-1 scale-[1.35] origin-left" />
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded">Admin Panel</span>
         </div>
         
@@ -442,7 +442,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <div className="bg-black text-white p-6 rounded-[2rem] border border-zinc-900 shadow-xl">
                 <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-zinc-900 rounded-2xl"><DollarSign className="w-6 h-6 text-[#CCF300]"/></div>
+                    <div className="p-3 bg-zinc-900 rounded-2xl"><DollarSign className="w-6 h-6 text-[#84cc16]"/></div>
                 </div>
                 <h3 className="text-4xl font-black text-white">R$ {currentFinancials.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">MRR Atual (Estimado)</p>
@@ -475,7 +475,7 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                       <div className="bg-black text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
                           <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Pro</span>
-                          <span className="text-lg font-black text-[#84cc16]">{totalPro}</span>
+                          <span className="text-lg font-black text-[#65a30d]">{totalPro}</span>
                       </div>
                       <div className="bg-zinc-800 text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
                           <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Enterprise</span>
@@ -504,7 +504,7 @@ export const AdminDashboard: React.FC = () => {
                           {filteredUsers.map(user => (
                               <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-6"><div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div><div className="text-xs text-zinc-500">{user.email}</div></td>
-                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'PRO' ? 'bg-[#84cc16] text-black' : user.plan === 'ESSENCIAL' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
+                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'PRO' ? 'bg-[#65a30d] text-black' : user.plan === 'ESSENCIAL' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{new Date(user.created_at).toLocaleDateString('pt-BR')}</span></td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}</span></td>
                                   <td className="p-6"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div></div><span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span></div></td>
@@ -694,7 +694,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-black text-white p-6 rounded-[2rem] border border-zinc-900 shadow-xl">
                       <div className="flex justify-between items-start mb-4">
-                          <div className="p-3 bg-zinc-900 rounded-2xl"><Banknote className="w-6 h-6 text-[#CCF300]"/></div>
+                          <div className="p-3 bg-zinc-900 rounded-2xl"><Banknote className="w-6 h-6 text-[#84cc16]"/></div>
                       </div>
                       <h3 className="text-4xl font-black text-white">R$ {totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                       <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Total em Comissões</p>
@@ -726,7 +726,7 @@ export const AdminDashboard: React.FC = () => {
                                   <td className="p-6">
                                       <div className="flex gap-2">
                                           <span className="bg-zinc-100 text-zinc-500 px-2 py-1 rounded text-[10px] font-bold">{stat.essencial} Essencial</span>
-                                          <span className="bg-[#84cc16] text-black px-2 py-1 rounded text-[10px] font-bold">{stat.pro} Pro</span>
+                                          <span className="bg-[#65a30d] text-black px-2 py-1 rounded text-[10px] font-bold">{stat.pro} Pro</span>
                                           <span className="bg-purple-600 text-white px-2 py-1 rounded text-[10px] font-bold">{stat.enterprise} Ent</span>
                                       </div>
                                   </td>
@@ -778,9 +778,9 @@ export const AdminDashboard: React.FC = () => {
                       <div className="relative z-10">
                           <div className="flex justify-between items-start mb-6">
                               <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
-                                  <Wallet className="w-6 h-6 text-[#CCF300]"/>
+                                  <Wallet className="w-6 h-6 text-[#84cc16]"/>
                               </div>
-                              <span className="text-[#CCF300] bg-[#CCF300]/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#CCF300]/20">
+                              <span className="text-[#84cc16] bg-[#84cc16]/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#84cc16]/20">
                                   Mensal
                               </span>
                           </div>
@@ -877,7 +877,7 @@ export const AdminDashboard: React.FC = () => {
                                   </div>
                               </div>
                               <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-[#84cc16] h-full rounded-full" style={{ width: `${(stats.PRO.count / (stats.payingUsers || 1)) * 100}%` }}></div>
+                                  <div className="bg-[#65a30d] h-full rounded-full" style={{ width: `${(stats.PRO.count / (stats.payingUsers || 1)) * 100}%` }}></div>
                               </div>
                           </div>
 
@@ -1060,7 +1060,7 @@ export const AdminDashboard: React.FC = () => {
                                         <button onClick={() => handleUpdatePlan('ESSENCIAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
                                             <span>ESSENCIAL</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas / CVs Ilimitados</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('PRO')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#84cc16] text-black border-[#84cc16] hover:bg-[#65a30d]">
+                                        <button onClick={() => handleUpdatePlan('PRO')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
                                             <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas / CVs Ilimitados</span>
                                         </button>
                                         <button onClick={() => handleUpdatePlan('ENTERPRISE')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">

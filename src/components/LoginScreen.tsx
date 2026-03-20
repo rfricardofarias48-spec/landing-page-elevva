@@ -86,16 +86,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLogin
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-[#CCF300] selection:text-black flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-[#84cc16] selection:text-black flex items-center justify-center p-4 relative overflow-hidden">
        
        {/* Card Centralizado */}
        <div className="bg-white rounded-3xl w-full max-w-md p-8 md:p-10 shadow-[0px_4px_20px_rgba(0,0,0,0.05)] relative z-10 animate-slide-up border border-slate-100">
           
           <div className="flex flex-col items-center text-center mb-8">
-             <img src="https://ik.imagekit.io/xsbrdnr0y/elevva-logo.png" alt="ELEVVA" className="h-12 w-auto mb-6 object-contain" />
+             <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="ELEVVA" className="h-16 w-auto mb-6 object-contain" />
              
-             <div className="inline-flex p-3 rounded-2xl bg-[#CCF300]/10 mb-5 border border-[#CCF300]/20">
-                {authMode === 'FORGOT' ? <Key className="w-6 h-6 text-[#CCF300]" /> : <Lock className="w-6 h-6 text-[#CCF300]" />}
+             <div className="inline-flex p-3 rounded-2xl bg-[#84cc16]/10 mb-5 border border-[#84cc16]/20">
+                {authMode === 'FORGOT' ? <Key className="w-6 h-6 text-[#84cc16]" /> : <Lock className="w-6 h-6 text-[#84cc16]" />}
              </div>
              
              <h2 className="text-3xl font-black text-slate-900 tracking-tighter">

@@ -84,7 +84,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 8.0) return '#CCF300';
+    if (score >= 8.0) return '#84cc16';
     if (score >= 5.0) return '#facc15';
     return '#ef4444';
   };
@@ -186,7 +186,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
 
   return (
     <div 
-      className={`bg-white border rounded-3xl overflow-hidden transition-all duration-300 mb-3 animate-slide-up relative group ${candidate.isSelected ? 'border-[#CCF300] ring-1 ring-[#CCF300] shadow-[0px_4px_20px_rgba(204,243,0,0.1)] bg-[#CCF300]/5' : 'border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200 hover:shadow-[0px_4px_25px_rgba(0,0,0,0.06)] hover:-translate-y-0.5'}`}
+      className={`bg-white border rounded-3xl overflow-hidden transition-all duration-300 mb-3 animate-slide-up relative group ${candidate.isSelected ? 'border-[#84cc16] ring-1 ring-[#84cc16] shadow-[0px_4px_20px_rgba(132,204,22,0.1)] bg-[#84cc16]/5' : 'border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] hover:border-slate-200 hover:shadow-[0px_4px_25px_rgba(0,0,0,0.06)] hover:-translate-y-0.5'}`}
       style={animationDelay}
       onMouseLeave={handleMouseLeave}
     >
@@ -205,7 +205,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
               <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3">
                     <h4 className="font-black text-slate-900 text-base tracking-tighter truncate">{result.candidateName}</h4>
-                    {candidate.isSelected && <span className="bg-[#CCF300] text-black text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded shadow-sm shrink-0 border border-black/10">Selecionado</span>}
+                    {candidate.isSelected && <span className="bg-[#84cc16] text-black text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded shadow-sm shrink-0 border border-black/10">Selecionado</span>}
                     {activeInterview && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); onGoToInterview?.(activeInterview); }}
@@ -242,7 +242,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
                         activeInterview 
                           ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70' 
                           : candidate.isSelected 
-                            ? 'bg-[#CCF300] text-black border-[#CCF300] hover:bg-[#bce000] active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer' 
+                            ? 'bg-[#84cc16] text-black border-[#84cc16] hover:bg-[#65a30d] active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer' 
                             : 'bg-black text-white border-black hover:bg-slate-800 active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer'
                       }`}
                       title={activeInterview ? "Candidato já possui entrevista em andamento" : ""}
@@ -254,7 +254,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
                         href={`https://bot-chatwoot.5mljrq.easypanel.host/app/accounts/1/conversations/${candidate.chatwoot_conversation_id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center px-4 h-9 rounded-xl text-xs font-black transition-all transform border shadow-sm bg-[#84cc16] text-white border-[#84cc16] hover:bg-[#65a30d] active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer"
+                        className="flex items-center px-4 h-9 rounded-xl text-xs font-black transition-all transform border shadow-sm bg-[#65a30d] text-white border-[#65a30d] hover:bg-[#4d7c0f] active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer"
                         title="Acompanhar Conversa"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -276,7 +276,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
         </div>
         {expanded && (
           <div className="pt-6 mt-4 border-t-2 border-slate-100 animate-fade-in relative z-50 pointer-events-auto cursor-text" onClick={(e) => e.stopPropagation()}>
-              <div className="mb-6"><h5 className="text-[10px] font-black text-black uppercase tracking-widest mb-3 flex items-center gap-2"><Quote className="w-3 h-3 fill-current text-[#CCF300]" /> Análise Profissional</h5><p className="text-slate-700 text-sm leading-relaxed text-justify font-bold">{result.summary}</p></div>
+              <div className="mb-6"><h5 className="text-[10px] font-black text-black uppercase tracking-widest mb-3 flex items-center gap-2"><Quote className="w-3 h-3 fill-current text-[#84cc16]" /> Análise Profissional</h5><p className="text-slate-700 text-sm leading-relaxed text-justify font-bold">{result.summary}</p></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4"><h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Pontos Fortes</h5><ul className="space-y-2">{result.pros.map((pro, i) => (<li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 mr-2 shrink-0"></span>{pro}</li>))}</ul></div>
                   <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4"><h5 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 flex items-center"><XCircle className="w-3.5 h-3.5 mr-2" /> Pontos de Atenção</h5><ul className="space-y-2">{result.cons.map((con, i) => (<li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed"><span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 mr-2 shrink-0"></span>{con}</li>))}</ul></div>
