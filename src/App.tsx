@@ -22,15 +22,98 @@ import {
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
-const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => {
-  let resultObj = c.analysis_result;
-  if (typeof resultObj === 'string') {
+const extractAnalysisResult = (rawResult: any): AnalysisResult | undefined => {
+  if (!rawResult) return undefined;
+  
+  let parsed = rawResult;
+  if (typeof parsed === 'string') {
     try {
-      resultObj = JSON.parse(resultObj);
+      parsed = JSON.parse(parsed);
     } catch (e) {
-      console.error("Failed to parse analysis_result", e);
+      console.error("Failed to parse analysis_result string", e);
+      return undefined;
     }
   }
+
+  // Check if it's an Anthropic/n8n wrapper
+  if (parsed && typeof parsed === 'object') {
+    // Anthropic format: { output: { content: [ { text: "{...}" } ] } }
+    if (parsed.output?.content?.[0]?.text) {
+      try {
+        const innerText = parsed.output.content[0].text;
+        let cleaned = innerText.trim();
+        cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+        
+        // Sometimes the LLM includes text before or after the JSON block
+        const firstBrace = cleaned.indexOf('{');
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+        }
+        
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.error("Failed to parse inner Anthropic JSON", e);
+      }
+    }
+    
+    // OpenAI format: { output: { choices: [ { message: { content: "{...}" } } ] } }
+    if (parsed.output?.choices?.[0]?.message?.content) {
+      try {
+        const innerText = parsed.output.choices[0].message.content;
+        let cleaned = innerText.trim();
+        cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+        
+        const firstBrace = cleaned.indexOf('{');
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+        }
+        
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.error("Failed to parse inner OpenAI JSON", e);
+      }
+    }
+
+    // Direct text output from some n8n nodes: { output: "{...}" }
+    if (typeof parsed.output === 'string') {
+      try {
+        let cleaned = parsed.output.trim();
+        cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+        
+        const firstBrace = cleaned.indexOf('{');
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+        }
+        
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.error("Failed to parse inner string JSON", e);
+      }
+    }
+    
+    // Direct object output from some n8n nodes: { output: { candidateName: "..." } }
+    if (parsed.output && typeof parsed.output === 'object' && parsed.output.candidateName !== undefined) {
+      return parsed.output as AnalysisResult;
+    }
+    
+    // If it's already the correct object (has candidateName)
+    if (parsed.candidateName !== undefined) {
+      return parsed as AnalysisResult;
+    }
+    
+    // Fallback: if it's just an object but doesn't have candidateName, maybe it's nested differently
+    // Let's just return it and hope for the best, or return undefined if it's clearly wrong.
+    // We'll return parsed to not break existing behavior if it was working somehow.
+  }
+
+  return parsed as AnalysisResult;
+};
+
+const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => {
+  const resultObj = extractAnalysisResult(c.analysis_result);
 
   return {
     id: c.id as string,
@@ -38,7 +121,7 @@ const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => {
     fileName: c.filename as string,
     filePath: c.file_path as string,
     status: c.status as CandidateStatus,
-    result: resultObj as unknown as AnalysisResult,
+    result: resultObj as AnalysisResult,
     isSelected: c.is_selected as boolean,
     whatsapp: c['WhatsApp com DDD'] as string, // Mapeia a coluna exata do banco
     chatwoot_conversation_id: c.chatwoot_conversation_id as string
@@ -796,14 +879,7 @@ const App: React.FC = () => {
       const rawTime = (i.slot_time || (i.interview_slots as Record<string, unknown>)?.slot_time) as string | undefined;
       const formattedTime = rawTime ? rawTime.substring(0, 5) : undefined;
       
-      let analysisResult = i.candidates?.analysis_result;
-      if (typeof analysisResult === 'string') {
-        try {
-          analysisResult = JSON.parse(analysisResult);
-        } catch (e) {
-          console.error("Failed to parse analysis_result in fetchInterviews", e);
-        }
-      }
+      const analysisResult = extractAnalysisResult(i.candidates?.analysis_result);
 
       return {
         ...i,
