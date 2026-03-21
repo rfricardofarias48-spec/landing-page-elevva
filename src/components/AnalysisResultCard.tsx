@@ -108,7 +108,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
     );
   }
 
-  if (candidate.status === CandidateStatus.ANALYZING) {
+  if (candidate.status === CandidateStatus.ANALYZING || candidate.status === CandidateStatus.EM_ANALISE) {
     return (
       <div className="bg-white border-2 border-black rounded-xl p-4 animate-pulse mb-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)]">
         <div className="flex items-center space-x-4">
@@ -154,7 +154,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
     );
   }
 
-  if (candidate.status === CandidateStatus.ERROR || !candidate.result) {
+  if (candidate.status === CandidateStatus.ERROR || (!candidate.result && candidate.status !== CandidateStatus.EM_ANALISE && candidate.status !== CandidateStatus.ANALYZING && candidate.status !== CandidateStatus.UPLOADING && candidate.status !== CandidateStatus.PENDING)) {
     return (
       <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-center justify-between text-red-600 mb-3 animate-slide-up relative shadow-[0px_4px_20px_rgba(0,0,0,0.03)]" onMouseLeave={handleMouseLeave}>
         <div className="flex items-center">
@@ -278,8 +278,8 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
           <div className="pt-6 mt-4 border-t-2 border-slate-100 animate-fade-in relative z-50 pointer-events-auto cursor-text" onClick={(e) => e.stopPropagation()}>
               <div className="mb-6"><h5 className="text-[10px] font-black text-black uppercase tracking-widest mb-3 flex items-center gap-2"><Quote className="w-3 h-3 fill-current text-[#84cc16]" /> Análise Profissional</h5><p className="text-slate-700 text-sm leading-relaxed text-justify font-bold">{result.summary}</p></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4"><h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Pontos Fortes</h5><ul className="space-y-2">{result.pros.map((pro, i) => (<li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 mr-2 shrink-0"></span>{pro}</li>))}</ul></div>
-                  <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4"><h5 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 flex items-center"><XCircle className="w-3.5 h-3.5 mr-2" /> Pontos de Atenção</h5><ul className="space-y-2">{result.cons.map((con, i) => (<li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed"><span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 mr-2 shrink-0"></span>{con}</li>))}</ul></div>
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4"><h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center"><CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Pontos Fortes</h5><ul className="space-y-2">{(result.pros || []).map((pro, i) => (<li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 mr-2 shrink-0"></span>{pro}</li>))}</ul></div>
+                  <div className="bg-red-50/50 border border-red-100 rounded-2xl p-4"><h5 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3 flex items-center"><XCircle className="w-3.5 h-3.5 mr-2" /> Pontos de Atenção</h5><ul className="space-y-2">{(result.cons || []).map((con, i) => (<li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed"><span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 mr-2 shrink-0"></span>{con}</li>))}</ul></div>
               </div>
                {result.workHistory && result.workHistory.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-slate-100"><h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Briefcase className="w-3 h-3" /> Experiências Recentes</h5><div className="space-y-2">{result.workHistory.map((work, idx) => (<div key={idx} className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl border border-slate-100"><div className="flex items-center gap-2"><Building2 className="w-3.5 h-3.5 text-slate-400" /><span className="font-bold text-slate-900">{work.company}</span><span className="text-slate-300">•</span><span className="text-slate-500 font-bold">{work.role}</span></div><div className="flex items-center gap-1.5 text-slate-500 font-bold bg-white px-2 py-0.5 rounded border border-slate-200"><Clock className="w-3 h-3" />{work.duration}</div></div>))}</div></div>

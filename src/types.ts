@@ -23,7 +23,10 @@ export enum CandidateStatus {
   UPLOADING = 'UPLOADING', // Status novo para Interface Otimista
   ANALYZING = 'ANALYZING',
   COMPLETED = 'COMPLETED',
-  ERROR = 'ERROR'
+  ERROR = 'ERROR',
+  EM_ANALISE = 'EM_ANALISE',
+  APROVADO = 'APROVADO',
+  REPROVADO = 'REPROVADO'
 }
 
 export interface Candidate {

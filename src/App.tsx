@@ -1421,7 +1421,7 @@ const App: React.FC = () => {
       if (!activeJob) return;
       
       const selectableCandidates = activeJob.candidates.filter(c => 
-          [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) &&
+          [CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO'].includes(c.status as string) &&
           !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
       );
       
@@ -1457,13 +1457,20 @@ const App: React.FC = () => {
       const hoursSaved = Math.round((totalResumesAnalyzed * 10) / 60);
 
       const mockChartData = [
-        { name: 'Seg', candidatos: 12 },
-        { name: 'Ter', candidatos: 19 },
-        { name: 'Qua', candidatos: 15 },
-        { name: 'Qui', candidatos: 22 },
-        { name: 'Sex', candidatos: 30 },
-        { name: 'Sáb', candidatos: 10 },
-        { name: 'Dom', candidatos: 8 },
+        { name: '01/03', candidatos: 12, aprovados: 4 },
+        { name: '02/03', candidatos: 18, aprovados: 6 },
+        { name: '03/03', candidatos: 15, aprovados: 5 },
+        { name: '04/03', candidatos: 25, aprovados: 8 },
+        { name: '05/03', candidatos: 22, aprovados: 7 },
+        { name: '06/03', candidatos: 30, aprovados: 10 },
+        { name: '07/03', candidatos: 14, aprovados: 4 },
+        { name: '08/03', candidatos: 10, aprovados: 2 },
+        { name: '09/03', candidatos: 28, aprovados: 9 },
+        { name: '10/03', candidatos: 35, aprovados: 12 },
+        { name: '11/03', candidatos: 32, aprovados: 11 },
+        { name: '12/03', candidatos: 40, aprovados: 15 },
+        { name: '13/03', candidatos: 45, aprovados: 18 },
+        { name: '14/03', candidatos: 20, aprovados: 6 },
       ];
 
       return (
@@ -1537,12 +1544,12 @@ const App: React.FC = () => {
           </div>
 
           {/* MIDDLE SECTION */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-4 md:gap-6">
               {/* CHART */}
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] lg:col-span-2 flex flex-col">
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col">
                   <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-black text-slate-900 tracking-tighter">Fluxo de Candidatos</h3>
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Últimos 7 dias</span>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Últimos 14 dias</span>
                   </div>
                   <div className="flex-1 min-h-[250px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1552,50 +1559,28 @@ const App: React.FC = () => {
                                       <stop offset="5%" stopColor="#65a30d" stopOpacity={0.3}/>
                                       <stop offset="95%" stopColor="#65a30d" stopOpacity={0}/>
                                   </linearGradient>
+                                  <linearGradient id="colorAprovados" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                  </linearGradient>
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
+                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
                               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
                               <Tooltip 
                                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                                   itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
                               />
-                              <Area type="monotone" dataKey="candidatos" stroke="#65a30d" strokeWidth={3} fillOpacity={1} fill="url(#colorCandidatos)" />
+                              <Area type="monotone" dataKey="candidatos" name="Candidatos" stroke="#65a30d" strokeWidth={3} fillOpacity={1} fill="url(#colorCandidatos)" />
+                              <Area type="monotone" dataKey="aprovados" name="Aprovados" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorAprovados)" />
                           </AreaChart>
                       </ResponsiveContainer>
                   </div>
               </div>
-
-              {/* AGENTE EM AÇÃO */}
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between relative overflow-hidden">
-                  <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-4">
-                          <div className="relative flex h-3 w-3">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                          </div>
-                          <span className="text-xs font-black text-emerald-600 uppercase tracking-widest">Online e operando</span>
-                      </div>
-                      <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-2">Seu Agente em Ação</h3>
-                      <p className="text-slate-500 font-medium text-sm">Bento está atendendo candidatos no WhatsApp neste momento.</p>
-                  </div>
-                  
-                  <div className="relative z-10 mt-8">
-                      <a 
-                          href="https://bot-chatwoot.5mljrq.easypanel.host/app/accounts/1/conversations" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-6 py-4 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0"
-                      >
-                          <span className="text-lg">💬</span> Acompanhar ao Vivo
-                      </a>
-                  </div>
-                  <div className="absolute right-0 bottom-0 w-48 h-48 bg-emerald-50 rounded-full blur-[60px] opacity-60 -mr-10 -mb-10 pointer-events-none"></div>
-              </div>
           </div>
 
           {/* BOTTOM SECTION */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
               {/* AGENDA */}
               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] lg:col-span-2">
                   <div className="flex items-center justify-between mb-6">
@@ -1634,8 +1619,35 @@ const App: React.FC = () => {
                   </div>
               </div>
 
+              {/* AGENTE EM AÇÃO */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between relative overflow-hidden lg:col-span-1">
+                  <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-4">
+                          <div className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                          </div>
+                          <span className="text-xs font-black text-emerald-600 uppercase tracking-widest">Online</span>
+                      </div>
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-2">Agente em Ação</h3>
+                      <p className="text-slate-500 font-medium text-xs">Bento está atendendo candidatos no WhatsApp.</p>
+                  </div>
+                  
+                  <div className="relative z-10 mt-6">
+                      <a 
+                          href="https://bot-chatwoot.5mljrq.easypanel.host/app/accounts/1/conversations" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-4 py-3 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0"
+                      >
+                          <span className="text-lg">💬</span> Acompanhar
+                      </a>
+                  </div>
+                  <div className="absolute right-0 bottom-0 w-48 h-48 bg-emerald-50 rounded-full blur-[60px] opacity-60 -mr-10 -mb-10 pointer-events-none"></div>
+              </div>
+
               {/* PLANO ATUAL */}
-              <div className="bg-[#0a0a0a] p-6 rounded-[2rem] relative overflow-hidden flex flex-col justify-between shadow-xl">
+              <div className="bg-[#0a0a0a] p-6 rounded-[2rem] relative overflow-hidden flex flex-col justify-between shadow-xl lg:col-span-1">
                   <div className="relative z-10">
                       <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
                       <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{normalizedPlan}</h3>
@@ -2071,8 +2083,8 @@ const App: React.FC = () => {
       {/* SIDEBAR */}
       <aside className="w-20 lg:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 z-40">
         <div className="h-20 flex flex-col items-center justify-center border-b border-slate-100 relative shrink-0">
-           <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-16 w-auto hidden lg:block object-contain scale-[1.35]" />
-            <div className="w-10 h-10 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#65a30d] font-black text-xl shrink-0">E</div>
+           <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-[72px] w-auto hidden lg:block object-contain" />
+            <div className="w-8 h-8 bg-black rounded-xl lg:hidden flex items-center justify-center text-[#65a30d] font-black text-lg shrink-0">E</div>
         </div>
         
         <nav className="flex-1 pt-2 pb-6 px-3 space-y-2 overflow-y-auto custom-scrollbar">
@@ -2223,7 +2235,7 @@ const App: React.FC = () => {
                  
                  {activeJob.candidates.length > 0 && (() => {
                    const selectableCandidates = activeJob.candidates.filter(c => 
-                     [CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) &&
+                     [CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO'].includes(c.status as string) &&
                      !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
                    );
                    const allSelected = selectableCandidates.length > 0 && selectableCandidates.every(c => c.isSelected);
@@ -2308,7 +2320,7 @@ const App: React.FC = () => {
                             setInitialSelectedInterview(interview);
                             setCurrentTab('ENTREVISTAS');
                           }}
-                          onToggleSelection={[CandidateStatus.COMPLETED, 'APROVADO', 'EM_ANALISE', 'REPROVADO'].includes(c.status as string) ? () => handleToggleSelection(c.id) : undefined} 
+                          onToggleSelection={[CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO'].includes(c.status as string) ? () => handleToggleSelection(c.id) : undefined} 
                           onDelete={() => handleDeleteCandidate(c.id)}
                         />
                       );

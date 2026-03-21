@@ -376,7 +376,7 @@ export const AdminDashboard: React.FC = () => {
   const renderSidebar = () => (
     <div className="w-64 bg-white border-r border-zinc-200 flex flex-col fixed left-0 top-0 bottom-0 z-50">
         <div className="h-20 flex flex-col items-start justify-center px-8 border-b border-zinc-100 shrink-0">
-            <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-10 w-auto mb-1 scale-[1.35] origin-left" />
+            <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Logo" className="h-[56px] w-auto mb-0.5" />
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded">Admin Panel</span>
         </div>
         

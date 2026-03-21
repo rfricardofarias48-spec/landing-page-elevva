@@ -223,7 +223,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                                          ${Icons.CheckCircle} Pontos Fortes
                                       </h5>
                                       <ul class="space-y-2">
-                                          ${c.result?.pros.slice(0, 4).map(pro => `
+                                          ${(c.result?.pros || []).slice(0, 4).map(pro => `
                                               <li class="flex items-start text-[11px] text-slate-800 font-bold leading-snug">
                                                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 mr-2 shrink-0"></span>
                                                   ${pro}
@@ -238,7 +238,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                                          ${Icons.XCircle} Pontos de Atenção
                                       </h5>
                                       <ul class="space-y-2">
-                                          ${c.result?.cons.slice(0, 4).map(con => `
+                                          ${(c.result?.cons || []).slice(0, 4).map(con => `
                                               <li class="flex items-start text-[11px] text-slate-800 font-bold leading-snug">
                                                   <span class="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 mr-2 shrink-0"></span>
                                                   ${con}
@@ -541,7 +541,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                                         <CheckCircle2 className="w-4 h-4" /> Pontos Fortes
                                     </h5>
                                     <ul className="space-y-2">
-                                        {c.result?.pros.map((pro, i) => (
+                                        {(c.result?.pros || []).map((pro, i) => (
                                             <li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 mr-2 shrink-0"></span>
                                                 {pro}
@@ -555,7 +555,7 @@ export const InterviewReportModal: React.FC<Props> = ({ jobTitle, candidates, on
                                         <XCircle className="w-4 h-4" /> Pontos de Atenção
                                     </h5>
                                     <ul className="space-y-2">
-                                        {c.result?.cons.map((con, i) => (
+                                        {(c.result?.cons || []).map((con, i) => (
                                             <li key={i} className="flex items-start text-xs text-slate-800 font-bold leading-relaxed">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 mr-2 shrink-0"></span>
                                                 {con}
