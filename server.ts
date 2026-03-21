@@ -292,7 +292,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
           "Nome Completo": finalName !== "Candidato via WhatsApp" ? finalName : candidateData["Nome Completo"],
           filename: fileName,
           file_path: filePath,
-          status: "ANALISANDO",
+          status: "ANALYZING",
           match_score: 0,
           analysis_result: null,
         })
@@ -317,7 +317,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
             "WhatsApp com DDD": finalPhone,
             filename: fileName,
             file_path: filePath,
-            status: "ANALISANDO",
+            status: "ANALYZING",
             match_score: 0,
             analysis_result: null,
           },

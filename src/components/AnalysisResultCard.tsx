@@ -108,7 +108,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
     );
   }
 
-  if (candidate.status === CandidateStatus.ANALYZING || candidate.status === CandidateStatus.EM_ANALISE) {
+  if (candidate.status === CandidateStatus.ANALYZING) {
     return (
       <div className="bg-white border-2 border-black rounded-xl p-4 animate-pulse mb-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)]">
         <div className="flex items-center space-x-4">
@@ -154,7 +154,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
     );
   }
 
-  if (candidate.status === CandidateStatus.ERROR || (!candidate.result && candidate.status !== CandidateStatus.EM_ANALISE && candidate.status !== CandidateStatus.ANALYZING && candidate.status !== CandidateStatus.UPLOADING && candidate.status !== CandidateStatus.PENDING)) {
+  if (candidate.status === CandidateStatus.ERROR || (!candidate.result && candidate.status !== CandidateStatus.ANALYZING && candidate.status !== CandidateStatus.UPLOADING && candidate.status !== CandidateStatus.PENDING)) {
     return (
       <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-center justify-between text-red-600 mb-3 animate-slide-up relative shadow-[0px_4px_20px_rgba(0,0,0,0.03)]" onMouseLeave={handleMouseLeave}>
         <div className="flex items-center">

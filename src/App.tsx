@@ -22,17 +22,28 @@ import {
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
-const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => ({
-  id: c.id as string,
-  file: new File([], (c.filename as string) || 'currículo.pdf'), // Placeholder file object
-  fileName: c.filename as string,
-  filePath: c.file_path as string,
-  status: c.status as CandidateStatus,
-  result: c.analysis_result as unknown as AnalysisResult,
-  isSelected: c.is_selected as boolean,
-  whatsapp: c['WhatsApp com DDD'] as string, // Mapeia a coluna exata do banco
-  chatwoot_conversation_id: c.chatwoot_conversation_id as string
-});
+const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => {
+  let resultObj = c.analysis_result;
+  if (typeof resultObj === 'string') {
+    try {
+      resultObj = JSON.parse(resultObj);
+    } catch (e) {
+      console.error("Failed to parse analysis_result", e);
+    }
+  }
+
+  return {
+    id: c.id as string,
+    file: new File([], (c.filename as string) || 'currículo.pdf'), // Placeholder file object
+    fileName: c.filename as string,
+    filePath: c.file_path as string,
+    status: c.status as CandidateStatus,
+    result: resultObj as unknown as AnalysisResult,
+    isSelected: c.is_selected as boolean,
+    whatsapp: c['WhatsApp com DDD'] as string, // Mapeia a coluna exata do banco
+    chatwoot_conversation_id: c.chatwoot_conversation_id as string
+  };
+};
 
 const LegalModal: React.FC<{ title: string; onClose: () => void }> = ({ title, onClose }) => (
   <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in font-sans">
@@ -135,33 +146,63 @@ const App: React.FC = () => {
       .channel('realtime-candidates')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'candidates' },
+        { event: '*', schema: 'public', table: 'candidates' },
         (payload) => {
-          const newRecord = payload.new;
-          
-          setJobs(currentJobs => {
-              const jobExists = currentJobs.some(j => j.id === newRecord.job_id);
-              if (!jobExists) return currentJobs;
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const newRecord = payload.new;
+            
+            setJobs(currentJobs => {
+                const jobExists = currentJobs.some(j => j.id === newRecord.job_id);
+                if (!jobExists) return currentJobs;
 
-              const newCandidate = mapCandidateFromDB(newRecord);
-              
-              return currentJobs.map(j => {
-                  if (j.id === newRecord.job_id) {
-                      if (j.candidates.some(c => c.id === newCandidate.id)) return j;
-                      return { ...j, candidates: [newCandidate, ...j.candidates] };
-                  }
-                  return j;
-              });
-          });
+                const newCandidate = mapCandidateFromDB(newRecord);
+                
+                return currentJobs.map(j => {
+                    if (j.id === newRecord.job_id) {
+                        const existingIndex = j.candidates.findIndex(c => c.id === newCandidate.id);
+                        if (existingIndex >= 0) {
+                            const updatedCandidates = [...j.candidates];
+                            updatedCandidates[existingIndex] = newCandidate;
+                            return { ...j, candidates: updatedCandidates };
+                        }
+                        return { ...j, candidates: [newCandidate, ...j.candidates] };
+                    }
+                    return j;
+                });
+            });
 
-          setActiveJob(currentActive => {
-              if (currentActive && currentActive.id === newRecord.job_id) {
-                   const newCandidate = mapCandidateFromDB(newRecord);
-                   if (currentActive.candidates.some(c => c.id === newCandidate.id)) return currentActive;
-                   return { ...currentActive, candidates: [newCandidate, ...currentActive.candidates] };
-              }
-              return currentActive;
-          });
+            setActiveJob(currentActive => {
+                if (currentActive && currentActive.id === newRecord.job_id) {
+                     const newCandidate = mapCandidateFromDB(newRecord);
+                     const existingIndex = currentActive.candidates.findIndex(c => c.id === newCandidate.id);
+                     if (existingIndex >= 0) {
+                         const updatedCandidates = [...currentActive.candidates];
+                         updatedCandidates[existingIndex] = newCandidate;
+                         return { ...currentActive, candidates: updatedCandidates };
+                     }
+                     return { ...currentActive, candidates: [newCandidate, ...currentActive.candidates] };
+                }
+                return currentActive;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldRecord = payload.old;
+            
+            setJobs(currentJobs => {
+                return currentJobs.map(j => {
+                    if (j.candidates.some(c => c.id === oldRecord.id)) {
+                        return { ...j, candidates: j.candidates.filter(c => c.id !== oldRecord.id) };
+                    }
+                    return j;
+                });
+            });
+
+            setActiveJob(currentActive => {
+                if (currentActive && currentActive.candidates.some(c => c.id === oldRecord.id)) {
+                     return { ...currentActive, candidates: currentActive.candidates.filter(c => c.id !== oldRecord.id) };
+                }
+                return currentActive;
+            });
+          }
         }
       )
       .subscribe();
@@ -754,11 +795,20 @@ const App: React.FC = () => {
     const formattedInterviews = data.map((i: Record<string, unknown>) => {
       const rawTime = (i.slot_time || (i.interview_slots as Record<string, unknown>)?.slot_time) as string | undefined;
       const formattedTime = rawTime ? rawTime.substring(0, 5) : undefined;
+      
+      let analysisResult = i.candidates?.analysis_result;
+      if (typeof analysisResult === 'string') {
+        try {
+          analysisResult = JSON.parse(analysisResult);
+        } catch (e) {
+          console.error("Failed to parse analysis_result in fetchInterviews", e);
+        }
+      }
 
       return {
         ...i,
         job_title: i.jobs?.title,
-        candidate_name: i.candidates?.analysis_result?.candidateName || 'Candidato',
+        candidate_name: analysisResult?.candidateName || 'Candidato',
         candidate_phone: i.candidates?.['WhatsApp com DDD'] || '',
         candidate_file_path: i.candidates?.file_path,
         scheduled_date: i.slot_date || i.interview_slots?.slot_date,
@@ -1421,7 +1471,7 @@ const App: React.FC = () => {
       if (!activeJob) return;
       
       const selectableCandidates = activeJob.candidates.filter(c => 
-          [CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO'].includes(c.status as string) &&
+          [CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO', 'EM_ANALISE'].includes(c.status as string) &&
           !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
       );
       
@@ -2235,7 +2285,7 @@ const App: React.FC = () => {
                  
                  {activeJob.candidates.length > 0 && (() => {
                    const selectableCandidates = activeJob.candidates.filter(c => 
-                     [CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO'].includes(c.status as string) &&
+                     [CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO', 'EM_ANALISE'].includes(c.status as string) &&
                      !interviews.some(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status))
                    );
                    const allSelected = selectableCandidates.length > 0 && selectableCandidates.every(c => c.isSelected);
@@ -2320,7 +2370,7 @@ const App: React.FC = () => {
                             setInitialSelectedInterview(interview);
                             setCurrentTab('ENTREVISTAS');
                           }}
-                          onToggleSelection={[CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO'].includes(c.status as string) ? () => handleToggleSelection(c.id) : undefined} 
+                          onToggleSelection={[CandidateStatus.COMPLETED, 'APROVADO', 'REPROVADO', 'EM_ANALISE'].includes(c.status as string) ? () => handleToggleSelection(c.id) : undefined} 
                           onDelete={() => handleDeleteCandidate(c.id)}
                         />
                       );
