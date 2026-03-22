@@ -192,9 +192,9 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE OR REPLACE FUNCTION public.delete_old_resume_file()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Tenta deletar o arquivo do bucket 'resumes'
+  -- Tenta deletar o arquivo do bucket 'curriculos'
   DELETE FROM storage.objects 
-  WHERE bucket_id = 'resumes' 
+  WHERE bucket_id = 'curriculos' 
   AND name = OLD.file_path;
   
   RETURN OLD;

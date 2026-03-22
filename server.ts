@@ -241,7 +241,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     const filePath = `${finalJobId}/${fileName}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
-      .from("resumes")
+      .from("curriculos")
       .upload(filePath, buffer, {
         contentType: "application/pdf",
         upsert: false,

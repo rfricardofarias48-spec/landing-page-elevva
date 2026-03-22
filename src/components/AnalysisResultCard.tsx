@@ -86,7 +86,8 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
           return;
       }
 
-      const { data } = supabase.storage.from('resumes').getPublicUrl(candidate.filePath);
+      const cleanPath = candidate.filePath.replace(/^curriculos\//, '');
+      const { data } = supabase.storage.from('curriculos').getPublicUrl(cleanPath);
       if (data?.publicUrl) window.open(data.publicUrl, '_blank');
   };
 

@@ -224,7 +224,8 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         return;
     }
 
-    const { data } = supabase.storage.from('resumes').getPublicUrl(filePath);
+    const cleanPath = filePath.replace(/^curriculos\//, '');
+    const { data } = supabase.storage.from('curriculos').getPublicUrl(cleanPath);
     if (data?.publicUrl) window.open(data.publicUrl, '_blank');
   };
 

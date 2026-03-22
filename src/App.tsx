@@ -524,7 +524,7 @@ const App: React.FC = () => {
             const filesToRemove = candidatesToDelete.map(c => c.file_path).filter(Boolean);
             if (filesToRemove.length > 0) {
                 const { error: storageError } = await supabase.storage
-                    .from('resumes')
+                    .from('curriculos')
                     .remove(filesToRemove);
                 
                 if (storageError) console.error("Erro ao limpar storage:", storageError);
@@ -1223,7 +1223,7 @@ const App: React.FC = () => {
             const fileName = `${Date.now()}_${cleanName}`;
             
             const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('resumes')
+                .from('curriculos')
                 .upload(fileName, c.file, {
                     cacheControl: '3600',
                     upsert: false
@@ -1283,7 +1283,7 @@ const App: React.FC = () => {
               const fileName = `${Date.now()}_${cleanName}`;
               
               const { data: uploadData, error: uploadError } = await supabase.storage
-                  .from('resumes')
+                  .from('curriculos')
                   .upload(fileName, file);
               
               if (uploadError) throw uploadError;
@@ -1358,7 +1358,7 @@ const App: React.FC = () => {
             if (!candidate.filePath) throw new Error("File path missing");
             
             const { data: fileBlob, error: downloadError } = await supabase.storage
-                .from('resumes')
+                .from('curriculos')
                 .download(candidate.filePath);
 
             if (downloadError || !fileBlob) {
