@@ -155,7 +155,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
             .from("candidates")
             .select("job_id")
             .eq("WhatsApp com DDD", finalPhone)
-            .is("filename", null)
+            .is("file_name", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -273,7 +273,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
         .from("candidates")
         .select("*")
         .eq("job_id", finalJobId)
-        .is("filename", null)
+        .is("file_name", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -290,7 +290,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
         .from("candidates")
         .update({
           "Nome Completo": finalName !== "Candidato via WhatsApp" ? finalName : candidateData["Nome Completo"],
-          filename: fileName,
+          file_name: fileName,
           file_path: filePath,
           status: "ANALYZING",
           match_score: 0,
@@ -315,7 +315,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
             user_id: jobData.user_id, // Vinculando o dono da vaga ao candidato
             "Nome Completo": finalName,
             "WhatsApp com DDD": finalPhone,
-            filename: fileName,
+            file_name: fileName,
             file_path: filePath,
             status: "ANALYZING",
             match_score: 0,

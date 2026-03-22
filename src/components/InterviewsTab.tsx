@@ -217,6 +217,13 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       alert("Arquivo indisponível.");
       return;
     }
+    
+    // Se já for um link completo (ex: http://...), abre direto
+    if (filePath.startsWith('http')) {
+        window.open(filePath, '_blank');
+        return;
+    }
+
     const { data } = supabase.storage.from('resumes').getPublicUrl(filePath);
     if (data?.publicUrl) window.open(data.publicUrl, '_blank');
   };

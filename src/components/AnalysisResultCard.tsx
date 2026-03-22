@@ -79,6 +79,13 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
           alert("Arquivo indisponível.");
           return;
       }
+      
+      // Se já for um link completo (ex: http://...), abre direto
+      if (candidate.filePath.startsWith('http')) {
+          window.open(candidate.filePath, '_blank');
+          return;
+      }
+
       const { data } = supabase.storage.from('resumes').getPublicUrl(candidate.filePath);
       if (data?.publicUrl) window.open(data.publicUrl, '_blank');
   };

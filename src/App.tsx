@@ -117,9 +117,9 @@ const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => {
 
   return {
     id: c.id as string,
-    file: new File([], (c.filename as string) || 'currículo.pdf'), // Placeholder file object
-    fileName: c.filename as string,
-    filePath: c.file_path as string,
+    file: new File([], (c.file_name as string) || (c.filename as string) || 'currículo.pdf'), // Placeholder file object
+    fileName: (c.file_name as string) || (c.filename as string),
+    filePath: (c.file_path as string) || (c.file_name as string) || (c.filename as string),
     status: c.status as CandidateStatus,
     result: resultObj as AnalysisResult,
     isSelected: c.is_selected as boolean,
@@ -844,7 +844,7 @@ const App: React.FC = () => {
       .select(`
         *,
         jobs!inner (title, user_id),
-        candidates (analysis_result, "WhatsApp com DDD", file_path),
+        candidates (analysis_result, "WhatsApp com DDD", file_path, file_name),
         interview_slots (slot_date, slot_time, format, location, interviewer_name)
       `)
       .eq('jobs.user_id', userId)
@@ -886,7 +886,7 @@ const App: React.FC = () => {
         job_title: i.jobs?.title,
         candidate_name: analysisResult?.candidateName || 'Candidato',
         candidate_phone: i.candidates?.['WhatsApp com DDD'] || '',
-        candidate_file_path: i.candidates?.file_path,
+        candidate_file_path: i.candidates?.file_path || i.candidates?.file_name,
         scheduled_date: i.slot_date || i.interview_slots?.slot_date,
         scheduled_time: formattedTime,
         format: i.interview_slots?.format,
@@ -1235,7 +1235,7 @@ const App: React.FC = () => {
                 .from('candidates')
                 .insert([{
                     job_id: jobId,
-                    filename: c.file.name, // Nome bonito no banco
+                    file_name: c.file.name, // Nome bonito no banco
                     file_path: uploadData.path, // Caminho seguro no storage
                     status: 'PENDING'
                 }])
@@ -1292,7 +1292,7 @@ const App: React.FC = () => {
 
               const { data: insertedCandidate, error: dbError } = await supabase.from('candidates').insert([{
                   job_id: publicUploadJobId,
-                  filename: file.name,
+                  file_name: file.name,
                   file_path: uploadData.path,
                   status: initialStatus
               }]).select().single();
