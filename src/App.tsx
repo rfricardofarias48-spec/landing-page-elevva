@@ -17,7 +17,7 @@ import { BentoChat } from './components/BentoChat';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot
 } from 'lucide-react';
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
@@ -171,6 +171,10 @@ const App: React.FC = () => {
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [interviews, setInterviews] = useState<Record<string, unknown>[]>([]);
+  const interviewsRef = useRef<Record<string, unknown>[]>([]);
+  useEffect(() => {
+    interviewsRef.current = interviews;
+  }, [interviews]);
   const [initialSelectedInterview, setInitialSelectedInterview] = useState<Record<string, unknown> | null>(null);
   
   // UI Controls
@@ -201,6 +205,7 @@ const App: React.FC = () => {
   
   // Chat State
   const [activeChat, setActiveChat] = useState<{ interviewId: string, candidateName: string } | null>(null);
+  const [chatNotification, setChatNotification] = useState<{ interviewId: string, candidateName: string, message: string } | null>(null);
 
   // Settings State
   const [currentPassword, setCurrentPassword] = useState('');
@@ -363,10 +368,42 @@ const App: React.FC = () => {
       )
       .subscribe();
 
+    const mensagensBentoChannel = supabase.channel(`mensagens_bento_global-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'mensagens_bento',
+        },
+        (payload) => {
+          const newMsg = payload.new as { entrevista_id: string, remetente: string, mensagem: string };
+          if (newMsg.remetente === 'Bento') {
+            // Find candidate name from interviewsRef
+            const interview = interviewsRef.current.find(i => i.id === newMsg.entrevista_id);
+            if (interview) {
+              // Only show notification if we are not already chatting with this candidate
+              setActiveChat(currentChat => {
+                if (currentChat?.interviewId !== newMsg.entrevista_id) {
+                  setChatNotification({
+                    interviewId: newMsg.entrevista_id,
+                    candidateName: (interview.candidate_name as string) || 'Candidato',
+                    message: newMsg.mensagem
+                  });
+                }
+                return currentChat;
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
         supabase.removeChannel(profileChannel);
         supabase.removeChannel(interviewChannel);
         supabase.removeChannel(interviewSlotsChannel);
+        supabase.removeChannel(mensagensBentoChannel);
     }
   }, [user?.id]);
 
@@ -2702,6 +2739,41 @@ const App: React.FC = () => {
           candidateName={activeChat.candidateName} 
           onClose={() => setActiveChat(null)} 
         />
+      )}
+
+      {/* Chat Notification Balloon */}
+      {chatNotification && (
+        <div 
+          className="fixed bottom-24 right-6 z-[10000] bg-white border border-emerald-200 rounded-2xl shadow-2xl p-4 w-80 cursor-pointer hover:scale-105 transition-all animate-slide-up"
+          onClick={() => {
+            setView('DASHBOARD');
+            setCurrentTab('ENTREVISTAS');
+            setActiveChat({ interviewId: chatNotification.interviewId, candidateName: chatNotification.candidateName });
+            setChatNotification(null);
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+              <Bot size={20} />
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-slate-900 text-sm truncate">Nova mensagem</h4>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setChatNotification(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-1">De: <span className="font-semibold text-slate-700">{chatNotification.candidateName}</span></p>
+              <p className="text-sm text-slate-800 line-clamp-2">{chatNotification.message}</p>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

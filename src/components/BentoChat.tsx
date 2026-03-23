@@ -135,7 +135,7 @@ export const BentoChat: React.FC<BentoChatProps> = ({
   entrevistaId, 
   candidateName,
   onClose,
-  webhookUrl = 'https://seu-n8n.com/webhook/chat-recrutador' // Fallback
+  webhookUrl = 'https://bot-n8n.5mljrq.easypanel.host/webhook/chat-recrutador' // Fallback
 }) => {
   const { messages, loading, sending, sendMessage } = useBentoChat(entrevistaId, webhookUrl);
   const [inputValue, setInputValue] = useState('');
