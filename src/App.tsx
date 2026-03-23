@@ -13,6 +13,7 @@ import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
 import { ScheduleInterviewsModal } from './components/ScheduleInterviewsModal';
 import { InterviewsTab } from './components/InterviewsTab';
+import { BentoChat } from './components/BentoChat';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
@@ -22,7 +23,7 @@ import {
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
-const extractAnalysisResult = (rawResult: any): AnalysisResult | undefined => {
+const extractAnalysisResult = (rawResult: unknown): AnalysisResult | undefined => {
   if (!rawResult) return undefined;
   
   let parsed = rawResult;
@@ -124,7 +125,8 @@ const mapCandidateFromDB = (c: Record<string, unknown>): Candidate => {
     result: resultObj as AnalysisResult,
     isSelected: c.is_selected as boolean,
     whatsapp: c['WhatsApp com DDD'] as string, // Mapeia a coluna exata do banco
-    chatwoot_conversation_id: c.chatwoot_conversation_id as string
+    chatwoot_conversation_id: c.chatwoot_conversation_id as string,
+    createdAt: c.created_at ? new Date(c.created_at as string).getTime() : undefined
   };
 };
 
@@ -197,6 +199,9 @@ const App: React.FC = () => {
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   
+  // Chat State
+  const [activeChat, setActiveChat] = useState<{ interviewId: string, candidateName: string } | null>(null);
+
   // Settings State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -1582,22 +1587,36 @@ const App: React.FC = () => {
       const totalResumesAnalyzed = user?.resume_usage || 0;
       const hoursSaved = Math.round((totalResumesAnalyzed * 10) / 60);
 
-      const mockChartData = [
-        { name: '01/03', candidatos: 12, aprovados: 4 },
-        { name: '02/03', candidatos: 18, aprovados: 6 },
-        { name: '03/03', candidatos: 15, aprovados: 5 },
-        { name: '04/03', candidatos: 25, aprovados: 8 },
-        { name: '05/03', candidatos: 22, aprovados: 7 },
-        { name: '06/03', candidatos: 30, aprovados: 10 },
-        { name: '07/03', candidatos: 14, aprovados: 4 },
-        { name: '08/03', candidatos: 10, aprovados: 2 },
-        { name: '09/03', candidatos: 28, aprovados: 9 },
-        { name: '10/03', candidatos: 35, aprovados: 12 },
-        { name: '11/03', candidatos: 32, aprovados: 11 },
-        { name: '12/03', candidatos: 40, aprovados: 15 },
-        { name: '13/03', candidatos: 45, aprovados: 18 },
-        { name: '14/03', candidatos: 20, aprovados: 6 },
-      ];
+      const chartData = Array.from({ length: 15 }).map((_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (14 - i));
+        d.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(d);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        
+        let candidatosCount = 0;
+        let aprovadosCount = 0;
+
+        jobs.forEach(job => {
+          job.candidates.forEach(candidate => {
+            if (candidate.createdAt && candidate.createdAt >= d.getTime() && candidate.createdAt <= endOfDay.getTime()) {
+              candidatosCount++;
+              if (candidate.status === CandidateStatus.APROVADO) {
+                aprovadosCount++;
+              }
+            }
+          });
+        });
+
+        return {
+          name: `${day}/${month}`,
+          candidatos: candidatosCount,
+          aprovados: aprovadosCount
+        };
+      });
 
       return (
       <div className="space-y-6 animate-fade-in max-w-[1400px] mx-auto font-sans pt-2">
@@ -1679,7 +1698,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex-1 min-h-[250px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={mockChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                               <defs>
                                   <linearGradient id="colorCandidatos" x1="0" y1="0" x2="0" y2="1">
                                       <stop offset="5%" stopColor="#65a30d" stopOpacity={0.3}/>
@@ -2277,7 +2296,7 @@ const App: React.FC = () => {
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
-               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} />}
+               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} />}
                {currentTab === 'JOBS' && (
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
@@ -2675,6 +2694,15 @@ const App: React.FC = () => {
             <svg viewBox="0 0 24 24" className="w-7 h-7 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
           </a>
       </div>
+
+      {/* Floating Bento Chat */}
+      {activeChat && (
+        <BentoChat 
+          entrevistaId={activeChat.interviewId} 
+          candidateName={activeChat.candidateName} 
+          onClose={() => setActiveChat(null)} 
+        />
+      )}
 
     </div>
   );

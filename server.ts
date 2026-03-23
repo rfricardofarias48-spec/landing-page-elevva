@@ -381,6 +381,111 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
   }
 });
 
+// Endpoint para confirmar entrevista via link (GET)
+app.get("/api/interviews/:id/confirm", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Atualiza o status da entrevista para CONFIRMADA
+    const { data, error } = await supabase
+      .from('interviews')
+      .update({ status: 'CONFIRMADA' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro ao confirmar entrevista:", error);
+      return res.status(500).send("Erro ao confirmar entrevista. Por favor, tente novamente ou contate o recrutador.");
+    }
+
+    // Retorna uma página HTML simples de sucesso
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Entrevista Confirmada</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background-color: #f0fdf4; color: #166534; text-align: center; padding: 20px; }
+            .container { background: white; padding: 40px 30px; border-radius: 24px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); max-width: 400px; width: 100%; }
+            h1 { margin-top: 0; font-size: 24px; margin-bottom: 12px; }
+            p { color: #4b5563; line-height: 1.5; margin-bottom: 0; }
+            svg { width: 72px; height: 72px; color: #22c55e; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <h1>Entrevista Confirmada!</h1>
+            <p>Sua presença foi confirmada com sucesso. Aguardamos você no horário agendado.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error("Erro no endpoint de confirmação:", error);
+    res.status(500).send("Erro interno do servidor.");
+  }
+});
+
+// Endpoint para confirmar entrevista via Webhook (POST) - Ex: n8n ou Chatwoot
+app.post("/api/webhooks/interviews/confirm", async (req, res) => {
+  try {
+    const { interview_id, candidate_phone } = req.body;
+
+    if (!interview_id && !candidate_phone) {
+      return res.status(400).json({ error: "É necessário informar o interview_id ou candidate_phone." });
+    }
+
+    let query = supabase.from('interviews').update({ status: 'CONFIRMADA' });
+
+    if (interview_id) {
+      query = query.eq('id', interview_id);
+    } else if (candidate_phone) {
+      // Busca o candidato pelo telefone para achar a entrevista pendente
+      const { data: candidate } = await supabase
+        .from('candidates')
+        .select('id')
+        .eq('WhatsApp com DDD', candidate_phone)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+        
+      if (candidate) {
+        // Atualiza a entrevista do candidato que está aguardando ou agendada
+        const { data: updateData, error: updateError } = await supabase
+          .from('interviews')
+          .update({ status: 'CONFIRMADA' })
+          .eq('candidate_id', candidate.id)
+          .in('status', ['AGENDADA', 'AGUARDANDO_RESPOSTA'])
+          .select();
+          
+        if (updateError) {
+          console.error("Erro ao confirmar entrevista via webhook:", updateError);
+          return res.status(500).json({ error: "Erro ao confirmar entrevista." });
+        }
+        return res.status(200).json({ success: true, message: "Entrevista confirmada com sucesso.", data: updateData });
+      } else {
+        return res.status(404).json({ error: "Candidato não encontrado com este telefone." });
+      }
+    }
+
+    const { data, error } = await query.select();
+
+    if (error) {
+      console.error("Erro ao confirmar entrevista via webhook:", error);
+      return res.status(500).json({ error: "Erro ao confirmar entrevista." });
+    }
+
+    return res.status(200).json({ success: true, message: "Entrevista confirmada com sucesso.", data });
+  } catch (error) {
+    console.error("Erro no webhook de confirmação:", error);
+    return res.status(500).json({ error: "Erro interno do servidor." });
+  }
+});
+
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

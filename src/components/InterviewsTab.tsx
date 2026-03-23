@@ -9,9 +9,10 @@ interface Props {
   interviews: Interview[];
   initialSelectedInterview?: Interview | null;
   onClearInitialSelectedInterview?: () => void;
+  onOpenChat?: (interviewId: string, candidateName: string) => void;
 }
 
-export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview }) => {
+export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat }) => {
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -432,6 +433,18 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
 
                   {/* Ações */}
                   <div className="flex justify-center gap-2">
+                    {onOpenChat && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenChat(interview.id, interview.candidate_name || 'Candidato');
+                        }}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all"
+                        title="Abrir Chat"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                      </button>
+                    )}
                     <button
                       onClick={(e) => handleOpenPdf(e, interview.candidate_file_path)}
                       className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all"
@@ -554,6 +567,18 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             </div>
 
             <div className="mt-8 flex justify-end gap-3">
+              {onOpenChat && (
+                <button
+                  onClick={() => {
+                    onOpenChat(selectedInterview.id, selectedInterview.candidate_name || 'Candidato');
+                    setSelectedInterview(null);
+                  }}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-50 border-2 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm transition-all shadow-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                  Chat
+                </button>
+              )}
               <button
                 onClick={(e) => handleOpenPdf(e, selectedInterview.candidate_file_path)}
                 className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm transition-all"
