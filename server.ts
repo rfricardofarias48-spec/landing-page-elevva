@@ -3,6 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { analyzeResume } from "./src/services/geminiService.js";
+import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
+import { cleanPhone } from "./src/services/evolutionService.js";
 
 dotenv.config();
 
@@ -483,6 +485,114 @@ app.post("/api/webhooks/interviews/confirm", async (req, res) => {
   } catch (error) {
     console.error("Erro no webhook de confirmação:", error);
     return res.status(500).json({ error: "Erro interno do servidor." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// AGENT: Evolution API webhook  (replaces n8n)
+// Configure este URL no painel da Evolution API como webhook de entrada
+// POST https://seu-dominio.com/api/webhooks/agent/whatsapp
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
+  // Always ACK immediately so Evolution API doesn't retry
+  res.status(200).json({ received: true });
+
+  try {
+    const payload = req.body as Record<string, unknown>;
+
+    // Only process incoming messages (ignore status updates, own messages, etc.)
+    if (payload.event !== "messages.upsert") return;
+
+    const data = payload.data as Record<string, unknown> | undefined;
+    if (!data) return;
+
+    const key = data.key as Record<string, unknown> | undefined;
+    if (!key) return;
+
+    // Ignore messages sent by the bot itself
+    if (key.fromMe === true) return;
+
+    const remoteJid = String(key.remoteJid || "");
+
+    // Ignore group messages
+    if (remoteJid.endsWith("@g.us")) return;
+
+    const instance    = String(payload.instance || "");
+    const phone       = cleanPhone(remoteJid);
+    const pushName    = String(data.pushName || "");
+    const messageType = String(data.messageType || "");
+    const message     = (data.message as Record<string, unknown>) || {};
+
+    // Extract text content from various message types
+    let textContent: string | null = null;
+    if (messageType === "conversation") {
+      textContent = String(message.conversation || "");
+    } else if (messageType === "extendedTextMessage") {
+      const ext = message.extendedTextMessage as Record<string, unknown> | undefined;
+      textContent = String(ext?.text || "");
+    } else if (messageType === "listResponseMessage") {
+      const lr = message.listResponseMessage as Record<string, unknown> | undefined;
+      textContent = String(lr?.title || "");
+    }
+
+    // Extract list response row ID (when candidate picks from a list)
+    let selectedRowId: string | null = null;
+    if (messageType === "listResponseMessage") {
+      const lr  = message.listResponseMessage as Record<string, unknown> | undefined;
+      const ssr = lr?.singleSelectReply as Record<string, unknown> | undefined;
+      selectedRowId = ssr?.selectedRowId ? String(ssr.selectedRowId) : null;
+    }
+
+    // Build media data for PDF downloads
+    let mediaData: { key: Record<string, unknown>; message: Record<string, unknown> } | null = null;
+    if (["documentMessage", "documentWithCaptionMessage"].includes(messageType)) {
+      mediaData = { key: key as Record<string, unknown>, message };
+    }
+
+    await processIncomingMessage(
+      instance,
+      phone,
+      pushName,
+      messageType,
+      textContent,
+      mediaData,
+      selectedRowId,
+      supabase,
+    );
+  } catch (err) {
+    console.error("[Agent Webhook] Error:", err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// AGENT: Start scheduling — called by ScheduleInterviewsModal
+// POST /api/agent/start-scheduling
+// Body: { user_id, job_id, interview_ids: string[] }
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/agent/start-scheduling", async (req, res) => {
+  try {
+    const { user_id, job_id, interview_ids } = req.body as {
+      user_id: string;
+      job_id: string;
+      interview_ids: string[];
+    };
+
+    if (!user_id || !job_id || !Array.isArray(interview_ids) || interview_ids.length === 0) {
+      return res.status(400).json({ error: "Campos obrigatórios: user_id, job_id, interview_ids[]" });
+    }
+
+    const result = await triggerSchedulingForCandidates(user_id, job_id, interview_ids, supabase);
+
+    return res.status(200).json({
+      success: true,
+      message: `Agente disparado: ${result.sent} mensagens enviadas, ${result.errors} erros.`,
+      ...result,
+    });
+  } catch (err: unknown) {
+    console.error("[Start Scheduling] Error:", err);
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : "Erro interno do servidor.",
+    });
   }
 });
 

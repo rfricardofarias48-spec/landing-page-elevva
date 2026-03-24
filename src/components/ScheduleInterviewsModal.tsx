@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { X, Calendar, Clock, Send, Plus, Trash2, MapPin, Video } from 'lucide-react';
 import { Job } from '../types';
 import { supabase } from '../services/supabaseClient';
-
 interface Props {
   job: Job;
   onClose: () => void;
@@ -114,37 +113,32 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
       if (insertError) throw insertError;
 
-      // 3. Call n8n webhook
-      const webhookUrl = import.meta.env.VITE_N8N_INTERVIEW_WEBHOOK || 'https://seu-n8n.com/webhook/agendar-entrevista';
-      
+      // 3. Disparar agente interno — envia WhatsApp para cada candidato com os horários
       try {
-        await fetch(webhookUrl, {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userId = authUser?.id;
+        if (!userId) throw new Error('Usuário não autenticado.');
+
+        const interviewIds = insertedInterviews?.map(i => i.id) || [];
+
+        const agentRes = await fetch('/api/agent/start-scheduling', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            calendar_integrated: true,
-            job: {
-              id: job.id,
-              title: job.title,
-              company: 'Empresa' // Você pode adicionar o nome da empresa se tiver no job
-            },
-            candidates: selectedCandidates.map(c => {
-              const interview = insertedInterviews?.find(i => i.candidate_id === c.id);
-              return {
-                id: c.id,
-                interview_id: interview?.id,
-                name: c.result?.candidateName || c.fileName,
-                phone: c.whatsapp || ''
-              };
-            }),
-            slots: insertedSlots
-          })
+            user_id: userId,
+            job_id: job.id,
+            interview_ids: interviewIds,
+          }),
         });
-      } catch (webhookError) {
-        console.error('Erro ao chamar webhook do n8n:', webhookError);
-        // Não vamos bloquear o sucesso se o webhook falhar, mas logamos o erro
+
+        if (!agentRes.ok) {
+          const body = await agentRes.json().catch(() => ({})) as { error?: string };
+          console.warn('Aviso do agente:', body.error);
+          // Não bloqueia o sucesso — entrevistas já foram criadas
+        }
+      } catch (agentError) {
+        console.error('Erro ao disparar agente:', agentError);
+        // Não bloqueia o sucesso — entrevistas já foram criadas no Supabase
       }
 
       onSuccess();
