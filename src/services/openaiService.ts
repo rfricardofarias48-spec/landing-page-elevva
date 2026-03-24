@@ -3,13 +3,13 @@
  * Extrai texto do PDF com pdf-parse e analisa com gpt-4o-mini.
  */
 
+import { createRequire } from 'module';
 import OpenAI from 'openai';
 import { AnalysisResult } from '../types.js';
 
-// pdf-parse importado direto da lib para evitar problema com arquivos de teste
-// no ambiente serverless
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+// pdf-parse é CJS — usar createRequire para compatibilidade com ESM
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buf: Buffer) => Promise<{ text: string }>;
 
 const ERROR_BASE: Omit<AnalysisResult, 'candidateName' | 'summary' | 'cons'> = {
   matchScore: 0,
