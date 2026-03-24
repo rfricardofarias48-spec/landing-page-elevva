@@ -376,11 +376,29 @@ const App: React.FC = () => {
           schema: 'public',
           table: 'mensagens_bento',
         },
-        (payload) => {
+        async (payload) => {
           const newMsg = payload.new as { entrevista_id: string, remetente: string, mensagem: string };
           if (newMsg.remetente === 'Bento') {
             // Find candidate name from interviewsRef
-            const interview = interviewsRef.current.find(i => i.id === newMsg.entrevista_id);
+            let interview = interviewsRef.current.find(i => i.id === newMsg.entrevista_id);
+            
+            // If not found in current state, try to fetch it from DB
+            if (!interview) {
+              const { data } = await supabase
+                .from('interviews')
+                .select('*, candidates(analysis_result)')
+                .eq('id', newMsg.entrevista_id)
+                .single();
+                
+              if (data) {
+                const analysisResult = extractAnalysisResult(data.candidates?.analysis_result);
+                interview = {
+                  id: data.id,
+                  candidate_name: analysisResult?.candidateName || 'Candidato'
+                };
+              }
+            }
+
             if (interview) {
               // Only show notification if we are not already chatting with this candidate
               setActiveChat(currentChat => {
@@ -399,7 +417,53 @@ const App: React.FC = () => {
       )
       .subscribe();
 
+    // POLLING FALLBACK: Check for new messages every 15 seconds in case Realtime is not enabled
+    let lastCheckTime = new Date().toISOString();
+    const pollingInterval = setInterval(async () => {
+      if (!user?.id || !interviewsRef.current.length) return;
+      
+      try {
+        const interviewIds = interviewsRef.current.map(i => i.id);
+        if (interviewIds.length === 0) return;
+
+        const { data, error } = await supabase
+          .from('mensagens_bento')
+          .select('*')
+          .in('entrevista_id', interviewIds)
+          .eq('remetente', 'Bento')
+          .gt('created_at', lastCheckTime)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          const newMsg = data[0];
+          lastCheckTime = newMsg.created_at; // Update last check time
+          
+          const interview = interviewsRef.current.find(i => i.id === newMsg.entrevista_id);
+          if (interview) {
+            setActiveChat(currentChat => {
+              // Only show if chat is not already open for this candidate
+              if (currentChat?.interviewId !== newMsg.entrevista_id) {
+                setChatNotification({
+                  interviewId: newMsg.entrevista_id,
+                  candidateName: (interview.candidate_name as string) || 'Candidato',
+                  message: newMsg.mensagem
+                });
+              }
+              return currentChat;
+            });
+          }
+        } else {
+          // Update time even if no messages to avoid fetching old ones
+          lastCheckTime = new Date().toISOString();
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    }, 15000);
+
     return () => {
+        clearInterval(pollingInterval);
         supabase.removeChannel(profileChannel);
         supabase.removeChannel(interviewChannel);
         supabase.removeChannel(interviewSlotsChannel);
