@@ -256,8 +256,10 @@ async function handleAguardandoCurriculo(
   let media: { base64: string; mimetype: string } | null = null;
 
   if (mediaData.embeddedBase64) {
-    media = { base64: mediaData.embeddedBase64, mimetype: mediaData.embeddedMimetype || 'application/pdf' };
-    console.log('[Agent] Using embedded base64 from webhook payload');
+    // Strip data URL prefix if present (e.g. "data:application/pdf;base64,...")
+    const rawBase64 = mediaData.embeddedBase64.replace(/^data:[^;]+;base64,/, '');
+    media = { base64: rawBase64, mimetype: mediaData.embeddedMimetype || 'application/pdf' };
+    console.log('[Agent] Using embedded base64 from webhook payload, length:', rawBase64.length);
   } else {
     media = await evo.downloadMediaBase64(instance, { key: mediaData.key, message: mediaData.message });
     console.log('[Agent] Downloaded base64 via API call');

@@ -108,6 +108,9 @@ export const analyzeResume = async (
   // Isso previne que o app quebre no carregamento inicial se a chave estiver vazia
   const ai = new GoogleGenAI({ apiKey });
 
+  // Strip data URL prefix if present (e.g. from Evolution API webhook)
+  const cleanBase64 = base64Pdf.replace(/^data:[^;]+;base64,/, '');
+
   const prompt = `
     DADOS DA VAGA:
     Cargo: "${jobTitle}"
@@ -144,7 +147,7 @@ export const analyzeResume = async (
         model: modelName,
         contents: {
           parts: [
-            { inlineData: { mimeType: "application/pdf", data: base64Pdf } },
+            { inlineData: { mimeType: "application/pdf", data: cleanBase64 } },
             { text: prompt }
           ]
         },
