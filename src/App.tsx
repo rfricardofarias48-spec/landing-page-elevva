@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './services/supabaseClient';
-import { analyzeResume } from './services/openaiService';
-import { Job, Candidate, CandidateStatus, User, ViewState, Announcement } from './types';
+import { Job, Candidate, CandidateStatus, User, ViewState, Announcement, AnalysisResult } from './types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
@@ -19,6 +18,17 @@ import {
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
   Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot
 } from 'lucide-react';
+
+// Chama o backend para analisar o currículo — mantém código Node.js fora do bundle do browser
+async function analyzeResume(base64: string, jobTitle: string, criteria: string): Promise<AnalysisResult> {
+  const res = await fetch('/api/analyze-resume', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base64, job_title: jobTitle, criteria }),
+  });
+  if (!res.ok) throw new Error('Erro ao analisar currículo');
+  return res.json() as Promise<AnalysisResult>;
+}
 
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
 

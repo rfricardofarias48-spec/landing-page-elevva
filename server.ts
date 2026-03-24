@@ -633,6 +633,31 @@ app.post("/api/agent/start-scheduling", async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Análise de currículo via OpenAI — chamado pelo frontend (App.tsx)
+// POST /api/analyze-resume
+// Body: { base64: string, job_title: string, criteria: string }
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/analyze-resume", async (req, res) => {
+  try {
+    const { base64, job_title, criteria } = req.body as {
+      base64: string;
+      job_title: string;
+      criteria: string;
+    };
+
+    if (!base64 || !job_title) {
+      return res.status(400).json({ error: "Campos obrigatórios: base64, job_title" });
+    }
+
+    const result = await analyzeResume(base64, job_title, criteria || '');
+    return res.status(200).json(result);
+  } catch (err: unknown) {
+    console.error("[Analyze Resume] Error:", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Erro interno." });
+  }
+});
+
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
