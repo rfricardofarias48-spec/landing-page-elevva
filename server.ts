@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { analyzeResume } from "./src/services/geminiService.js";
+import { analyzeResume } from "./src/services/openaiService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
 import { cleanPhone } from "./src/services/evolutionService.js";
 
@@ -24,24 +24,25 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Diagnóstico da API do Gemini
+// Diagnóstico da API OpenAI
 app.get("/api/test-gemini", async (req, res) => {
   try {
-    const { GoogleGenAI } = await import("@google/genai");
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || '';
-    const keyPreview = apiKey ? `${apiKey.substring(0, 6)}...` : '(não encontrada)';
+    const { default: OpenAI } = await import("openai");
+    const apiKey = process.env.OPENAI_API_KEY || '';
+    const keyPreview = apiKey ? `${apiKey.substring(0, 10)}...` : '(não encontrada)';
 
     if (!apiKey || apiKey.length < 10) {
-      return res.json({ ok: false, error: 'Chave de API não encontrada ou inválida', keyPreview });
+      return res.json({ ok: false, error: 'OPENAI_API_KEY não encontrada', keyPreview });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [{ text: 'Responda apenas: OK' }] },
+    const client = new OpenAI({ apiKey });
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Responda apenas: OK' }],
+      max_tokens: 5,
     });
 
-    return res.json({ ok: true, keyPreview, response: response.text });
+    return res.json({ ok: true, keyPreview, response: completion.choices[0]?.message?.content });
   } catch (err: unknown) {
     const e = err as Error & { status?: number };
     return res.json({ ok: false, error: e.message, status: e.status });

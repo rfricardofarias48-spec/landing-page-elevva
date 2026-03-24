@@ -13,7 +13,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { analyzeResume } from './geminiService.js';
+import { analyzeResume } from './openaiService.js';
 import * as evo from './evolutionService.js';
 
 // ─────────────────────────── Types ───────────────────────────
