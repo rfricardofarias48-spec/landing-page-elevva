@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './services/supabaseClient';
-import { analyzeResume } from './services/geminiService';
+import { analyzeResume } from './services/openaiService';
 import { Job, Candidate, CandidateStatus, User, ViewState, Announcement } from './types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { JobCard } from './components/JobCard';

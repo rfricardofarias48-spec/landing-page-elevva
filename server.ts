@@ -25,7 +25,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Diagnóstico da API OpenAI
-app.get("/api/test-gemini", async (req, res) => {
+app.get("/api/test-openai", async (req, res) => {
   try {
     const { default: OpenAI } = await import("openai");
     const apiKey = process.env.OPENAI_API_KEY || '';
@@ -214,7 +214,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
       return res.status(400).json({ error: "File size exceeds the 5MB limit." });
     }
 
-    // Fetch Job Details to get title and criteria for Gemini
+    // Fetch Job Details to get title and criteria for OpenAI analysis
     console.log('--- INICIANDO BUSCA DA VAGA ---');
     console.log('Identificador da Vaga recebido no body:', cleanJobId);
 
@@ -359,11 +359,10 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
       candidateData = newCandidate;
     }
 
-    // Immediately trigger Gemini Analysis
+    // Immediately trigger OpenAI Analysis
     // We don't await this to respond quickly to the webhook, or we can await it if the client expects the result synchronously.
     // Usually webhooks prefer fast responses, but let's await it so we can return the result, or process it in the background.
-    // The prompt implies "IMEDIATAMENTE acionar a função interna... Atualizar o registro". Let's do it asynchronously to not block the webhook response, or synchronously if it's fast. Gemini might take a few seconds. Let's do it synchronously so the webhook gets the final status, or asynchronously and return 202 Accepted.
-    // Let's do it synchronously for simplicity, as it's an API endpoint.
+    // Run synchronously so the response includes the final analysis status.
     
     const analysisResult = await analyzeResume(base64Data, jobData.title, jobData.criteria || "");
 
