@@ -494,9 +494,6 @@ app.post("/api/webhooks/interviews/confirm", async (req, res) => {
 // POST https://seu-dominio.com/api/webhooks/agent/whatsapp
 // ─────────────────────────────────────────────────────────────────────
 app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
-  // Always ACK immediately so Evolution API doesn't retry
-  res.status(200).json({ received: true });
-
   try {
     const payload = req.body as Record<string, unknown>;
 
@@ -571,8 +568,11 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       selectedRowId,
       supabase,
     );
+
+    return res.status(200).json({ received: true });
   } catch (err) {
     console.error("[Agent Webhook] Error:", err);
+    return res.status(200).json({ received: true }); // always ACK even on error
   }
 });
 
