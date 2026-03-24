@@ -452,7 +452,7 @@ export async function processIncomingMessage(
     .maybeSingle();
 
   if (!profile) {
-    console.log(`[Agent] No active profile for instance "${instance}"`);
+    console.log(`[Agent] No active profile for instance "${instance}" — check instancia_evolution and status_automacao in profiles`);
     return;
   }
 

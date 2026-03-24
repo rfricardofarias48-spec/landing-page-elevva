@@ -500,8 +500,12 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
 
-    // Only process incoming messages (ignore status updates, own messages, etc.)
-    if (payload.event !== "messages.upsert") return;
+    // DEBUG: log raw payload to identify structure
+    console.log("[Agent Webhook] event:", payload.event, "| instance:", payload.instance, "| keys:", Object.keys(payload));
+
+    // Only process incoming messages — handle both formats (messages.upsert and MESSAGES_UPSERT)
+    const eventName = String(payload.event || "").toLowerCase().replace(/_/g, ".");
+    if (!eventName.includes("messages.upsert")) return;
 
     const data = payload.data as Record<string, unknown> | undefined;
     if (!data) return;
