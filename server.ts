@@ -24,6 +24,30 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Diagnóstico da API do Gemini
+app.get("/api/test-gemini", async (req, res) => {
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || '';
+    const keyPreview = apiKey ? `${apiKey.substring(0, 6)}...` : '(não encontrada)';
+
+    if (!apiKey || apiKey.length < 10) {
+      return res.json({ ok: false, error: 'Chave de API não encontrada ou inválida', keyPreview });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: { parts: [{ text: 'Responda apenas: OK' }] },
+    });
+
+    return res.json({ ok: true, keyPreview, response: response.text });
+  } catch (err: unknown) {
+    const e = err as Error & { status?: number };
+    return res.json({ ok: false, error: e.message, status: e.status });
+  }
+});
+
 // Tarefa 4: Rota GET (Listagem Dinâmica de Vagas)
 app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
   try {
