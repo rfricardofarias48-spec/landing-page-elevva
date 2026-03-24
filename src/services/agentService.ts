@@ -229,7 +229,12 @@ async function handleAguardandoCurriculo(
   instance: string,
   phone: string,
   messageType: string,
-  mediaData: { key: Record<string, unknown>; message: Record<string, unknown> } | null,
+  mediaData: {
+    key: Record<string, unknown>;
+    message: Record<string, unknown>;
+    embeddedBase64?: string;
+    embeddedMimetype?: string;
+  } | null,
   supabase: SupabaseClient,
 ): Promise<void> {
   const isPDF = ['documentMessage', 'documentWithCaptionMessage'].includes(messageType);
@@ -247,8 +252,16 @@ async function handleAguardandoCurriculo(
     '✅ Currículo recebido! Vamos analisar o seu perfil e entraremos em contato em breve com os próximos passos.',
   );
 
-  // Download PDF
-  const media = await evo.downloadMediaBase64(instance, mediaData);
+  // Use embedded base64 from webhook (webhook_base64:true) — avoids a separate download call
+  let media: { base64: string; mimetype: string } | null = null;
+
+  if (mediaData.embeddedBase64) {
+    media = { base64: mediaData.embeddedBase64, mimetype: mediaData.embeddedMimetype || 'application/pdf' };
+    console.log('[Agent] Using embedded base64 from webhook payload');
+  } else {
+    media = await evo.downloadMediaBase64(instance, { key: mediaData.key, message: mediaData.message });
+    console.log('[Agent] Downloaded base64 via API call');
+  }
 
   if (!media || media.mimetype !== 'application/pdf') {
     await evo.sendText(instance, phone, 'Não consegui abrir o arquivo. Por favor, envie novamente em formato *PDF*.');
@@ -427,7 +440,12 @@ export async function processIncomingMessage(
   pushName: string,
   messageType: string,
   textContent: string | null,
-  mediaData: { key: Record<string, unknown>; message: Record<string, unknown> } | null,
+  mediaData: {
+    key: Record<string, unknown>;
+    message: Record<string, unknown>;
+    embeddedBase64?: string;
+    embeddedMimetype?: string;
+  } | null,
   selectedRowId: string | null,
   supabase: SupabaseClient,
 ): Promise<void> {

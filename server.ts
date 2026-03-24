@@ -541,10 +541,22 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       selectedRowId = ssr?.selectedRowId ? String(ssr.selectedRowId) : null;
     }
 
-    // Build media data for PDF downloads
-    let mediaData: { key: Record<string, unknown>; message: Record<string, unknown> } | null = null;
+    // Build media data — extract embedded base64 if webhook_base64:true is set
+    let mediaData: {
+      key: Record<string, unknown>;
+      message: Record<string, unknown>;
+      embeddedBase64?: string;
+      embeddedMimetype?: string;
+    } | null = null;
+
     if (["documentMessage", "documentWithCaptionMessage"].includes(messageType)) {
-      mediaData = { key: key as Record<string, unknown>, message };
+      const docMsg = (message.documentMessage ?? message.documentWithCaptionMessage) as Record<string, unknown> | undefined;
+      mediaData = {
+        key: key as Record<string, unknown>,
+        message,
+        embeddedBase64: docMsg?.base64 ? String(docMsg.base64) : undefined,
+        embeddedMimetype: docMsg?.mimetype ? String(docMsg.mimetype) : 'application/pdf',
+      };
     }
 
     await processIncomingMessage(
