@@ -497,40 +497,29 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
 
-    // DEBUG: log raw payload to identify structure
-    console.log("[Agent Webhook] RAW event:", payload.event, "| instance:", payload.instance);
-    console.log("[Agent Webhook] RAW data keys:", JSON.stringify(Object.keys((payload.data as Record<string, unknown>) || {})));
-
     // Only process incoming messages — handle both formats (messages.upsert and MESSAGES_UPSERT)
     const eventName = String(payload.event || "").toLowerCase().replace(/_/g, ".");
-    if (!eventName.includes("messages.upsert")) {
-      console.log("[Agent Webhook] SKIP: event not messages.upsert:", payload.event);
-      return;
-    }
+    if (!eventName.includes("messages.upsert")) return;
 
     const data = payload.data as Record<string, unknown> | undefined;
-    if (!data) { console.log("[Agent Webhook] SKIP: no data"); return; }
+    if (!data) return;
 
     const key = data.key as Record<string, unknown> | undefined;
-    if (!key) { console.log("[Agent Webhook] SKIP: no key"); return; }
-
-    console.log("[Agent Webhook] key:", JSON.stringify(key));
+    if (!key) return;
 
     // Ignore messages sent by the bot itself
-    if (key.fromMe === true) { console.log("[Agent Webhook] SKIP: fromMe=true"); return; }
+    if (key.fromMe === true) return;
 
     const remoteJid = String(key.remoteJid || "");
 
     // Ignore group messages
-    if (remoteJid.endsWith("@g.us")) { console.log("[Agent Webhook] SKIP: group message"); return; }
+    if (remoteJid.endsWith("@g.us")) return;
 
     const instance    = String(payload.instance || "");
     const phone       = cleanPhone(remoteJid);
     const pushName    = String(data.pushName || "");
     const messageType = String(data.messageType || "");
     const message     = (data.message as Record<string, unknown>) || {};
-
-    console.log("[Agent Webhook] Processing — phone:", phone, "| messageType:", messageType, "| instance:", instance);
 
     // Extract text content from various message types
     let textContent: string | null = null;

@@ -137,20 +137,12 @@ async function handleNovo(
     return;
   }
 
-  const rows = jobs.map((j, i) => ({
-    title: j.title,
-    description: 'Toque para se candidatar',
-    rowId: String(i + 1),
-  }));
+  const greeting = pushName ? `Olá, *${pushName}*! 👋` : 'Olá! 👋';
+  const jobList = jobs.map((j, i) => `*${i + 1}.* ${j.title}`).join('\n');
 
-  const greeting = pushName ? `Olá, *${pushName}*! ` : 'Olá! ';
-
-  await evo.sendList(
+  await evo.sendText(
     instance, phone,
-    'Vagas Disponíveis',
-    `${greeting}Sou o Bento, assistente de recrutamento da Elevva. Nossas vagas abertas:`,
-    'Ver vagas',
-    [{ title: 'Vagas abertas', rows }],
+    `${greeting} Sou o Bento, assistente de recrutamento.\n\nNossas vagas abertas:\n\n${jobList}\n\nResponda com o *número* da vaga que deseja se candidatar.`,
   );
 
   await updateConversation(conv.id, {
@@ -325,18 +317,14 @@ async function sendSlotOptions(
   slots: SlotOption[],
   jobTitle: string,
 ): Promise<void> {
-  const rows = slots.map(s => ({
-    title: s.label,
-    description: s.format === 'PRESENCIAL' && s.location ? `Presencial: ${s.location}` : 'Online',
-    rowId: s.slot_id,
-  }));
+  const slotList = slots.map((s, i) => {
+    const locationLine = s.format === 'PRESENCIAL' && s.location ? ` — ${s.location}` : '';
+    return `*${i + 1}.* ${s.label}${locationLine}`;
+  }).join('\n');
 
-  await evo.sendList(
+  await evo.sendText(
     instance, phone,
-    'Horários Disponíveis',
-    `Parabéns! Você foi selecionado(a) para a vaga de *${jobTitle}*!\n\nEscolha um horário para sua entrevista:`,
-    'Escolher horário',
-    [{ title: 'Horários disponíveis', rows }],
+    `🎉 Parabéns! Você foi selecionado(a) para a vaga de *${jobTitle}*!\n\nEscolha um horário para sua entrevista:\n\n${slotList}\n\nResponda com o *número* do horário desejado.`,
   );
 }
 
