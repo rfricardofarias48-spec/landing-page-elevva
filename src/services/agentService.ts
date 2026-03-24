@@ -263,7 +263,7 @@ async function handleAguardandoCurriculo(
     console.log('[Agent] Downloaded base64 via API call');
   }
 
-  if (!media || media.mimetype !== 'application/pdf') {
+  if (!media?.base64) {
     await evo.sendText(instance, phone, 'Não consegui abrir o arquivo. Por favor, envie novamente em formato *PDF*.');
     await updateConversation(conv.id, { state: 'AGUARDANDO_CURRICULO' }, supabase);
     return;
@@ -490,7 +490,12 @@ export async function processIncomingMessage(
       break;
 
     case 'ANALISANDO':
-      await evo.sendText(instance, phone, 'Aguarde! Estamos analisando seu currículo... ⏳');
+      // If a PDF arrives while stuck in ANALISANDO, the previous attempt failed — retry
+      if (['documentMessage', 'documentWithCaptionMessage'].includes(messageType) && mediaData) {
+        await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase);
+      } else {
+        await evo.sendText(instance, phone, 'Aguarde! Estamos analisando seu currículo... ⏳');
+      }
       break;
 
     case 'CURRICULO_RECEBIDO':

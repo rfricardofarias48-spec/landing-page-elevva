@@ -12,7 +12,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(cors());
-app.use(express.json({ limit: "10mb" })); // Increase limit for base64 PDFs
+app.use(express.json({ limit: "50mb" })); // Large limit for base64 PDFs from Evolution API
 
 // Initialize Supabase for backend
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
