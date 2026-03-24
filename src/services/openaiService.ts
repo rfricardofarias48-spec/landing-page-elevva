@@ -9,7 +9,7 @@ import { AnalysisResult } from '../types.js';
 
 // pdf-parse é CJS — usar createRequire para compatibilidade com ESM
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buf: Buffer) => Promise<{ text: string }>;
+const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>;
 
 const ERROR_BASE: Omit<AnalysisResult, 'candidateName' | 'summary' | 'cons'> = {
   matchScore: 0,
