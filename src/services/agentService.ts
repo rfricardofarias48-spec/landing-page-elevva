@@ -154,23 +154,41 @@ async function handleSelecionandoVaga(
     return;
   }
 
-  // Create candidate record
-  const { data: candidate, error: candidateError } = await supabase
+  // Reuse existing candidate for this phone + job (prevents duplicates on conversation restart)
+  const { data: existing } = await supabase
     .from('candidates')
-    .insert({
-      job_id: selectedJob.id,
-      user_id: conv.user_id,
-      'WhatsApp com DDD': phone,
-      'Nome Completo': conv.context.candidate_name || 'Candidato via WhatsApp',
-      status: 'PENDING',
-    })
-    .select()
-    .single();
+    .select('id, status')
+    .eq('job_id', selectedJob.id)
+    .eq('WhatsApp com DDD', phone)
+    .maybeSingle();
 
-  if (candidateError || !candidate) {
-    console.error('[Agent] insert candidate:', candidateError);
-    await evo.sendText(instance, phone, 'Ocorreu um erro. Por favor, tente novamente em instantes.');
-    return;
+  let candidate: { id: string } | null = existing;
+
+  if (!existing) {
+    const { data: inserted, error: candidateError } = await supabase
+      .from('candidates')
+      .insert({
+        job_id: selectedJob.id,
+        user_id: conv.user_id,
+        'WhatsApp com DDD': phone,
+        'Nome Completo': conv.context.candidate_name || 'Candidato via WhatsApp',
+        status: 'PENDING',
+      })
+      .select('id')
+      .single();
+
+    if (candidateError || !inserted) {
+      console.error('[Agent] insert candidate:', candidateError);
+      await evo.sendText(instance, phone, 'Ocorreu um erro. Por favor, tente novamente em instantes.');
+      return;
+    }
+    candidate = inserted;
+  } else {
+    // Reset existing candidate to PENDING so it can be reanalyzed
+    await supabase
+      .from('candidates')
+      .update({ status: 'PENDING', analysis_result: null, match_score: 0, file_name: null, file_path: null })
+      .eq('id', existing.id);
   }
 
   await evo.sendText(
