@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(node -e \"const {createRequire}=require\\(''module''\\);const r=createRequire\\(import.meta.url\\);console.log\\(Object.keys\\(r\\(''pdf-parse''\\)\\)\\)\")",
+      "Bash(node --input-type=module -e \"import {createRequire} from ''module''; const r=createRequire\\(import.meta.url\\); console.log\\(typeof r\\(''pdf-parse''\\)\\);\")",
+      "Bash(grep -A5 '\"\"openai\"\"\\\\|\"\"pdf-parse\"\"' package.json)"
+    ]
+  }
+}

@@ -15,26 +15,17 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { analyzeResume } from './openaiService.js';
 import * as evo from './evolutionService.js';
+import crypto from 'crypto';
 
 // ─────────────────────────── Types ───────────────────────────
-
-interface SlotOption {
-  slot_id: string;
-  label: string;
-  date: string;
-  time: string;
-  format: string;
-  location?: string;
-  interviewer?: string;
-}
 
 interface ConversationContext {
   candidate_name?: string;
   candidate_id?: string;
   job_title?: string;
   jobs?: Array<{ id: string; title: string }>;
-  slots?: SlotOption[];
   interview_id?: string;
+  scheduling_token?: string;
 }
 
 interface Conversation {
@@ -48,36 +39,6 @@ interface Conversation {
 
 // ─────────────────────────── Helpers ───────────────────────────
 
-function formatDatePTBR(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'short',
-  });
-}
-
-function buildSlotLabel(s: { slot_date: string; slot_time: string; format: string }): string {
-  return `${formatDatePTBR(s.slot_date)} às ${s.slot_time} (${s.format === 'ONLINE' ? 'Online' : 'Presencial'})`;
-}
-
-function buildGoogleCalendarLink(slot: SlotOption, jobTitle: string): string {
-  const [year, month, day] = slot.date.split('-').map(Number);
-  const [hour, minute] = slot.time.split(':').map(Number);
-  const start = new Date(year, month - 1, day, hour, minute);
-  const end   = new Date(year, month - 1, day, hour + 1, minute);
-  const fmt   = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0];
-
-  const params = new URLSearchParams({
-    action:   'TEMPLATE',
-    text:     `Entrevista - ${jobTitle}`,
-    dates:    `${fmt(start)}/${fmt(end)}`,
-    details:  slot.interviewer ? `Entrevistador(a): ${slot.interviewer}` : `Entrevista para ${jobTitle}`,
-    location: slot.location || (slot.format === 'ONLINE' ? 'Online (link será enviado)' : ''),
-  });
-
-  return `https://calendar.google.com/calendar/event?${params.toString()}`;
-}
 
 // ─────────────────────────── DB helpers ───────────────────────────
 
@@ -340,132 +301,34 @@ async function handleAguardandoCurriculo(
   }, supabase);
 }
 
-async function sendSlotOptions(
-  instance: string,
-  phone: string,
-  slots: SlotOption[],
-  jobTitle: string,
-  candidateName?: string,
-  isFirstMessage = true,
-): Promise<void> {
-  const slotList = slots.map((s, i) => {
-    const locationLine = s.format === 'PRESENCIAL' && s.location ? `\n   📍 ${s.location}` : '';
-    const formatTag = s.format === 'ONLINE' ? ' 💻' : ' 🏢';
-    return `*${i + 1}.* ${s.label}${formatTag}${locationLine}`;
-  }).join('\n\n');
-
-  const interviewerLine = slots[0]?.interviewer
-    ? `\n👤 *Entrevistador(a):* ${slots[0].interviewer}`
-    : '';
-
-  const formatNote = slots[0]?.format === 'ONLINE'
-    ? '\n\n_O link da reunião online será enviado após a confirmação._'
-    : '';
-
-  const greeting = candidateName ? `, *${candidateName}*` : '';
-
-  if (isFirstMessage) {
-    await evo.sendText(
-      instance, phone,
-      `🎉 Parabéns${greeting}! Você foi aprovado(a) para a próxima fase da vaga de *${jobTitle}*!${interviewerLine}\n\nEscolha o melhor horário para sua entrevista:\n\n${slotList}${formatNote}\n\nResponda com o *número* do horário desejado.`,
-    );
-  } else {
-    await evo.sendText(
-      instance, phone,
-      `Escolha um dos horários disponíveis:\n\n${slotList}\n\nResponda com o *número* do horário desejado.`,
-    );
-  }
-}
 
 async function handleAguardandoEscolhaSlot(
   conv: Conversation,
   instance: string,
   phone: string,
-  text: string,
-  selectedRowId: string | null,
+  _text: string,
+  _selectedRowId: string | null,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const slots = conv.context.slots || [];
+  // With the new link-based scheduling, if candidate sends any WhatsApp message
+  // while waiting, resend the link
+  const token = conv.context.scheduling_token;
+  if (token) {
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.APP_URL || 'https://app.elevva.net.br';
 
-  if (slots.length === 0) {
-    await evo.sendText(instance, phone, 'Ocorreu um erro ao buscar os horários. Por favor, aguarde contato do recrutador.');
-    return;
+    const link = `${baseUrl}/api/agendar/${token}`;
+    await evo.sendText(
+      instance, phone,
+      `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`,
+    );
+  } else {
+    await evo.sendText(
+      instance, phone,
+      'Sua entrevista está sendo agendada. Em breve você receberá o link para escolher o horário.',
+    );
   }
-
-  let selectedSlot: SlotOption | undefined;
-
-  // 1. List response (rowId = slot_id UUID)
-  if (selectedRowId) {
-    selectedSlot = slots.find(s => s.slot_id === selectedRowId);
-  }
-
-  // 2. Plain number
-  if (!selectedSlot && text) {
-    const num = parseInt(text.trim(), 10);
-    if (!isNaN(num) && num >= 1 && num <= slots.length) {
-      selectedSlot = slots[num - 1];
-    }
-  }
-
-  if (!selectedSlot) {
-    await sendSlotOptions(instance, phone, slots, conv.context.job_title || 'a vaga', undefined, false);
-    return;
-  }
-
-  // Try to book the slot — use .select() to verify the row was actually updated
-  const { data: bookedRows, error: slotError } = await supabase
-    .from('interview_slots')
-    .update({ is_booked: true })
-    .eq('id', selectedSlot.slot_id)
-    .eq('is_booked', false)
-    .select();
-
-  if (slotError || !bookedRows || bookedRows.length === 0) {
-    const remaining = slots.filter(s => s.slot_id !== selectedSlot!.slot_id);
-    if (remaining.length === 0) {
-      await evo.sendText(instance, phone, 'Infelizmente todos os horários foram preenchidos. Em breve o recrutador enviará novas opções.');
-      await updateConversation(conv.id, { state: 'CURRICULO_RECEBIDO' }, supabase);
-      return;
-    }
-    await evo.sendText(instance, phone, 'Este horário já foi preenchido. Por favor, escolha outro:');
-    await sendSlotOptions(instance, phone, remaining, conv.context.job_title || 'a vaga', undefined, false);
-    await updateConversation(conv.id, {
-      context: { ...conv.context, slots: remaining },
-    }, supabase);
-    return;
-  }
-
-  // Update interview record
-  if (conv.context.interview_id) {
-    await supabase
-      .from('interviews')
-      .update({
-        slot_id: selectedSlot.slot_id,
-        scheduled_date: selectedSlot.date,
-        scheduled_time: selectedSlot.time,
-        status: 'AGENDADA',
-      })
-      .eq('id', conv.context.interview_id);
-  }
-
-  // Build confirmation message with Google Calendar link
-  const calLink = buildGoogleCalendarLink(selectedSlot, conv.context.job_title || 'Entrevista');
-  const locationLine = selectedSlot.format === 'PRESENCIAL' && selectedSlot.location
-    ? `\n📍 *Local:* ${selectedSlot.location}`
-    : '';
-  const formatLine = selectedSlot.format === 'ONLINE'
-    ? '\n💻 *Formato:* Online — o link da reunião será enviado antes da entrevista'
-    : '';
-  const interviewerLine = selectedSlot.interviewer
-    ? `\n👤 *Entrevistador(a):* ${selectedSlot.interviewer}`
-    : '';
-
-  await evo.sendText(
-    instance, phone,
-    `✅ *Entrevista confirmada!*\n\n📅 *Data:* ${selectedSlot.label}${formatLine}${locationLine}${interviewerLine}\n\n🗓️ Adicione à sua agenda:\n${calLink}\n\nAguardamos você! Qualquer dúvida, basta responder aqui.`,
-  );
-
-  await updateConversation(conv.id, { state: 'ENTREVISTA_CONFIRMADA' }, supabase);
 }
 
 // ─────────────────────────── Main entry point ───────────────────────────
@@ -595,17 +458,15 @@ export async function triggerSchedulingForCandidates(
     throw new Error('Nenhum horário disponível para esta vaga. Adicione horários antes de disparar o agente.');
   }
 
-  const slotOptions: SlotOption[] = slots.map(s => ({
-    slot_id: s.id,
-    label: buildSlotLabel(s),
-    date: s.slot_date,
-    time: s.slot_time,
-    format: s.format,
-    location: s.location,
-    interviewer: s.interviewer_name,
-  }));
+  // Determine base URL for scheduling links
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.APP_URL || 'https://app.elevva.net.br';
 
-  // Get interviews with candidate phone numbers
+  // Get first slot info for the WhatsApp message
+  const firstSlot = slots[0];
+  const interviewerName = firstSlot.interviewer_name;
+
   let sent = 0;
   let errors = 0;
 
@@ -613,7 +474,7 @@ export async function triggerSchedulingForCandidates(
     try {
       const { data: interview } = await supabase
         .from('interviews')
-        .select('id, candidate_id')
+        .select('id, candidate_id, scheduling_token')
         .eq('id', interviewId)
         .single();
 
@@ -626,10 +487,22 @@ export async function triggerSchedulingForCandidates(
         .single();
 
       const phone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
-
       if (!phone) { errors++; continue; }
 
       const candidateName = candidate?.['Nome Completo' as keyof typeof candidate] as string | undefined;
+      const firstName = candidateName?.split(' ')[0] || 'Candidato';
+
+      // Generate scheduling token if not exists
+      let token = interview.scheduling_token;
+      if (!token) {
+        token = crypto.randomBytes(16).toString('hex');
+        await supabase
+          .from('interviews')
+          .update({ scheduling_token: token })
+          .eq('id', interview.id);
+      }
+
+      const schedulingLink = `${baseUrl}/api/agendar/${token}`;
 
       // Upsert conversation state → AGUARDANDO_ESCOLHA_SLOT
       await supabase
@@ -644,15 +517,27 @@ export async function triggerSchedulingForCandidates(
               job_title: job?.title || 'a vaga',
               candidate_name: candidateName,
               interview_id: interview.id,
-              slots: slotOptions,
+              scheduling_token: token,
             },
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'phone,user_id' },
         );
 
-      // Send slot options via WhatsApp
-      await sendSlotOptions(instance, phone, slotOptions, job?.title || 'a vaga', candidateName || undefined, true);
+      // Send WhatsApp message with scheduling link
+      const interviewerLine = interviewerName ? `\n👤 *Entrevistador(a):* ${interviewerName}` : '';
+      const locationLine = firstSlot.format === 'PRESENCIAL' && firstSlot.location
+        ? `\n📍 *Local:* ${firstSlot.location}`
+        : '';
+      const formatNote = firstSlot.format === 'ONLINE'
+        ? '\n💻 *Formato:* Online'
+        : '\n🏢 *Formato:* Presencial';
+
+      await evo.sendText(
+        instance, phone,
+        `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`,
+      );
+
       sent++;
     } catch (err) {
       console.error(`[Agent] triggerScheduling error for interview ${interviewId}:`, err);
