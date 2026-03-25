@@ -7,6 +7,7 @@ import { AnalysisResultCard } from './components/AnalysisResultCard';
 import { LoginScreen } from './components/LoginScreen';
 import { AdminDashboard } from './components/AdminDashboard';
 import { PublicUploadScreen } from './components/PublicUploadScreen';
+import { PublicSchedulingScreen } from './components/PublicSchedulingScreen';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
@@ -234,6 +235,7 @@ const App: React.FC = () => {
 
   // Public Upload State
   const [publicUploadJobId, setPublicUploadJobId] = useState<string | null>(null);
+  const [schedulingToken, setSchedulingToken] = useState<string | null>(null);
   // Guardamos informações extras para auto-análise e pausa
   const [publicJobData, setPublicJobData] = useState<{ title: string; criteria?: string; autoAnalyze?: boolean; isPaused?: boolean }>({ title: '' });
 
@@ -574,8 +576,16 @@ const App: React.FC = () => {
     const hashMatch = hash.match(/^#\/?(\d{5,6})$/);
     const path = window.location.pathname;
     const pathMatch = path.match(/^\/(\d{5,6})$/);
+    const agendarMatch = path.match(/^\/agendar\/([a-zA-Z0-9]+)$/);
 
-    if (legacyUploadId) {
+    if (agendarMatch) {
+        setSchedulingToken(agendarMatch[1]);
+        setView('SCHEDULING');
+        return () => {
+          subscription.unsubscribe();
+          clearTimeout(safetyTimer);
+        };
+    } else if (legacyUploadId) {
         setPublicUploadJobId(legacyUploadId);
         fetchPublicJobTitle(legacyUploadId);
         setView('PUBLIC_UPLOAD');
@@ -2266,6 +2276,11 @@ const App: React.FC = () => {
 
   // --- MAIN RENDER (User Dashboard / Details) ---
   
+  // Public Scheduling View (no auth required)
+  if (view === 'SCHEDULING' && schedulingToken) {
+      return <PublicSchedulingScreen token={schedulingToken} />;
+  }
+
   // Public Upload View
   if (view === 'PUBLIC_UPLOAD') {
       return (

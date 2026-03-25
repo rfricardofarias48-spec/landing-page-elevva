@@ -137,4 +137,4 @@ export interface Interview {
   interviewer_name?: string;
 }
 
-export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD';
+export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD' | 'SCHEDULING';
