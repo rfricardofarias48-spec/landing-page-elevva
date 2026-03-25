@@ -21,6 +21,9 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL ||
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiZnR0Z3RudG50dWlpbWJxemd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMTUwODksImV4cCI6MjA4NTg5MTA4OX0.H36Kv-PzK8Ab8FN5HzAWO5S_y8t-z8gExl5GsDBQchs';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Admin client with service role key for RLS-protected tables
+const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey);
+
 // API routes FIRST
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
@@ -801,16 +804,17 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       return res.status(409).json({ ok: false, error: 'Horario ja foi preenchido. Escolha outro.' });
     }
 
-    // Update interview
-    const { error: interviewErr } = await supabase.from('interviews').update({
+    // Update interview (columns: slot_id, slot_date, slot_time, status)
+    const { error: interviewErr } = await supabaseAdmin.from('interviews').update({
       slot_id,
-      scheduled_date: booked.slot_date,
-      scheduled_time: booked.slot_time,
+      slot_date: booked.slot_date,
+      slot_time: booked.slot_time,
       status: 'ENTREVISTA_CONFIRMADA',
     }).eq('id', interview.id);
 
     if (interviewErr) {
       console.error('[Book Slot] Failed to update interview:', interviewErr);
+      return res.status(500).json({ ok: false, error: 'Erro ao atualizar entrevista' });
     }
 
     // Update agent_conversation state + send WhatsApp confirmation
