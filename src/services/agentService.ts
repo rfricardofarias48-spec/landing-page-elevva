@@ -332,9 +332,7 @@ async function handleAguardandoEscolhaSlot(
   // while waiting, resend the link
   const token = conv.context.scheduling_token;
   if (token) {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.APP_URL || 'https://app.elevva.net.br';
+    const baseUrl = process.env.APP_URL || 'https://app.elevva.net.br';
 
     const link = `${baseUrl}/api/agendar/${token}`;
     await evo.sendText(
