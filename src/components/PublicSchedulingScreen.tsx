@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
 import { Loader2, CheckCircle2, Calendar, Clock, MapPin, User } from 'lucide-react';
 
 interface Slot {
@@ -17,7 +16,6 @@ interface Props {
 
 export const PublicSchedulingScreen: React.FC<Props> = ({ token }) => {
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [interviewId, setInterviewId] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState<string>('');
   const [jobTitle, setJobTitle] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -28,62 +26,30 @@ export const PublicSchedulingScreen: React.FC<Props> = ({ token }) => {
 
   useEffect(() => {
     const load = async () => {
-      const { data: interview, error: iErr } = await supabase
-        .from('interviews')
-        .select('id, candidate_id, job_id, status')
-        .eq('scheduling_token', token)
-        .single();
+      const res = await fetch(`/api/agendar/${token}/data`);
+      const data = await res.json();
 
-      if (iErr || !interview) {
-        setError('Link de agendamento inválido ou expirado.');
+      if (!res.ok || !data.ok) {
+        setError(data.error || 'Link de agendamento inválido ou expirado.');
         setLoading(false);
         return;
       }
 
-      if (interview.status === 'ENTREVISTA_CONFIRMADA') {
+      if (data.status === 'AGENDADA' || data.status === 'ENTREVISTA_CONFIRMADA') {
         setSuccess(true);
         setLoading(false);
         return;
       }
 
-      setInterviewId(interview.id);
-
-      const [candidateRes, jobRes, slotsRes] = await Promise.all([
-        supabase
-          .from('candidates')
-          .select('"Nome Completo"')
-          .eq('id', interview.candidate_id)
-          .single(),
-        supabase
-          .from('jobs')
-          .select('title')
-          .eq('id', interview.job_id)
-          .single(),
-        supabase
-          .from('interview_slots')
-          .select('id, slot_date, slot_time, format, location, interviewer_name')
-          .eq('job_id', interview.job_id)
-          .eq('is_booked', false)
-          .order('slot_date', { ascending: true })
-          .order('slot_time', { ascending: true }),
-      ]);
-
-      if (candidateRes.data) {
-        const name = candidateRes.data['Nome Completo'] as string;
-        setCandidateName(name?.split(' ')[0] || '');
-      }
-
-      if (jobRes.data) {
-        setJobTitle(jobRes.data.title);
-      }
-
-      if (!slotsRes.data || slotsRes.data.length === 0) {
+      if (!data.slots || data.slots.length === 0) {
         setError('Não há horários disponíveis no momento. Entre em contato com o recrutador.');
         setLoading(false);
         return;
       }
 
-      setSlots(slotsRes.data);
+      setCandidateName(data.candidateName?.split(' ')[0] || '');
+      setJobTitle(data.jobTitle || '');
+      setSlots(data.slots);
       setLoading(false);
     };
 
@@ -91,31 +57,18 @@ export const PublicSchedulingScreen: React.FC<Props> = ({ token }) => {
   }, [token]);
 
   const handleBookSlot = async (slot: Slot) => {
-    if (!interviewId || booking) return;
+    if (booking) return;
     setBooking(true);
 
-    const { error: slotErr } = await supabase
-      .from('interview_slots')
-      .update({ is_booked: true })
-      .eq('id', slot.id);
+    const res = await fetch(`/api/agendar/${token}/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slot_id: slot.id }),
+    });
+    const data = await res.json();
 
-    if (slotErr) {
-      setError('Erro ao confirmar horário. Tente novamente.');
-      setBooking(false);
-      return;
-    }
-
-    const { error: intErr } = await supabase
-      .from('interviews')
-      .update({
-        status: 'ENTREVISTA_CONFIRMADA',
-        scheduled_date: slot.slot_date,
-        scheduled_time: slot.slot_time,
-      })
-      .eq('id', interviewId);
-
-    if (intErr) {
-      setError('Erro ao confirmar entrevista. Tente novamente.');
+    if (!res.ok || !data.ok) {
+      setError(data.error || 'Erro ao confirmar horário. Tente novamente.');
       setBooking(false);
       return;
     }
@@ -164,7 +117,7 @@ export const PublicSchedulingScreen: React.FC<Props> = ({ token }) => {
               {formatDate(bookedSlot.slot_date)} às {formatTime(bookedSlot.slot_time)}
             </p>
           )}
-          <p className="text-slate-500 text-sm">Você receberá mais informações em breve. Boa sorte!</p>
+          <p className="text-slate-500 text-sm">Você receberá uma confirmação no WhatsApp em breve. Boa sorte! 🍀</p>
         </div>
       </div>
     );

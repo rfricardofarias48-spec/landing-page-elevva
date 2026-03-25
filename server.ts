@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { analyzeResume } from "./src/services/openaiService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
-import { cleanPhone } from "./src/services/evolutionService.js";
+import { cleanPhone, sendText } from "./src/services/evolutionService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import crypto from "crypto";
 
@@ -664,6 +664,43 @@ app.post("/api/analyze-resume", async (req, res) => {
 // Scheduling Page — Public routes for candidates to pick interview slots
 // ─────────────────────────────────────────────────────────────────────
 
+// JSON data endpoint for the React scheduling page
+app.get("/api/agendar/:token/data", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const { data: interview, error } = await supabase
+      .from('interviews')
+      .select('id, job_id, candidate_id, status, slot_id, scheduling_token')
+      .eq('scheduling_token', token)
+      .single();
+
+    if (error || !interview) return res.status(404).json({ ok: false, error: 'Link invalido ou expirado' });
+
+    const [candidateRes, jobRes, slotsRes] = await Promise.all([
+      supabase.from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single(),
+      supabase.from('jobs').select('title').eq('id', interview.job_id).single(),
+      supabase.from('interview_slots')
+        .select('id, slot_date, slot_time, format, location, interviewer_name')
+        .eq('job_id', interview.job_id)
+        .eq('is_booked', false)
+        .order('slot_date', { ascending: true })
+        .order('slot_time', { ascending: true }),
+    ]);
+
+    return res.json({
+      ok: true,
+      status: interview.status,
+      candidateName: (candidateRes.data as Record<string, string>)?.['Nome Completo'] || '',
+      jobTitle: jobRes.data?.title || '',
+      slots: slotsRes.data || [],
+    });
+  } catch (err) {
+    console.error('[Scheduling Data] Error:', err);
+    return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
 app.get("/api/agendar/:token", async (req, res) => {
   try {
     const { token } = req.params;
@@ -772,17 +809,40 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       status: 'AGENDADA',
     }).eq('id', interview.id);
 
-    // Update agent_conversation state if exists
-    const { data: candidate } = await supabase.from('candidates').select('"WhatsApp com DDD"').eq('id', interview.candidate_id).single();
+    // Update agent_conversation state + send WhatsApp confirmation
+    const { data: candidate } = await supabase.from('candidates').select('"WhatsApp com DDD", "Nome Completo"').eq('id', interview.candidate_id).single();
     const phone = (candidate as Record<string, string>)?.['WhatsApp com DDD'];
     if (phone) {
       await supabase.from('agent_conversations').update({
         state: 'ENTREVISTA_CONFIRMADA',
         updated_at: new Date().toISOString(),
       }).eq('phone', phone);
+
+      // Send WhatsApp confirmation message
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('instancia_evolution')
+        .eq('id', (await supabase.from('jobs').select('user_id').eq('id', interview.job_id).single()).data?.user_id)
+        .single();
+
+      const instance = profile?.instancia_evolution;
+      if (instance) {
+        const [year, month, day] = booked.slot_date.split('-').map(Number);
+        const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+        const timeLabel = booked.slot_time.substring(0, 5);
+        const interviewer = booked.interviewer_name ? `\n👤 *Entrevistador:* ${booked.interviewer_name}` : '';
+        const location = booked.location ? `\n📍 *Local/Link:* ${booked.location}` : '';
+        const firstName = ((candidate as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
+
+        await sendText(
+          instance,
+          phone,
+          `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
+        );
+      }
     }
 
-    return res.json({ ok: true });
+    return res.json({ ok: true, slot: booked });
   } catch (err) {
     console.error('[Book Slot] Error:', err);
     return res.status(500).json({ ok: false, error: 'Erro interno' });
