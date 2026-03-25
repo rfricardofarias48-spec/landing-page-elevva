@@ -257,26 +257,6 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
                     >
                         <ThumbsUp className={`w-3.5 h-3.5 mr-2 pointer-events-none ${candidate.isSelected ? 'fill-current' : ''}`} />{candidate.isSelected ? 'Aprovado' : 'Aprovar'}
                     </button>
-                    {candidate.chatwoot_conversation_id ? (
-                      <a 
-                        href={`https://bot-chatwoot.5mljrq.easypanel.host/app/accounts/1/conversations/${candidate.chatwoot_conversation_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center px-4 h-9 rounded-xl text-xs font-black transition-all transform border shadow-sm bg-[#65a30d] text-white border-[#65a30d] hover:bg-[#4d7c0f] active:scale-95 hover:translate-y-0.5 hover:shadow-none cursor-pointer"
-                        title="Acompanhar Conversa"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span className="mr-2 text-sm">💬</span> Acompanhar Conversa
-                      </a>
-                    ) : (
-                      <button 
-                        disabled
-                        className="flex items-center px-4 h-9 rounded-xl text-xs font-black transition-all transform border shadow-sm bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70"
-                        title="Aguardando interação"
-                      >
-                        <span className="mr-2 text-sm opacity-50">💬</span> Aguardando interação
-                      </button>
-                    )}
                 </div>
               )}
               <button onClick={handleExpandToggle} className={`p-2 hover:bg-slate-100 rounded-lg transition-all duration-300 cursor-pointer ${expanded ? 'bg-slate-100 text-slate-900 rotate-180' : 'text-slate-400 hover:text-slate-900'}`}><ChevronDown className="w-4 h-4 pointer-events-none" /></button>

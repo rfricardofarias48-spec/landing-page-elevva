@@ -307,17 +307,31 @@ async function handleAguardandoCurriculo(
 
   // Update candidate record with analysis result
   if (conv.context.candidate_id) {
-    await supabase
+    const updatePayload = {
+      file_name: fileName,
+      file_path: filePath,
+      status,
+      match_score: analysis.matchScore,
+      analysis_result: analysis,
+      'Nome Completo': finalName,
+    };
+
+    console.log('[Agent] Updating candidate', conv.context.candidate_id, 'with:', JSON.stringify({
+      file_name: fileName, status, match_score: analysis.matchScore, name: finalName,
+    }));
+
+    const { error: updateError } = await supabase
       .from('candidates')
-      .update({
-        file_name: fileName,
-        file_path: filePath,
-        status,
-        match_score: analysis.matchScore,
-        analysis_result: analysis,
-        'Nome Completo': finalName,
-      })
+      .update(updatePayload)
       .eq('id', conv.context.candidate_id);
+
+    if (updateError) {
+      console.error('[Agent] FAILED to update candidate:', updateError);
+    } else {
+      console.log('[Agent] Candidate updated successfully');
+    }
+  } else {
+    console.warn('[Agent] No candidate_id in context — skipping update');
   }
 
   await updateConversation(conv.id, {
