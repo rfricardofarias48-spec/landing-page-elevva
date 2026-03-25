@@ -837,6 +837,17 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       .eq('id', interview.job_id)
       .single();
 
+    // Get recruiter email
+    let recruiterEmail: string | undefined;
+    if (job?.user_id) {
+      const { data: recruiterProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('email')
+        .eq('id', job.user_id)
+        .single();
+      recruiterEmail = recruiterProfile?.email || undefined;
+    }
+
     // Create Google Calendar event + Google Meet
     let meetLink = '';
     const candidateName = (candData as Record<string, string>)?.['Nome Completo'] || 'Candidato';
@@ -848,6 +859,7 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       slotDate: booked.slot_date,
       slotTime: booked.slot_time,
       interviewerName: booked.interviewer_name || undefined,
+      recruiterEmail,
     });
 
     if (googleEvent?.meetLink) {
@@ -891,13 +903,14 @@ app.post("/api/agendar/:token/book", async (req, res) => {
           const interviewer = booked.interviewer_name ? `\n👤 *Entrevistador:* ${booked.interviewer_name}` : '';
           const location = booked.location ? `\n📍 *Local/Link:* ${booked.location}` : '';
           const firstName = ((candData as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
-          const meetLinkText = meetLink ? `\n🎥 *Google Meet:* ${meetLink}` : '';
+          const meetLinkText = meetLink ? `\n🎥 *Google Meet:* ${meetLink}\n_Clique no link acima para acessar a sala no dia da entrevista._` : '';
 
           console.log('[Book Slot] Sending WhatsApp to:', phone);
           await sendText(
             instance,
             phone,
             `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}${meetLinkText}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
+            false,
           );
         } else {
           console.warn('[Book Slot] No Evolution instance found');
