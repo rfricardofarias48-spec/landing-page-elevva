@@ -9,7 +9,11 @@ function getAuth() {
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
   if (clientId && clientSecret && refreshToken) {
-    const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+    const oauth2 = new google.auth.OAuth2(
+      clientId,
+      clientSecret,
+      'https://developers.google.com/oauthplayground'
+    );
     oauth2.setCredentials({ refresh_token: refreshToken });
     console.log('[Google Calendar] Using OAuth2 authentication');
     return oauth2;
