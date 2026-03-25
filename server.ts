@@ -780,16 +780,18 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     const { token } = req.params;
     const { slot_id } = req.body as { slot_id: string };
 
+    console.log('[Book Slot] Starting with token:', token, 'slot_id:', slot_id);
     if (!slot_id) return res.status(400).json({ ok: false, error: 'slot_id obrigatorio' });
 
-    // Find interview
-    const { data: interview } = await supabase
+    // Find interview (use supabaseAdmin for RLS-protected table)
+    const { data: interview, error: intErr } = await supabaseAdmin
       .from('interviews')
       .select('id, job_id, candidate_id, status, scheduling_token')
       .eq('scheduling_token', token)
       .single();
 
-    if (!interview) return res.status(404).json({ ok: false, error: 'Link invalido' });
+    console.log('[Book Slot] Interview lookup:', { success: !!interview, error: intErr?.message });
+    if (intErr || !interview) return res.status(404).json({ ok: false, error: 'Link invalido' });
 
     // Book the slot (optimistic concurrency)
     const { data: booked, error: bookErr } = await supabase
@@ -800,6 +802,7 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       .select()
       .maybeSingle();
 
+    console.log('[Book Slot] Slot booking:', { success: !!booked, error: bookErr?.message });
     if (bookErr || !booked) {
       return res.status(409).json({ ok: false, error: 'Horario ja foi preenchido. Escolha outro.' });
     }
@@ -809,17 +812,34 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       slot_id,
       slot_date: booked.slot_date,
       slot_time: booked.slot_time,
-      status: 'ENTREVISTA_CONFIRMADA',
+      status: 'CONFIRMADA',
     }).eq('id', interview.id);
 
+    console.log('[Book Slot] Interview update:', { success: !interviewErr, error: interviewErr?.message });
     if (interviewErr) {
       console.error('[Book Slot] Failed to update interview:', interviewErr);
-      return res.status(500).json({ ok: false, error: 'Erro ao atualizar entrevista' });
+      return res.status(500).json({ ok: false, error: 'Erro ao atualizar entrevista: ' + interviewErr.message });
     }
 
+    // Get job's user_id
+    const { data: job, error: jobErr } = await supabase
+      .from('jobs')
+      .select('user_id')
+      .eq('id', interview.job_id)
+      .single();
+
+    console.log('[Book Slot] Job lookup:', { success: !!job, error: jobErr?.message });
+
     // Update agent_conversation state + send WhatsApp confirmation
-    const { data: candidate } = await supabase.from('candidates').select('"WhatsApp com DDD", "Nome Completo"').eq('id', interview.candidate_id).single();
+    const { data: candidate, error: candErr } = await supabase
+      .from('candidates')
+      .select('"WhatsApp com DDD", "Nome Completo"')
+      .eq('id', interview.candidate_id)
+      .single();
+
+    console.log('[Book Slot] Candidate lookup:', { success: !!candidate, error: candErr?.message });
     const phone = (candidate as Record<string, string>)?.['WhatsApp com DDD'];
+
     if (phone) {
       await supabase.from('agent_conversations').update({
         state: 'ENTREVISTA_CONFIRMADA',
@@ -827,33 +847,45 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       }).eq('phone', phone);
 
       // Send WhatsApp confirmation message
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('instancia_evolution')
-        .eq('id', (await supabase.from('jobs').select('user_id').eq('id', interview.job_id).single()).data?.user_id)
-        .single();
+      if (job?.user_id) {
+        const { data: profile, error: profErr } = await supabase
+          .from('profiles')
+          .select('instancia_evolution')
+          .eq('id', job.user_id)
+          .single();
 
-      const instance = profile?.instancia_evolution;
-      if (instance) {
-        const [year, month, day] = booked.slot_date.split('-').map(Number);
-        const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
-        const timeLabel = booked.slot_time.substring(0, 5);
-        const interviewer = booked.interviewer_name ? `\n👤 *Entrevistador:* ${booked.interviewer_name}` : '';
-        const location = booked.location ? `\n📍 *Local/Link:* ${booked.location}` : '';
-        const firstName = ((candidate as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
+        console.log('[Book Slot] Profile lookup:', { success: !!profile, error: profErr?.message });
+        const instance = profile?.instancia_evolution;
 
-        await sendText(
-          instance,
-          phone,
-          `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
-        );
+        if (instance) {
+          const [year, month, day] = booked.slot_date.split('-').map(Number);
+          const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+          const timeLabel = booked.slot_time.substring(0, 5);
+          const interviewer = booked.interviewer_name ? `\n👤 *Entrevistador:* ${booked.interviewer_name}` : '';
+          const location = booked.location ? `\n📍 *Local/Link:* ${booked.location}` : '';
+          const firstName = ((candidate as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
+
+          console.log('[Book Slot] Sending WhatsApp to:', phone);
+          await sendText(
+            instance,
+            phone,
+            `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
+          );
+        } else {
+          console.warn('[Book Slot] No Evolution instance found');
+        }
+      } else {
+        console.warn('[Book Slot] No job user_id found');
       }
+    } else {
+      console.warn('[Book Slot] No candidate phone found');
     }
 
+    console.log('[Book Slot] Success');
     return res.json({ ok: true, slot: booked });
   } catch (err) {
     console.error('[Book Slot] Error:', err);
-    return res.status(500).json({ ok: false, error: 'Erro interno' });
+    return res.status(500).json({ ok: false, error: 'Erro interno: ' + (err instanceof Error ? err.message : String(err)) });
   }
 });
 
