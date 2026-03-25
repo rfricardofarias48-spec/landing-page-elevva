@@ -823,13 +823,15 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     }
 
     // Get candidate and job data for Google Calendar event
-    const { data: candData } = await supabase
+    const { data: candData, error: candErr } = await supabaseAdmin
       .from('candidates')
       .select('"WhatsApp com DDD", "Nome Completo", email')
       .eq('id', interview.candidate_id)
       .single();
 
-    const { data: job, error: jobErr } = await supabase
+    console.log('[Book Slot] Candidate lookup:', { success: !!candData, error: candErr?.message });
+
+    const { data: job, error: jobErr } = await supabaseAdmin
       .from('jobs')
       .select('user_id, title')
       .eq('id', interview.job_id)
@@ -868,14 +870,14 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     const phone = (candData as Record<string, string>)?.['WhatsApp com DDD'];
 
     if (phone) {
-      await supabase.from('agent_conversations').update({
+      await supabaseAdmin.from('agent_conversations').update({
         state: 'ENTREVISTA_CONFIRMADA',
         updated_at: new Date().toISOString(),
       }).eq('phone', phone);
 
       // Send WhatsApp confirmation message
       if (job?.user_id) {
-        const { data: profile, error: profErr } = await supabase
+        const { data: profile, error: profErr } = await supabaseAdmin
           .from('profiles')
           .select('instancia_evolution')
           .eq('id', job.user_id)

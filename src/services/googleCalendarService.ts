@@ -1,32 +1,56 @@
 import { google } from 'googleapis';
 
-const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?
-  JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON) : null;
-
 const calendarId = process.env.GOOGLE_CALENDAR_ID || '';
 
-const auth = serviceAccountKey ? new google.auth.GoogleAuth({
-  credentials: serviceAccountKey,
-  scopes: ['https://www.googleapis.com/auth/calendar'],
-}) : null;
+function getAuth() {
+  // Priority 1: OAuth2 with refresh token (required for Meet links on Gmail accounts)
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
+  if (clientId && clientSecret && refreshToken) {
+    const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2.setCredentials({ refresh_token: refreshToken });
+    console.log('[Google Calendar] Using OAuth2 authentication');
+    return oauth2;
+  }
+
+  // Priority 2: Service Account (works for Workspace, no Meet links on Gmail)
+  const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (saJson) {
+    try {
+      const key = JSON.parse(saJson);
+      console.log('[Google Calendar] Using Service Account authentication');
+      return new google.auth.GoogleAuth({
+        credentials: key,
+        scopes: ['https://www.googleapis.com/auth/calendar'],
+      });
+    } catch (err) {
+      console.error('[Google Calendar] Failed to parse service account JSON:', err);
+    }
+  }
+
+  console.warn('[Google Calendar] No credentials configured');
+  return null;
+}
+
+const auth = getAuth();
 const calendar = auth ? google.calendar({ version: 'v3', auth }) : null;
 
 export async function createMeetingEvent(eventData: {
   candidateName: string;
   jobTitle: string;
-  slotDate: string; // YYYY-MM-DD
-  slotTime: string; // HH:mm
+  slotDate: string;
+  slotTime: string;
   interviewerName?: string;
   candidateEmail?: string;
 }): Promise<{ meetLink: string; eventId: string } | null> {
   if (!calendar || !calendarId) {
-    console.warn('[Google Calendar] Service not configured');
+    console.warn('[Google Calendar] Service not configured — calendar:', !!calendar, 'calendarId:', !!calendarId);
     return null;
   }
 
   try {
-    // Parse date and time
     const [year, month, day] = eventData.slotDate.split('-').map(Number);
     const [hours, minutes] = eventData.slotTime.split(':').map(Number);
 
@@ -65,10 +89,13 @@ export async function createMeetingEvent(eventData: {
       }),
     };
 
+    console.log('[Google Calendar] Creating event:', event.summary, 'at', eventData.slotDate, eventData.slotTime);
+
     const response = await calendar.events.insert({
       calendarId,
       requestBody: event as any,
       conferenceDataVersion: 1,
+      sendUpdates: 'none',
     });
 
     const meetLink = response.data.conferenceData?.entryPoints?.find(
@@ -81,8 +108,11 @@ export async function createMeetingEvent(eventData: {
       meetLink: meetLink || '',
       eventId: response.data.id || '',
     };
-  } catch (err) {
-    console.error('[Google Calendar] Error creating event:', err);
+  } catch (err: any) {
+    console.error('[Google Calendar] Error creating event:', err?.message || err);
+    if (err?.response?.data) {
+      console.error('[Google Calendar] API response:', JSON.stringify(err.response.data));
+    }
     return null;
   }
 }
