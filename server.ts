@@ -825,7 +825,7 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     // Get candidate and job data for Google Calendar event
     const { data: candData, error: candErr } = await supabaseAdmin
       .from('candidates')
-      .select('"WhatsApp com DDD", "Nome Completo", email')
+      .select('"WhatsApp com DDD", "Nome Completo"')
       .eq('id', interview.candidate_id)
       .single();
 
@@ -840,7 +840,6 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     // Create Google Calendar event + Google Meet
     let meetLink = '';
     const candidateName = (candData as Record<string, string>)?.['Nome Completo'] || 'Candidato';
-    const candidateEmail = (candData as Record<string, string>)?.email;
     const jobTitle = job?.title || 'Vaga';
 
     const googleEvent = await createMeetingEvent({
@@ -849,7 +848,6 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       slotDate: booked.slot_date,
       slotTime: booked.slot_time,
       interviewerName: booked.interviewer_name || undefined,
-      candidateEmail: candidateEmail || undefined,
     });
 
     if (googleEvent?.meetLink) {
