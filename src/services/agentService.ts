@@ -332,9 +332,9 @@ async function handleAguardandoEscolhaSlot(
   // while waiting, resend the link
   const token = conv.context.scheduling_token;
   if (token) {
-    const baseUrl = process.env.APP_URL || 'https://app.elevva.net.br';
+    const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
 
-    const link = `${baseUrl}/api/agendar/${token}`;
+    const link = `${baseUrl}/agendar/${token}`;
     await evo.sendText(
       instance, phone,
       `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`,
@@ -475,9 +475,7 @@ export async function triggerSchedulingForCandidates(
   }
 
   // Determine base URL for scheduling links
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : process.env.APP_URL || 'https://app.elevva.net.br';
+  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
 
   // Get first slot info for the WhatsApp message
   const firstSlot = slots[0];
@@ -518,7 +516,7 @@ export async function triggerSchedulingForCandidates(
           .eq('id', interview.id);
       }
 
-      const schedulingLink = `${baseUrl}/api/agendar/${token}`;
+      const schedulingLink = `${baseUrl}/agendar/${token}`;
 
       // Upsert conversation state → AGUARDANDO_ESCOLHA_SLOT
       await supabase
