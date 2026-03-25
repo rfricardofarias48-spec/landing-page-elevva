@@ -2275,10 +2275,11 @@ const App: React.FC = () => {
   );
 
   // --- MAIN RENDER (User Dashboard / Details) ---
-  
-  // Public Scheduling View (no auth required)
-  if (view === 'SCHEDULING' && schedulingToken) {
-      return <PublicSchedulingScreen token={schedulingToken} />;
+
+  // Public Scheduling View — check path synchronously to bypass auth state entirely
+  const _agendarMatch = window.location.pathname.match(/^\/agendar\/([a-zA-Z0-9]+)$/);
+  if (_agendarMatch) {
+      return <PublicSchedulingScreen token={_agendarMatch[1]} />;
   }
 
   // Public Upload View
