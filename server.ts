@@ -802,12 +802,16 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     }
 
     // Update interview
-    await supabase.from('interviews').update({
+    const { error: interviewErr } = await supabase.from('interviews').update({
       slot_id,
       scheduled_date: booked.slot_date,
       scheduled_time: booked.slot_time,
-      status: 'AGENDADA',
+      status: 'ENTREVISTA_CONFIRMADA',
     }).eq('id', interview.id);
+
+    if (interviewErr) {
+      console.error('[Book Slot] Failed to update interview:', interviewErr);
+    }
 
     // Update agent_conversation state + send WhatsApp confirmation
     const { data: candidate } = await supabase.from('candidates').select('"WhatsApp com DDD", "Nome Completo"').eq('id', interview.candidate_id).single();
