@@ -78,7 +78,7 @@ export async function createMeetingEvent(eventData: {
         createRequest: {
           requestId: `interview-${Date.now()}`,
           conferenceSolutionKey: {
-            key: 'hangoutsMeet',
+            type: 'hangoutsMeet',
           },
         },
       },
