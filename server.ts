@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { analyzeResume } from "./src/services/openaiService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
 import { cleanPhone, sendText } from "./src/services/evolutionService.js";
+import { createMeetingEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import crypto from "crypto";
 
@@ -821,24 +822,50 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       return res.status(500).json({ ok: false, error: 'Erro ao atualizar entrevista: ' + interviewErr.message });
     }
 
-    // Get job's user_id
-    const { data: job, error: jobErr } = await supabase
-      .from('jobs')
-      .select('user_id')
-      .eq('id', interview.job_id)
-      .single();
-
-    console.log('[Book Slot] Job lookup:', { success: !!job, error: jobErr?.message });
-
-    // Update agent_conversation state + send WhatsApp confirmation
-    const { data: candidate, error: candErr } = await supabase
+    // Get candidate and job data for Google Calendar event
+    const { data: candData } = await supabase
       .from('candidates')
-      .select('"WhatsApp com DDD", "Nome Completo"')
+      .select('"WhatsApp com DDD", "Nome Completo", email')
       .eq('id', interview.candidate_id)
       .single();
 
-    console.log('[Book Slot] Candidate lookup:', { success: !!candidate, error: candErr?.message });
-    const phone = (candidate as Record<string, string>)?.['WhatsApp com DDD'];
+    const { data: job, error: jobErr } = await supabase
+      .from('jobs')
+      .select('user_id, title')
+      .eq('id', interview.job_id)
+      .single();
+
+    // Create Google Calendar event + Google Meet
+    let meetLink = '';
+    const candidateName = (candData as Record<string, string>)?.['Nome Completo'] || 'Candidato';
+    const candidateEmail = (candData as Record<string, string>)?.email;
+    const jobTitle = job?.title || 'Vaga';
+
+    const googleEvent = await createMeetingEvent({
+      candidateName,
+      jobTitle,
+      slotDate: booked.slot_date,
+      slotTime: booked.slot_time,
+      interviewerName: booked.interviewer_name || undefined,
+      candidateEmail: candidateEmail || undefined,
+    });
+
+    if (googleEvent?.meetLink) {
+      meetLink = googleEvent.meetLink;
+      console.log('[Book Slot] Google Meet link created:', meetLink);
+
+      // Save meeting link to interviews table
+      await supabaseAdmin.from('interviews').update({
+        meeting_link: meetLink,
+      }).eq('id', interview.id);
+    } else {
+      console.warn('[Book Slot] Failed to create Google Meet event');
+    }
+
+    console.log('[Book Slot] Job lookup:', { success: !!job, error: jobErr?.message });
+
+    // Get phone for WhatsApp
+    const phone = (candData as Record<string, string>)?.['WhatsApp com DDD'];
 
     if (phone) {
       await supabase.from('agent_conversations').update({
@@ -863,13 +890,14 @@ app.post("/api/agendar/:token/book", async (req, res) => {
           const timeLabel = booked.slot_time.substring(0, 5);
           const interviewer = booked.interviewer_name ? `\n👤 *Entrevistador:* ${booked.interviewer_name}` : '';
           const location = booked.location ? `\n📍 *Local/Link:* ${booked.location}` : '';
-          const firstName = ((candidate as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
+          const firstName = ((candData as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
+          const meetLinkText = meetLink ? `\n🎥 *Google Meet:* ${meetLink}` : '';
 
           console.log('[Book Slot] Sending WhatsApp to:', phone);
           await sendText(
             instance,
             phone,
-            `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
+            `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}${meetLinkText}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
           );
         } else {
           console.warn('[Book Slot] No Evolution instance found');
