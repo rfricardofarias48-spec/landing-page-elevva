@@ -49,6 +49,7 @@ export async function createMeetingEvent(eventData: {
   interviewerName?: string;
   candidateEmail?: string;
   recruiterEmail?: string;
+  candidatePhone?: string;
 }): Promise<{ meetLink: string; eventId: string } | null> {
   if (!calendar || !calendarId) {
     console.warn('[Google Calendar] Service not configured — calendar:', !!calendar, 'calendarId:', !!calendarId);
@@ -59,20 +60,32 @@ export async function createMeetingEvent(eventData: {
     const [year, month, day] = eventData.slotDate.split('-').map(Number);
     const [hours, minutes] = eventData.slotTime.split(':').map(Number);
 
-    const startTime = new Date(year, month - 1, day, hours, minutes, 0);
-    const endTime = new Date(year, month - 1, day, hours + 1, minutes, 0);
+    // Build ISO-like string WITHOUT 'Z' so Google respects the timeZone field (America/Sao_Paulo)
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startISO = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
+    const endISO = `${year}-${pad(month)}-${pad(day)}T${pad(hours + 1)}:${pad(minutes)}:00`;
+
+    // Use only first + last name for the calendar card
+    const nameParts = eventData.candidateName.trim().split(/\s+/);
+    const shortName = nameParts.length > 1
+      ? `${nameParts[0]} ${nameParts[nameParts.length - 1]}`
+      : nameParts[0];
+
+    const whatsappLink = eventData.candidatePhone
+      ? `\nWhatsApp: https://wa.me/55${eventData.candidatePhone.replace(/\D/g, '')}`
+      : '';
 
     const event = {
-      summary: `Entrevista - ${eventData.candidateName} (${eventData.jobTitle})`,
+      summary: `Entrevista - ${shortName}`,
       description: `Candidato: ${eventData.candidateName}\nVaga: ${eventData.jobTitle}${
         eventData.interviewerName ? `\nEntrevistador: ${eventData.interviewerName}` : ''
-      }`,
+      }${whatsappLink}`,
       start: {
-        dateTime: startTime.toISOString(),
+        dateTime: startISO,
         timeZone: 'America/Sao_Paulo',
       },
       end: {
-        dateTime: endTime.toISOString(),
+        dateTime: endISO,
         timeZone: 'America/Sao_Paulo',
       },
       conferenceData: {
@@ -114,5 +127,25 @@ export async function createMeetingEvent(eventData: {
       console.error('[Google Calendar] API response:', JSON.stringify(err.response.data));
     }
     return null;
+  }
+}
+
+export async function deleteCalendarEvent(eventId: string): Promise<boolean> {
+  if (!calendar || !calendarId) {
+    console.warn('[Google Calendar] Service not configured — cannot delete event');
+    return false;
+  }
+
+  try {
+    await calendar.events.delete({
+      calendarId,
+      eventId,
+      sendUpdates: 'none',
+    });
+    console.log('[Google Calendar] Event deleted:', eventId);
+    return true;
+  } catch (err: any) {
+    console.error('[Google Calendar] Error deleting event:', err?.message || err);
+    return false;
   }
 }

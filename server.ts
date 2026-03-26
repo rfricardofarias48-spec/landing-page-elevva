@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { analyzeResume } from "./src/services/openaiService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
 import { cleanPhone, sendText } from "./src/services/evolutionService.js";
-import { createMeetingEvent } from "./src/services/googleCalendarService.js";
+import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import crypto from "crypto";
 
@@ -787,15 +787,25 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     // Find interview (use supabaseAdmin for RLS-protected table)
     const { data: interview, error: intErr } = await supabaseAdmin
       .from('interviews')
-      .select('id, job_id, candidate_id, status, scheduling_token')
+      .select('id, job_id, candidate_id, status, scheduling_token, slot_id, google_event_id')
       .eq('scheduling_token', token)
       .single();
 
     console.log('[Book Slot] Interview lookup:', { success: !!interview, error: intErr?.message });
     if (intErr || !interview) return res.status(404).json({ ok: false, error: 'Link invalido' });
 
+    // If reschedule: free old slot and cancel old Google Calendar event
+    if (interview.slot_id) {
+      console.log('[Book Slot] Reschedule detected — freeing old slot:', interview.slot_id);
+      await supabaseAdmin.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
+    }
+    if (interview.google_event_id) {
+      const deleted = await deleteCalendarEvent(interview.google_event_id);
+      console.log(`[Book Slot] Old Google Calendar event: ${deleted ? 'deleted' : 'failed to delete'}`);
+    }
+
     // Book the slot (optimistic concurrency)
-    const { data: booked, error: bookErr } = await supabase
+    const { data: booked, error: bookErr } = await supabaseAdmin
       .from('interview_slots')
       .update({ is_booked: true })
       .eq('id', slot_id)
@@ -853,6 +863,8 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     const candidateName = (candData as Record<string, string>)?.['Nome Completo'] || 'Candidato';
     const jobTitle = job?.title || 'Vaga';
 
+    const candidatePhone = (candData as Record<string, string>)?.['WhatsApp com DDD'];
+
     const googleEvent = await createMeetingEvent({
       candidateName,
       jobTitle,
@@ -860,15 +872,17 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       slotTime: booked.slot_time,
       interviewerName: booked.interviewer_name || undefined,
       recruiterEmail,
+      candidatePhone: candidatePhone || undefined,
     });
 
     if (googleEvent?.meetLink) {
       meetLink = googleEvent.meetLink;
       console.log('[Book Slot] Google Meet link created:', meetLink);
 
-      // Save meeting link to interviews table
+      // Save meeting link and event ID to interviews table
       await supabaseAdmin.from('interviews').update({
         meeting_link: meetLink,
+        google_event_id: googleEvent.eventId || null,
       }).eq('id', interview.id);
     } else {
       console.warn('[Book Slot] Failed to create Google Meet event');
@@ -876,8 +890,8 @@ app.post("/api/agendar/:token/book", async (req, res) => {
 
     console.log('[Book Slot] Job lookup:', { success: !!job, error: jobErr?.message });
 
-    // Get phone for WhatsApp
-    const phone = (candData as Record<string, string>)?.['WhatsApp com DDD'];
+    // Use phone already extracted for WhatsApp
+    const phone = candidatePhone;
 
     if (phone) {
       await supabaseAdmin.from('agent_conversations').update({
@@ -930,55 +944,276 @@ app.post("/api/agendar/:token/book", async (req, res) => {
   }
 });
 
-app.post("/api/agendar/:token/reschedule", async (req, res) => {
+// ── Cancel interview (WhatsApp notification + Google Calendar deletion) ──
+app.post("/api/interviews/:id/cancel", async (req, res) => {
+  const { id } = req.params;
+  console.log(`[Cancel] ▶ Starting cancellation for interview ${id}`);
+
   try {
-    const { token } = req.params;
-    const { slot_id } = req.body as { slot_id: string };
-
-    if (!slot_id) return res.status(400).json({ ok: false, error: 'slot_id obrigatorio' });
-
-    // Find interview
-    const { data: interview } = await supabase
+    // 1. Fetch interview data BEFORE deleting
+    const { data: interview, error: intErr } = await supabaseAdmin
       .from('interviews')
-      .select('id, job_id, candidate_id, slot_id, scheduling_token')
-      .eq('scheduling_token', token)
+      .select('id, candidate_id, job_id, slot_id, slot_date, slot_time, google_event_id, interviewer_name, status')
+      .eq('id', id)
       .single();
 
-    if (!interview) return res.status(404).json({ ok: false, error: 'Link invalido' });
+    if (intErr || !interview) {
+      console.error(`[Cancel] Interview not found: ${id}`, intErr?.message);
+      return res.status(404).json({ ok: false, error: 'Entrevista não encontrada' });
+    }
 
-    // Free the old slot
+    console.log(`[Cancel] Interview found:`, {
+      id: interview.id,
+      candidate_id: interview.candidate_id,
+      job_id: interview.job_id,
+      status: interview.status,
+      google_event_id: interview.google_event_id || 'none',
+      slot_date: interview.slot_date,
+      slot_time: interview.slot_time,
+    });
+
+    // 2. Get candidate + job data BEFORE deleting the interview
+    const { data: candidate, error: candErr } = await supabaseAdmin
+      .from('candidates')
+      .select('"WhatsApp com DDD", "Nome Completo"')
+      .eq('id', interview.candidate_id)
+      .single();
+
+    console.log(`[Cancel] Candidate lookup:`, { found: !!candidate, error: candErr?.message });
+
+    const phone = (candidate as Record<string, string>)?.['WhatsApp com DDD'];
+    const firstName = ((candidate as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
+    console.log(`[Cancel] Candidate: ${firstName}, phone: ${phone || 'NOT FOUND'}`);
+
+    const { data: job, error: jobErr } = await supabaseAdmin
+      .from('jobs')
+      .select('user_id, title')
+      .eq('id', interview.job_id)
+      .single();
+
+    console.log(`[Cancel] Job lookup:`, { found: !!job, user_id: job?.user_id, error: jobErr?.message });
+
+    let instance: string | null = null;
+    if (job?.user_id) {
+      const { data: profile, error: profErr } = await supabaseAdmin
+        .from('profiles')
+        .select('instancia_evolution')
+        .eq('id', job.user_id)
+        .single();
+      instance = profile?.instancia_evolution || null;
+      console.log(`[Cancel] Evolution instance:`, instance || 'NOT FOUND', profErr?.message || '');
+    }
+
+    // 3. Delete from Google Calendar
+    if (interview.google_event_id) {
+      const deleted = await deleteCalendarEvent(interview.google_event_id);
+      console.log(`[Cancel] Google Calendar event ${interview.google_event_id}: ${deleted ? 'DELETED' : 'FAILED'}`);
+    } else {
+      console.log(`[Cancel] No Google Calendar event to delete`);
+    }
+
+    // 4. Free the slot
     if (interview.slot_id) {
-      await supabase.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
+      await supabaseAdmin.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
+      console.log(`[Cancel] Slot ${interview.slot_id} freed`);
     }
 
-    // Book new slot
-    const { data: booked, error: bookErr } = await supabase
-      .from('interview_slots')
-      .update({ is_booked: true })
-      .eq('id', slot_id)
-      .eq('is_booked', false)
-      .select()
-      .maybeSingle();
+    // 5. Delete the interview record
+    const { error: delErr } = await supabaseAdmin.from('interviews').delete().eq('id', id);
+    if (delErr) {
+      console.error('[Cancel] Delete error:', delErr.message);
+      return res.status(500).json({ ok: false, error: delErr.message });
+    }
+    console.log(`[Cancel] Interview record deleted`);
 
-    if (bookErr || !booked) {
-      // Re-book old slot if new one failed
-      if (interview.slot_id) {
-        await supabase.from('interview_slots').update({ is_booked: true }).eq('id', interview.slot_id);
+    // 6. Delete free (unbooked) slots for this job
+    await supabaseAdmin.from('interview_slots').delete().eq('job_id', interview.job_id).eq('is_booked', false);
+
+    // 7. Send WhatsApp cancellation message
+    let whatsappSent = false;
+    if (!phone) {
+      console.warn(`[Cancel] SKIP WhatsApp: no phone number for candidate ${interview.candidate_id}`);
+    } else if (!instance) {
+      console.warn(`[Cancel] SKIP WhatsApp: no Evolution instance for job owner`);
+    } else {
+      let dateInfo = '';
+      if (interview.slot_date && interview.slot_time) {
+        const [year, month, day] = interview.slot_date.split('-').map(Number);
+        const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+        const timeLabel = interview.slot_time.substring(0, 5);
+        dateInfo = `\n\n📅 ${dateLabel} às ${timeLabel}`;
       }
-      return res.status(409).json({ ok: false, error: 'Horario ja foi preenchido. Escolha outro.' });
+
+      console.log(`[Cancel] Sending WhatsApp to ${phone} via instance ${instance}`);
+      await sendText(
+        instance,
+        phone,
+        `Olá, *${firstName}*.\n\nInformamos que, infelizmente, sua entrevista foi cancelada.${dateInfo}\n\nPedimos desculpas pelo inconveniente.\n\nAtenciosamente,\nEquipe de Recrutamento`,
+        false,
+      );
+      whatsappSent = true;
+      console.log(`[Cancel] ✓ WhatsApp sent successfully to ${phone}`);
     }
 
-    // Update interview with new slot
-    await supabase.from('interviews').update({
-      slot_id,
-      scheduled_date: booked.slot_date,
-      scheduled_time: booked.slot_time,
-      status: 'REMARCADA',
-    }).eq('id', interview.id);
+    // 8. Update agent conversation state
+    if (phone) {
+      await supabaseAdmin.from('agent_conversations').update({
+        state: 'CANCELADA',
+        updated_at: new Date().toISOString(),
+      }).eq('phone', phone);
+      console.log(`[Cancel] Conversation state updated to CANCELADA`);
+    }
 
-    return res.json({ ok: true });
+    console.log(`[Cancel] ✓ Cancellation complete. WhatsApp: ${whatsappSent ? 'SENT' : 'NOT SENT'}`);
+    return res.json({ ok: true, whatsapp_sent: whatsappSent });
   } catch (err) {
-    console.error('[Reschedule] Error:', err);
+    console.error('[Cancel] ✗ FATAL ERROR:', err);
+    return res.status(500).json({ ok: false, error: 'Erro interno: ' + (err instanceof Error ? err.message : String(err)) });
+  }
+});
+
+// ── Cron: interview reminders (~2h before) ──────────────────────────
+app.get("/api/cron/interview-reminders", async (req, res) => {
+  // Vercel cron sends Authorization header — validate it
+  const authHeader = req.headers['authorization'];
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    // Calculate window: from now to +2.5h (to catch interviews with 15-min cron granularity)
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + 2.5 * 60 * 60 * 1000);
+
+    // Format as YYYY-MM-DD and HH:MM:SS for comparison
+    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); // YYYY-MM-DD
+    const windowEndDate = windowEnd.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const nowTime = now.toLocaleTimeString('en-GB', { timeZone: 'America/Sao_Paulo', hour12: false });
+    const windowEndTime = windowEnd.toLocaleTimeString('en-GB', { timeZone: 'America/Sao_Paulo', hour12: false });
+
+    console.log(`[Reminder Cron] Running at ${todayStr} ${nowTime}, window until ${windowEndDate} ${windowEndTime}`);
+
+    // Query confirmed interviews within the time window that haven't been reminded
+    let query = supabaseAdmin
+      .from('interviews')
+      .select('id, candidate_id, job_id, slot_date, slot_time, meeting_link, interviewer_name, lembrete_enviado')
+      .eq('status', 'CONFIRMADA')
+      .eq('lembrete_enviado', false);
+
+    if (todayStr === windowEndDate) {
+      // Same day: slot_date = today AND slot_time between now and window end
+      query = query
+        .eq('slot_date', todayStr)
+        .gte('slot_time', nowTime)
+        .lte('slot_time', windowEndTime);
+    } else {
+      // Crosses midnight: get today's remaining + tomorrow's early slots
+      // For simplicity, query both dates and filter
+      query = query
+        .in('slot_date', [todayStr, windowEndDate])
+        .gte('slot_time', '00:00:00')
+        .lte('slot_time', '23:59:59');
+    }
+
+    const { data: interviews, error: intErr } = await query;
+
+    if (intErr) {
+      console.error('[Reminder Cron] Query error:', intErr.message);
+      return res.status(500).json({ error: intErr.message });
+    }
+
+    console.log(`[Reminder Cron] Found ${interviews?.length || 0} interviews to remind`);
+
+    let sent = 0;
+    for (const interview of interviews || []) {
+      try {
+        // Get candidate phone
+        const { data: candidate } = await supabaseAdmin
+          .from('candidates')
+          .select('"WhatsApp com DDD", "Nome Completo"')
+          .eq('id', interview.candidate_id)
+          .single();
+
+        const phone = (candidate as Record<string, string>)?.['WhatsApp com DDD'];
+        const firstName = ((candidate as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
+
+        if (!phone) {
+          console.warn(`[Reminder Cron] No phone for candidate ${interview.candidate_id}`);
+          continue;
+        }
+
+        // Get job to find recruiter's Evolution instance
+        const { data: job } = await supabaseAdmin
+          .from('jobs')
+          .select('user_id, title')
+          .eq('id', interview.job_id)
+          .single();
+
+        if (!job?.user_id) {
+          console.warn(`[Reminder Cron] No job/user_id for interview ${interview.id}`);
+          continue;
+        }
+
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('instancia_evolution')
+          .eq('id', job.user_id)
+          .single();
+
+        const instance = profile?.instancia_evolution;
+        if (!instance) {
+          console.warn(`[Reminder Cron] No Evolution instance for user ${job.user_id}`);
+          continue;
+        }
+
+        // Format date and time
+        const [year, month, day] = interview.slot_date.split('-').map(Number);
+        const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+        const timeLabel = interview.slot_time.substring(0, 5);
+        const interviewer = interview.interviewer_name ? `\n👤 *Entrevistador:* ${interview.interviewer_name}` : '';
+        const meetLink = interview.meeting_link ? `\n🎥 *Google Meet:* ${interview.meeting_link}` : '';
+
+        await sendText(
+          instance,
+          phone,
+          `⏰ *Lembrete de Entrevista*\n\nOlá, *${firstName}*! Sua entrevista está chegando:\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${meetLink}\n\nPrepare-se e boa sorte! 🍀`,
+          false,
+        );
+
+        // Mark as reminded
+        await supabaseAdmin.from('interviews').update({ lembrete_enviado: true }).eq('id', interview.id);
+        sent++;
+        console.log(`[Reminder Cron] Sent reminder for interview ${interview.id} to ${phone}`);
+      } catch (err) {
+        console.error(`[Reminder Cron] Error processing interview ${interview.id}:`, err);
+      }
+    }
+
+    return res.json({ ok: true, reminders_sent: sent, total_found: interviews?.length || 0 });
+  } catch (err) {
+    console.error('[Reminder Cron] Error:', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Reschedule is now handled by the /book endpoint (it detects existing slot_id and frees it)
+// This route is kept for backwards compatibility but redirects to /book
+app.post("/api/agendar/:token/reschedule", async (req, res) => {
+  const { token } = req.params;
+  const { slot_id } = req.body as { slot_id: string };
+
+  // Forward to book endpoint which handles both new bookings and reschedules
+  const bookUrl = `${req.protocol}://${req.get('host')}/api/agendar/${token}/book`;
+  try {
+    const response = await fetch(bookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slot_id }),
+    });
+    const data = await response.json();
+    return res.status(response.status).json(data);
+  } catch (err) {
+    console.error('[Reschedule] Forward error:', err);
     return res.status(500).json({ ok: false, error: 'Erro interno' });
   }
 });

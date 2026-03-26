@@ -113,60 +113,14 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     setIsCanceling(true);
 
     try {
-      // 1. Delete the interview slot if it exists (this will free up the slot or remove it)
-      if (interviewToCancel.slot_id) {
-        const { error: slotError } = await supabase
-          .from('interview_slots')
-          .delete()
-          .eq('id', interviewToCancel.slot_id);
-          
-        if (slotError) console.error("Erro ao deletar slot:", slotError);
-      }
+      // Call backend endpoint — handles Google Calendar deletion, WhatsApp notification, slot cleanup
+      const res = await fetch(`/api/interviews/${interviewToCancel.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Erro ao cancelar');
 
-      // 2. Delete the interview record
-      const { error: interviewError } = await supabase
-        .from('interviews')
-        .delete()
-        .eq('id', interviewToCancel.id);
-
-      if (interviewError) throw interviewError;
-
-      // 2.5 Sempre deletar os horários não agendados (livres) dessa vaga
-      // O usuário pediu para que os horários sejam deletados junto com a entrevista
-      await supabase
-        .from('interview_slots')
-        .delete()
-        .eq('job_id', interviewToCancel.job_id)
-        .eq('is_booked', false);
-
-      // 3. Webhook n8n
-      const webhookUrl = import.meta.env.VITE_N8N_CANCEL_WEBHOOK;
-      if (webhookUrl) {
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            candidate: {
-              id: interviewToCancel.candidate_id,
-              name: interviewToCancel.candidate_name,
-              phone: interviewToCancel.candidate_phone
-            },
-            job: {
-              title: interviewToCancel.job_title
-            },
-            slot: {
-              date: interviewToCancel.scheduled_date,
-              time: interviewToCancel.scheduled_time,
-              format: interviewToCancel.format,
-              interviewer_name: interviewToCancel.interviewer_name
-            }
-          })
-        }).catch(err => console.error("Erro ao notificar n8n:", err));
-      }
-
-      // Optimistic update - this will be overwritten by the realtime subscription soon
-      // We don't need to update status, we just let the realtime subscription remove it
-      
     } catch (error) {
       console.error("Erro ao cancelar entrevista:", error);
       alert("Ocorreu um erro ao cancelar a entrevista. Tente novamente.");

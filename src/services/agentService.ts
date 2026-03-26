@@ -320,6 +320,104 @@ async function handleAguardandoCurriculo(
 }
 
 
+async function handleReschedule(
+  conv: Conversation,
+  instance: string,
+  phone: string,
+  supabase: SupabaseClient,
+): Promise<void> {
+  // Find the confirmed interview for this candidate
+  const { data: interview } = await supabase
+    .from('interviews')
+    .select('id, job_id, slot_id, scheduling_token')
+    .eq('candidate_id', conv.context.candidate_id)
+    .in('status', ['CONFIRMADA', 'AGENDADA', 'REMARCADA'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!interview) {
+    await evo.sendText(instance, phone, 'Não encontrei uma entrevista agendada para você. Se precisar de ajuda, fale com o recrutador.');
+    return;
+  }
+
+  // Check available slots for the job
+  const { data: slots } = await supabase
+    .from('interview_slots')
+    .select('id')
+    .eq('job_id', interview.job_id)
+    .eq('is_booked', false);
+
+  if (!slots || slots.length === 0) {
+    // Notify recruiter
+    const { data: recruiterProfile } = await supabase
+      .from('profiles')
+      .select('instancia_evolution, id')
+      .eq('id', conv.user_id)
+      .single();
+
+    const candidateName = conv.context.candidate_name || 'Um candidato';
+    const jobTitle = conv.context.job_title || 'uma vaga';
+
+    console.log(`[Agent] No slots available for reschedule. Candidate: ${candidateName}, Job: ${jobTitle}. Recruiter: ${recruiterProfile?.id}`);
+
+    await evo.sendText(
+      instance, phone,
+      `Entendi que você precisa reagendar, *${conv.context.candidate_name || 'candidato'}*.\n\nInfelizmente, não há outros horários disponíveis no momento. Já notificamos o recrutador para liberar novas datas.\n\nAssim que houver novos horários, enviaremos o link para você escolher. 😊`,
+    );
+    return;
+  }
+
+  // Free the old slot
+  if (interview.slot_id) {
+    await supabase
+      .from('interview_slots')
+      .update({ is_booked: false })
+      .eq('id', interview.slot_id);
+  }
+
+  // Reset interview status
+  await supabase
+    .from('interviews')
+    .update({
+      slot_id: null,
+      slot_date: null,
+      slot_time: null,
+      meeting_link: null,
+      status: 'AGUARDANDO_RESPOSTA',
+    })
+    .eq('id', interview.id);
+
+  // Ensure scheduling token exists
+  let token = interview.scheduling_token;
+  if (!token) {
+    token = crypto.randomBytes(16).toString('hex');
+    await supabase
+      .from('interviews')
+      .update({ scheduling_token: token })
+      .eq('id', interview.id);
+  }
+
+  // Update conversation state
+  await updateConversation(conv.id, {
+    state: 'AGUARDANDO_ESCOLHA_SLOT',
+    context: {
+      ...conv.context,
+      interview_id: interview.id,
+      scheduling_token: token,
+    },
+  }, supabase);
+
+  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
+  const link = `${baseUrl}/agendar/${token}`;
+
+  await evo.sendText(
+    instance, phone,
+    `Sem problemas, *${conv.context.candidate_name || 'candidato'}*! Vamos reagendar.\n\nEscolha um novo horário no link abaixo:\n\n${link}\n\n_Clique no link para selecionar seu novo horário._`,
+    false,
+  );
+}
+
 async function handleAguardandoEscolhaSlot(
   conv: Conversation,
   instance: string,
@@ -389,6 +487,15 @@ export async function processIncomingMessage(
   }
 
   const text = (textContent || '').trim().toLowerCase();
+
+  // Detect reschedule intent for confirmed interviews
+  const rescheduleKeywords = ['reagendar', 'remarcar', 'mudar horário', 'mudar horario', 'trocar horário', 'trocar horario', 'alterar data', 'mudar data', 'outro horário', 'outro horario', 'não posso', 'nao posso', 'cancelar entrevista', 'desmarcar'];
+  const isRescheduleIntent = rescheduleKeywords.some(k => text.includes(k));
+
+  if (isRescheduleIntent && (conv.state === 'ENTREVISTA_CONFIRMADA' || conv.state === 'AGUARDANDO_ESCOLHA_SLOT')) {
+    await handleReschedule(conv, instance, phone, supabase);
+    return;
+  }
 
   switch (conv.state) {
     // Terminal / restart states — treat as new candidate

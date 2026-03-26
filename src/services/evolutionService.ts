@@ -42,7 +42,9 @@ async function post(path: string, body: Record<string, unknown>): Promise<unknow
 
 /** Send a plain text message */
 export async function sendText(instance: string, jid: string, text: string, linkPreview = true): Promise<void> {
-  await post(`/message/sendText/${instance}`, { number: cleanPhone(jid), text, linkPreview });
+  const phone = cleanPhone(jid);
+  console.log(`[Evolution] sendText → instance: ${instance}, phone: ${phone}, text length: ${text.length}`);
+  await post(`/message/sendText/${instance}`, { number: phone, text, linkPreview });
 }
 
 /** Send an interactive list message (renders as a tappable menu on WhatsApp) */
