@@ -1,29 +1,28 @@
-import { calendar_v3 } from '@googleapis/calendar';
-import { OAuth2Client } from 'google-auth-library';
+import { calendar, auth } from '@googleapis/calendar';
 
 const calendarId = process.env.GOOGLE_CALENDAR_ID || '';
 
-function getCalendar(): calendar_v3.Calendar | null {
+function getCalendar() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
   if (clientId && clientSecret && refreshToken) {
-    const oauth2 = new OAuth2Client(
+    const oauth2 = new auth.OAuth2(
       clientId,
       clientSecret,
       'https://developers.google.com/oauthplayground'
     );
     oauth2.setCredentials({ refresh_token: refreshToken });
     console.log('[Google Calendar] Using OAuth2 authentication');
-    return new calendar_v3.Calendar({ auth: oauth2 });
+    return calendar({ version: 'v3', auth: oauth2 });
   }
 
   console.warn('[Google Calendar] No credentials configured');
   return null;
 }
 
-const calendar = getCalendar();
+const cal = getCalendar();
 
 export async function createMeetingEvent(eventData: {
   candidateName: string;
@@ -35,8 +34,8 @@ export async function createMeetingEvent(eventData: {
   recruiterEmail?: string;
   candidatePhone?: string;
 }): Promise<{ meetLink: string; eventId: string } | null> {
-  if (!calendar || !calendarId) {
-    console.warn('[Google Calendar] Service not configured — calendar:', !!calendar, 'calendarId:', !!calendarId);
+  if (!cal || !calendarId) {
+    console.warn('[Google Calendar] Service not configured — calendar:', !!cal, 'calendarId:', !!calendarId);
     return null;
   }
 
@@ -44,12 +43,10 @@ export async function createMeetingEvent(eventData: {
     const [year, month, day] = eventData.slotDate.split('-').map(Number);
     const [hours, minutes] = eventData.slotTime.split(':').map(Number);
 
-    // Build ISO-like string WITHOUT 'Z' so Google respects the timeZone field (America/Sao_Paulo)
     const pad = (n: number) => String(n).padStart(2, '0');
     const startISO = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
     const endISO = `${year}-${pad(month)}-${pad(day)}T${pad(hours + 1)}:${pad(minutes)}:00`;
 
-    // Use only first + last name for the calendar card
     const nameParts = eventData.candidateName.trim().split(/\s+/);
     const shortName = nameParts.length > 1
       ? `${nameParts[0]} ${nameParts[nameParts.length - 1]}`
@@ -88,7 +85,7 @@ export async function createMeetingEvent(eventData: {
 
     console.log('[Google Calendar] Creating event:', event.summary, 'at', eventData.slotDate, eventData.slotTime);
 
-    const response = await calendar.events.insert({
+    const response = await cal.events.insert({
       calendarId,
       requestBody: event as any,
       conferenceDataVersion: 1,
@@ -115,13 +112,13 @@ export async function createMeetingEvent(eventData: {
 }
 
 export async function deleteCalendarEvent(eventId: string): Promise<boolean> {
-  if (!calendar || !calendarId) {
+  if (!cal || !calendarId) {
     console.warn('[Google Calendar] Service not configured — cannot delete event');
     return false;
   }
 
   try {
-    await calendar.events.delete({
+    await cal.events.delete({
       calendarId,
       eventId,
       sendUpdates: 'none',
