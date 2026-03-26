@@ -1,45 +1,29 @@
-import { google } from 'googleapis';
+import { calendar_v3 } from '@googleapis/calendar';
+import { OAuth2Client } from 'google-auth-library';
 
 const calendarId = process.env.GOOGLE_CALENDAR_ID || '';
 
-function getAuth() {
-  // Priority 1: OAuth2 with refresh token (required for Meet links on Gmail accounts)
+function getCalendar(): calendar_v3.Calendar | null {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
   if (clientId && clientSecret && refreshToken) {
-    const oauth2 = new google.auth.OAuth2(
+    const oauth2 = new OAuth2Client(
       clientId,
       clientSecret,
       'https://developers.google.com/oauthplayground'
     );
     oauth2.setCredentials({ refresh_token: refreshToken });
     console.log('[Google Calendar] Using OAuth2 authentication');
-    return oauth2;
-  }
-
-  // Priority 2: Service Account (works for Workspace, no Meet links on Gmail)
-  const saJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (saJson) {
-    try {
-      const key = JSON.parse(saJson);
-      console.log('[Google Calendar] Using Service Account authentication');
-      return new google.auth.GoogleAuth({
-        credentials: key,
-        scopes: ['https://www.googleapis.com/auth/calendar'],
-      });
-    } catch (err) {
-      console.error('[Google Calendar] Failed to parse service account JSON:', err);
-    }
+    return new calendar_v3.Calendar({ auth: oauth2 });
   }
 
   console.warn('[Google Calendar] No credentials configured');
   return null;
 }
 
-const auth = getAuth();
-const calendar = auth ? google.calendar({ version: 'v3', auth }) : null;
+const calendar = getCalendar();
 
 export async function createMeetingEvent(eventData: {
   candidateName: string;
