@@ -327,17 +327,44 @@ async function handleReschedule(
   phone: string,
   supabase: SupabaseClient,
 ): Promise<void> {
+  // Resolve candidate_id: from context or by phone lookup
+  let candidateId = conv.context.candidate_id;
+
+  if (!candidateId) {
+    // Try to find candidate by phone number
+    const cleanedPhone = phone.replace(/@.*$/, '');
+    const { data: candidates } = await supabase
+      .from('candidates')
+      .select('id')
+      .or(`"WhatsApp com DDD".eq.${cleanedPhone},"WhatsApp com DDD".eq.${cleanedPhone.replace(/^55/, '')}`)
+      .limit(1);
+
+    candidateId = candidates?.[0]?.id;
+    console.log(`[Agent] Reschedule: candidate_id not in context, phone lookup: ${candidateId || 'NOT FOUND'}`);
+
+    if (candidateId) {
+      conv.context = { ...conv.context, candidate_id: candidateId };
+      await updateConversation(conv.id, { context: conv.context }, supabase);
+    }
+  }
+
+  if (!candidateId) {
+    await evo.sendText(instance, phone, 'Não encontrei uma entrevista agendada para você. Se precisar de ajuda, fale com o recrutador.');
+    return;
+  }
+
   // Find the confirmed interview for this candidate
   const { data: interview } = await supabase
     .from('interviews')
     .select('id, job_id, slot_id, scheduling_token, google_event_id')
-    .eq('candidate_id', conv.context.candidate_id)
+    .eq('candidate_id', candidateId)
     .in('status', ['CONFIRMADA', 'AGENDADA', 'REMARCADA'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (!interview) {
+    console.log(`[Agent] Reschedule: no interview found for candidate ${candidateId}`);
     await evo.sendText(instance, phone, 'Não encontrei uma entrevista agendada para você. Se precisar de ajuda, fale com o recrutador.');
     return;
   }
