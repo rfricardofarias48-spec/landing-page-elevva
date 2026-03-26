@@ -419,7 +419,7 @@ async function handleReschedule(
       slot_time: null,
       meeting_link: null,
       google_event_id: null,
-      status: 'AGUARDANDO_RESPOSTA',
+      status: 'REMARCADA',
     })
     .eq('id', interview.id);
 
