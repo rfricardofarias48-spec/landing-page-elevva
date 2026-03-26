@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText } from 'lucide-react';
+import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
 import { Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
 import jsPDF from 'jspdf';
@@ -10,9 +10,10 @@ interface Props {
   initialSelectedInterview?: Interview | null;
   onClearInitialSelectedInterview?: () => void;
   onOpenChat?: (interviewId: string, candidateName: string) => void;
+  onRefresh?: () => void;
 }
 
-export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat }) => {
+export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh }) => {
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -24,6 +25,54 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSelectedInterview]);
+
+  // Approve/Reject state
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [confirmReject, setConfirmReject] = useState<Interview | null>(null);
+
+  const handleApprove = async (interview: Interview) => {
+    if (!interview.candidate_id) return;
+    setActionLoadingId(interview.id + '_approve');
+    try {
+      const { error } = await supabase
+        .from('candidates')
+        .update({ status: 'APROVADO' })
+        .eq('id', interview.candidate_id);
+      if (error) throw error;
+      onRefresh?.();
+    } catch (err) {
+      console.error('Erro ao aprovar:', err);
+      alert('Erro ao aprovar candidato. Tente novamente.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleReject = async (interview: Interview) => {
+    if (!interview.candidate_id) return;
+    setActionLoadingId(interview.id + '_reject');
+    try {
+      const { error } = await supabase
+        .from('candidates')
+        .delete()
+        .eq('id', interview.candidate_id);
+      if (error) throw error;
+
+      // Also delete the interview record
+      await supabase
+        .from('interviews')
+        .delete()
+        .eq('id', interview.id);
+
+      setConfirmReject(null);
+      onRefresh?.();
+    } catch (err) {
+      console.error('Erro ao reprovar:', err);
+      alert('Erro ao reprovar candidato. Tente novamente.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   // Filter states
   const [dateStart, setDateStart] = useState<string>('');
@@ -386,7 +435,33 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                   </div>
 
                   {/* Ações */}
-                  <div className="flex justify-center gap-2">
+                  <div className="flex justify-center gap-1.5">
+                    {/* Aprovar/Reprovar - só para CONFIRMADA e REALIZADA */}
+                    {['CONFIRMADA', 'REALIZADA'].includes(interview.status) && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApprove(interview);
+                          }}
+                          disabled={actionLoadingId === interview.id + '_approve'}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all disabled:opacity-50"
+                          title="Aprovar Candidato"
+                        >
+                          {actionLoadingId === interview.id + '_approve' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmReject(interview);
+                          }}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                          title="Reprovar Candidato"
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                     {onOpenChat && (
                       <button
                         onClick={(e) => {
@@ -584,6 +659,45 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                   </>
                 ) : (
                   'Sim, cancelar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL DE REPROVAÇÃO */}
+      {confirmReject && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl relative animate-slide-up border border-slate-200">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-red-200">
+              <ThumbsDown className="w-8 h-8 text-red-500" />
+            </div>
+
+            <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-2">Reprovar Candidato?</h3>
+            <p className="text-slate-500 mb-8">
+              Tem certeza que deseja reprovar <strong className="text-slate-700">{confirmReject.candidate_name}</strong>? O candidato e a entrevista serão removidos permanentemente.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmReject(null)}
+                disabled={!!actionLoadingId}
+                className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors disabled:opacity-50"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => handleReject(confirmReject)}
+                disabled={!!actionLoadingId}
+                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {actionLoadingId === confirmReject.id + '_reject' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Removendo...
+                  </>
+                ) : (
+                  'Sim, reprovar'
                 )}
               </button>
             </div>
