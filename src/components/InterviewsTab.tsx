@@ -29,6 +29,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
   // Approve/Reject state
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [confirmReject, setConfirmReject] = useState<Interview | null>(null);
+  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
 
   const handleApprove = async (interview: Interview) => {
     if (!interview.candidate_id) return;
@@ -39,6 +40,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         .update({ status: 'APROVADO' })
         .eq('id', interview.candidate_id);
       if (error) throw error;
+      setApprovedIds(prev => new Set(prev).add(interview.id));
       onRefresh?.();
     } catch (err) {
       console.error('Erro ao aprovar:', err);
@@ -439,27 +441,38 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                     {/* Aprovar/Reprovar - só para CONFIRMADA e REALIZADA */}
                     {['CONFIRMADA', 'REALIZADA'].includes(interview.status) && (
                       <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleApprove(interview);
-                          }}
-                          disabled={actionLoadingId === interview.id + '_approve'}
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all disabled:opacity-50"
-                          title="Aprovar Candidato"
-                        >
-                          {actionLoadingId === interview.id + '_approve' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConfirmReject(interview);
-                          }}
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-500 transition-all"
-                          title="Reprovar Candidato"
-                        >
-                          <ThumbsDown className="w-4 h-4" />
-                        </button>
+                        {approvedIds.has(interview.id) ? (
+                          <span
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200"
+                            title="Candidato aprovado"
+                          >
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApprove(interview);
+                              }}
+                              disabled={actionLoadingId === interview.id + '_approve'}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all disabled:opacity-50"
+                              title="Aprovar Candidato"
+                            >
+                              {actionLoadingId === interview.id + '_approve' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmReject(interview);
+                              }}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                              title="Reprovar Candidato"
+                            >
+                              <ThumbsDown className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                     {onOpenChat && (

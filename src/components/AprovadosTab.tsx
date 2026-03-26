@@ -258,11 +258,8 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
                 className="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] transition-all"
               >
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  {/* Avatar + Info */}
+                  {/* Info */}
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#65a30d] to-[#4d7c0f] rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0 shadow-md">
-                      {candidate.name.charAt(0).toUpperCase()}
-                    </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-base font-black text-slate-900 truncate">{candidate.name}</h3>
                       <span className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-1">
