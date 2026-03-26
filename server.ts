@@ -8,6 +8,7 @@ import { cleanPhone, sendText } from "./src/services/evolutionService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import crypto from "crypto";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
 dotenv.config();
 
@@ -580,7 +581,15 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
     } | null = null;
 
     if (["documentMessage", "documentWithCaptionMessage"].includes(messageType)) {
-      const docMsg = (message.documentMessage ?? message.documentWithCaptionMessage) as Record<string, unknown> | undefined;
+      // documentMessage: { documentMessage: { base64, mimetype, fileName, ... } }
+      // documentWithCaptionMessage: { documentWithCaptionMessage: { message: { documentMessage: { base64, ... } }, caption } }
+      let docMsg = message.documentMessage as Record<string, unknown> | undefined;
+      if (!docMsg && message.documentWithCaptionMessage) {
+        const wrapper = message.documentWithCaptionMessage as Record<string, unknown>;
+        // Try nested structure first: wrapper.message.documentMessage
+        const innerMsg = wrapper.message as Record<string, unknown> | undefined;
+        docMsg = (innerMsg?.documentMessage as Record<string, unknown> | undefined) ?? wrapper;
+      }
       mediaData = {
         key: key as Record<string, unknown>,
         message,
@@ -1215,6 +1224,734 @@ app.post("/api/agendar/:token/reschedule", async (req, res) => {
   } catch (err) {
     console.error('[Reschedule] Forward error:', err);
     return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
+// ============================================================
+// MÓDULO DE ADMISSÃO - API Routes
+// ============================================================
+
+// POST /api/admissions — Cria solicitação de documentação e envia WhatsApp
+app.post("/api/admissions", async (req, res) => {
+  try {
+    const { candidate_id, job_id, required_docs, candidate_phone, candidate_name } = req.body;
+
+    if (!candidate_id || !job_id || !required_docs?.length) {
+      return res.status(400).json({ error: "candidate_id, job_id e required_docs são obrigatórios" });
+    }
+
+    if (!candidate_phone) {
+      return res.status(400).json({ error: "Candidato não possui WhatsApp cadastrado." });
+    }
+
+    // Get the authenticated user from Supabase auth header
+    const authHeader = req.headers.authorization;
+    let userId: string | null = null;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user: authUser } } = await supabase.auth.getUser(token);
+      userId = authUser?.id || null;
+    }
+
+    // Fallback: get user_id from the job record
+    if (!userId) {
+      const { data: jobData } = await supabaseAdmin
+        .from('jobs')
+        .select('user_id')
+        .eq('id', job_id)
+        .single();
+      userId = jobData?.user_id;
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado" });
+    }
+
+    // Check if there's already a PENDING admission for this candidate+job
+    const { data: existing } = await supabaseAdmin
+      .from('admissions')
+      .select('id, token')
+      .eq('candidate_id', candidate_id)
+      .eq('job_id', job_id)
+      .in('status', ['PENDING', 'SUBMITTED'])
+      .maybeSingle();
+
+    let admissionToken: string;
+
+    if (existing) {
+      // Update existing admission with new required_docs (re-send scenario)
+      admissionToken = existing.token;
+      await supabaseAdmin
+        .from('admissions')
+        .update({ required_docs, status: 'PENDING', submitted_at: null, submitted_docs: [] })
+        .eq('id', existing.id);
+    } else {
+      // Create new admission
+      const { data: newAdmission, error: insertError } = await supabaseAdmin
+        .from('admissions')
+        .insert({
+          user_id: userId,
+          job_id,
+          candidate_id,
+          required_docs,
+          status: 'PENDING',
+        })
+        .select('token')
+        .single();
+
+      if (insertError || !newAdmission) {
+        console.error('[Admissions] Insert error:', insertError);
+        return res.status(500).json({ error: "Erro ao criar solicitação de admissão" });
+      }
+
+      admissionToken = newAdmission.token;
+    }
+
+    // Build public URL
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : `${req.protocol}://${req.get('host')}`;
+    const portalUrl = `${baseUrl}/admissao/${admissionToken}`;
+
+    // Get user's Evolution instance
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('instancia_evolution')
+      .eq('id', userId)
+      .single();
+
+    const instance = profile?.instancia_evolution;
+
+    if (instance) {
+      const firstName = (candidate_name || 'Candidato').split(' ')[0];
+      const docCount = required_docs.length;
+
+      const message = `🎉 *Parabéns, ${firstName}!*\n\n` +
+        `Você foi *aprovado(a)* no processo seletivo!\n\n` +
+        `Para seguirmos com sua admissão, precisamos de *${docCount} documento${docCount > 1 ? 's' : ''}*.\n\n` +
+        `📋 Acesse seu portal seguro para envio:\n${portalUrl}\n\n` +
+        `⏰ *Importante:* O link expira em *48 horas* após o envio dos documentos.\n\n` +
+        `Caso tenha dúvidas, entre em contato conosco.`;
+
+      // Format phone for WhatsApp JID
+      const phone = candidate_phone.replace(/\D/g, '');
+      const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+
+      await sendText(instance, jid, message);
+      console.log(`[Admissions] WhatsApp sent to ${phone} with token ${admissionToken}`);
+    } else {
+      console.warn(`[Admissions] No Evolution instance for user ${userId}. WhatsApp not sent.`);
+    }
+
+    return res.json({ ok: true, token: admissionToken });
+  } catch (err) {
+    console.error('[Admissions] Error:', err);
+    return res.status(500).json({ error: "Erro interno ao processar admissão" });
+  }
+});
+
+// GET /api/admissions/:token — Busca dados da admissão pelo token (portal público)
+app.get("/api/admissions/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from('admissions')
+      .select(`
+        id, token, required_docs, submitted_docs, status, created_at, submitted_at,
+        candidates (analysis_result),
+        jobs (title)
+      `)
+      .eq('token', token)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: "Solicitação não encontrada ou expirada." });
+    }
+
+    if (data.status === 'EXPIRED') {
+      return res.status(410).json({ error: "Esta solicitação expirou. Os documentos foram deletados conforme a LGPD." });
+    }
+
+    const analysisResult = data.candidates?.analysis_result;
+    let candidateName = 'Candidato';
+    if (analysisResult) {
+      try {
+        const parsed = typeof analysisResult === 'string' ? JSON.parse(analysisResult) : analysisResult;
+        candidateName = parsed?.candidateName || 'Candidato';
+      } catch {}
+    }
+
+    return res.json({
+      id: data.id,
+      token: data.token,
+      required_docs: data.required_docs,
+      submitted_docs: data.submitted_docs || [],
+      status: data.status,
+      candidate_name: candidateName,
+      job_title: data.jobs?.title || '',
+    });
+  } catch (err) {
+    console.error('[Admissions] GET error:', err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// POST /api/admissions/:token/upload — Candidato faz upload de um documento
+app.post("/api/admissions/:token/upload", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { doc_name, file_base64, file_name, content_type } = req.body;
+
+    if (!doc_name || !file_base64 || !file_name) {
+      return res.status(400).json({ error: "doc_name, file_base64 e file_name são obrigatórios" });
+    }
+
+    // Validate admission exists and is PENDING
+    const { data: admission, error } = await supabaseAdmin
+      .from('admissions')
+      .select('id, token, status, submitted_docs')
+      .eq('token', token)
+      .single();
+
+    if (error || !admission) {
+      return res.status(404).json({ error: "Solicitação não encontrada." });
+    }
+
+    if (admission.status === 'EXPIRED') {
+      return res.status(410).json({ error: "Solicitação expirada." });
+    }
+
+    // Upload file to admission_docs bucket
+    const buffer = Buffer.from(file_base64, 'base64');
+    const safeFileName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `${token}/${Date.now()}_${safeFileName}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('admission_docs')
+      .upload(filePath, buffer, {
+        contentType: content_type || 'image/jpeg',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('[Admissions] Upload error:', uploadError);
+      return res.status(500).json({ error: "Erro ao fazer upload do documento." });
+    }
+
+    // Update submitted_docs in the admission record
+    const existingDocs = admission.submitted_docs || [];
+    const updatedDocs = [
+      ...existingDocs.filter((d: any) => d.name !== doc_name), // Replace if same doc name
+      {
+        name: doc_name,
+        file_path: filePath,
+        file_name: safeFileName,
+        uploaded_at: new Date().toISOString(),
+      },
+    ];
+
+    await supabaseAdmin
+      .from('admissions')
+      .update({ submitted_docs: updatedDocs })
+      .eq('id', admission.id);
+
+    return res.json({ ok: true, file_path: filePath });
+  } catch (err) {
+    console.error('[Admissions] Upload error:', err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// POST /api/admissions/:token/submit — Candidato finaliza envio de documentos
+app.post("/api/admissions/:token/submit", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const { data: admission, error } = await supabaseAdmin
+      .from('admissions')
+      .select('id, status, submitted_docs, required_docs')
+      .eq('token', token)
+      .single();
+
+    if (error || !admission) {
+      return res.status(404).json({ error: "Solicitação não encontrada." });
+    }
+
+    if (admission.status !== 'PENDING') {
+      return res.status(400).json({ error: "Documentos já foram enviados." });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000); // 48h
+
+    await supabaseAdmin
+      .from('admissions')
+      .update({
+        status: 'SUBMITTED',
+        submitted_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+      })
+      .eq('id', admission.id);
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[Admissions] Submit error:', err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// GET /api/admissions/:id/dossier — Gera PDF dossiê com pdf-lib
+app.get("/api/admissions/:id/dossier", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch admission with related data
+    const { data: admission, error } = await supabaseAdmin
+      .from('admissions')
+      .select(`
+        *,
+        candidates (analysis_result, "WhatsApp com DDD"),
+        jobs (title)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error || !admission) {
+      return res.status(404).json({ error: "Admissão não encontrada." });
+    }
+
+    if (admission.status === 'EXPIRED') {
+      return res.status(410).json({ error: "Documentos expirados e deletados conforme LGPD." });
+    }
+
+    if (!admission.submitted_docs?.length) {
+      return res.status(400).json({ error: "Nenhum documento foi enviado ainda." });
+    }
+
+    // Extract candidate name
+    let candidateName = 'Candidato';
+    if (admission.candidates?.analysis_result) {
+      try {
+        const parsed = typeof admission.candidates.analysis_result === 'string'
+          ? JSON.parse(admission.candidates.analysis_result)
+          : admission.candidates.analysis_result;
+        candidateName = parsed?.candidateName || 'Candidato';
+      } catch {}
+    }
+
+    const jobTitle = admission.jobs?.title || 'Vaga';
+
+    // Create PDF document
+    const pdfDoc = await PDFDocument.create();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    const A4_WIDTH = 595.28;
+    const A4_HEIGHT = 841.89;
+    const MARGIN = 50;
+    const CONTENT_WIDTH = A4_WIDTH - MARGIN * 2;
+
+    // --- COVER PAGE ---
+    const coverPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+
+    // Header bar
+    coverPage.drawRectangle({
+      x: 0, y: A4_HEIGHT - 120,
+      width: A4_WIDTH, height: 120,
+      color: rgb(0.05, 0.05, 0.05),
+    });
+
+    // Title
+    coverPage.drawText('DOSSIÊ DE ADMISSÃO', {
+      x: MARGIN, y: A4_HEIGHT - 55,
+      size: 24, font: fontBold,
+      color: rgb(0.52, 0.8, 0.08), // #84cc16
+    });
+
+    // Subtitle
+    coverPage.drawText('Documentação do Candidato', {
+      x: MARGIN, y: A4_HEIGHT - 80,
+      size: 12, font,
+      color: rgb(0.7, 0.7, 0.7),
+    });
+
+    // Elevva branding
+    coverPage.drawText('Elevva', {
+      x: A4_WIDTH - MARGIN - 60, y: A4_HEIGHT - 55,
+      size: 18, font: fontBold,
+      color: rgb(0.52, 0.8, 0.08),
+    });
+
+    // Candidate info section
+    let y = A4_HEIGHT - 180;
+
+    const drawInfoLine = (label: string, value: string) => {
+      coverPage.drawText(label, {
+        x: MARGIN, y,
+        size: 10, font: fontBold,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      coverPage.drawText(value, {
+        x: MARGIN + 120, y,
+        size: 11, font,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+      y -= 24;
+    };
+
+    drawInfoLine('Candidato:', candidateName);
+    drawInfoLine('Vaga:', jobTitle);
+    drawInfoLine('WhatsApp:', admission.candidates?.['WhatsApp com DDD'] || 'N/A');
+    drawInfoLine('Data de envio:', admission.submitted_at
+      ? new Date(admission.submitted_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : 'N/A');
+    drawInfoLine('Total de docs:', `${admission.submitted_docs.length} documento(s)`);
+
+    // Separator
+    y -= 10;
+    coverPage.drawLine({
+      start: { x: MARGIN, y },
+      end: { x: A4_WIDTH - MARGIN, y },
+      thickness: 1,
+      color: rgb(0.85, 0.85, 0.85),
+    });
+
+    // Documents index
+    y -= 30;
+    coverPage.drawText('DOCUMENTOS INCLUÍDOS', {
+      x: MARGIN, y,
+      size: 12, font: fontBold,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+    y -= 25;
+
+    for (let i = 0; i < admission.submitted_docs.length; i++) {
+      const doc = admission.submitted_docs[i];
+      coverPage.drawText(`${i + 1}.  ${doc.name}`, {
+        x: MARGIN + 10, y,
+        size: 10, font,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+      y -= 20;
+    }
+
+    // LGPD notice
+    y -= 30;
+    coverPage.drawRectangle({
+      x: MARGIN, y: y - 50,
+      width: CONTENT_WIDTH, height: 60,
+      color: rgb(0.98, 0.96, 0.9),
+      borderColor: rgb(0.9, 0.85, 0.7),
+      borderWidth: 1,
+    });
+    coverPage.drawText('AVISO LGPD', {
+      x: MARGIN + 15, y: y - 10,
+      size: 9, font: fontBold,
+      color: rgb(0.6, 0.5, 0.2),
+    });
+    coverPage.drawText('Este documento contém dados pessoais sensíveis. Manuseie conforme a Lei Geral de', {
+      x: MARGIN + 15, y: y - 25,
+      size: 8, font,
+      color: rgb(0.5, 0.4, 0.2),
+    });
+    coverPage.drawText('Proteção de Dados (LGPD). Os originais foram deletados automaticamente após 48 horas.', {
+      x: MARGIN + 15, y: y - 37,
+      size: 8, font,
+      color: rgb(0.5, 0.4, 0.2),
+    });
+
+    // --- DOCUMENT PAGES ---
+    for (const doc of admission.submitted_docs) {
+      try {
+        // Download file from storage
+        const { data: fileData, error: downloadError } = await supabaseAdmin.storage
+          .from('admission_docs')
+          .download(doc.file_path);
+
+        if (downloadError || !fileData) {
+          console.error(`[Dossier] Failed to download ${doc.file_path}:`, downloadError);
+          // Add error page
+          const errorPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+          errorPage.drawText(`Documento: ${doc.name}`, {
+            x: MARGIN, y: A4_HEIGHT - MARGIN - 20,
+            size: 14, font: fontBold,
+            color: rgb(0.1, 0.1, 0.1),
+          });
+          errorPage.drawText('Erro: arquivo não encontrado no storage.', {
+            x: MARGIN, y: A4_HEIGHT - MARGIN - 50,
+            size: 11, font,
+            color: rgb(0.8, 0.2, 0.2),
+          });
+          continue;
+        }
+
+        const arrayBuffer = await fileData.arrayBuffer();
+        const uint8 = new Uint8Array(arrayBuffer);
+
+        // Check if it's a PDF
+        const isPdf = doc.file_path.toLowerCase().endsWith('.pdf') ||
+          (uint8[0] === 0x25 && uint8[1] === 0x50 && uint8[2] === 0x44 && uint8[3] === 0x46); // %PDF
+
+        if (isPdf) {
+          // Embed PDF pages
+          try {
+            const embeddedPdf = await PDFDocument.load(uint8);
+            const pageIndices = embeddedPdf.getPageIndices();
+            const copiedPages = await pdfDoc.copyPages(embeddedPdf, pageIndices);
+
+            // Add label page before the document
+            const labelPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+            labelPage.drawRectangle({
+              x: 0, y: A4_HEIGHT / 2 - 30,
+              width: A4_WIDTH, height: 60,
+              color: rgb(0.96, 0.96, 0.96),
+            });
+            labelPage.drawText(doc.name, {
+              x: MARGIN, y: A4_HEIGHT / 2 - 5,
+              size: 20, font: fontBold,
+              color: rgb(0.1, 0.1, 0.1),
+            });
+            labelPage.drawText(`Documento PDF — ${copiedPages.length} página(s)`, {
+              x: MARGIN, y: A4_HEIGHT / 2 - 25,
+              size: 10, font,
+              color: rgb(0.5, 0.5, 0.5),
+            });
+
+            copiedPages.forEach(page => pdfDoc.addPage(page));
+          } catch (pdfErr) {
+            console.error(`[Dossier] Error embedding PDF ${doc.name}:`, pdfErr);
+            const errorPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+            errorPage.drawText(`Documento: ${doc.name}`, {
+              x: MARGIN, y: A4_HEIGHT - MARGIN - 20,
+              size: 14, font: fontBold, color: rgb(0.1, 0.1, 0.1),
+            });
+            errorPage.drawText('Erro: PDF corrompido ou protegido.', {
+              x: MARGIN, y: A4_HEIGHT - MARGIN - 50,
+              size: 11, font, color: rgb(0.8, 0.2, 0.2),
+            });
+          }
+        } else {
+          // It's an image — embed on A4 page with label
+          const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+
+          // Document label header
+          page.drawRectangle({
+            x: 0, y: A4_HEIGHT - 45,
+            width: A4_WIDTH, height: 45,
+            color: rgb(0.96, 0.96, 0.96),
+          });
+          page.drawText(doc.name, {
+            x: MARGIN, y: A4_HEIGHT - 30,
+            size: 12, font: fontBold,
+            color: rgb(0.2, 0.2, 0.2),
+          });
+
+          try {
+            // Detect image type and embed
+            let image;
+            const isJpeg = uint8[0] === 0xFF && uint8[1] === 0xD8;
+            const isPng = uint8[0] === 0x89 && uint8[1] === 0x50;
+
+            if (isPng) {
+              image = await pdfDoc.embedPng(uint8);
+            } else if (isJpeg) {
+              image = await pdfDoc.embedJpg(uint8);
+            } else {
+              // Try JPEG as fallback (our compression outputs JPEG)
+              image = await pdfDoc.embedJpg(uint8);
+            }
+
+            // Scale to fit within page margins with padding
+            const imgPadding = 20;
+            const maxImgWidth = CONTENT_WIDTH;
+            const maxImgHeight = A4_HEIGHT - MARGIN * 2 - 45 - imgPadding; // account for header
+
+            const imgDims = image.scaleToFit(maxImgWidth, maxImgHeight);
+
+            // Center image horizontally
+            const imgX = MARGIN + (maxImgWidth - imgDims.width) / 2;
+            const imgY = MARGIN + (maxImgHeight - imgDims.height) / 2;
+
+            page.drawImage(image, {
+              x: imgX, y: imgY,
+              width: imgDims.width,
+              height: imgDims.height,
+            });
+          } catch (imgErr) {
+            console.error(`[Dossier] Error embedding image ${doc.name}:`, imgErr);
+            page.drawText('Erro ao processar imagem.', {
+              x: MARGIN, y: A4_HEIGHT / 2,
+              size: 11, font,
+              color: rgb(0.8, 0.2, 0.2),
+            });
+          }
+        }
+      } catch (docErr) {
+        console.error(`[Dossier] Error processing ${doc.name}:`, docErr);
+      }
+    }
+
+    // Generate PDF bytes
+    const pdfBytes = await pdfDoc.save();
+
+    // Update admission status to DOWNLOADED
+    await supabaseAdmin
+      .from('admissions')
+      .update({ status: 'DOWNLOADED' })
+      .eq('id', id);
+
+    // Send PDF response
+    const safeName = candidateName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="dossie_${safeName}.pdf"`);
+    res.setHeader('Content-Length', pdfBytes.length.toString());
+    return res.send(Buffer.from(pdfBytes));
+
+  } catch (err) {
+    console.error('[Dossier] Error:', err);
+    return res.status(500).json({ error: "Erro ao gerar dossiê PDF." });
+  }
+});
+
+// GET /api/cron/admission-cleanup — Cron job para limpeza LGPD 48h
+app.get("/api/cron/admission-cleanup", async (req, res) => {
+  // Verify cron secret
+  const secret = req.headers['authorization']?.replace('Bearer ', '') || req.query.secret;
+  if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const now = new Date().toISOString();
+
+    // 1. Find admissions that expired (submitted_at + 48h < now)
+    const { data: expired, error } = await supabaseAdmin
+      .from('admissions')
+      .select('id, token, user_id, candidate_id')
+      .eq('status', 'SUBMITTED')
+      .lt('expires_at', now);
+
+    if (error) {
+      console.error('[LGPD Cleanup] Query error:', error);
+      return res.status(500).json({ error: "Query error" });
+    }
+
+    // Also handle DOWNLOADED status past expiry
+    const { data: downloadedExpired } = await supabaseAdmin
+      .from('admissions')
+      .select('id, token, user_id, candidate_id')
+      .eq('status', 'DOWNLOADED')
+      .lt('expires_at', now);
+
+    const allExpired = [...(expired || []), ...(downloadedExpired || [])];
+
+    let cleaned = 0;
+
+    for (const admission of allExpired) {
+      // Delete files from storage
+      const { data: files } = await supabaseAdmin.storage
+        .from('admission_docs')
+        .list(admission.token);
+
+      if (files?.length) {
+        const paths = files.map(f => `${admission.token}/${f.name}`);
+        await supabaseAdmin.storage
+          .from('admission_docs')
+          .remove(paths);
+      }
+
+      // Mark as expired
+      await supabaseAdmin
+        .from('admissions')
+        .update({ status: 'EXPIRED' })
+        .eq('id', admission.id);
+
+      cleaned++;
+    }
+
+    // 2. Send warnings for admissions expiring in the next 12h
+    const warningThreshold = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+    const { data: soonExpiring } = await supabaseAdmin
+      .from('admissions')
+      .select('id, token, user_id, candidate_id, expires_at')
+      .in('status', ['SUBMITTED', 'DOWNLOADED'])
+      .gt('expires_at', now)
+      .lt('expires_at', warningThreshold)
+      .eq('expiry_notified', false);
+
+    let notified = 0;
+
+    for (const admission of soonExpiring || []) {
+      // Get recruiter's Evolution instance
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('instancia_evolution, phone')
+        .eq('id', admission.user_id)
+        .single();
+
+      if (profile?.instancia_evolution && profile?.phone) {
+        const { data: candidate } = await supabaseAdmin
+          .from('candidates')
+          .select('analysis_result')
+          .eq('id', admission.candidate_id)
+          .single();
+
+        let candidateName = 'Candidato';
+        if (candidate?.analysis_result) {
+          try {
+            const parsed = typeof candidate.analysis_result === 'string'
+              ? JSON.parse(candidate.analysis_result)
+              : candidate.analysis_result;
+            candidateName = parsed?.candidateName || 'Candidato';
+          } catch {}
+        }
+
+        const expiresAt = new Date(admission.expires_at);
+        const hoursLeft = Math.round((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60));
+
+        const message = `⚠️ *Aviso LGPD - Documentos Expirando*\n\n` +
+          `Os documentos de admissão de *${candidateName}* serão deletados automaticamente em *${hoursLeft} hora${hoursLeft !== 1 ? 's' : ''}*.\n\n` +
+          `📥 Baixe o dossiê PDF antes do prazo no painel Elevva.`;
+
+        const phone = profile.phone.replace(/\D/g, '');
+        const jid = `${phone}@s.whatsapp.net`;
+        await sendText(profile.instancia_evolution, jid, message);
+
+        // Mark as notified
+        await supabaseAdmin
+          .from('admissions')
+          .update({ expiry_notified: true })
+          .eq('id', admission.id);
+
+        notified++;
+      }
+    }
+
+    return res.json({
+      ok: true,
+      cleaned,
+      notified,
+      total_expired: allExpired.length,
+      total_warning: soonExpiring?.length || 0,
+    });
+  } catch (err) {
+    console.error('[LGPD Cleanup] Error:', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Serve the admission portal SPA page
+app.get("/admissao/:token", async (req, res) => {
+  // Return a simple HTML page that loads the React app
+  // The React app will handle the token-based routing
+  if (process.env.NODE_ENV === 'production') {
+    // In production, serve the SPA
+    res.sendFile('index.html', { root: 'dist' });
+  } else {
+    // In dev, let Vite handle it
+    res.redirect(`/?admissao=${req.params.token}`);
   }
 });
 

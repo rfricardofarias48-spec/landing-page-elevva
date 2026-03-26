@@ -107,6 +107,7 @@ export interface AdminUserProfile {
   jobs_count?: number; 
   resume_usage?: number; // Adicionado para coluna da tabela
   last_active?: string;
+  job_limit?: number; // Limite de vagas (customizável para Enterprise)
   subscription_status?: 'active' | 'past_due' | 'canceled' | 'trialing'; // Novo campo para cancelamentos
   current_period_end?: string; // NOVO: Data de renovação do plano
   salesperson?: string; // NOVO: Nome do vendedor
@@ -138,3 +139,56 @@ export interface Interview {
 }
 
 export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD' | 'SCHEDULING';
+
+// ============================================================
+// MÓDULO DE ADMISSÃO
+// ============================================================
+
+export type AdmissionStatus = 'PENDING' | 'SUBMITTED' | 'DOWNLOADED' | 'EXPIRED';
+
+export interface RequiredDoc {
+  name: string;
+  required: boolean;
+  frontBack: boolean; // Se exige frente e verso
+}
+
+export interface SubmittedDoc {
+  name: string;
+  file_path: string;
+  uploaded_at: string;
+  file_name: string;
+}
+
+export interface Admission {
+  id: string;
+  user_id: string;
+  job_id: string;
+  candidate_id: string;
+  token: string;
+  required_docs: RequiredDoc[];
+  submitted_docs: SubmittedDoc[];
+  status: AdmissionStatus;
+  created_at: string;
+  submitted_at?: string;
+  expires_at?: string;
+  expiry_notified: boolean;
+  // Campos relacionais para UI
+  candidate_name?: string;
+  candidate_phone?: string;
+  job_title?: string;
+}
+
+// Documentos comuns pré-configurados para o modal do recrutador
+export const DEFAULT_ADMISSION_DOCS: RequiredDoc[] = [
+  { name: 'RG (Frente e Verso)', required: true, frontBack: true },
+  { name: 'CPF', required: true, frontBack: false },
+  { name: 'Comprovante de Residência', required: true, frontBack: false },
+  { name: 'Carteira de Trabalho (CTPS)', required: false, frontBack: false },
+  { name: 'Título de Eleitor', required: false, frontBack: false },
+  { name: 'Certidão de Nascimento ou Casamento', required: false, frontBack: false },
+  { name: 'Comprovante de Escolaridade', required: false, frontBack: false },
+  { name: 'Foto 3x4', required: false, frontBack: false },
+  { name: 'CNH', required: false, frontBack: true },
+  { name: 'Certificado de Reservista', required: false, frontBack: false },
+  { name: 'PIS/PASEP', required: false, frontBack: false },
+];

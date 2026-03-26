@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './services/supabaseClient';
-import { Job, Candidate, CandidateStatus, User, ViewState, Announcement, AnalysisResult } from './types';
+import { Job, Candidate, CandidateStatus, User, ViewState, Announcement, AnalysisResult, Admission } from './types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
@@ -8,16 +8,18 @@ import { LoginScreen } from './components/LoginScreen';
 import { AdminDashboard } from './components/AdminDashboard';
 import { PublicUploadScreen } from './components/PublicUploadScreen';
 import { PublicSchedulingScreen } from './components/PublicSchedulingScreen';
+import { PublicAdmissionScreen } from './components/PublicAdmissionScreen';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
 import { ScheduleInterviewsModal } from './components/ScheduleInterviewsModal';
 import { InterviewsTab } from './components/InterviewsTab';
+import { AprovadosTab } from './components/AprovadosTab';
 import { BentoChat } from './components/BentoChat';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck
 } from 'lucide-react';
 
 // Chama o backend para analisar o currículo — mantém código Node.js fora do bundle do browser
@@ -31,7 +33,7 @@ async function analyzeResume(base64: string, jobTitle: string, criteria: string)
   return res.json() as Promise<AnalysisResult>;
 }
 
-type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'BILLING' | 'SETTINGS';
+type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'APROVADOS' | 'BILLING' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
 const extractAnalysisResult = (rawResult: unknown): AnalysisResult | undefined => {
@@ -187,6 +189,7 @@ const App: React.FC = () => {
     interviewsRef.current = interviews;
   }, [interviews]);
   const [initialSelectedInterview, setInitialSelectedInterview] = useState<Record<string, unknown> | null>(null);
+  const [admissions, setAdmissions] = useState<Admission[]>([]);
   
   // Billing Period
   const [isAnnual, setIsAnnual] = useState(false);
@@ -368,6 +371,20 @@ const App: React.FC = () => {
       )
       .subscribe();
 
+    const admissionsChannel = supabase.channel(`admissions-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'admissions',
+        },
+        () => {
+          fetchAdmissions(user.id);
+        }
+      )
+      .subscribe();
+
     const interviewSlotsChannel = supabase.channel(`interview_slots-${user.id}`)
       .on(
         'postgres_changes',
@@ -481,6 +498,7 @@ const App: React.FC = () => {
         clearInterval(pollingInterval);
         supabase.removeChannel(profileChannel);
         supabase.removeChannel(interviewChannel);
+        supabase.removeChannel(admissionsChannel);
         supabase.removeChannel(interviewSlotsChannel);
         supabase.removeChannel(mensagensBentoChannel);
     }
@@ -743,7 +761,7 @@ const App: React.FC = () => {
         ...data,
         role: isAdmin ? 'ADMIN' : (data.role || 'USER'), // Força Admin se email bater
         name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário', // Fallback para não quebrar a UI
-        job_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.job_limit ?? 3),
+        job_limit: data.plan === 'ENTERPRISE' ? (data.job_limit ?? 9999) : (data.job_limit ?? 3),
         resume_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.resume_limit ?? 9999),
         resume_usage: data.resume_usage ?? 0,
         plan: data.plan || 'ESSENCIAL'
@@ -774,6 +792,7 @@ const App: React.FC = () => {
       await Promise.all([
           fetchJobs(userId),
           fetchInterviews(userId),
+          fetchAdmissions(userId),
           fetchAnnouncements(),
           runDataRetentionCleanup() // Executa limpeza ao carregar
       ]);
@@ -1025,6 +1044,38 @@ const App: React.FC = () => {
     });
 
     setInterviews(formattedInterviews);
+  };
+
+  const fetchAdmissions = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('admissions')
+      .select(`
+        *,
+        jobs (title),
+        candidates (analysis_result, "WhatsApp com DDD")
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Erro ao buscar admissões:", error);
+      return;
+    }
+
+    const formatted: Admission[] = (data || []).map((a: Record<string, unknown>) => {
+      const analysisResult = extractAnalysisResult((a.candidates as Record<string, unknown>)?.analysis_result);
+      return {
+        ...a,
+        candidate_name: analysisResult?.candidateName || 'Candidato',
+        candidate_phone: (a.candidates as Record<string, unknown>)?.['WhatsApp com DDD'] as string || '',
+        job_title: (a.jobs as Record<string, unknown>)?.title as string || '',
+        required_docs: a.required_docs || [],
+        submitted_docs: a.submitted_docs || [],
+        expiry_notified: a.expiry_notified || false,
+      } as Admission;
+    });
+
+    setAdmissions(formatted);
   };
 
   const fetchJobs = async (userId: string) => {
@@ -2317,6 +2368,14 @@ const App: React.FC = () => {
       return <PublicSchedulingScreen token={_agendarMatch[1]} />;
   }
 
+  // Public Admission Portal — check path or query param (dev mode redirect)
+  const _admissaoMatch = window.location.pathname.match(/^\/admissao\/([a-f0-9-]+)$/i);
+  const _admissaoQuery = new URLSearchParams(window.location.search).get('admissao');
+  const _admissaoToken = _admissaoMatch?.[1] || _admissaoQuery;
+  if (_admissaoToken) {
+      return <PublicAdmissionScreen token={_admissaoToken} />;
+  }
+
   // Public Upload View
   if (view === 'PUBLIC_UPLOAD') {
       return (
@@ -2416,7 +2475,14 @@ const App: React.FC = () => {
                 <Calendar className="w-6 h-6 lg:mr-3" />
                 <span className="hidden lg:block font-bold text-sm">Entrevistas</span>
             </button>
-            <button 
+            <button
+                onClick={() => { setCurrentTab('APROVADOS'); setView('DASHBOARD'); }}
+                className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'APROVADOS' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
+            >
+                <UserCheck className="w-6 h-6 lg:mr-3" />
+                <span className="hidden lg:block font-bold text-sm">Aprovados</span>
+            </button>
+            <button
                 onClick={() => { setCurrentTab('BILLING'); setView('DASHBOARD'); }}
                 className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'BILLING' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
             >
@@ -2459,6 +2525,7 @@ const App: React.FC = () => {
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
                {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} />}
+               {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} />}
                {currentTab === 'JOBS' && (
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
