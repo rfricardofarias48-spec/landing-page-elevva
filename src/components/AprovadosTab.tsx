@@ -265,20 +265,10 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-base font-black text-slate-900 truncate">{candidate.name}</h3>
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
-                          <Briefcase className="w-3.5 h-3.5" />
-                          {candidate.jobTitle}
-                        </span>
-                        {candidate.phone && (
-                          <span className="text-xs font-bold text-slate-400">
-                            {candidate.phone}
-                          </span>
-                        )}
-                        <span className="text-xs font-bold text-[#65a30d]">
-                          Score: {candidate.score}/10
-                        </span>
-                      </div>
+                      <span className="text-xs font-bold text-slate-400 flex items-center gap-1 mt-1">
+                        <Briefcase className="w-3.5 h-3.5" />
+                        {candidate.jobTitle}
+                      </span>
                     </div>
                   </div>
 
