@@ -35,7 +35,7 @@ export const PublicSchedulingScreen: React.FC<Props> = ({ token }) => {
         return;
       }
 
-      if (data.status === 'AGENDADA' || data.status === 'ENTREVISTA_CONFIRMADA') {
+      if (data.status === 'AGENDADA' || data.status === 'ENTREVISTA_CONFIRMADA' || data.status === 'CONFIRMADA') {
         setSuccess(true);
         setLoading(false);
         return;

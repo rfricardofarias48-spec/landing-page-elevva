@@ -188,6 +188,9 @@ const App: React.FC = () => {
   }, [interviews]);
   const [initialSelectedInterview, setInitialSelectedInterview] = useState<Record<string, unknown> | null>(null);
   
+  // Billing Period
+  const [isAnnual, setIsAnnual] = useState(false);
+
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
@@ -2015,23 +2018,46 @@ const App: React.FC = () => {
 
           {/* Upgrade Options */}
           <div>
-              <h3 className="text-xl font-black text-slate-900 mb-6 tracking-tighter flex items-center gap-2">
-                  <ArrowUpRight className="w-5 h-5" /> Planos Disponíveis
-              </h3>
-                  
+              <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-black text-slate-900 tracking-tighter flex items-center gap-2">
+                      <ArrowUpRight className="w-5 h-5" /> Planos Disponíveis
+                  </h3>
+                  <div className="flex items-center gap-3">
+                      <span className={`text-xs font-bold transition-colors ${!isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Mensal</span>
+                      <button
+                          onClick={() => setIsAnnual(!isAnnual)}
+                          className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${isAnnual ? 'bg-[#65a30d]' : 'bg-slate-200'}`}
+                      >
+                          <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${isAnnual ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </button>
+                      <span className={`text-xs font-bold transition-colors ${isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Anual</span>
+                      {isAnnual && (
+                          <span className="text-[10px] font-black text-[#65a30d] bg-[#65a30d]/10 px-2.5 py-1 rounded-lg uppercase tracking-wider">20% off</span>
+                      )}
+                  </div>
+              </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {/* Plano Essencial */}
                       <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 h-full min-h-[450px]">
                           <h4 className="text-2xl font-black text-slate-900 mb-2 mt-2 tracking-tighter">Essencial</h4>
                           <p className="text-sm text-slate-500 font-medium mb-6">Para equipes enxutas e recrutamento ágil.</p>
-                          
-                          <div className="text-slate-900 mb-6 flex items-baseline">
+
+                          <div className="text-slate-900 mb-2 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-5xl font-black tracking-tighter">499</span>
+                              <span className="text-5xl font-black tracking-tighter">{isAnnual ? '399' : '499'}</span>
                               <span className="text-xl font-bold">,90</span>
                               <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                           </div>
-                          
+                          {isAnnual ? (
+                              <div className="mb-6">
+                                  <span className="text-xs text-slate-400 line-through mr-2">R$ 5.998,80</span>
+                                  <span className="text-xs font-bold text-[#65a30d]">R$ 4.798,80/ano</span>
+                              </div>
+                          ) : (
+                              <div className="mb-6 h-4"></div>
+                          )}
+
                           <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
@@ -2059,7 +2085,7 @@ const App: React.FC = () => {
                               </div>
                           ) : (
                               <div className="mt-auto pt-4">
-                                  <a href="https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 text-center block">
+                                  <a href={isAnnual ? 'https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP' : 'https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j'} target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-colors hover:bg-slate-50 text-center block">
                                       {normalizedPlan === 'PRO' || normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial'}
                                   </a>
                               </div>
@@ -2071,17 +2097,25 @@ const App: React.FC = () => {
                           <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
                               <Star className="w-3 h-3 fill-black" /> Mais Popular
                           </div>
-                          
+
                           <h4 className="text-2xl font-black text-white mb-2 mt-2 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-6">Tração total para seu RH com mais vagas.</p>
-                          
-                          <div className="text-white mb-6 flex items-baseline">
+
+                          <div className="text-white mb-2 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-5xl font-black tracking-tighter">799</span>
-                              <span className="text-xl font-bold">,90</span>
+                              <span className="text-5xl font-black tracking-tighter">{isAnnual ? '639' : '799'}</span>
+                              <span className="text-xl font-bold">,{isAnnual ? '92' : '90'}</span>
                               <span className="text-xs font-bold text-zinc-500 ml-1">/MÊS</span>
                           </div>
-                          
+                          {isAnnual ? (
+                              <div className="mb-6">
+                                  <span className="text-xs text-zinc-500 line-through mr-2">R$ 9.598,80</span>
+                                  <span className="text-xs font-bold text-[#65a30d]">R$ 7.679,04/ano</span>
+                              </div>
+                          ) : (
+                              <div className="mb-6 h-4"></div>
+                          )}
+
                           <div className="space-y-4 mb-8 text-sm font-medium text-zinc-300 flex-1">
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
@@ -2109,7 +2143,7 @@ const App: React.FC = () => {
                               </div>
                           ) : (
                               <div className="mt-auto pt-4">
-                                  <a href="https://invoice.infinitepay.io/plans/velorh/1p1tYQnp1" target="_blank" rel="noopener noreferrer" className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-2xl text-sm transition-colors text-center block">
+                                  <a href={isAnnual ? 'https://invoice.infinitepay.io/plans/velorh/1UyFNCHNaJ' : 'https://invoice.infinitepay.io/plans/velorh/T3K76HPHZ'} target="_blank" rel="noopener noreferrer" className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-2xl text-sm transition-colors text-center block">
                                       {normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade'}
                                   </a>
                               </div>
@@ -2120,11 +2154,12 @@ const App: React.FC = () => {
                       <div className="bg-white rounded-[2rem] p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full min-h-[450px]">
                           <h4 className="text-2xl font-black text-slate-900 mb-2 mt-2 flex items-center gap-2 tracking-tighter">Enterprise</h4>
                           <p className="text-sm text-slate-500 font-medium mb-6">Solução sob medida para grandes operações.</p>
-                          
-                          <div className="text-slate-900 mb-6 flex items-baseline">
+
+                          <div className="text-slate-900 mb-2 flex items-baseline">
                               <span className="text-4xl font-black tracking-tighter">A consultar</span>
                           </div>
-                          
+                          <div className="mb-6 h-4"></div>
+
                           <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
@@ -2136,7 +2171,7 @@ const App: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>Integração via Webhook (n8n)</span>
+                                  <span>Integração via API</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>

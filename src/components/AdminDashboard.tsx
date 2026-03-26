@@ -1064,7 +1064,7 @@ export const AdminDashboard: React.FC = () => {
                                             <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas / CVs Ilimitados</span>
                                         </button>
                                         <button onClick={() => handleUpdatePlan('ENTERPRISE')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
-                                            <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + n8n</span>
+                                            <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + API</span>
                                         </button>
                                         <button onClick={() => handleUpdatePlan('ADMIN')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
                                             <span>ADMIN</span> <span className="text-[10px] text-zinc-400 font-normal">Acesso Total</span>
@@ -1089,7 +1089,7 @@ export const AdminDashboard: React.FC = () => {
                         {selectedUser.plan === 'ENTERPRISE' && (
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 relative group">
                                 <div className="flex justify-between items-start mb-4">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações Enterprise (n8n)</p>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações Enterprise</p>
                                     <button 
                                         onClick={() => {
                                             if (isEditingEnterprise) {
