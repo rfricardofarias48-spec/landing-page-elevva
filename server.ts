@@ -1308,10 +1308,9 @@ app.post("/api/admissions", async (req, res) => {
       admissionToken = newAdmission.token;
     }
 
-    // Build public URL
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : `${req.protocol}://${req.get('host')}`;
+    // Build public URL — prefer BASE_URL (custom domain) over VERCEL_URL (deployment URL)
+    const baseUrl = process.env.BASE_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${req.protocol}://${req.get('host')}`);
     const portalUrl = `${baseUrl}/admissao/${admissionToken}`;
 
     // Get user's Evolution instance

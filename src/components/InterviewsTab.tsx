@@ -11,9 +11,10 @@ interface Props {
   onClearInitialSelectedInterview?: () => void;
   onOpenChat?: (interviewId: string, candidateName: string) => void;
   onRefresh?: () => void;
+  approvedCandidateIds?: Set<string>;
 }
 
-export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh }) => {
+export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh, approvedCandidateIds = new Set() }) => {
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -29,7 +30,10 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
   // Approve/Reject state
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [confirmReject, setConfirmReject] = useState<Interview | null>(null);
-  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
+
+  const isCandidateApproved = (interview: Interview) => {
+    return interview.candidate_id ? approvedCandidateIds.has(interview.candidate_id) : false;
+  };
 
   const handleApprove = async (interview: Interview) => {
     if (!interview.candidate_id) return;
@@ -40,11 +44,28 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         .update({ status: 'APROVADO' })
         .eq('id', interview.candidate_id);
       if (error) throw error;
-      setApprovedIds(prev => new Set(prev).add(interview.id));
       onRefresh?.();
     } catch (err) {
       console.error('Erro ao aprovar:', err);
       alert('Erro ao aprovar candidato. Tente novamente.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleUnapprove = async (interview: Interview) => {
+    if (!interview.candidate_id) return;
+    setActionLoadingId(interview.id + '_unapprove');
+    try {
+      const { error } = await supabase
+        .from('candidates')
+        .update({ status: 'COMPLETED' })
+        .eq('id', interview.candidate_id);
+      if (error) throw error;
+      onRefresh?.();
+    } catch (err) {
+      console.error('Erro ao cancelar aprovação:', err);
+      alert('Erro ao cancelar aprovação. Tente novamente.');
     } finally {
       setActionLoadingId(null);
     }
@@ -441,13 +462,18 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                     {/* Aprovar/Reprovar - só para CONFIRMADA e REALIZADA */}
                     {['CONFIRMADA', 'REALIZADA'].includes(interview.status) && (
                       <>
-                        {approvedIds.has(interview.id) ? (
-                          <span
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200"
-                            title="Candidato aprovado"
+                        {isCandidateApproved(interview) ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnapprove(interview);
+                            }}
+                            disabled={actionLoadingId === interview.id + '_unapprove'}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-50"
+                            title="Clique para cancelar aprovação"
                           >
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          </span>
+                            {actionLoadingId === interview.id + '_unapprove' ? <Loader2 className="w-4 h-4 animate-spin text-emerald-500" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                          </button>
                         ) : (
                           <>
                             <button
