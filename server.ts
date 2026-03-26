@@ -597,7 +597,7 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       textContent,
       mediaData,
       selectedRowId,
-      supabase,
+      supabaseAdmin,
     );
 
     return res.status(200).json({ received: true });

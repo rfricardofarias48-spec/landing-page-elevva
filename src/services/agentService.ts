@@ -15,6 +15,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { analyzeResume } from './openaiService.js';
 import * as evo from './evolutionService.js';
+import { deleteCalendarEvent } from './googleCalendarService.js';
 import crypto from 'crypto';
 
 // ─────────────────────────── Types ───────────────────────────
@@ -329,7 +330,7 @@ async function handleReschedule(
   // Find the confirmed interview for this candidate
   const { data: interview } = await supabase
     .from('interviews')
-    .select('id, job_id, slot_id, scheduling_token')
+    .select('id, job_id, slot_id, scheduling_token, google_event_id')
     .eq('candidate_id', conv.context.candidate_id)
     .in('status', ['CONFIRMADA', 'AGENDADA', 'REMARCADA'])
     .order('created_at', { ascending: false })
@@ -368,6 +369,12 @@ async function handleReschedule(
     return;
   }
 
+  // Delete old Google Calendar event
+  if (interview.google_event_id) {
+    await deleteCalendarEvent(interview.google_event_id);
+    console.log(`[Agent] Reschedule: deleted Google Calendar event ${interview.google_event_id}`);
+  }
+
   // Free the old slot
   if (interview.slot_id) {
     await supabase
@@ -384,6 +391,7 @@ async function handleReschedule(
       slot_date: null,
       slot_time: null,
       meeting_link: null,
+      google_event_id: null,
       status: 'AGUARDANDO_RESPOSTA',
     })
     .eq('id', interview.id);
