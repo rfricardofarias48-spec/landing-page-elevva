@@ -241,8 +241,26 @@ async function handleAguardandoCurriculo(
     media = { base64: rawBase64, mimetype: mediaData.embeddedMimetype || 'application/pdf' };
     console.log('[Agent] Using embedded base64 from webhook payload, length:', rawBase64.length);
   } else {
-    media = await evo.downloadMediaBase64(instance, { key: mediaData.key, message: mediaData.message });
-    console.log('[Agent] Downloaded base64 via API call');
+    // Try to extract base64 from nested documentWithCaptionMessage if not already extracted
+    const msg = mediaData.message;
+    const dwc = msg?.documentWithCaptionMessage as Record<string, unknown> | undefined;
+    if (dwc) {
+      const innerMsg = dwc.message as Record<string, unknown> | undefined;
+      const innerDoc = innerMsg?.documentMessage as Record<string, unknown> | undefined;
+      const nestedBase64 = innerDoc?.base64 || dwc?.base64;
+      if (nestedBase64) {
+        const rawBase64 = String(nestedBase64).replace(/^data:[^;]+;base64,/, '');
+        const mimetype = String(innerDoc?.mimetype || dwc?.mimetype || 'application/pdf');
+        media = { base64: rawBase64, mimetype };
+        console.log('[Agent] Extracted base64 from nested documentWithCaptionMessage, length:', rawBase64.length);
+      }
+    }
+
+    // Fallback: download via Evolution API
+    if (!media) {
+      media = await evo.downloadMediaBase64(instance, { key: mediaData.key, message: mediaData.message });
+      console.log('[Agent] Downloaded base64 via API call, success:', !!media?.base64);
+    }
   }
 
   if (!media?.base64) {

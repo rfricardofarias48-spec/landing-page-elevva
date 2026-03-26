@@ -40,6 +40,7 @@ export const AdminDashboard: React.FC = () => {
   const [tempInstancia, setTempInstancia] = useState('');
   const [tempTelefoneAgente, setTempTelefoneAgente] = useState('');
   const [tempStatusAutomacao, setTempStatusAutomacao] = useState(false);
+  const [tempJobLimit, setTempJobLimit] = useState<number>(9999);
 
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
@@ -97,7 +98,8 @@ export const AdminDashboard: React.FC = () => {
             created_at: u.created_at,
             jobs_count: userJobs.length,
             resume_usage: u.resume_usage || 0,
-            last_active: u.updated_at || u.created_at, 
+            last_active: u.updated_at || u.created_at,
+            job_limit: u.job_limit,
             subscription_status: u.subscription_status,
             current_period_end: u.current_period_end,
             salesperson: u.salesperson, // Mapeia o vendedor
@@ -236,22 +238,25 @@ export const AdminDashboard: React.FC = () => {
       if (!selectedUser) return;
       setActionLoading(true);
       try {
+          const jobLimitValue = tempJobLimit > 0 ? tempJobLimit : 9999;
           const { error } = await supabase
             .from('profiles')
-            .update({ 
+            .update({
                 instancia_evolution: tempInstancia,
                 telefone_agente: tempTelefoneAgente,
-                status_automacao: tempStatusAutomacao
+                status_automacao: tempStatusAutomacao,
+                job_limit: jobLimitValue
             })
             .eq('id', selectedUser.id);
 
           if (error) throw error;
 
-          const updatedUser = { 
-              ...selectedUser, 
+          const updatedUser = {
+              ...selectedUser,
               instancia_evolution: tempInstancia,
               telefone_agente: tempTelefoneAgente,
-              status_automacao: tempStatusAutomacao
+              status_automacao: tempStatusAutomacao,
+              job_limit: jobLimitValue
           };
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
@@ -1075,7 +1080,7 @@ export const AdminDashboard: React.FC = () => {
                                 <div>
                                     <p className="text-3xl font-black text-zinc-900">{selectedUser.plan}</p>
                                     <p className="text-xs text-zinc-400 font-bold mt-1">
-                                        {selectedUser.plan === 'ESSENCIAL' ? 'Limites: 3 Vagas / CVs Ilimitados' : selectedUser.plan === 'PRO' ? 'Limites: 10 Vagas / CVs Ilimitados' : 'Limites: ILIMITADO'}
+                                        {selectedUser.plan === 'ESSENCIAL' ? 'Limites: 3 Vagas / CVs Ilimitados' : selectedUser.plan === 'PRO' ? 'Limites: 10 Vagas / CVs Ilimitados' : selectedUser.plan === 'ENTERPRISE' ? `Limites: ${selectedUser.job_limit === 9999 ? 'Ilimitado' : (selectedUser.job_limit ?? 'Ilimitado')} Vagas / CVs Ilimitados` : 'Limites: ILIMITADO'}
                                     </p>
                                     {selectedUser.plan !== 'ADMIN' && selectedUser.current_period_end && (
                                         <p className="text-xs text-zinc-500 font-bold mt-2">
@@ -1098,6 +1103,7 @@ export const AdminDashboard: React.FC = () => {
                                                 setTempInstancia(selectedUser.instancia_evolution || '');
                                                 setTempTelefoneAgente(selectedUser.telefone_agente || '');
                                                 setTempStatusAutomacao(selectedUser.status_automacao || false);
+                                                setTempJobLimit(selectedUser.job_limit ?? 9999);
                                                 setIsEditingEnterprise(true);
                                             }
                                         }} 
@@ -1132,6 +1138,26 @@ export const AdminDashboard: React.FC = () => {
                                                 />
                                             </div>
                                         </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 block mb-1">Limite de Vagas</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={tempJobLimit}
+                                                    onChange={(e) => setTempJobLimit(parseInt(e.target.value) || 1)}
+                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setTempJobLimit(9999)}
+                                                    className={`text-xs font-bold px-3 py-2 rounded-lg border transition-colors whitespace-nowrap ${tempJobLimit === 9999 ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-400'}`}
+                                                >
+                                                    Ilimitado
+                                                </button>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-1">Defina quantas vagas este cliente pode criar. "Ilimitado" = 9999.</p>
+                                        </div>
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
                                             <div className="flex items-center gap-2">
                                                 <input
@@ -1156,7 +1182,11 @@ export const AdminDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Limite de Vagas</span>
+                                            <span className="text-sm font-bold text-slate-900">{selectedUser.job_limit === 9999 ? 'Ilimitado' : selectedUser.job_limit ?? 'Ilimitado'}</span>
+                                        </div>
                                         <div>
                                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Instância</span>
                                             <span className="text-sm font-bold text-slate-900">{selectedUser.instancia_evolution || <span className="text-slate-400 italic font-normal">Não configurada</span>}</span>
