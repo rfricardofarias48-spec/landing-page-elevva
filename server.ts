@@ -4,13 +4,31 @@ import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { analyzeResume } from "./src/services/openaiService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
+import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
 import { cleanPhone, sendText } from "./src/services/evolutionService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
+import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
 import crypto from "crypto";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
 dotenv.config();
+
+const INVALID_NAME_WORDS = ['erro', 'error', 'null', 'undefined', 'candidato', 'não', 'nao', 'análise', 'analise', 'identificado', 'whatsapp', 'desconhecido'];
+
+function isValidName(name: string): boolean {
+  if (!name || name.length < 3) return false;
+  const lower = name.toLowerCase();
+  return !INVALID_NAME_WORDS.some(w => lower.includes(w));
+}
+
+function normalizeName(raw: string): string {
+  if (!isValidName(raw)) return raw;
+  const parts = raw.trim().toLowerCase().split(/\s+/);
+  const capitalize = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+  if (parts.length <= 1) return capitalize(parts[0] || raw);
+  return capitalize(parts[0]) + ' ' + capitalize(parts[1]);
+}
 
 const app = express();
 const PORT = 3000;
@@ -169,7 +187,7 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     // Fallbacks para nome e telefone caso o agente não envie
     // Tenta pegar de várias chaves possíveis para garantir
     const rawPhone = telefone || telefone_candidato || req.body.phone || req.body.Phone || req.body.Telefone;
-    const finalName = nome_candidato || "Candidato via WhatsApp";
+    const finalName = nome_candidato ? normalizeName(nome_candidato) : "Candidato via WhatsApp";
     const finalPhone = rawPhone ? String(rawPhone).trim() : "Não informado";
     
     console.log('Telefone extraído:', finalPhone);
@@ -378,9 +396,11 @@ app.post("/api/webhooks/enterprise/resume", async (req, res) => {
     else if (analysisResult.matchScore >= 4) finalStatus = "EM_ANALISE";
 
     // Atualiza o nome se a IA encontrou um nome válido no currículo
-    const newName = analysisResult.candidateName && analysisResult.candidateName !== "Não identificado" 
-      ? analysisResult.candidateName 
-      : candidateData["Nome Completo"];
+    const aiName = analysisResult.candidateName && analysisResult.candidateName !== "Não identificado" && isValidName(analysisResult.candidateName)
+      ? analysisResult.candidateName
+      : null;
+    const baseName = aiName || candidateData["Nome Completo"];
+    const newName = isValidName(baseName) ? normalizeName(baseName) : baseName;
 
     const { error: updateError } = await supabaseAdmin
       .from("candidates")
@@ -2021,6 +2041,379 @@ app.get("/admissao/:token", async (req, res) => {
   } else {
     // In dev, let Vite handle it
     res.redirect(`/?admissao=${req.params.token}`);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// SDR AGENT — Endpoints
+// ═══════════════════════════════════════════════════════════════════════
+
+// SDR Webhook — Evolution API webhook for SDR chip
+// Configure this URL in Evolution API panel for the SDR instance
+// POST https://seu-dominio.com/api/webhooks/sdr/whatsapp
+app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
+  try {
+    const payload = req.body as Record<string, unknown>;
+
+    const eventName = String(payload.event || "").toLowerCase().replace(/_/g, ".");
+    if (!eventName.includes("messages.upsert")) return res.status(200).json({ received: true });
+
+    const data = payload.data as Record<string, unknown> | undefined;
+    if (!data) return res.status(200).json({ received: true });
+
+    const key = data.key as Record<string, unknown> | undefined;
+    if (!key) return res.status(200).json({ received: true });
+
+    // Ignore messages sent by the bot itself
+    if (key.fromMe === true) return res.status(200).json({ received: true });
+
+    const remoteJid = String(key.remoteJid || "");
+    // Ignore group messages
+    if (remoteJid.endsWith("@g.us")) return res.status(200).json({ received: true });
+
+    const instance = String(payload.instance || "");
+    const phone = cleanPhone(remoteJid);
+    const pushName = String(data.pushName || "");
+    const messageType = String(data.messageType || "");
+    const message = (data.message as Record<string, unknown>) || {};
+
+    // Extract text content
+    let textContent: string | null = null;
+    if (messageType === "conversation") {
+      textContent = String(message.conversation || "");
+    } else if (messageType === "extendedTextMessage") {
+      const ext = message.extendedTextMessage as Record<string, unknown> | undefined;
+      textContent = String(ext?.text || "");
+    } else if (messageType === "listResponseMessage") {
+      const lr = message.listResponseMessage as Record<string, unknown> | undefined;
+      textContent = String(lr?.title || "");
+    }
+
+    // Extract CTWA referral data if present
+    const contextInfo = (message as Record<string, unknown>)?.contextInfo as Record<string, unknown> | undefined;
+    const referralData = contextInfo?.externalAdReply as Record<string, unknown> | null || null;
+
+    await processSdrMessage(
+      instance,
+      phone,
+      pushName,
+      textContent,
+      referralData,
+      supabaseAdmin,
+    );
+
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error("[SDR Webhook] Error:", err);
+    return res.status(200).json({ received: true }); // always ACK
+  }
+});
+
+// SDR Scheduling Page — serves HTML page for demo slot selection
+app.get("/api/sdr/agendar/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Find conversation by scheduling token
+    const { data: conv } = await supabaseAdmin
+      .from('sdr_conversations')
+      .select('id, phone, lead_id, context')
+      .contains('context', { scheduling_token: token })
+      .maybeSingle();
+
+    if (!conv) return res.status(404).send('Link inválido ou expirado.');
+
+    const ctx = (conv.context || {}) as Record<string, unknown>;
+    const leadName = String(ctx.name || 'Visitante');
+
+    // Get available demo slots (next 30 days)
+    const today = new Date().toISOString().split('T')[0];
+    const in30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const { data: slots } = await supabaseAdmin
+      .from('sdr_demo_slots')
+      .select('id, slot_date, slot_time, duration_minutes, is_booked')
+      .gte('slot_date', today)
+      .lte('slot_date', in30d)
+      .order('slot_date', { ascending: true })
+      .order('slot_time', { ascending: true });
+
+    // Check if lead has current booking
+    let currentBooking: SdrSchedulingPageData['currentBooking'] = null;
+    const currentSlotId = ctx.demo_slot_id as string | undefined;
+    if (currentSlotId) {
+      const currentSlot = (slots || []).find((s: Record<string, unknown>) => s.id === currentSlotId);
+      if (currentSlot) {
+        currentBooking = {
+          slotId: currentSlot.id,
+          date: currentSlot.slot_date,
+          time: currentSlot.slot_time.substring(0, 5),
+        };
+      }
+    }
+
+    const pageData: SdrSchedulingPageData = {
+      token,
+      leadName,
+      currentBooking,
+      slots: (slots || []).map((s: Record<string, unknown>) => {
+        const [year, month, day] = String(s.slot_date).split('-').map(Number);
+        return {
+          id: String(s.id),
+          date: String(s.slot_date),
+          time: String(s.slot_time).substring(0, 5),
+          dateLabel: new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }),
+          timeLabel: String(s.slot_time).substring(0, 5),
+          isBooked: Boolean(s.is_booked),
+          durationMinutes: Number(s.duration_minutes) || 30,
+        };
+      }),
+    };
+
+    const html = renderSdrSchedulingPage(pageData);
+    return res.type('html').send(html);
+  } catch (err) {
+    console.error('[SDR Scheduling Page] Error:', err);
+    return res.status(500).send('Erro ao carregar a página.');
+  }
+});
+
+// SDR Book Slot — lead picks a demo time
+app.post("/api/sdr/agendar/:token/book", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { slot_id } = req.body as { slot_id: string };
+
+    if (!slot_id) return res.status(400).json({ ok: false, error: 'slot_id obrigatório' });
+
+    // Find conversation
+    const { data: conv } = await supabaseAdmin
+      .from('sdr_conversations')
+      .select('id, phone, lead_id, instance_name, context')
+      .contains('context', { scheduling_token: token })
+      .maybeSingle();
+
+    if (!conv) return res.status(404).json({ ok: false, error: 'Link inválido' });
+
+    const ctx = (conv.context || {}) as Record<string, unknown>;
+
+    // If reschedule: free old slot and delete old calendar event
+    if (ctx.demo_slot_id) {
+      await supabaseAdmin.from('sdr_demo_slots')
+        .update({ is_booked: false, booked_by: null })
+        .eq('id', ctx.demo_slot_id);
+    }
+    if (ctx.google_event_id) {
+      await deleteCalendarEvent(String(ctx.google_event_id));
+    }
+
+    // Book the new slot (optimistic concurrency)
+    const { data: booked, error: bookErr } = await supabaseAdmin
+      .from('sdr_demo_slots')
+      .update({ is_booked: true, booked_by: conv.lead_id })
+      .eq('id', slot_id)
+      .eq('is_booked', false)
+      .select()
+      .maybeSingle();
+
+    if (bookErr || !booked) {
+      return res.status(409).json({ ok: false, error: 'Horário já foi preenchido. Escolha outro.' });
+    }
+
+    // Create Google Calendar + Meet event
+    const leadName = String(ctx.name || 'Lead');
+    let meetLink = '';
+    let eventId = '';
+
+    const googleEvent = await createMeetingEvent({
+      candidateName: leadName,
+      jobTitle: 'Demonstração Elevva',
+      slotDate: booked.slot_date,
+      slotTime: booked.slot_time,
+      candidatePhone: conv.phone,
+    });
+
+    if (googleEvent?.meetLink) {
+      meetLink = googleEvent.meetLink;
+      eventId = googleEvent.eventId;
+
+      // Save meet link to slot
+      await supabaseAdmin.from('sdr_demo_slots').update({
+        google_event_id: eventId,
+        meeting_link: meetLink,
+      }).eq('id', slot_id);
+    }
+
+    // Update conversation state
+    await supabaseAdmin.from('sdr_conversations').update({
+      state: 'DEMO_AGENDADA',
+      context: {
+        ...ctx,
+        demo_slot_id: slot_id,
+        google_event_id: eventId || null,
+        meeting_link: meetLink || null,
+      },
+      updated_at: new Date().toISOString(),
+    }).eq('id', conv.id);
+
+    // Update lead status
+    if (conv.lead_id) {
+      await supabaseAdmin.from('sdr_leads').update({
+        status: 'DEMO_AGENDADA',
+        updated_at: new Date().toISOString(),
+      }).eq('id', conv.lead_id);
+    }
+
+    // Send WhatsApp confirmation
+    const [year, month, day] = booked.slot_date.split('-').map(Number);
+    const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+    const timeLabel = booked.slot_time.substring(0, 5);
+    const firstName = String(ctx.name || 'Visitante').split(' ')[0];
+    const meetText = meetLink ? `\n\n📅 Link da reunião:\n${meetLink}` : '';
+
+    await sendText(
+      conv.instance_name,
+      conv.phone,
+      `✅ *Demonstração Confirmada!*\n\n${firstName}, seu horário foi reservado.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}\n💻 *Formato:* Online via Google Meet${meetText}\n\nNos vemos lá.`,
+      false,
+    );
+
+    return res.json({ ok: true, slot: booked });
+  } catch (err) {
+    console.error('[SDR Book Slot] Error:', err);
+    return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
+// SDR Funnel — returns funnel metrics
+app.get("/api/sdr/funnel", async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin.from('sdr_funnel').select('*').single();
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data);
+  } catch (err) {
+    console.error('[SDR Funnel] Error:', err);
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// SDR Leads — list leads with filters
+app.get("/api/sdr/leads", async (req, res) => {
+  try {
+    const { status, source, limit: limitStr } = req.query;
+    let query = supabaseAdmin.from('sdr_leads').select('*').order('created_at', { ascending: false });
+
+    if (status) query = query.eq('status', String(status));
+    if (source) query = query.eq('source', String(source));
+
+    const limitNum = parseInt(String(limitStr || '50'), 10);
+    query = query.limit(limitNum);
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data);
+  } catch (err) {
+    console.error('[SDR Leads] Error:', err);
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// SDR Demo Slots — CRUD for demo availability
+app.get("/api/sdr/slots", async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabaseAdmin
+      .from('sdr_demo_slots')
+      .select('*')
+      .gte('slot_date', today)
+      .order('slot_date', { ascending: true })
+      .order('slot_time', { ascending: true });
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data);
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.post("/api/sdr/slots", async (req, res) => {
+  try {
+    const { slots } = req.body as { slots: Array<{ slot_date: string; slot_time: string; duration_minutes?: number }> };
+
+    if (!slots || !Array.isArray(slots) || slots.length === 0) {
+      return res.status(400).json({ error: 'Envie um array de slots com slot_date e slot_time' });
+    }
+
+    const toInsert = slots.map(s => ({
+      slot_date: s.slot_date,
+      slot_time: s.slot_time,
+      duration_minutes: s.duration_minutes || 30,
+    }));
+
+    const { data, error } = await supabaseAdmin
+      .from('sdr_demo_slots')
+      .upsert(toInsert, { onConflict: 'slot_date,slot_time' })
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, created: data?.length || 0 });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.delete("/api/sdr/slots/:id", async (req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from('sdr_demo_slots')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('is_booked', false); // Can only delete unbooked slots
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// SDR Cron — Follow-ups and demo reminders
+// GET /api/cron/sdr-follow-ups
+app.get("/api/cron/sdr-follow-ups", async (req, res) => {
+  try {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && req.headers['authorization'] !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const followUpResult = await runSdrFollowUps(supabaseAdmin);
+    const reminderCount = await runSdrDemoReminders(supabaseAdmin);
+
+    return res.json({
+      ok: true,
+      follow_ups_sent: followUpResult.sent,
+      leads_marked_lost: followUpResult.lost,
+      demo_reminders_sent: reminderCount,
+    });
+  } catch (err) {
+    console.error('[SDR Cron] Error:', err);
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// SDR Messages — conversation history for a lead
+app.get("/api/sdr/leads/:leadId/messages", async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sdr_messages')
+      .select('*')
+      .eq('lead_id', req.params.leadId)
+      .order('created_at', { ascending: true });
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data);
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro interno' });
   }
 });
 

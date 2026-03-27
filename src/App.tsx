@@ -6,6 +6,7 @@ import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
 import { LoginScreen } from './components/LoginScreen';
 import { AdminDashboard } from './components/AdminDashboard';
+import { SdrDashboard } from './components/SdrDashboard';
 import { PublicUploadScreen } from './components/PublicUploadScreen';
 import { PublicSchedulingScreen } from './components/PublicSchedulingScreen';
 import { PublicAdmissionScreen } from './components/PublicAdmissionScreen';
@@ -767,10 +768,11 @@ const App: React.FC = () => {
       
       // FORCE ADMIN: Se o email for o do dono, força o papel de ADMIN mesmo que no banco esteja USER
       const isAdmin = (data?.role === 'ADMIN') || (email === 'rhfarilog@gmail.com');
+      const isSdr = (data?.role === 'SDR') || (email === 'rfricardofarias48@gmail.com');
 
       const profile = data ? {
         ...data,
-        role: isAdmin ? 'ADMIN' : (data.role || 'USER'), // Força Admin se email bater
+        role: isAdmin ? 'ADMIN' : isSdr ? 'SDR' : (data.role || 'USER'), // Força Admin/SDR se email bater
         name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário', // Fallback para não quebrar a UI
         job_limit: data.plan === 'ENTERPRISE' ? (data.job_limit ?? 9999) : (data.job_limit ?? 3),
         resume_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.resume_limit ?? 9999),
@@ -784,12 +786,12 @@ const App: React.FC = () => {
         job_limit: 3,
         resume_limit: 9999, 
         resume_usage: 0,
-        role: isAdmin ? 'ADMIN' : 'USER'
+        role: isAdmin ? 'ADMIN' : isSdr ? 'SDR' : 'USER'
       };
 
       setUser(profile);
       
-      if (isAdmin) {
+      if (isAdmin || isSdr) {
           setView('DASHBOARD');
       }
       
@@ -1912,7 +1914,8 @@ const App: React.FC = () => {
                   
                   <div className="space-y-3">
                       {interviews.length > 0 ? (
-                          interviews.slice(0, 3).map((interview, idx) => (
+                          <>
+                          {interviews.slice(0, 2).map((interview, idx) => (
                               <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-slate-50 transition-colors">
                                   <div className="flex items-center gap-4">
                                       <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold">
@@ -1928,7 +1931,13 @@ const App: React.FC = () => {
                                       <p className="text-xs text-slate-500 font-medium">{interview.scheduled_time ? String(interview.scheduled_time) : 'Sem horário'}</p>
                                   </div>
                               </div>
-                          ))
+                          ))}
+                          {interviews.length > 2 && (
+                              <button onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); }} className="w-full text-center py-2 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                                  +{interviews.length - 2} entrevista{interviews.length - 2 > 1 ? 's' : ''} agendada{interviews.length - 2 > 1 ? 's' : ''}
+                              </button>
+                          )}
+                          </>
                       ) : (
                           <div className="text-center py-8">
                               <p className="text-slate-500 font-medium text-sm">Nenhuma entrevista agendada no momento.</p>
@@ -2095,13 +2104,13 @@ const App: React.FC = () => {
                           <div className="text-slate-900 mb-2 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
                               <span className="text-5xl font-black tracking-tighter">{isAnnual ? '399' : '499'}</span>
-                              <span className="text-xl font-bold">,90</span>
+                              <span className="text-xl font-bold">,{isAnnual ? '20' : '90'}</span>
                               <span className="text-xs font-bold text-slate-400 ml-1">/MÊS</span>
                           </div>
                           {isAnnual ? (
                               <div className="mb-6">
                                   <span className="text-xs text-slate-400 line-through mr-2">R$ 5.998,80</span>
-                                  <span className="text-xs font-bold text-[#65a30d]">R$ 4.798,80/ano</span>
+                                  <span className="text-xs font-bold text-[#65a30d]">R$ 4.790,40/ano</span>
                               </div>
                           ) : (
                               <div className="mb-6 h-4"></div>
@@ -2110,15 +2119,23 @@ const App: React.FC = () => {
                           <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>3 Vagas</span>
+                                  <span>Até 5 vagas em simultâneo</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>Análise Ilimitada de Currículos</span>
+                                  <span>Triagem e ranking via IA</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>Exportação em PDF</span>
+                                  <span>Relatórios individuais de currículos</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Agendamento autônomo (WhatsApp)</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                  <span>Integração Google Calendar e Meet</span>
                               </div>
                           </div>
                           {normalizedPlan === 'ESSENCIAL' ? (
@@ -2152,14 +2169,14 @@ const App: React.FC = () => {
 
                           <div className="text-white mb-2 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-5xl font-black tracking-tighter">{isAnnual ? '639' : '799'}</span>
-                              <span className="text-xl font-bold">,{isAnnual ? '92' : '90'}</span>
+                              <span className="text-5xl font-black tracking-tighter">{isAnnual ? '719' : '899'}</span>
+                              <span className="text-xl font-bold">,{isAnnual ? '20' : '00'}</span>
                               <span className="text-xs font-bold text-zinc-500 ml-1">/MÊS</span>
                           </div>
                           {isAnnual ? (
                               <div className="mb-6">
-                                  <span className="text-xs text-zinc-500 line-through mr-2">R$ 9.598,80</span>
-                                  <span className="text-xs font-bold text-[#65a30d]">R$ 7.679,04/ano</span>
+                                  <span className="text-xs text-zinc-500 line-through mr-2">R$ 10.788,00</span>
+                                  <span className="text-xs font-bold text-[#65a30d]">R$ 8.630,40/ano</span>
                               </div>
                           ) : (
                               <div className="mb-6 h-4"></div>
@@ -2168,15 +2185,23 @@ const App: React.FC = () => {
                           <div className="space-y-4 mb-8 text-sm font-medium text-zinc-300 flex-1">
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
-                                  <span>10 Vagas</span>
+                                  <span>Até 10 vagas em simultâneo</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
-                                  <span>Análise Ilimitada de Currículos</span>
+                                  <span>Todas as funções do Essencial</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
-                                  <span>Ranking Automático</span>
+                                  <span>Portal de Admissão Mobile</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
+                                  <span>Dossiê Contabilístico automático (PDF)</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
+                                  <span>Conformidade LGPD (Exclusão em 48h)</span>
                               </div>
                           </div>
                           {normalizedPlan === 'PRO' ? (
@@ -2422,8 +2447,13 @@ const App: React.FC = () => {
   }
 
   // Admin
-  if (user.role === 'ADMIN' && view === 'DASHBOARD') { 
+  if (user.role === 'ADMIN' && view === 'DASHBOARD') {
       return <AdminDashboard />;
+  }
+
+  // SDR
+  if (user.role === 'SDR' && view === 'DASHBOARD') {
+      return <SdrDashboard />;
   }
   
   // Main App Helpers

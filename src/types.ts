@@ -74,7 +74,7 @@ export interface User {
   email: string;
   phone?: string;
   avatarUrl?: string;
-  role?: 'ADMIN' | 'USER'; 
+  role?: 'ADMIN' | 'USER' | 'SDR';
   status?: 'ACTIVE' | 'BLOCKED'; 
   
   // Campos de Assinatura e Limites
@@ -124,7 +124,7 @@ export interface Interview {
   slot_date?: string;
   slot_time?: string;
   meeting_link?: string;
-  status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'CONFIRMADA' | 'REMARCADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA';
+  status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'CONFIRMADA' | 'REMARCADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA' | 'APROVADO';
   lembrete_enviado?: boolean;
   created_at: string;
   // Relational data for UI
@@ -181,6 +181,102 @@ export interface Admission {
 }
 
 // Documentos comuns pré-configurados para o modal do recrutador
+// ============================================================
+// MÓDULO SDR (Agente Comercial)
+// ============================================================
+
+export type SdrLeadStatus = 'NOVO' | 'QUALIFICANDO' | 'QUALIFICADO' | 'DEMO_OFERECIDA' | 'DEMO_AGENDADA' | 'CONVERTIDO' | 'PERDIDO';
+
+export type SdrConversationState =
+  | 'NOVO'
+  | 'SAUDACAO_ENVIADA'
+  | 'QUALIFICANDO'
+  | 'TIRANDO_DUVIDAS'
+  | 'OFERECENDO_DEMO'
+  | 'AGUARDANDO_ESCOLHA_SLOT'
+  | 'DEMO_AGENDADA'
+  | 'FOLLOW_UP_1'
+  | 'FOLLOW_UP_2'
+  | 'CONVERTIDO'
+  | 'PERDIDO'
+  | 'ESCALADO_HUMANO';
+
+export interface SdrLead {
+  id: string;
+  phone: string;
+  name?: string;
+  email?: string;
+  company?: string;
+  role?: string;
+  company_size?: string;
+  monthly_hires?: string;
+  main_pain?: string;
+  source: string;
+  utm_campaign?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  ad_id?: string;
+  referral_data?: Record<string, unknown>;
+  status: SdrLeadStatus;
+  lost_reason?: string;
+  chatwoot_contact_id?: string;
+  chatwoot_conversation_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SdrConversationContext {
+  name?: string;
+  company?: string;
+  role?: string;
+  company_size?: string;
+  monthly_hires?: string;
+  pain?: string;
+  scheduling_token?: string;
+  demo_slot_id?: string;
+  google_event_id?: string;
+  meeting_link?: string;
+  follow_up_count?: number;
+  last_follow_up_at?: string;
+  qualification_step?: number;  // tracks which qualification question we're on
+  pending_question?: string;    // last question asked, awaiting answer
+}
+
+export interface SdrConversation {
+  id: string;
+  phone: string;
+  lead_id: string | null;
+  instance_name: string;
+  state: SdrConversationState;
+  context: SdrConversationContext;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SdrDemoSlot {
+  id: string;
+  slot_date: string;
+  slot_time: string;
+  duration_minutes: number;
+  is_booked: boolean;
+  booked_by?: string;
+  google_event_id?: string;
+  meeting_link?: string;
+  created_at: string;
+}
+
+export interface SdrMessage {
+  id: string;
+  lead_id: string;
+  conversation_id?: string;
+  direction: 'IN' | 'OUT';
+  content: string;
+  message_type: string;
+  chatwoot_message_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
 export const DEFAULT_ADMISSION_DOCS: RequiredDoc[] = [
   { name: 'Nome Completo', required: true, frontBack: false, type: 'text' },
   { name: 'RG', required: true, frontBack: false, type: 'text' },
