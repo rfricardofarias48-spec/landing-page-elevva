@@ -1598,227 +1598,166 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
     const MARGIN = 50;
     const CONTENT_WIDTH = A4_WIDTH - MARGIN * 2;
 
-    // --- COVER PAGE ---
-    const coverPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+    // Colors — clean monochrome palette
+    const BLACK = rgb(0.07, 0.07, 0.07);
+    const DARK = rgb(0.2, 0.2, 0.2);
+    const MEDIUM = rgb(0.45, 0.45, 0.45);
+    const LIGHT = rgb(0.65, 0.65, 0.65);
+    const LINE_COLOR = rgb(0.88, 0.88, 0.88);
+    const BG_LIGHT = rgb(0.97, 0.97, 0.97);
+    const GREEN = rgb(0.40, 0.64, 0.05); // #65a30d
 
-    // Header bar
-    coverPage.drawRectangle({
-      x: 0, y: A4_HEIGHT - 120,
-      width: A4_WIDTH, height: 120,
-      color: rgb(0.05, 0.05, 0.05),
-    });
+    // Separate text docs from file docs
+    const textDocs = admission.submitted_docs.filter((d: any) => d.value && !d.file_path);
+    const fileDocs = admission.submitted_docs.filter((d: any) => d.file_path);
 
-    // Title
-    coverPage.drawText('DOSSIÊ DE ADMISSÃO', {
-      x: MARGIN, y: A4_HEIGHT - 55,
-      size: 24, font: fontBold,
-      color: rgb(0.52, 0.8, 0.08), // #84cc16
-    });
+    // --- PAGE 1: Cover + all text fields ---
+    const page1 = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
 
-    // Subtitle
-    coverPage.drawText('Documentação do Candidato', {
-      x: MARGIN, y: A4_HEIGHT - 80,
-      size: 12, font,
-      color: rgb(0.7, 0.7, 0.7),
-    });
+    // Top accent line
+    page1.drawRectangle({ x: 0, y: A4_HEIGHT - 4, width: A4_WIDTH, height: 4, color: BLACK });
 
-    // Elevva branding
-    coverPage.drawText('Elevva', {
-      x: A4_WIDTH - MARGIN - 60, y: A4_HEIGHT - 55,
-      size: 18, font: fontBold,
-      color: rgb(0.52, 0.8, 0.08),
-    });
+    // Header
+    let y = A4_HEIGHT - 50;
+    page1.drawText('Elevva', { x: MARGIN, y, size: 11, font: fontBold, color: GREEN });
+    page1.drawText('Dossiê de Admissão', { x: MARGIN, y: y - 28, size: 22, font: fontBold, color: BLACK });
 
-    // Candidate info section
-    let y = A4_HEIGHT - 180;
+    // Thin separator
+    y -= 48;
+    page1.drawLine({ start: { x: MARGIN, y }, end: { x: A4_WIDTH - MARGIN, y }, thickness: 0.5, color: LINE_COLOR });
 
-    const drawInfoLine = (label: string, value: string) => {
-      coverPage.drawText(label, {
-        x: MARGIN, y,
-        size: 10, font: fontBold,
-        color: rgb(0.4, 0.4, 0.4),
-      });
-      coverPage.drawText(value, {
-        x: MARGIN + 120, y,
-        size: 11, font,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-      y -= 24;
+    // Candidate info — compact two-column layout
+    y -= 28;
+    const col2X = MARGIN + CONTENT_WIDTH / 2 + 10;
+
+    const drawField = (page: any, x: number, yPos: number, label: string, value: string) => {
+      page.drawText(label.toUpperCase(), { x, y: yPos, size: 7, font: fontBold, color: LIGHT });
+      page.drawText(value, { x, y: yPos - 13, size: 10, font, color: DARK });
     };
 
-    drawInfoLine('Candidato:', candidateName);
-    drawInfoLine('Vaga:', jobTitle);
-    drawInfoLine('WhatsApp:', admission.candidates?.['WhatsApp com DDD'] || 'N/A');
-    drawInfoLine('Data de envio:', admission.submitted_at
+    drawField(page1, MARGIN, y, 'Candidato', candidateName);
+    drawField(page1, col2X, y, 'Vaga', jobTitle);
+    y -= 38;
+    drawField(page1, MARGIN, y, 'WhatsApp', admission.candidates?.['WhatsApp com DDD'] || 'N/A');
+    drawField(page1, col2X, y, 'Data de envio', admission.submitted_at
       ? new Date(admission.submitted_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : 'N/A');
-    drawInfoLine('Total de docs:', `${admission.submitted_docs.length} documento(s)`);
 
     // Separator
-    y -= 10;
-    coverPage.drawLine({
-      start: { x: MARGIN, y },
-      end: { x: A4_WIDTH - MARGIN, y },
-      thickness: 1,
-      color: rgb(0.85, 0.85, 0.85),
-    });
+    y -= 32;
+    page1.drawLine({ start: { x: MARGIN, y }, end: { x: A4_WIDTH - MARGIN, y }, thickness: 0.5, color: LINE_COLOR });
 
-    // Documents index
-    y -= 30;
-    coverPage.drawText('DOCUMENTOS INCLUÍDOS', {
-      x: MARGIN, y,
-      size: 12, font: fontBold,
-      color: rgb(0.1, 0.1, 0.1),
-    });
-    y -= 25;
+    // --- TEXT FIELDS as compact rows ---
+    let currentPage = page1;
 
-    for (let i = 0; i < admission.submitted_docs.length; i++) {
-      const doc = admission.submitted_docs[i];
-      const label = doc.value ? `${doc.name}: ${doc.value}` : doc.name;
-      coverPage.drawText(`${i + 1}.  ${label}`, {
-        x: MARGIN + 10, y,
-        size: 10, font,
-        color: rgb(0.2, 0.2, 0.2),
-      });
-      y -= 20;
-    }
+    const ensureSpace = (needed: number) => {
+      if (y < MARGIN + needed) {
+        currentPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+        currentPage.drawRectangle({ x: 0, y: A4_HEIGHT - 4, width: A4_WIDTH, height: 4, color: BLACK });
+        y = A4_HEIGHT - 40;
+      }
+    };
 
-    // LGPD notice
-    y -= 30;
-    coverPage.drawRectangle({
-      x: MARGIN, y: y - 50,
-      width: CONTENT_WIDTH, height: 60,
-      color: rgb(0.98, 0.96, 0.9),
-      borderColor: rgb(0.9, 0.85, 0.7),
-      borderWidth: 1,
-    });
-    coverPage.drawText('AVISO LGPD', {
-      x: MARGIN + 15, y: y - 10,
-      size: 9, font: fontBold,
-      color: rgb(0.6, 0.5, 0.2),
-    });
-    coverPage.drawText('Este documento contém dados pessoais sensíveis. Manuseie conforme a Lei Geral de', {
-      x: MARGIN + 15, y: y - 25,
-      size: 8, font,
-      color: rgb(0.5, 0.4, 0.2),
-    });
-    coverPage.drawText('Proteção de Dados (LGPD). Os originais foram deletados automaticamente após 48 horas.', {
-      x: MARGIN + 15, y: y - 37,
-      size: 8, font,
-      color: rgb(0.5, 0.4, 0.2),
-    });
+    if (textDocs.length > 0) {
+      y -= 28;
+      currentPage.drawText('DADOS INFORMADOS', { x: MARGIN, y, size: 9, font: fontBold, color: MEDIUM });
+      y -= 8;
 
-    // --- DOCUMENT PAGES ---
-    for (const doc of admission.submitted_docs) {
-      try {
-        // Text field — render as text on a page
-        if (doc.value && !doc.file_path) {
-          const textPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-          textPage.drawRectangle({
-            x: 0, y: A4_HEIGHT - 45,
-            width: A4_WIDTH, height: 45,
-            color: rgb(0.96, 0.96, 0.96),
+      let rowIndex = 0;
+      for (const doc of textDocs) {
+        ensureSpace(40);
+        y -= 24;
+
+        // Alternating row background
+        if (rowIndex % 2 === 0) {
+          currentPage.drawRectangle({
+            x: MARGIN, y: y - 6,
+            width: CONTENT_WIDTH, height: 22,
+            color: BG_LIGHT,
           });
-          textPage.drawText(doc.name, {
-            x: MARGIN, y: A4_HEIGHT - 30,
-            size: 12, font: fontBold,
-            color: rgb(0.2, 0.2, 0.2),
-          });
-          textPage.drawText(doc.value, {
-            x: MARGIN, y: A4_HEIGHT - 80,
-            size: 14, font,
-            color: rgb(0.1, 0.1, 0.1),
-          });
-          continue;
         }
 
-        if (!doc.file_path) continue;
+        currentPage.drawText(doc.name, {
+          x: MARGIN + 10, y,
+          size: 9, font: fontBold, color: MEDIUM,
+        });
 
-        // Download file from storage
+        currentPage.drawText(doc.value || '', {
+          x: MARGIN + 160, y,
+          size: 10, font, color: BLACK,
+        });
+
+        rowIndex++;
+      }
+    }
+
+    // --- File attachments list ---
+    if (fileDocs.length > 0) {
+      ensureSpace(60);
+      y -= 36;
+      currentPage.drawText('ANEXOS', { x: MARGIN, y, size: 9, font: fontBold, color: MEDIUM });
+      y -= 6;
+
+      for (let i = 0; i < fileDocs.length; i++) {
+        ensureSpace(30);
+        y -= 20;
+        currentPage.drawText(`${i + 1}.  ${fileDocs[i].name}`, {
+          x: MARGIN + 10, y,
+          size: 9, font, color: DARK,
+        });
+      }
+    }
+
+    // LGPD notice — small, clean, at the bottom of the first page
+    const lgpdY = MARGIN + 20;
+    page1.drawLine({ start: { x: MARGIN, y: lgpdY + 18 }, end: { x: A4_WIDTH - MARGIN, y: lgpdY + 18 }, thickness: 0.5, color: LINE_COLOR });
+    page1.drawText('LGPD — Dados pessoais sensíveis. Os originais são automaticamente deletados após 48h do envio.', {
+      x: MARGIN, y: lgpdY,
+      size: 7, font, color: LIGHT,
+    });
+
+    // --- ATTACHMENT PAGES (only for file uploads) ---
+    for (const doc of fileDocs) {
+      try {
         const { data: fileData, error: downloadError } = await supabaseAdmin.storage
           .from('admission_docs')
           .download(doc.file_path);
 
         if (downloadError || !fileData) {
           console.error(`[Dossier] Failed to download ${doc.file_path}:`, downloadError);
-          // Add error page
           const errorPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-          errorPage.drawText(`Documento: ${doc.name}`, {
-            x: MARGIN, y: A4_HEIGHT - MARGIN - 20,
-            size: 14, font: fontBold,
-            color: rgb(0.1, 0.1, 0.1),
-          });
-          errorPage.drawText('Erro: arquivo não encontrado no storage.', {
-            x: MARGIN, y: A4_HEIGHT - MARGIN - 50,
-            size: 11, font,
-            color: rgb(0.8, 0.2, 0.2),
-          });
+          errorPage.drawRectangle({ x: 0, y: A4_HEIGHT - 4, width: A4_WIDTH, height: 4, color: BLACK });
+          errorPage.drawText(doc.name, { x: MARGIN, y: A4_HEIGHT - 40, size: 12, font: fontBold, color: BLACK });
+          errorPage.drawText('Arquivo não encontrado.', { x: MARGIN, y: A4_HEIGHT - 60, size: 10, font, color: rgb(0.7, 0.2, 0.2) });
           continue;
         }
 
         const arrayBuffer = await fileData.arrayBuffer();
         const uint8 = new Uint8Array(arrayBuffer);
 
-        // Check if it's a PDF
         const isPdf = doc.file_path.toLowerCase().endsWith('.pdf') ||
-          (uint8[0] === 0x25 && uint8[1] === 0x50 && uint8[2] === 0x44 && uint8[3] === 0x46); // %PDF
+          (uint8[0] === 0x25 && uint8[1] === 0x50 && uint8[2] === 0x44 && uint8[3] === 0x46);
 
         if (isPdf) {
-          // Embed PDF pages
           try {
             const embeddedPdf = await PDFDocument.load(uint8);
             const pageIndices = embeddedPdf.getPageIndices();
             const copiedPages = await pdfDoc.copyPages(embeddedPdf, pageIndices);
-
-            // Add label page before the document
-            const labelPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-            labelPage.drawRectangle({
-              x: 0, y: A4_HEIGHT / 2 - 30,
-              width: A4_WIDTH, height: 60,
-              color: rgb(0.96, 0.96, 0.96),
-            });
-            labelPage.drawText(doc.name, {
-              x: MARGIN, y: A4_HEIGHT / 2 - 5,
-              size: 20, font: fontBold,
-              color: rgb(0.1, 0.1, 0.1),
-            });
-            labelPage.drawText(`Documento PDF — ${copiedPages.length} página(s)`, {
-              x: MARGIN, y: A4_HEIGHT / 2 - 25,
-              size: 10, font,
-              color: rgb(0.5, 0.5, 0.5),
-            });
-
-            copiedPages.forEach(page => pdfDoc.addPage(page));
+            copiedPages.forEach(p => pdfDoc.addPage(p));
           } catch (pdfErr) {
             console.error(`[Dossier] Error embedding PDF ${doc.name}:`, pdfErr);
-            const errorPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-            errorPage.drawText(`Documento: ${doc.name}`, {
-              x: MARGIN, y: A4_HEIGHT - MARGIN - 20,
-              size: 14, font: fontBold, color: rgb(0.1, 0.1, 0.1),
-            });
-            errorPage.drawText('Erro: PDF corrompido ou protegido.', {
-              x: MARGIN, y: A4_HEIGHT - MARGIN - 50,
-              size: 11, font, color: rgb(0.8, 0.2, 0.2),
-            });
+            const errPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+            errPage.drawText(`${doc.name} — PDF corrompido ou protegido.`, { x: MARGIN, y: A4_HEIGHT - 50, size: 10, font, color: rgb(0.7, 0.2, 0.2) });
           }
         } else {
-          // It's an image — embed on A4 page with label
+          // Image
           const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
 
-          // Document label header
-          page.drawRectangle({
-            x: 0, y: A4_HEIGHT - 45,
-            width: A4_WIDTH, height: 45,
-            color: rgb(0.96, 0.96, 0.96),
-          });
-          page.drawText(doc.name, {
-            x: MARGIN, y: A4_HEIGHT - 30,
-            size: 12, font: fontBold,
-            color: rgb(0.2, 0.2, 0.2),
-          });
+          // Minimal header
+          page.drawRectangle({ x: 0, y: A4_HEIGHT - 4, width: A4_WIDTH, height: 4, color: BLACK });
+          page.drawText(doc.name, { x: MARGIN, y: A4_HEIGHT - 35, size: 11, font: fontBold, color: DARK });
 
           try {
-            // Detect image type and embed
             let image;
             const isJpeg = uint8[0] === 0xFF && uint8[1] === 0xD8;
             const isPng = uint8[0] === 0x89 && uint8[1] === 0x50;
@@ -1828,33 +1767,19 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
             } else if (isJpeg) {
               image = await pdfDoc.embedJpg(uint8);
             } else {
-              // Try JPEG as fallback (our compression outputs JPEG)
               image = await pdfDoc.embedJpg(uint8);
             }
 
-            // Scale to fit within page margins with padding
-            const imgPadding = 20;
             const maxImgWidth = CONTENT_WIDTH;
-            const maxImgHeight = A4_HEIGHT - MARGIN * 2 - 45 - imgPadding; // account for header
-
+            const maxImgHeight = A4_HEIGHT - MARGIN - 50;
             const imgDims = image.scaleToFit(maxImgWidth, maxImgHeight);
-
-            // Center image horizontally
             const imgX = MARGIN + (maxImgWidth - imgDims.width) / 2;
             const imgY = MARGIN + (maxImgHeight - imgDims.height) / 2;
 
-            page.drawImage(image, {
-              x: imgX, y: imgY,
-              width: imgDims.width,
-              height: imgDims.height,
-            });
+            page.drawImage(image, { x: imgX, y: imgY, width: imgDims.width, height: imgDims.height });
           } catch (imgErr) {
             console.error(`[Dossier] Error embedding image ${doc.name}:`, imgErr);
-            page.drawText('Erro ao processar imagem.', {
-              x: MARGIN, y: A4_HEIGHT / 2,
-              size: 11, font,
-              color: rgb(0.8, 0.2, 0.2),
-            });
+            page.drawText('Erro ao processar imagem.', { x: MARGIN, y: A4_HEIGHT / 2, size: 10, font, color: rgb(0.7, 0.2, 0.2) });
           }
         }
       } catch (docErr) {
