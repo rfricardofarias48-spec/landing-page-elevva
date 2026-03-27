@@ -1610,18 +1610,21 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
       return res.status(400).json({ error: "Nenhum documento foi enviado ainda." });
     }
 
-    // Extract candidate name
-    let candidateName = 'Candidato';
-    if (admission.candidates?.analysis_result) {
+    // Extract candidate name — handle both object and array from Supabase join
+    let candidateName = admission.candidate_name || 'Candidato';
+    const candidateData = Array.isArray(admission.candidates) ? admission.candidates[0] : admission.candidates;
+    if (candidateData?.analysis_result) {
       try {
-        const parsed = typeof admission.candidates.analysis_result === 'string'
-          ? JSON.parse(admission.candidates.analysis_result)
-          : admission.candidates.analysis_result;
-        candidateName = parsed?.candidateName || 'Candidato';
+        const parsed = typeof candidateData.analysis_result === 'string'
+          ? JSON.parse(candidateData.analysis_result)
+          : candidateData.analysis_result;
+        if (parsed?.candidateName) candidateName = parsed.candidateName;
       } catch {}
     }
 
-    const jobTitle = admission.jobs?.title || 'Vaga';
+    const jobData = Array.isArray(admission.jobs) ? admission.jobs[0] : admission.jobs;
+    const jobTitle = jobData?.title || admission.job_title || 'Vaga';
+    const whatsapp = candidateData?.['WhatsApp com DDD'] || admission.candidate_phone || 'N/A';
 
     // Create PDF document
     const pdfDoc = await PDFDocument.create();
@@ -1697,12 +1700,12 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
 
     const drawInfoField = (x: number, yy: number, label: string, value: string) => {
       page1.drawText(label, { x, y: yy, size: 7, font: fontBold, color: C.muted });
-      page1.drawText(value, { x, y: yy - 13, size: 9.5, font, color: C.dark });
+      page1.drawText(String(value || '—'), { x, y: yy - 13, size: 9.5, font, color: C.dark });
     };
 
     drawInfoField(col1, infoY, 'CANDIDATO', candidateName);
     drawInfoField(col2, infoY, 'VAGA', jobTitle);
-    drawInfoField(col1, infoY - 32, 'WHATSAPP', admission.candidates?.['WhatsApp com DDD'] || 'N/A');
+    drawInfoField(col1, infoY - 32, 'WHATSAPP', whatsapp);
     drawInfoField(col2, infoY - 32, 'ENVIADO EM', admission.submitted_at
       ? new Date(admission.submitted_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : 'N/A');
@@ -1862,8 +1865,8 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
     res.setHeader('Content-Length', pdfBytes.length.toString());
     return res.send(Buffer.from(pdfBytes));
 
-  } catch (err) {
-    console.error('[Dossier] Error:', err);
+  } catch (err: any) {
+    console.error('[Dossier] Error:', err?.message || err, err?.stack);
     return res.status(500).json({ error: "Erro ao gerar dossiê PDF." });
   }
 });

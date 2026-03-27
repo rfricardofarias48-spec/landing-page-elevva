@@ -344,7 +344,7 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
                           className="flex items-center gap-2 px-4 py-2.5 bg-[#65a30d] text-white rounded-xl text-sm font-bold hover:bg-[#4d7c0f] transition-all hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
                         >
                           <Download className="w-4 h-4" />
-                          Baixar Dossiê
+                          Baixar
                         </button>
                       </>
                     )}
