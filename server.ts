@@ -1626,6 +1626,19 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
     const jobTitle = jobData?.title || admission.job_title || 'Vaga';
     const whatsapp = candidateData?.['WhatsApp com DDD'] || admission.candidate_phone || 'N/A';
 
+    // Sanitize text for pdf-lib StandardFonts (Latin-1 only — strip unsupported chars)
+    const sanitize = (text: any): string => {
+      const str = String(text ?? '');
+      // Replace common problematic chars and strip anything outside printable Latin-1
+      return str
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/\u2014/g, '-')
+        .replace(/\u2013/g, '-')
+        .replace(/\u2026/g, '...')
+        .replace(/[^\x20-\xFF]/g, '');
+    };
+
     // Create PDF document
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -1687,7 +1700,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
     y -= 14;
 
     // Subtitle with candidate name
-    page1.drawText(candidateName, { x: MARGIN, y, size: 11, font, color: C.label });
+    page1.drawText(sanitize(candidateName), { x: MARGIN, y, size: 11, font, color: C.label });
     y -= 30;
 
     // Info card — light background box
@@ -1700,11 +1713,11 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
 
     const drawInfoField = (x: number, yy: number, label: string, value: string) => {
       page1.drawText(label, { x, y: yy, size: 7, font: fontBold, color: C.muted });
-      page1.drawText(String(value || '—'), { x, y: yy - 13, size: 9.5, font, color: C.dark });
+      page1.drawText(sanitize(value || '—'), { x, y: yy - 13, size: 9.5, font, color: C.dark });
     };
 
-    drawInfoField(col1, infoY, 'CANDIDATO', candidateName);
-    drawInfoField(col2, infoY, 'VAGA', jobTitle);
+    drawInfoField(col1, infoY, 'CANDIDATO', sanitize(candidateName));
+    drawInfoField(col2, infoY, 'VAGA', sanitize(jobTitle));
     drawInfoField(col1, infoY - 32, 'WHATSAPP', whatsapp);
     drawInfoField(col2, infoY - 32, 'ENVIADO EM', admission.submitted_at
       ? new Date(admission.submitted_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -1740,10 +1753,10 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
         y -= 28;
 
         // Label
-        currentPage.drawText(doc.name, { x: MARGIN, y: y + 12, size: 7.5, font: fontBold, color: C.muted });
+        currentPage.drawText(sanitize(doc.name), { x: MARGIN, y: y + 12, size: 7.5, font: fontBold, color: C.muted });
 
         // Value with underline
-        currentPage.drawText(doc.value || '—', { x: MARGIN, y: y - 4, size: 10.5, font, color: C.black });
+        currentPage.drawText(sanitize(doc.value || '—'), { x: MARGIN, y: y - 4, size: 10.5, font, color: C.black });
 
         // Subtle underline
         y -= 10;
@@ -1765,7 +1778,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
 
         // Bullet
         currentPage.drawRectangle({ x: MARGIN + 2, y: y + 2, width: 4, height: 4, color: C.accent });
-        currentPage.drawText(fileDocs[i].name, { x: MARGIN + 14, y, size: 9, font, color: C.text });
+        currentPage.drawText(sanitize(fileDocs[i].name), { x: MARGIN + 14, y, size: 9, font, color: C.text });
       }
     }
 
@@ -1786,7 +1799,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
           pageCount++;
           const errPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
           drawPageHeader(errPage);
-          errPage.drawText(doc.name, { x: MARGIN, y: A4_HEIGHT - 65, size: 12, font: fontBold, color: C.black });
+          errPage.drawText(sanitize(doc.name), { x: MARGIN, y: A4_HEIGHT - 65, size: 12, font: fontBold, color: C.black });
           errPage.drawText('Arquivo nao encontrado.', { x: MARGIN, y: A4_HEIGHT - 82, size: 10, font, color: rgb(0.7, 0.2, 0.2) });
           drawPageFooter(errPage, pageCount);
           continue;
@@ -1809,7 +1822,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
             pageCount++;
             const errPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
             drawPageHeader(errPage);
-            errPage.drawText(`${doc.name} — PDF corrompido ou protegido.`, { x: MARGIN, y: A4_HEIGHT - 65, size: 10, font, color: rgb(0.7, 0.2, 0.2) });
+            errPage.drawText(sanitize(`${doc.name} — PDF corrompido ou protegido.`), { x: MARGIN, y: A4_HEIGHT - 65, size: 10, font, color: rgb(0.7, 0.2, 0.2) });
             drawPageFooter(errPage, pageCount);
           }
         } else {
@@ -1819,7 +1832,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
           drawPageHeader(page);
 
           // Document label below header
-          page.drawText(doc.name, { x: MARGIN, y: A4_HEIGHT - 58, size: 11, font: fontBold, color: C.dark });
+          page.drawText(sanitize(doc.name), { x: MARGIN, y: A4_HEIGHT - 58, size: 11, font: fontBold, color: C.dark });
 
           try {
             let image;
