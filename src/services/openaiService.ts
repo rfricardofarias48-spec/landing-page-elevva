@@ -102,9 +102,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       model: 'gpt-4o-mini',
       response_format: { type: 'json_object' },
       temperature: 0.1,
+      max_tokens: 800,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `CURRÍCULO:\n\n${pdfText.substring(0, 12000)}` },
+        { role: 'user', content: `CURRÍCULO:\n\n${pdfText.substring(0, 8000)}` },
       ],
     });
 

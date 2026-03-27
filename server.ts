@@ -673,6 +673,41 @@ app.post("/api/analyze-resume", async (req, res) => {
   }
 });
 
+// Fast analysis endpoint — server downloads PDF from Storage directly (no base64 round-trip)
+app.post("/api/analyze-fast", async (req, res) => {
+  try {
+    const { file_path, job_title, criteria } = req.body as {
+      file_path: string;
+      job_title: string;
+      criteria: string;
+    };
+
+    if (!file_path || !job_title) {
+      return res.status(400).json({ error: "Campos obrigatórios: file_path, job_title" });
+    }
+
+    // Download PDF directly from Supabase Storage (server-side, fast)
+    const { data: fileBlob, error: downloadError } = await supabaseAdmin.storage
+      .from('curriculos')
+      .download(file_path);
+
+    if (downloadError || !fileBlob) {
+      console.error("[Analyze Fast] Download error:", downloadError);
+      return res.status(404).json({ error: "Arquivo não encontrado no storage." });
+    }
+
+    // Convert blob to base64
+    const arrayBuffer = await fileBlob.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+    const result = await analyzeResume(base64, job_title, criteria || '');
+    return res.status(200).json(result);
+  } catch (err: unknown) {
+    console.error("[Analyze Fast] Error:", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Erro interno." });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────
 // Scheduling Page — Public routes for candidates to pick interview slots
 // ─────────────────────────────────────────────────────────────────────

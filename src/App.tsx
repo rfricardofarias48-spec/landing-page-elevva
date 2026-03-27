@@ -33,6 +33,17 @@ async function analyzeResume(base64: string, jobTitle: string, criteria: string)
   return res.json() as Promise<AnalysisResult>;
 }
 
+// Fast analysis — server downloads PDF from Storage directly (no base64 round-trip)
+async function analyzeResumeFast(filePath: string, jobTitle: string, criteria: string): Promise<AnalysisResult> {
+  const res = await fetch('/api/analyze-fast', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_path: filePath, job_title: jobTitle, criteria }),
+  });
+  if (!res.ok) throw new Error('Erro ao analisar currículo');
+  return res.json() as Promise<AnalysisResult>;
+}
+
 type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'APROVADOS' | 'BILLING' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
@@ -1534,24 +1545,11 @@ const App: React.FC = () => {
     // --- FUNÇÃO DE PROCESSAMENTO INDIVIDUAL ---
     const processCandidate = async (candidate: Candidate) => {
         try {
-            // 1. Download file from storage
+            // 1. Validate file path
             if (!candidate.filePath) throw new Error("File path missing");
-            
-            const { data: fileBlob, error: downloadError } = await supabase.storage
-                .from('curriculos')
-                .download(candidate.filePath);
 
-            if (downloadError || !fileBlob) {
-                console.error("Erro ao baixar arquivo do Supabase:", downloadError);
-                throw new Error("Falha no download");
-            }
-
-            // 2. Convert blob to base64
-            const file = new File([fileBlob], candidate.fileName || 'resume.pdf', { type: 'application/pdf' });
-            const base64 = await fileToBase64(file);
-
-            // 3. Analyze
-            const result = await analyzeResume(base64, activeJob.title, activeJob.criteria);
+            // 2. Analyze — server downloads PDF from Storage directly (fast path)
+            const result = await analyzeResumeFast(candidate.filePath, activeJob.title, activeJob.criteria);
             
             // 4. Update DB
             const { error: updateError } = await supabase.from('candidates')
