@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { UserCheck, FileText, Clock, CheckCircle2, Download, AlertTriangle, Search, Briefcase, Send, Eye, Loader2, Trash2 } from 'lucide-react';
+import { UserCheck, FileText, Clock, CheckCircle2, Download, AlertTriangle, Search, Briefcase, Send, Eye, Loader2, Trash2, ShieldCheck } from 'lucide-react';
 import { Admission, Job, Candidate, CandidateStatus } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { AdmissionDocsModal } from './AdmissionDocsModal';
@@ -222,14 +222,11 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
       </div>
 
       {/* LGPD Notice */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-bold text-amber-800">Aviso LGPD</p>
-          <p className="text-xs text-amber-600 mt-1">
-            Os documentos dos candidatos são automaticamente deletados <strong>48 horas</strong> após o envio. Baixe o dossiê PDF antes do prazo.
-          </p>
-        </div>
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
+        <ShieldCheck className="w-5 h-5 text-slate-400 flex-shrink-0" />
+        <p className="text-xs text-slate-500 font-medium">
+          Os documentos são automaticamente deletados <span className="font-bold text-slate-700">48 horas</span> após o envio. Baixe o PDF antes do prazo.
+        </p>
       </div>
 
       {/* Filters */}
