@@ -17,6 +17,7 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
   const [showDocsModal, setShowDocsModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<{ id: string; name: string; phone: string; jobId: string; jobTitle: string } | null>(null);
   const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Get all approved candidates from jobs
   const approvedCandidates = useMemo(() => {
@@ -149,6 +150,34 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
     } catch (err) {
       console.error('Erro ao baixar dossiê:', err);
       alert('Erro ao gerar o dossiê PDF. Tente novamente.');
+    }
+  };
+
+  const handleDeleteCandidate = async (candidateId: string, candidateName: string) => {
+    if (!confirm(`Tem certeza que deseja remover "${candidateName}" da lista de aprovados? O candidato voltará ao status anterior.`)) return;
+
+    setDeletingId(candidateId);
+    try {
+      // Revert candidate status back to COMPLETED
+      const { error } = await supabase
+        .from('candidates')
+        .update({ status: 'COMPLETED' })
+        .eq('id', candidateId);
+
+      if (error) throw error;
+
+      // Delete associated admission if exists
+      const admission = getAdmissionForCandidate(candidateId);
+      if (admission) {
+        await supabase.from('admissions').delete().eq('id', admission.id);
+      }
+
+      onRefresh();
+    } catch (err) {
+      console.error('Erro ao remover candidato:', err);
+      alert('Erro ao remover candidato. Tente novamente.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -332,6 +361,20 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
                         Baixar Novamente
                       </button>
                     )}
+
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => handleDeleteCandidate(candidate.id, candidate.name)}
+                      disabled={deletingId === candidate.id}
+                      className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-200 disabled:opacity-40"
+                      title="Remover da lista de aprovados"
+                    >
+                      {deletingId === candidate.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -379,7 +422,11 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
                     <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                     <div>
                       <p className="text-sm font-bold text-slate-700">{doc.name}</p>
-                      <p className="text-xs text-slate-400">{doc.file_name}</p>
+                      {doc.value ? (
+                        <p className="text-xs text-slate-600 font-medium">{doc.value}</p>
+                      ) : (
+                        <p className="text-xs text-slate-400">{doc.file_name || 'Arquivo enviado'}</p>
+                      )}
                     </div>
                   </div>
                   <span className="text-xs text-slate-400">{formatDate(doc.uploaded_at)}</span>

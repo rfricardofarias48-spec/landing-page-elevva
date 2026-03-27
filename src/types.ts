@@ -150,13 +150,15 @@ export interface RequiredDoc {
   name: string;
   required: boolean;
   frontBack: boolean; // Se exige frente e verso
+  type: 'text' | 'upload'; // text = campo digitável, upload = envio de arquivo
 }
 
 export interface SubmittedDoc {
   name: string;
-  file_path: string;
+  file_path?: string;
   uploaded_at: string;
-  file_name: string;
+  file_name?: string;
+  value?: string; // Valor digitado (para campos tipo text)
 }
 
 export interface Admission {
@@ -180,15 +182,16 @@ export interface Admission {
 
 // Documentos comuns pré-configurados para o modal do recrutador
 export const DEFAULT_ADMISSION_DOCS: RequiredDoc[] = [
-  { name: 'RG (Frente e Verso)', required: true, frontBack: true },
-  { name: 'CPF', required: true, frontBack: false },
-  { name: 'Comprovante de Residência', required: true, frontBack: false },
-  { name: 'Carteira de Trabalho (CTPS)', required: false, frontBack: false },
-  { name: 'Título de Eleitor', required: false, frontBack: false },
-  { name: 'Certidão de Nascimento ou Casamento', required: false, frontBack: false },
-  { name: 'Comprovante de Escolaridade', required: false, frontBack: false },
-  { name: 'Foto 3x4', required: false, frontBack: false },
-  { name: 'CNH', required: false, frontBack: true },
-  { name: 'Certificado de Reservista', required: false, frontBack: false },
-  { name: 'PIS/PASEP', required: false, frontBack: false },
+  { name: 'Nome Completo', required: true, frontBack: false, type: 'text' },
+  { name: 'RG', required: true, frontBack: false, type: 'text' },
+  { name: 'CPF', required: true, frontBack: false, type: 'text' },
+  { name: 'Data de Nascimento', required: true, frontBack: false, type: 'text' },
+  { name: 'Endereço Completo', required: true, frontBack: false, type: 'text' },
+  { name: 'Número da CTPS', required: false, frontBack: false, type: 'text' },
+  { name: 'PIS/PASEP', required: false, frontBack: false, type: 'text' },
+  { name: 'Título de Eleitor', required: false, frontBack: false, type: 'text' },
+  { name: 'CNH', required: false, frontBack: false, type: 'text' },
+  { name: 'Certificado de Reservista', required: false, frontBack: false, type: 'text' },
+  { name: 'Comprovante de Residência', required: false, frontBack: false, type: 'upload' },
+  { name: 'Foto 3x4', required: false, frontBack: false, type: 'upload' },
 ];

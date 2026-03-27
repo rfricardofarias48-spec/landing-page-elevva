@@ -1308,9 +1308,9 @@ app.post("/api/admissions", async (req, res) => {
       admissionToken = newAdmission.token;
     }
 
-    // Build public URL — prefer BASE_URL (custom domain) over VERCEL_URL (deployment URL)
+    // Build public URL — prefer BASE_URL (custom domain), fallback to known domain, then VERCEL_URL
     const baseUrl = process.env.BASE_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `${req.protocol}://${req.get('host')}`);
+      || 'https://app.elevva.net.br';
     const portalUrl = `${baseUrl}/admissao/${admissionToken}`;
 
     // Get user's Evolution instance
@@ -1459,6 +1459,52 @@ app.post("/api/admissions/:token/upload", async (req, res) => {
     return res.json({ ok: true, file_path: filePath });
   } catch (err) {
     console.error('[Admissions] Upload error:', err);
+    return res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// POST /api/admissions/:token/text — Candidato salva um campo de texto
+app.post("/api/admissions/:token/text", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { doc_name, value } = req.body;
+
+    if (!doc_name || !value?.trim()) {
+      return res.status(400).json({ error: "doc_name e value são obrigatórios" });
+    }
+
+    const { data: admission, error } = await supabaseAdmin
+      .from('admissions')
+      .select('id, token, status, submitted_docs')
+      .eq('token', token)
+      .single();
+
+    if (error || !admission) {
+      return res.status(404).json({ error: "Solicitação não encontrada." });
+    }
+
+    if (admission.status === 'EXPIRED') {
+      return res.status(410).json({ error: "Solicitação expirada." });
+    }
+
+    const existingDocs = admission.submitted_docs || [];
+    const updatedDocs = [
+      ...existingDocs.filter((d: any) => d.name !== doc_name),
+      {
+        name: doc_name,
+        value: value.trim(),
+        uploaded_at: new Date().toISOString(),
+      },
+    ];
+
+    await supabaseAdmin
+      .from('admissions')
+      .update({ submitted_docs: updatedDocs })
+      .eq('id', admission.id);
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[Admissions] Text save error:', err);
     return res.status(500).json({ error: "Erro interno" });
   }
 });
@@ -1628,7 +1674,8 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
 
     for (let i = 0; i < admission.submitted_docs.length; i++) {
       const doc = admission.submitted_docs[i];
-      coverPage.drawText(`${i + 1}.  ${doc.name}`, {
+      const label = doc.value ? `${doc.name}: ${doc.value}` : doc.name;
+      coverPage.drawText(`${i + 1}.  ${label}`, {
         x: MARGIN + 10, y,
         size: 10, font,
         color: rgb(0.2, 0.2, 0.2),
@@ -1664,6 +1711,29 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
     // --- DOCUMENT PAGES ---
     for (const doc of admission.submitted_docs) {
       try {
+        // Text field — render as text on a page
+        if (doc.value && !doc.file_path) {
+          const textPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+          textPage.drawRectangle({
+            x: 0, y: A4_HEIGHT - 45,
+            width: A4_WIDTH, height: 45,
+            color: rgb(0.96, 0.96, 0.96),
+          });
+          textPage.drawText(doc.name, {
+            x: MARGIN, y: A4_HEIGHT - 30,
+            size: 12, font: fontBold,
+            color: rgb(0.2, 0.2, 0.2),
+          });
+          textPage.drawText(doc.value, {
+            x: MARGIN, y: A4_HEIGHT - 80,
+            size: 14, font,
+            color: rgb(0.1, 0.1, 0.1),
+          });
+          continue;
+        }
+
+        if (!doc.file_path) continue;
+
         // Download file from storage
         const { data: fileData, error: downloadError } = await supabaseAdmin.storage
           .from('admission_docs')

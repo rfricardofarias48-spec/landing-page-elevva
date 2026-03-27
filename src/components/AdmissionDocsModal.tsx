@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, FileText, Plus, Trash2, Send, Loader2, ToggleLeft, ToggleRight, CheckSquare, Square, GripVertical } from 'lucide-react';
+import { X, FileText, Plus, Trash2, Send, Loader2, ToggleLeft, ToggleRight, CheckSquare, Square, Upload, Type } from 'lucide-react';
 import { RequiredDoc, DEFAULT_ADMISSION_DOCS } from '../types';
 
 interface Props {
@@ -29,8 +29,8 @@ export const AdmissionDocsModal: React.FC<Props> = ({ candidate, onClose, onSucc
     setDocs(prev => prev.map((d, i) => i === index ? { ...d, required: !d.required } : d));
   };
 
-  const toggleFrontBack = (index: number) => {
-    setDocs(prev => prev.map((d, i) => i === index ? { ...d, frontBack: !d.frontBack } : d));
+  const toggleType = (index: number) => {
+    setDocs(prev => prev.map((d, i) => i === index ? { ...d, type: d.type === 'upload' ? 'text' : 'upload' } : d));
   };
 
   const addCustomDoc = () => {
@@ -40,7 +40,7 @@ export const AdmissionDocsModal: React.FC<Props> = ({ candidate, onClose, onSucc
       setError('Documento já existe na lista.');
       return;
     }
-    setDocs(prev => [...prev, { name, required: true, frontBack: false }]);
+    setDocs(prev => [...prev, { name, required: true, frontBack: false, type: 'text' }]);
     setCustomDocName('');
     setError('');
   };
@@ -133,19 +133,19 @@ export const AdmissionDocsModal: React.FC<Props> = ({ candidate, onClose, onSucc
                   {doc.name}
                 </span>
 
-                {/* Front/Back Toggle */}
+                {/* Type Toggle: Text / Upload */}
                 {doc.required && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); toggleFrontBack(index); }}
+                    onClick={(e) => { e.stopPropagation(); toggleType(index); }}
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                      doc.frontBack
-                        ? 'bg-[#65a30d]/10 text-[#65a30d] border border-[#65a30d]/20'
+                      doc.type === 'upload'
+                        ? 'bg-blue-50 text-blue-600 border border-blue-200'
                         : 'bg-slate-100 text-slate-400 border border-slate-200 hover:text-slate-500'
                     }`}
-                    title="Exigir frente e verso"
+                    title={doc.type === 'upload' ? 'Tipo: Upload de arquivo' : 'Tipo: Campo de texto'}
                   >
-                    {doc.frontBack ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
-                    F/V
+                    {doc.type === 'upload' ? <Upload className="w-3.5 h-3.5" /> : <Type className="w-3.5 h-3.5" />}
+                    {doc.type === 'upload' ? 'Upload' : 'Texto'}
                   </button>
                 )}
 
