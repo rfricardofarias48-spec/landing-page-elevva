@@ -988,7 +988,6 @@ app.post("/api/agendar/:token/book", async (req, res) => {
             instance,
             phone,
             `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}${meetLinkText}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
-            false,
           );
         } else {
           console.warn('[Book Slot] No Evolution instance found');
@@ -1113,7 +1112,6 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
         instance,
         phone,
         `Olá, *${firstName}*.\n\nInformamos que, infelizmente, sua entrevista foi cancelada.${dateInfo}\n\nPedimos desculpas pelo inconveniente.\n\nAtenciosamente,\nEquipe de Recrutamento`,
-        false,
       );
       whatsappSent = true;
       console.log(`[Cancel] ✓ WhatsApp sent successfully to ${phone}`);
@@ -1241,7 +1239,6 @@ app.get("/api/cron/interview-reminders", async (req, res) => {
           instance,
           phone,
           `⏰ *Lembrete de Entrevista*\n\nOlá, *${firstName}*! Sua entrevista está chegando:\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${meetLink}\n\nPrepare-se e boa sorte! 🍀`,
-          false,
         );
 
         // Mark as reminded
@@ -2289,7 +2286,6 @@ app.post("/api/sdr/agendar/:token/book", async (req, res) => {
       conv.instance_name,
       conv.phone,
       `✅ *Demonstração Confirmada!*\n\n${firstName}, seu horário foi reservado.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}\n💻 *Formato:* Online via Google Meet${meetText}\n\nNos vemos lá.`,
-      false,
     );
 
     return res.json({ ok: true, slot: booked });

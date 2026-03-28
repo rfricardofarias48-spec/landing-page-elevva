@@ -1,10 +1,26 @@
 /**
  * Evolution API Service
- * Handles all communication with the Evolution API (WhatsApp gateway).
+ * Handles communication with Evolution GO (WhatsApp gateway).
+ *
+ * Evolution GO uses instance tokens for auth and flat endpoints (e.g. /send/text).
+ * Instance tokens are resolved via EVOLUTION_INSTANCE_TOKENS env var:
+ *   EVOLUTION_INSTANCE_TOKENS=InstanceA:token1,InstanceB:token2
  */
 
-const BASE_URL = (process.env.EVOLUTION_API_URL || 'https://bot-evolution-api.5mljrq.easypanel.host').replace(/\/$/, '');
+const BASE_URL = (process.env.EVOLUTION_API_URL || 'https://api.elevva.net.br').replace(/\/$/, '');
 const API_KEY  = process.env.EVOLUTION_API_KEY || '';
+
+// Parse instance tokens: "BentoSDR:token1,OtherInstance:token2"
+const INSTANCE_TOKENS: Record<string, string> = {};
+(process.env.EVOLUTION_INSTANCE_TOKENS || '').split(',').forEach(pair => {
+  const [name, token] = pair.split(':');
+  if (name && token) INSTANCE_TOKENS[name.trim()] = token.trim();
+});
+
+/** Get the API key for an instance (instance token if available, else global key) */
+function getApiKey(instance: string): string {
+  return INSTANCE_TOKENS[instance] || API_KEY;
+}
 
 export interface ListRow {
   title: string;
@@ -22,11 +38,11 @@ export function cleanPhone(rawJid: string): string {
   return rawJid.replace(/@.*$/, '');
 }
 
-async function post(path: string, body: Record<string, unknown>): Promise<unknown> {
+async function post(path: string, body: Record<string, unknown>, apiKey?: string): Promise<unknown> {
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: API_KEY },
+      headers: { 'Content-Type': 'application/json', apikey: apiKey || API_KEY },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -40,11 +56,11 @@ async function post(path: string, body: Record<string, unknown>): Promise<unknow
   }
 }
 
-/** Send a plain text message */
-export async function sendText(instance: string, jid: string, text: string, linkPreview = true): Promise<void> {
+/** Send a plain text message (Evolution GO: POST /send/text) */
+export async function sendText(instance: string, jid: string, text: string): Promise<void> {
   const phone = cleanPhone(jid);
   console.log(`[Evolution] sendText → instance: ${instance}, phone: ${phone}, text length: ${text.length}`);
-  await post(`/message/sendText/${instance}`, { number: phone, text, linkPreview });
+  await post('/send/text', { number: phone, text }, getApiKey(instance));
 }
 
 /** Send an interactive list message (renders as a tappable menu on WhatsApp) */
@@ -56,14 +72,10 @@ export async function sendList(
   buttonText: string,
   sections: ListSection[],
 ): Promise<void> {
-  await post(`/message/sendList/${instance}`, {
+  await post('/send/text', {
     number: cleanPhone(jid),
-    title,
-    description,
-    buttonText,
-    footerText: 'Elevva · Recrutamento com IA',
-    sections,
-  });
+    text: `${title}\n\n${description}\n\n${sections.map(s => s.rows.map(r => `• ${r.title}`).join('\n')).join('\n')}`,
+  }, getApiKey(instance));
 }
 
 /** Sanitize fileName fields deep inside a message object to prevent API failures with special chars */
@@ -73,7 +85,6 @@ function sanitizeMessageFileNames(obj: unknown): unknown {
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
     if (k === 'fileName' && typeof v === 'string') {
-      // Replace problematic chars but keep extension
       result[k] = v
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -89,23 +100,14 @@ export async function downloadMediaBase64(
   instance: string,
   messageData: { key: Record<string, unknown>; message: Record<string, unknown> },
 ): Promise<{ base64: string; mimetype: string } | null> {
-  // Sanitize fileNames in the message payload to avoid API issues with special characters
   const sanitizedData = sanitizeMessageFileNames(messageData) as typeof messageData;
+  const key = getApiKey(instance);
 
-  const result = await post(`/chat/getBase64FromMediaMessage/${instance}`, {
+  const result = await post(`/message/downloadimage`, {
     message: sanitizedData,
     convertToMp4: false,
-  }) as { base64?: string; mimetype?: string } | null;
+  }, key) as { base64?: string; mimetype?: string } | null;
 
-  if (!result?.base64) {
-    // Retry with original payload in case sanitization caused a mismatch
-    console.log('[Evolution] Retrying getBase64FromMediaMessage with original payload...');
-    const retryResult = await post(`/chat/getBase64FromMediaMessage/${instance}`, {
-      message: messageData,
-      convertToMp4: false,
-    }) as { base64?: string; mimetype?: string } | null;
-    if (!retryResult?.base64) return null;
-    return { base64: retryResult.base64, mimetype: retryResult.mimetype || 'application/pdf' };
-  }
+  if (!result?.base64) return null;
   return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
 }
