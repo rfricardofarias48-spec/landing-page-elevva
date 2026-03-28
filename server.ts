@@ -2069,20 +2069,31 @@ app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
     // Ignore messages sent by the bot
     if (data.IsFromMe === true) return res.status(200).json({ received: true });
 
-    // Evolution GO: JID field or Info.RemoteJid
-    const info = data.Info as Record<string, unknown> | undefined;
-    const remoteJid = String(data.JID || info?.RemoteJid || "");
-    if (!remoteJid || remoteJid.endsWith("@g.us")) return res.status(200).json({ received: true });
+    // Evolution GO: phone is in data.Chat (format: "5551...@s.whatsapp.net")
+    // data.JID is a message ID in GO, NOT the phone number
+    const chatJid = String(data.Chat || "");
+    if (!chatJid || chatJid.endsWith("@g.us")) return res.status(200).json({ received: true });
 
     const instance = String(payload.instanceName || "");
-    const phone = cleanPhone(remoteJid);
+    const phone = cleanPhone(chatJid);
     const pushName = String(data.PushName || "");
 
-    // Evolution GO: text in data.Body or data.Text
-    const textContent = String(data.Body || data.Text || "").trim() || null;
+    // Evolution GO: text is in data.Message.conversation or data.Message.extendedTextMessage.text
+    const messageObj = data.Message as Record<string, unknown> | undefined;
+    let textContent: string | null = null;
+    if (messageObj) {
+      if (messageObj.conversation) {
+        textContent = String(messageObj.conversation).trim();
+      } else if (messageObj.extendedTextMessage) {
+        const ext = messageObj.extendedTextMessage as Record<string, unknown>;
+        textContent = String(ext.text || "").trim();
+      }
+    }
+    if (!textContent) textContent = null;
 
-    // CTWA referral data
-    const referralData = (data.ContextInfo as Record<string, unknown>)?.externalAdReply as Record<string, unknown> | null || null;
+    // CTWA referral data (from ad clicks)
+    const msgContextInfo = (messageObj?.extendedTextMessage as Record<string, unknown>)?.contextInfo as Record<string, unknown> | undefined;
+    const referralData = msgContextInfo?.externalAdReply as Record<string, unknown> | null || null;
 
     console.log(`[SDR Webhook] Event: ${eventRaw}, Instance: ${instance}, Phone: ${phone}, Text: ${(textContent || '').substring(0, 50)}`);
 
