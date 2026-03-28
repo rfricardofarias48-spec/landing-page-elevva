@@ -2064,15 +2064,16 @@ app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
     }
 
     const data = payload.data as Record<string, unknown> | undefined;
-    if (!data) return res.status(200).json({ received: true });
+    if (!data) { console.log("[SDR Webhook] No data field"); return res.status(200).json({ received: true }); }
+
+    console.log(`[SDR Webhook] IsFromMe=${data.IsFromMe}, Chat=${data.Chat}, PushName=${data.PushName}`);
 
     // Ignore messages sent by the bot
-    if (data.IsFromMe === true) return res.status(200).json({ received: true });
+    if (data.IsFromMe === true) { console.log("[SDR Webhook] Skipped: IsFromMe"); return res.status(200).json({ received: true }); }
 
     // Evolution GO: phone is in data.Chat (format: "5551...@s.whatsapp.net")
-    // data.JID is a message ID in GO, NOT the phone number
     const chatJid = String(data.Chat || "");
-    if (!chatJid || chatJid.endsWith("@g.us")) return res.status(200).json({ received: true });
+    if (!chatJid || chatJid.endsWith("@g.us")) { console.log("[SDR Webhook] Skipped: no chatJid or group"); return res.status(200).json({ received: true }); }
 
     const instance = String(payload.instanceName || "");
     const phone = cleanPhone(chatJid);
@@ -2080,6 +2081,7 @@ app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
 
     // Evolution GO: text is in data.Message.conversation or data.Message.extendedTextMessage.text
     const messageObj = data.Message as Record<string, unknown> | undefined;
+    console.log(`[SDR Webhook] Message obj keys: ${messageObj ? Object.keys(messageObj).join(',') : 'null'}`);
     let textContent: string | null = null;
     if (messageObj) {
       if (messageObj.conversation) {
@@ -2095,16 +2097,21 @@ app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
     const msgContextInfo = (messageObj?.extendedTextMessage as Record<string, unknown>)?.contextInfo as Record<string, unknown> | undefined;
     const referralData = msgContextInfo?.externalAdReply as Record<string, unknown> | null || null;
 
-    console.log(`[SDR Webhook] Event: ${eventRaw}, Instance: ${instance}, Phone: ${phone}, Text: ${(textContent || '').substring(0, 50)}`);
+    console.log(`[SDR Webhook] PARSED → Instance: ${instance}, Phone: ${phone}, Text: "${textContent}", PushName: ${pushName}`);
 
-    await processSdrMessage(
-      instance,
-      phone,
-      pushName,
-      textContent,
-      referralData,
-      supabaseAdmin,
-    );
+    try {
+      await processSdrMessage(
+        instance,
+        phone,
+        pushName,
+        textContent,
+        referralData,
+        supabaseAdmin,
+      );
+      console.log("[SDR Webhook] processSdrMessage completed OK");
+    } catch (procErr) {
+      console.error("[SDR Webhook] processSdrMessage FAILED:", procErr);
+    }
 
     return res.status(200).json({ received: true });
   } catch (err) {
