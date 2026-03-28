@@ -2054,44 +2054,65 @@ app.get("/admissao/:token", async (req, res) => {
 app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
+    const eventRaw = String(payload.event || "");
+    const eventNorm = eventRaw.toLowerCase().replace(/_/g, ".");
 
-    const eventName = String(payload.event || "").toLowerCase().replace(/_/g, ".");
-    if (!eventName.includes("messages.upsert")) return res.status(200).json({ received: true });
+    // Support both Evolution GO ("Message") and legacy Evolution API ("messages.upsert")
+    const isMessageEvent = eventNorm === "message" || eventNorm.includes("messages.upsert");
+    if (!isMessageEvent) return res.status(200).json({ received: true });
 
     const data = payload.data as Record<string, unknown> | undefined;
     if (!data) return res.status(200).json({ received: true });
 
-    const key = data.key as Record<string, unknown> | undefined;
-    if (!key) return res.status(200).json({ received: true });
+    // Evolution GO: key is inside data.Info or data.key
+    // Legacy: key is data.key
+    const key = (data.key || data.Info) as Record<string, unknown> | undefined;
 
-    // Ignore messages sent by the bot itself
-    if (key.fromMe === true) return res.status(200).json({ received: true });
+    // Evolution GO sends fromMe differently — check both key.fromMe and data.IsFromMe
+    const fromMe = key?.fromMe === true || data.IsFromMe === true;
+    if (fromMe) return res.status(200).json({ received: true });
 
-    const remoteJid = String(key.remoteJid || "");
-    // Ignore group messages
-    if (remoteJid.endsWith("@g.us")) return res.status(200).json({ received: true });
+    // Evolution GO: remoteJid may be in key.remoteJid, data.Info.RemoteJid, or data.JID
+    const remoteJid = String(key?.remoteJid || key?.RemoteJid || data.JID || "");
+    if (!remoteJid || remoteJid.endsWith("@g.us")) return res.status(200).json({ received: true });
 
-    const instance = String(payload.instance || "");
+    // Instance name: Evolution GO uses "instanceName", legacy uses "instance"
+    const instance = String(payload.instanceName || payload.instance || "");
     const phone = cleanPhone(remoteJid);
-    const pushName = String(data.pushName || "");
-    const messageType = String(data.messageType || "");
-    const message = (data.message as Record<string, unknown>) || {};
 
-    // Extract text content
+    // PushName: Evolution GO may put it in data.PushName or data.pushName
+    const pushName = String(data.pushName || data.PushName || "");
+
+    // Extract text content — Evolution GO puts text directly in data.Body or data.Text
     let textContent: string | null = null;
-    if (messageType === "conversation") {
-      textContent = String(message.conversation || "");
-    } else if (messageType === "extendedTextMessage") {
-      const ext = message.extendedTextMessage as Record<string, unknown> | undefined;
-      textContent = String(ext?.text || "");
-    } else if (messageType === "listResponseMessage") {
-      const lr = message.listResponseMessage as Record<string, unknown> | undefined;
-      textContent = String(lr?.title || "");
+
+    // Evolution GO format: data.Body contains the text directly
+    if (data.Body) {
+      textContent = String(data.Body);
+    } else if (data.Text) {
+      textContent = String(data.Text);
+    } else {
+      // Legacy format: data.message.conversation or data.message.extendedTextMessage.text
+      const messageType = String(data.messageType || "");
+      const message = (data.message as Record<string, unknown>) || {};
+
+      if (messageType === "conversation") {
+        textContent = String(message.conversation || "");
+      } else if (messageType === "extendedTextMessage") {
+        const ext = message.extendedTextMessage as Record<string, unknown> | undefined;
+        textContent = String(ext?.text || "");
+      } else if (messageType === "listResponseMessage") {
+        const lr = message.listResponseMessage as Record<string, unknown> | undefined;
+        textContent = String(lr?.title || "");
+      }
     }
 
     // Extract CTWA referral data if present
+    const message = (data.message as Record<string, unknown>) || {};
     const contextInfo = (message as Record<string, unknown>)?.contextInfo as Record<string, unknown> | undefined;
     const referralData = contextInfo?.externalAdReply as Record<string, unknown> | null || null;
+
+    console.log(`[SDR Webhook] Event: ${eventRaw}, Instance: ${instance}, Phone: ${phone}, Text: ${(textContent || '').substring(0, 50)}`);
 
     await processSdrMessage(
       instance,
