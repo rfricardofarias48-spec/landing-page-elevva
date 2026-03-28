@@ -2066,18 +2066,21 @@ app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
     const data = payload.data as Record<string, unknown> | undefined;
     if (!data) { console.log("[SDR Webhook] No data field"); return res.status(200).json({ received: true }); }
 
-    console.log(`[SDR Webhook] IsFromMe=${data.IsFromMe}, Chat=${data.Chat}, PushName=${data.PushName}`);
+    // Evolution GO: Chat, IsFromMe, PushName are inside data.Info
+    const info = data.Info as Record<string, unknown> | undefined;
+
+    console.log(`[SDR Webhook] IsFromMe=${info?.IsFromMe}, Chat=${info?.Chat}, PushName=${info?.PushName}`);
 
     // Ignore messages sent by the bot
-    if (data.IsFromMe === true) { console.log("[SDR Webhook] Skipped: IsFromMe"); return res.status(200).json({ received: true }); }
+    if (info?.IsFromMe === true) { console.log("[SDR Webhook] Skipped: IsFromMe"); return res.status(200).json({ received: true }); }
 
-    // Evolution GO: phone is in data.Chat (format: "5551...@s.whatsapp.net")
-    const chatJid = String(data.Chat || "");
+    // Evolution GO: phone is in data.Info.Chat (format: "5551...@s.whatsapp.net")
+    const chatJid = String(info?.Chat || "");
     if (!chatJid || chatJid.endsWith("@g.us")) { console.log("[SDR Webhook] Skipped: no chatJid or group"); return res.status(200).json({ received: true }); }
 
     const instance = String(payload.instanceName || "");
     const phone = cleanPhone(chatJid);
-    const pushName = String(data.PushName || "");
+    const pushName = String(info?.PushName || "");
 
     // Evolution GO: text is in data.Message.conversation or data.Message.extendedTextMessage.text
     const messageObj = data.Message as Record<string, unknown> | undefined;
