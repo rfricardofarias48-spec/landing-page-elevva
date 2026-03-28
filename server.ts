@@ -2054,10 +2054,14 @@ app.get("/admissao/:token", async (req, res) => {
 app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
+    console.log("[SDR Webhook] RAW payload:", JSON.stringify(payload).substring(0, 2000));
     const eventRaw = String(payload.event || "");
 
     // Evolution GO: event "Message" for incoming messages
-    if (eventRaw.toLowerCase() !== "message") return res.status(200).json({ received: true });
+    if (eventRaw.toLowerCase() !== "message") {
+      console.log(`[SDR Webhook] Ignored event: "${eventRaw}"`);
+      return res.status(200).json({ received: true });
+    }
 
     const data = payload.data as Record<string, unknown> | undefined;
     if (!data) return res.status(200).json({ received: true });
