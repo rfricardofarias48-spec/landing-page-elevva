@@ -93,12 +93,44 @@ function detectIntent(text: string): Intent {
 // ─────────────────────────── Qualification Questions ───────────────────────────
 
 const QUALIFICATION_QUESTIONS = [
-  { key: 'name', question: 'Para começar, qual o seu nome?' },
-  { key: 'company', question: 'Qual o nome da sua empresa e o segmento de atuação?' },
-  { key: 'role', question: 'Qual o seu cargo na empresa?' },
-  { key: 'company_size', question: 'Quantos funcionários a empresa tem hoje, aproximadamente?' },
-  { key: 'pain', question: 'Qual a maior dificuldade que você enfrenta hoje no recrutamento? (triagem, agendamento, volume de currículos, tempo...)' },
+  { key: 'name', question: 'Para eu te atender melhor, como posso te chamar?' },
+  { key: 'company', question: 'Prazer, *{name}*! E qual o nome da sua empresa? Atuam em qual segmento?' },
+  { key: 'role', question: 'Boa! E qual a sua função lá na *{company}*?' },
+  { key: 'company_size', question: 'Entendi, {name}. E mais ou menos quantos funcionários vocês têm hoje?' },
+  { key: 'pain', question: 'E no dia a dia, qual a maior dificuldade de vocês com recrutamento? Triagem demorada, agendamento manual, volume grande de currículos...?' },
 ];
+
+/** Acknowledgments to make qualification feel more human */
+const ACKNOWLEDGMENTS: Record<string, string[]> = {
+  name: [],  // handled by the next question template
+  company: ['Legal!', 'Interessante!', 'Boa!'],
+  role: ['Entendi!', 'Perfeito!', 'Boa!'],
+  company_size: ['Certo!', 'Entendi!', 'Legal!'],
+  pain: [],  // last question, transitions to demo offer
+};
+
+function randomAck(key: string): string {
+  const acks = ACKNOWLEDGMENTS[key] || [];
+  if (acks.length === 0) return '';
+  return acks[Math.floor(Math.random() * acks.length)] + ' ';
+}
+
+/** Get contextual greeting based on time of day (Brazil timezone) */
+function getTimeGreeting(): string {
+  const now = new Date();
+  // Brazil UTC-3
+  const brHour = (now.getUTCHours() - 3 + 24) % 24;
+  if (brHour >= 5 && brHour < 12) return 'Bom dia';
+  if (brHour >= 12 && brHour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+/** Replace placeholders like {name}, {company} with context values */
+function personalize(text: string, ctx: SdrConversationContext): string {
+  return text
+    .replace(/\{name\}/g, ctx.name || '')
+    .replace(/\{company\}/g, ctx.company || '');
+}
 
 // ─────────────────────────── Types ───────────────────────────
 
@@ -245,11 +277,16 @@ async function handleNovo(
   referralData: Record<string, unknown> | null,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const name = pushName || 'Visitante';
+  const name = pushName || '';
+  const timeGreet = getTimeGreeting();
 
-  const greeting = `Olá, *${name}*! Sou o Bento, consultor da Elevva.
+  const greeting = name
+    ? `${timeGreet}, *${name}*! Tudo bem? Sou o Bento, consultor comercial da Elevva.
 
-${PITCH_CURTO}`;
+Que bom ter você aqui! ${PITCH_CURTO}`
+    : `${timeGreet}! Tudo bem? Sou o Bento, consultor comercial da Elevva.
+
+Que bom ter você aqui! ${PITCH_CURTO}`;
 
   await sendAndLog(instance, phone, greeting, conv.lead_id, conv.id, supabase);
 
@@ -317,7 +354,16 @@ async function handleSaudacaoEnviada(
     return;
   }
 
-  // Default: start qualification
+  // If lead just replied with a greeting, acknowledge warmly and start qualification
+  if (intent === 'GREETING') {
+    const name = conv.context.name || '';
+    const warmReply = name
+      ? `Que bom, *${name}*! Vou te fazer algumas perguntas rápidas para entender como a Elevva pode te ajudar.`
+      : `Que bom! Vou te fazer algumas perguntas rápidas para entender como a Elevva pode te ajudar.`;
+    await sendAndLog(instance, phone, warmReply, conv.lead_id, conv.id, supabase);
+  }
+
+  // Start qualification
   await startQualification(conv, instance, phone, text, supabase);
 }
 
@@ -343,7 +389,8 @@ async function startQualification(
   // Ask first unanswered question
   const question = QUALIFICATION_QUESTIONS[step];
   if (question) {
-    await sendAndLog(instance, phone, question.question, conv.lead_id, conv.id, supabase);
+    const questionText = personalize(question.question, ctx);
+    await sendAndLog(instance, phone, questionText, conv.lead_id, conv.id, supabase);
     ctx.qualification_step = step;
     ctx.pending_question = question.key;
   }
@@ -422,7 +469,12 @@ async function handleQualificando(
   const nextStep = currentStep + 1;
 
   if (nextStep >= QUALIFICATION_QUESTIONS.length) {
-    // Qualification complete — mark lead as qualified and offer demo
+    // Qualification complete — thank and offer demo
+    const firstName = ctx.name?.split(' ')[0] || '';
+    const thanks = firstName
+      ? `Obrigado pelas informações, *${firstName}*! Já tenho tudo que preciso para te mostrar como a Elevva se encaixa na sua operação.`
+      : `Obrigado pelas informações! Já tenho tudo que preciso.`;
+    await sendAndLog(instance, phone, thanks, conv.lead_id, conv.id, supabase);
     if (conv.lead_id) await updateLead(conv.lead_id, { status: 'QUALIFICADO' }, supabase);
     await offerDemo(conv, instance, phone, supabase);
     return;
@@ -440,7 +492,8 @@ async function handleQualificando(
     return;
   }
 
-  await sendAndLog(instance, phone, nextQ.question, conv.lead_id, conv.id, supabase);
+  const questionText = personalize(nextQ.question, ctx);
+  await sendAndLog(instance, phone, questionText, conv.lead_id, conv.id, supabase);
   ctx.qualification_step = nextStep;
   ctx.pending_question = nextQ.key;
   await updateConv(conv.id, { context: ctx }, supabase);
@@ -454,6 +507,7 @@ async function handleTirandoDuvidas(
   supabase: SupabaseClient,
 ): Promise<void> {
   const intent = detectIntent(text);
+  const firstName = conv.context.name?.split(' ')[0] || '';
 
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
 
@@ -463,8 +517,9 @@ async function handleTirandoDuvidas(
   }
 
   if (intent === 'NO') {
+    const nameRef = firstName ? `, ${firstName}` : '';
     await sendAndLog(instance, phone,
-      'Sem problemas. Se mudar de ideia, é só me chamar. A Elevva está aqui quando você precisar.',
+      `Sem problemas${nameRef}! Fico por aqui caso precise. A Elevva está à disposição quando quiser conhecer.`,
       conv.lead_id, conv.id, supabase);
     await updateConv(conv.id, { state: 'PERDIDO' }, supabase);
     if (conv.lead_id) await updateLead(conv.lead_id, { status: 'PERDIDO', lost_reason: 'Recusou demonstração' }, supabase);
@@ -473,21 +528,23 @@ async function handleTirandoDuvidas(
 
   if (intent === 'PRICE') {
     await sendAndLog(instance, phone, PLANOS, conv.lead_id, conv.id, supabase);
-    await sendAndLog(instance, phone, 'Quer ver o sistema funcionando antes de decidir? Posso liberar um horário.', conv.lead_id, conv.id, supabase);
+    await sendAndLog(instance, phone,
+      'O legal é que você pode validar tudo isso na prática antes de decidir. Na demonstração, mostro o sistema funcionando ao vivo. Quer que eu libere um horário?',
+      conv.lead_id, conv.id, supabase);
     return;
   }
 
   if (intent === 'HOW_IT_WORKS') {
     await sendAndLog(instance, phone, PITCH_MEDIO, conv.lead_id, conv.id, supabase);
-    await sendAndLog(instance, phone, 'Posso liberar um horário para você ver ao vivo?', conv.lead_id, conv.id, supabase);
+    await sendAndLog(instance, phone,
+      'Na demonstração, mostro tudo isso ao vivo. Dura cerca de 30 minutos e você pode trazer quem mais da equipe quiser. Quer agendar?',
+      conv.lead_id, conv.id, supabase);
     return;
   }
 
   if (intent === 'LGPD') {
     await sendAndLog(instance, phone,
-      `A segurança está travada no sistema. O candidato envia os documentos, a Elevva monta o dossiê PDF para a contabilidade e, em exatas 48 horas, o servidor deleta os arquivos sensíveis automaticamente.
-
-Quer ver como funciona na prática?`,
+      `Essa é uma preocupação super válida. A segurança está no DNA do sistema:\n\n📄 O candidato envia os documentos por um portal seguro\n⚙️ A Elevva gera o dossiê PDF para a contabilidade\n✅ Em 48h, todos os arquivos sensíveis são deletados automaticamente\n\nAssim vocês ficam em conformidade sem precisar se preocupar. Quer ver como funciona na prática?`,
       conv.lead_id, conv.id, supabase);
     return;
   }
@@ -497,11 +554,9 @@ Quer ver como funciona na prática?`,
     return;
   }
 
-  // Unknown question — give brief pitch + offer demo
+  // Unknown question — give a helpful, conversational answer
   await sendAndLog(instance, phone,
-    `A Elevva automatiza todo o processo de recrutamento — triagem de currículos, agendamento de entrevistas e coleta de documentos. Tudo pelo WhatsApp, sem instalar nada.
-
-O melhor caminho para tirar suas dúvidas é ver o sistema ao vivo. Posso liberar um horário para a demonstração?`,
+    `Boa pergunta${firstName ? ', ' + firstName : ''}! Resumindo, a Elevva funciona assim:\n\n📄 O candidato envia o currículo pelo WhatsApp\n⚙️ A IA analisa e gera um relatório com nota de compatibilidade\n📅 As entrevistas são agendadas automaticamente no Google Calendar com sala no Meet\n\nTudo sem intervenção humana. E o melhor: você pode validar isso na prática. Quer ver uma demonstração ao vivo?`,
     conv.lead_id, conv.id, supabase);
 }
 
@@ -516,13 +571,17 @@ async function offerDemo(
   const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
   const link = `${baseUrl}/api/sdr/agendar/${token}`;
 
-  await sendAndLog(instance, phone,
-    `📅 Liberei os horários na agenda abaixo.
+  const firstName = conv.context.name?.split(' ')[0] || '';
+  const nameRef = firstName ? `, *${firstName}*` : '';
 
-Escolha o melhor horário para a demonstração:
+  await sendAndLog(instance, phone,
+    `Excelente${nameRef}! Vou te mostrar a Elevva funcionando ao vivo.
+
+📅 Liberei os horários disponíveis na agenda abaixo. É só escolher o que funcionar melhor para você:
+
 ${link}
 
-Na demo, você vê o sistema funcionando ao vivo e pode trazer outros tomadores de decisão da sua empresa.`,
+Fique à vontade para convidar outros tomadores de decisão da empresa para assistir junto.`,
     conv.lead_id, conv.id, supabase);
 
   const ctx = { ...conv.context, scheduling_token: token };
@@ -544,24 +603,73 @@ async function handleAguardandoSlot(
   const intent = detectIntent(text);
 
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
+  if (intent === 'RESCHEDULE') { await handleReschedule(conv, instance, phone, supabase); return; }
 
-  if (intent === 'RESCHEDULE') {
-    await handleReschedule(conv, instance, phone, supabase);
+  // Answer questions instead of just resending the link
+  if (intent === 'HOW_IT_WORKS') {
+    await sendAndLog(instance, phone, PITCH_MEDIO, conv.lead_id, conv.id, supabase);
+    await resendLinkGently(conv, instance, phone, supabase);
     return;
   }
 
-  // Resend scheduling link
-  const token = conv.context.scheduling_token;
-  if (token) {
-    const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-    const link = `${baseUrl}/api/sdr/agendar/${token}`;
+  if (intent === 'PRICE') {
+    await sendAndLog(instance, phone, PLANOS, conv.lead_id, conv.id, supabase);
     await sendAndLog(instance, phone,
-      `Para escolher o horário da demonstração, acesse o link:\n\n${link}`,
+      'Na demonstração, você vê tudo isso funcionando ao vivo e pode tirar todas as dúvidas. Vale a pena conferir antes de decidir.',
       conv.lead_id, conv.id, supabase);
-  } else {
-    // Regenerate
-    await offerDemo(conv, instance, phone, supabase);
+    await resendLinkGently(conv, instance, phone, supabase);
+    return;
   }
+
+  if (intent === 'LGPD') {
+    await sendAndLog(instance, phone,
+      `A segurança está no DNA do sistema. Funciona assim:\n\n📄 O candidato envia os documentos\n⚙️ A Elevva monta o dossiê PDF para a contabilidade\n✅ Em 48 horas, os arquivos sensíveis são deletados automaticamente\n\nA gente elimina o risco na raiz.`,
+      conv.lead_id, conv.id, supabase);
+    await resendLinkGently(conv, instance, phone, supabase);
+    return;
+  }
+
+  if (['OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR'].includes(intent)) {
+    await sendAndLog(instance, phone, handleObjection(intent), conv.lead_id, conv.id, supabase);
+    await resendLinkGently(conv, instance, phone, supabase);
+    return;
+  }
+
+  if (intent === 'YES' || intent === 'DEMO_REQUEST') {
+    await resendLinkGently(conv, instance, phone, supabase);
+    return;
+  }
+
+  if (intent === 'NO') {
+    await sendAndLog(instance, phone,
+      'Sem problemas! Fico por aqui caso mude de ideia. A Elevva está à disposição quando você precisar.',
+      conv.lead_id, conv.id, supabase);
+    await updateConv(conv.id, { state: 'PERDIDO' }, supabase);
+    if (conv.lead_id) await updateLead(conv.lead_id, { status: 'PERDIDO', lost_reason: 'Desistiu após oferta de demo' }, supabase);
+    return;
+  }
+
+  // Unknown intent — treat as a question, give helpful response + gentle link reminder
+  await sendAndLog(instance, phone,
+    `Boa pergunta! A Elevva cuida de todo o processo de recrutamento: a IA lê os currículos, gera relatórios com ranking de compatibilidade e agenda as entrevistas no seu Google Calendar com sala no Meet.\n\nTudo isso sem intervenção humana. Na demonstração, você vê na prática como funciona para o seu cenário.`,
+    conv.lead_id, conv.id, supabase);
+  await resendLinkGently(conv, instance, phone, supabase);
+}
+
+/** Resend the scheduling link in a soft, non-pushy way */
+async function resendLinkGently(
+  conv: SdrConv,
+  instance: string,
+  phone: string,
+  supabase: SupabaseClient,
+): Promise<void> {
+  const token = conv.context.scheduling_token;
+  if (!token) { await offerDemo(conv, instance, phone, supabase); return; }
+  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
+  const link = `${baseUrl}/api/sdr/agendar/${token}`;
+  await sendAndLog(instance, phone,
+    `📅 Quando quiser agendar, o link está aqui:\n${link}`,
+    conv.lead_id, conv.id, supabase);
 }
 
 async function handleDemoAgendada(
