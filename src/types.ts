@@ -193,6 +193,7 @@ export type SdrConversationState =
   | 'QUALIFICANDO'
   | 'TIRANDO_DUVIDAS'
   | 'OFERECENDO_DEMO'
+  | 'NEGOCIANDO_HORARIO'
   | 'AGUARDANDO_ESCOLHA_SLOT'
   | 'DEMO_AGENDADA'
   | 'FOLLOW_UP_1'
@@ -242,6 +243,8 @@ export interface SdrConversationContext {
   pending_question?: string;
   unknown_count?: number;
   pain_question_sent?: boolean;
+  proposed_date?: string;   // YYYY-MM-DD
+  proposed_time?: string;   // HH:MM
 }
 
 export interface SdrConversation {

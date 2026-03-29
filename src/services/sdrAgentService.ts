@@ -616,27 +616,84 @@ async function handleTirandoDuvidas(
   await updateConv(conv.id, { context: { ...ctx, unknown_count: unknownCount + 1 } }, supabase);
 }
 
+/** Suggest a concrete demo time based on current time (Brazil UTC-3) */
+function suggestDemoSlot(): { date: string; time: string; label: string } {
+  const now = new Date();
+  const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000); // UTC-3
+  const brHour = brNow.getUTCHours();
+  const brMinutes = brNow.getUTCMinutes();
+
+  // Work with a copy for date calculations
+  let targetDate = new Date(brNow);
+  let targetHour: number;
+
+  if (brHour < 16) {
+    // Still time today — suggest 2 hours from now, rounded to next full hour
+    targetHour = brHour + 2;
+    if (brMinutes > 0) targetHour++;
+    if (targetHour < 9) targetHour = 9;
+    if (targetHour > 18) {
+      // Too late today, go to tomorrow
+      targetDate.setUTCDate(targetDate.getUTCDate() + 1);
+      targetHour = 10;
+    }
+  } else {
+    // Too late today — suggest tomorrow
+    targetDate.setUTCDate(targetDate.getUTCDate() + 1);
+    targetHour = 10;
+  }
+
+  // Skip weekends
+  const dayOfWeek = targetDate.getUTCDay();
+  if (dayOfWeek === 0) targetDate.setUTCDate(targetDate.getUTCDate() + 1); // Sunday → Monday
+  if (dayOfWeek === 6) targetDate.setUTCDate(targetDate.getUTCDate() + 2); // Saturday → Monday
+
+  const y = targetDate.getUTCFullYear();
+  const m = String(targetDate.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(targetDate.getUTCDate()).padStart(2, '0');
+  const dateStr = `${y}-${m}-${d}`;
+  const timeStr = `${String(targetHour).padStart(2, '0')}:00`;
+
+  // Format label: "amanhã (30/03) às 10h" or "segunda (31/03) às 10h"
+  const isToday = targetDate.getUTCDate() === brNow.getUTCDate() && targetDate.getUTCMonth() === brNow.getUTCMonth();
+  const tomorrow = new Date(brNow);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const isTomorrow = targetDate.getUTCDate() === tomorrow.getUTCDate() && targetDate.getUTCMonth() === tomorrow.getUTCMonth();
+
+  const weekDays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  let dayLabel: string;
+  if (isToday) dayLabel = 'hoje';
+  else if (isTomorrow) dayLabel = 'amanhã';
+  else dayLabel = weekDays[targetDate.getUTCDay()];
+
+  const label = `${dayLabel} (${d}/${m}) às ${targetHour}h`;
+
+  return { date: dateStr, time: timeStr, label };
+}
+
+/** Format a date string YYYY-MM-DD as DD/MM */
+function formatDateBR(dateStr: string): string {
+  const [, m, d] = dateStr.split('-');
+  return `${d}/${m}`;
+}
+
 async function offerDemo(
   conv: SdrConv,
   instance: string,
   phone: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  // Generate scheduling token
-  const token = crypto.randomBytes(16).toString('hex');
-  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-  const link = `${baseUrl}/api/sdr/agendar/${token}`;
-
   const firstName = conv.context.name?.split(' ')[0] || '';
   const nameRef = firstName ? `, *${firstName}*` : '';
+  const slot = suggestDemoSlot();
 
   await sendAndLog(instance, phone,
-    `Excelente${nameRef}! 📅 Escolha o melhor horário para a demo:\n\n${link}\n\nDura 30 min. Pode trazer quem quiser da equipe.`,
+    `Ótimo${nameRef}! A demo dura 30 min e é online pelo Google Meet.\n\nConsigo encaixar ${slot.label}. Funciona para você?`,
     conv.lead_id, conv.id, supabase);
 
-  const ctx = { ...conv.context, scheduling_token: token };
+  const ctx = { ...conv.context, proposed_date: slot.date, proposed_time: slot.time };
   await updateConv(conv.id, {
-    state: 'AGUARDANDO_ESCOLHA_SLOT',
+    state: 'NEGOCIANDO_HORARIO',
     context: ctx,
   }, supabase);
 
@@ -670,6 +727,186 @@ async function handleOferecendoDemo(
     conv.lead_id, conv.id, supabase);
 
   await offerDemo(conv, instance, phone, supabase);
+}
+
+/** Try to extract a time from text like "14h", "às 15", "10:30", "as 9" */
+function extractTime(text: string): string | null {
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // "14h", "14h30", "14:30", "às 14", "as 14"
+  const match = t.match(/(\d{1,2})\s*[:h]\s*(\d{2})?/);
+  if (match) {
+    const hour = parseInt(match[1]);
+    const min = match[2] ? parseInt(match[2]) : 0;
+    if (hour >= 8 && hour <= 20) return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+  }
+  // "às 14", "as 9"
+  const match2 = t.match(/(?:as|às)\s*(\d{1,2})/);
+  if (match2) {
+    const hour = parseInt(match2[1]);
+    if (hour >= 8 && hour <= 20) return `${String(hour).padStart(2, '0')}:00`;
+  }
+  return null;
+}
+
+/** Try to extract a date reference from text */
+function extractDate(text: string, refDate?: string): string | null {
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const now = new Date();
+  const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+
+  // "hoje"
+  if (/\bhoje\b/.test(t)) {
+    const y = brNow.getUTCFullYear(), m = brNow.getUTCMonth() + 1, d = brNow.getUTCDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  // "amanha"
+  if (/\bamanha\b/.test(t)) {
+    const tm = new Date(brNow);
+    tm.setUTCDate(tm.getUTCDate() + 1);
+    return `${tm.getUTCFullYear()}-${String(tm.getUTCMonth() + 1).padStart(2, '0')}-${String(tm.getUTCDate()).padStart(2, '0')}`;
+  }
+  // Day of week: "segunda", "terca", etc.
+  const weekDays: Record<string, number> = { domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6 };
+  for (const [name, dow] of Object.entries(weekDays)) {
+    if (t.includes(name)) {
+      const target = new Date(brNow);
+      const diff = (dow - target.getUTCDay() + 7) % 7 || 7;
+      target.setUTCDate(target.getUTCDate() + diff);
+      return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(target.getUTCDate()).padStart(2, '0')}`;
+    }
+  }
+  // DD/MM pattern
+  const dateMatch = t.match(/(\d{1,2})\s*[\/\-]\s*(\d{1,2})/);
+  if (dateMatch) {
+    const day = parseInt(dateMatch[1]), month = parseInt(dateMatch[2]);
+    const year = brNow.getUTCFullYear();
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+/** Book the demo: create Google Calendar event with Meet and notify lead */
+async function confirmDemo(
+  conv: SdrConv,
+  instance: string,
+  phone: string,
+  date: string,
+  time: string,
+  supabase: SupabaseClient,
+): Promise<void> {
+  const firstName = conv.context.name?.split(' ')[0] || '';
+  const leadName = conv.context.name || 'Lead SDR';
+
+  // Create Google Calendar + Meet event
+  const result = await createMeetingEvent({
+    candidateName: leadName,
+    jobTitle: 'Demonstração Elevva',
+    slotDate: date,
+    slotTime: time,
+    candidatePhone: phone,
+  });
+
+  const meetLink = result?.meetLink || '';
+  const eventId = result?.eventId || '';
+  const dateLabel = formatDateBR(date);
+  const hourLabel = time.replace(':00', 'h').replace(':30', 'h30');
+
+  if (meetLink) {
+    await sendAndLog(instance, phone,
+      `✅ *Demonstração confirmada!*\n\n📅 ${dateLabel} às ${hourLabel}\n💻 Online via Google Meet\n\n${meetLink}\n\nNos vemos lá${firstName ? ', *' + firstName + '*' : ''}!`,
+      conv.lead_id, conv.id, supabase);
+  } else {
+    await sendAndLog(instance, phone,
+      `✅ *Demonstração confirmada!*\n\n📅 ${dateLabel} às ${hourLabel}\n\nVou te enviar o link da reunião em breve${firstName ? ', *' + firstName + '*' : ''}.`,
+      conv.lead_id, conv.id, supabase);
+  }
+
+  const ctx = { ...conv.context, google_event_id: eventId, meeting_link: meetLink, proposed_date: date, proposed_time: time };
+  await updateConv(conv.id, { state: 'DEMO_AGENDADA', context: ctx }, supabase);
+  if (conv.lead_id) await updateLead(conv.lead_id, { status: 'DEMO_AGENDADA' }, supabase);
+}
+
+async function handleNegociandoHorario(
+  conv: SdrConv,
+  instance: string,
+  phone: string,
+  text: string,
+  supabase: SupabaseClient,
+): Promise<void> {
+  const intent = detectIntent(text);
+  const firstName = conv.context.name?.split(' ')[0] || '';
+  const proposedDate = conv.context.proposed_date || '';
+  const proposedTime = conv.context.proposed_time || '';
+
+  if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
+
+  if (intent === 'NO') {
+    await sendAndLog(instance, phone,
+      `Sem problemas${firstName ? ', ' + firstName : ''}! Tem algum dia e horário que funcione melhor para você?`,
+      conv.lead_id, conv.id, supabase);
+    return; // Stay in NEGOCIANDO_HORARIO
+  }
+
+  // Lead accepted the proposed time
+  if (intent === 'YES') {
+    if (proposedDate && proposedTime) {
+      const dateLabel = formatDateBR(proposedDate);
+      const hourLabel = proposedTime.replace(':00', 'h').replace(':30', 'h30');
+      await sendAndLog(instance, phone,
+        `Perfeito! Vou agendar para *${dateLabel} às ${hourLabel}*. Um momento...`,
+        conv.lead_id, conv.id, supabase);
+      await confirmDemo(conv, instance, phone, proposedDate, proposedTime, supabase);
+    } else {
+      await offerDemo(conv, instance, phone, supabase);
+    }
+    return;
+  }
+
+  // Lead has questions — answer them without leaving negotiation
+  if (['PRICE', 'DISCOUNT', 'HOW_IT_WORKS', 'INTEGRATION', 'LGPD'].includes(intent)) {
+    await updateConv(conv.id, { state: 'TIRANDO_DUVIDAS' }, supabase);
+    await handleTirandoDuvidas(conv, instance, phone, text, supabase);
+    return;
+  }
+
+  if (['OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR'].includes(intent)) {
+    await sendAndLog(instance, phone, handleObjection(intent), conv.lead_id, conv.id, supabase);
+    return;
+  }
+
+  // Try to extract a counter-proposal (time and/or date)
+  const newTime = extractTime(text);
+  const newDate = extractDate(text, proposedDate);
+
+  if (newTime || newDate) {
+    const finalDate = newDate || proposedDate;
+    const finalTime = newTime || proposedTime;
+    const dateLabel = formatDateBR(finalDate);
+    const hourLabel = finalTime.replace(':00', 'h').replace(':30', 'h30');
+
+    // Validate business hours
+    const hour = parseInt(finalTime.split(':')[0]);
+    if (hour < 8 || hour > 19) {
+      await sendAndLog(instance, phone,
+        `Os horários disponíveis são das 8h às 19h. Qual horário funciona para você?`,
+        conv.lead_id, conv.id, supabase);
+      return;
+    }
+
+    // Confirm the counter-proposal
+    await sendAndLog(instance, phone,
+      `Combinado! *${dateLabel} às ${hourLabel}*. Posso confirmar na agenda?`,
+      conv.lead_id, conv.id, supabase);
+
+    const ctx = { ...conv.context, proposed_date: finalDate, proposed_time: finalTime };
+    await updateConv(conv.id, { context: ctx }, supabase);
+    return;
+  }
+
+  // Couldn't understand — ask again naturally
+  await sendAndLog(instance, phone,
+    `Me diz um dia e horário que funcione para você. A demo dura 30 min, pode ser de segunda a sexta das 8h às 19h.`,
+    conv.lead_id, conv.id, supabase);
 }
 
 async function handleAguardandoSlot(
@@ -834,6 +1071,10 @@ export async function processSdrMessage(
     case 'TIRANDO_DUVIDAS':
     case 'OFERECENDO_DEMO':
       await handleOferecendoDemo(conv, instance, phone, text, supabase);
+      break;
+
+    case 'NEGOCIANDO_HORARIO':
+      await handleNegociandoHorario(conv, instance, phone, text, supabase);
       break;
 
     case 'AGUARDANDO_ESCOLHA_SLOT':
