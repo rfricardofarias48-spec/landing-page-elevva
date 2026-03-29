@@ -238,8 +238,9 @@ export interface SdrConversationContext {
   meeting_link?: string;
   follow_up_count?: number;
   last_follow_up_at?: string;
-  qualification_step?: number;  // tracks which qualification question we're on
-  pending_question?: string;    // last question asked, awaiting answer
+  qualification_step?: number;
+  pending_question?: string;
+  unknown_count?: number;
 }
 
 export interface SdrConversation {

@@ -38,20 +38,19 @@ const PLANOS = `Temos dois planos:
 
 *Plano Essencial — R$ 499/mês*
 ✅ Até 5 vagas simultâneas
-✅ WhatsApp autônomo (recebe e organiza currículos)
-✅ Triagem com ranking e relatórios individuais
-✅ Agendamento automático de entrevistas
-✅ Google Calendar + Meet integrados
+✅ WhatsApp autônomo + triagem com ranking
+✅ Agendamento automático (Calendar + Meet)
 
 *Plano Pro — R$ 899/mês*
-✅ Tudo do Essencial + até 10 vagas simultâneas
-✅ Portal de Admissão (candidato envia documentos pelo celular)
-✅ Dossiê em PDF para a contabilidade
-✅ Exclusão automática de dados sensíveis em 48h (LGPD)`;
+✅ Tudo do Essencial + até 10 vagas
+✅ Portal de Admissão + dossiê PDF
+✅ Exclusão automática de dados em 48h (LGPD)
+
+Também temos opção de plano anual com desconto. Posso detalhar na demonstração.`;
 
 // ─────────────────────────── Intent Detection ───────────────────────────
 
-type Intent = 'GREETING' | 'PRICE' | 'HOW_IT_WORKS' | 'DEMO_REQUEST' | 'OBJECTION_EXPENSIVE' | 'OBJECTION_SMALL_COMPANY' | 'OBJECTION_AI_TRUST' | 'OBJECTION_COMPETITOR' | 'LGPD' | 'TALK_TO_HUMAN' | 'YES' | 'NO' | 'RESCHEDULE' | 'UNKNOWN';
+type Intent = 'GREETING' | 'PRICE' | 'DISCOUNT' | 'HOW_IT_WORKS' | 'INTEGRATION' | 'DEMO_REQUEST' | 'OBJECTION_EXPENSIVE' | 'OBJECTION_SMALL_COMPANY' | 'OBJECTION_AI_TRUST' | 'OBJECTION_COMPETITOR' | 'LGPD' | 'TALK_TO_HUMAN' | 'YES' | 'NO' | 'RESCHEDULE' | 'UNKNOWN';
 
 function detectIntent(text: string): Intent {
   const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -67,11 +66,17 @@ function detectIntent(text: string): Intent {
   if (/\b(demonstra(cao|ção)|demo|ver funciona|mostrar|apresenta(cao|ção)|quero ver|quero conhecer)\b/.test(t)) return 'DEMO_REQUEST';
   if (/^(agendar|quero agendar|marca|bora agendar|vamos agendar)/.test(t.trim())) return 'DEMO_REQUEST';
 
+  // Discount / negotiation
+  if (/desconto|promocao|cupom|condicao especial|negociar|mais barato|abatimento|plano anual|anual/.test(t)) return 'DISCOUNT';
+
   // Price
   if (/pre(co|ço)|quanto custa|valor|plano|mensalidade|investimento|quanto (e|é)|tabela/.test(t)) return 'PRICE';
 
+  // Integration
+  if (/integra(cao|ção)?|conecta|api|sistema|erp|software|ferramenta/.test(t)) return 'INTEGRATION';
+
   // How it works
-  if (/como funciona|funciona como|o que (e|é)|como (e|é)|explica|me (conta|fala)|detalhe|mais (sobre|info)/.test(t)) return 'HOW_IT_WORKS';
+  if (/como funciona|funciona como|o que (e|é)|como (e|é)|explica|me (conta|fala)|detalhe|mais (sobre|info)|entender melhor/.test(t)) return 'HOW_IT_WORKS';
 
   // Objections
   if (/caro|muito caro|puxado|fora do orcamento|nao tenho budget|nao cabe/.test(t)) return 'OBJECTION_EXPENSIVE';
@@ -79,8 +84,8 @@ function detectIntent(text: string): Intent {
   if (/nao confio|ia nao|robo|maquina|nao acredito|inteligencia artificial (nao|não)/.test(t)) return 'OBJECTION_AI_TRUST';
   if (/ja uso|ja tenho|gupy|kenoby|solides|pandape|quickin|recrutai|inhire/.test(t)) return 'OBJECTION_COMPETITOR';
 
-  // LGPD
-  if (/lgpd|dados? (seguros?|protegidos?)|seguranca|privacidade/.test(t)) return 'LGPD';
+  // LGPD / security
+  if (/lgpd|dados? (seguros?|protegidos?)|seguranca|privacidade|seguranca/.test(t)) return 'LGPD';
 
   // Reschedule
   if (/reagendar|remarcar|mudar horario|trocar horario|outro horario|cancelar demo|desmarcar/.test(t)) return 'RESCHEDULE';
@@ -409,10 +414,9 @@ async function handleQualificando(
   // Priority intents override qualification
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
   if (intent === 'DEMO_REQUEST' || intent === 'YES') { await offerDemo(conv, instance, phone, supabase); return; }
-  if (intent === 'PRICE') {
-    await sendAndLog(instance, phone, PLANOS, conv.lead_id, conv.id, supabase);
-    await sendAndLog(instance, phone, 'Quer ver o sistema funcionando? Posso liberar um horário para a demonstração.', conv.lead_id, conv.id, supabase);
+  if (intent === 'PRICE' || intent === 'DISCOUNT' || intent === 'INTEGRATION' || intent === 'HOW_IT_WORKS' || intent === 'LGPD') {
     await updateConv(conv.id, { state: 'TIRANDO_DUVIDAS' }, supabase);
+    await handleTirandoDuvidas(conv, instance, phone, text, supabase);
     return;
   }
 
@@ -525,7 +529,14 @@ async function handleTirandoDuvidas(
   if (intent === 'PRICE') {
     await sendAndLog(instance, phone, PLANOS, conv.lead_id, conv.id, supabase);
     await sendAndLog(instance, phone,
-      'Quer ver o sistema ao vivo antes de decidir? A demo dura 30 minutos.',
+      'Quer ver o sistema ao vivo antes de decidir?',
+      conv.lead_id, conv.id, supabase);
+    return;
+  }
+
+  if (intent === 'DISCOUNT') {
+    await sendAndLog(instance, phone,
+      `Temos opção de plano anual com condições especiais. Na demonstração, consigo te apresentar os valores e alinhar a melhor opção para o seu cenário.\n\nQuer agendar?`,
       conv.lead_id, conv.id, supabase);
     return;
   }
@@ -533,7 +544,14 @@ async function handleTirandoDuvidas(
   if (intent === 'HOW_IT_WORKS') {
     await sendAndLog(instance, phone, PITCH_MEDIO, conv.lead_id, conv.id, supabase);
     await sendAndLog(instance, phone,
-      'Quer ver ao vivo? A demo dura 30 min e você pode trazer quem quiser da equipe.',
+      'Quer ver ao vivo? A demo dura 30 min.',
+      conv.lead_id, conv.id, supabase);
+    return;
+  }
+
+  if (intent === 'INTEGRATION') {
+    await sendAndLog(instance, phone,
+      `A Elevva tem integração nativa com Google Calendar e Google Meet. A IA agenda entrevistas e cria salas automaticamente.\n\nO sistema funciona como webapp no navegador, sem instalar nada. Login com Google e pronto.`,
       conv.lead_id, conv.id, supabase);
     return;
   }
@@ -550,10 +568,17 @@ async function handleTirandoDuvidas(
     return;
   }
 
-  // Unknown question — helpful answer without being repetitive
-  await sendAndLog(instance, phone,
-    `A Elevva automatiza triagem de currículos, relatórios e agendamento de entrevistas — tudo pelo WhatsApp.\n\nTem alguma dúvida específica? Posso te explicar melhor qualquer ponto.`,
-    conv.lead_id, conv.id, supabase);
+  // Unknown question — varied responses to avoid repetition
+  const unknownResponses = [
+    `Boa pergunta! Posso te ajudar melhor se souber exatamente o que quer entender. Pergunta sobre preço, como funciona, integrações, segurança... estou aqui.`,
+    `Fique à vontade para perguntar o que quiser — preços, funcionalidades, segurança. Se preferir, posso te mostrar tudo ao vivo na demonstração.`,
+    `Não sei se entendi bem. Pode reformular? Posso te falar sobre como funciona, preços, integrações ou segurança dos dados.`,
+  ];
+  const ctx = conv.context;
+  const unknownCount = (ctx.unknown_count ?? 0) as number;
+  const response = unknownResponses[unknownCount % unknownResponses.length];
+  await sendAndLog(instance, phone, response, conv.lead_id, conv.id, supabase);
+  await updateConv(conv.id, { context: { ...ctx, unknown_count: unknownCount + 1 } }, supabase);
 }
 
 async function offerDemo(
@@ -596,7 +621,7 @@ async function handleAguardandoSlot(
   if (intent === 'RESCHEDULE') { await handleReschedule(conv, instance, phone, supabase); return; }
 
   // Lead has questions — switch to TIRANDO_DUVIDAS to answer without loop
-  if (['HOW_IT_WORKS', 'PRICE', 'LGPD', 'OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR', 'UNKNOWN', 'GREETING'].includes(intent)) {
+  if (['HOW_IT_WORKS', 'PRICE', 'DISCOUNT', 'INTEGRATION', 'LGPD', 'OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR', 'UNKNOWN', 'GREETING'].includes(intent)) {
     // Keep scheduling token in context so we can offer the link later
     await updateConv(conv.id, { state: 'TIRANDO_DUVIDAS' }, supabase);
     await handleTirandoDuvidas(conv, instance, phone, text, supabase);
