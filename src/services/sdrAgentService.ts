@@ -627,7 +627,7 @@ async function handleTirandoDuvidas(
     // After answering, gentle CTA
     if (questionCount >= 2) {
       await sendAndLog(instance, phone,
-        'Quer ver tudo isso na prática? A demo dura 30 min.',
+        'Quer ver tudo isso na prática? A demo dura 15 min.',
         conv.lead_id, conv.id, supabase);
     }
     await updateConv(conv.id, { context: ctx }, supabase);
@@ -718,7 +718,7 @@ async function offerDemo(
   const slot = suggestDemoSlot();
 
   await sendAndLog(instance, phone,
-    `Ótimo${nameRef}! A demo dura 30 min e é online pelo Google Meet.\n\nConsigo encaixar ${slot.label}. Funciona para você?`,
+    `Ótimo${nameRef}! A demo dura 15 min e é online pelo Google Meet.\n\nConsigo encaixar ${slot.label}. Funciona para você?`,
     conv.lead_id, conv.id, supabase);
 
   const ctx = { ...conv.context, proposed_date: slot.date, proposed_time: slot.time };

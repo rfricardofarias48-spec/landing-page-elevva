@@ -50,7 +50,8 @@ export async function createMeetingEvent(eventData: {
 
     const pad = (n: number) => String(n).padStart(2, '0');
     const startISO = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
-    const endISO   = `${year}-${pad(month)}-${pad(day)}T${pad(hours + 1)}:${pad(minutes)}:00`;
+    const endMinutes = minutes + 15;
+    const endISO   = `${year}-${pad(month)}-${pad(day)}T${pad(hours + Math.floor(endMinutes / 60))}:${pad(endMinutes % 60)}:00`;
 
     const nameParts = eventData.candidateName.trim().split(/\s+/);
     const shortName = nameParts.length > 1
