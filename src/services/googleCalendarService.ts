@@ -2,27 +2,27 @@ import { calendar, auth } from '@googleapis/calendar';
 
 const calendarId = process.env.GOOGLE_CALENDAR_ID || '';
 
-function getCalendar() {
+function buildCalendar(refreshToken: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-
-  if (clientId && clientSecret && refreshToken) {
-    const oauth2 = new auth.OAuth2(
-      clientId,
-      clientSecret,
-      'https://developers.google.com/oauthplayground'
-    );
-    oauth2.setCredentials({ refresh_token: refreshToken });
-    console.log('[Google Calendar] Using OAuth2 authentication');
-    return calendar({ version: 'v3', auth: oauth2 });
-  }
-
-  console.warn('[Google Calendar] No credentials configured');
-  return null;
+  if (!clientId || !clientSecret || !refreshToken) return null;
+  const oauth2 = new auth.OAuth2(clientId, clientSecret, 'https://developers.google.com/oauthplayground');
+  oauth2.setCredentials({ refresh_token: refreshToken });
+  return calendar({ version: 'v3', auth: oauth2 });
 }
 
-const cal = getCalendar();
+// Calendário padrão (conta mestre)
+const cal = process.env.GOOGLE_REFRESH_TOKEN
+  ? buildCalendar(process.env.GOOGLE_REFRESH_TOKEN)
+  : null;
+
+// Calendário SDR (conta rfricardofarias48@gmail.com) — usa token próprio se configurado
+const sdrCal = process.env.SDR_GOOGLE_REFRESH_TOKEN
+  ? buildCalendar(process.env.SDR_GOOGLE_REFRESH_TOKEN)
+  : cal; // fallback para o padrão se não tiver token SDR
+
+if (cal) console.log('[Google Calendar] Conta mestre configurada');
+if (process.env.SDR_GOOGLE_REFRESH_TOKEN) console.log('[Google Calendar] Conta SDR configurada com token próprio');
 
 export async function createMeetingEvent(eventData: {
   candidateName: string;
@@ -34,10 +34,13 @@ export async function createMeetingEvent(eventData: {
   recruiterEmail?: string;
   candidatePhone?: string;
   calendarId?: string;
+  useSdrCredentials?: boolean;
 }): Promise<{ meetLink: string; eventId: string } | null> {
   const targetCalendarId = eventData.calendarId || calendarId;
-  if (!cal || !targetCalendarId) {
-    console.warn('[Google Calendar] Service not configured — calendar:', !!cal, 'calendarId:', !!targetCalendarId);
+  const client = eventData.useSdrCredentials ? sdrCal : cal;
+
+  if (!client || !targetCalendarId) {
+    console.warn('[Google Calendar] Serviço não configurado — client:', !!client, 'calendarId:', !!targetCalendarId);
     return null;
   }
 
@@ -47,7 +50,7 @@ export async function createMeetingEvent(eventData: {
 
     const pad = (n: number) => String(n).padStart(2, '0');
     const startISO = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
-    const endISO = `${year}-${pad(month)}-${pad(day)}T${pad(hours + 1)}:${pad(minutes)}:00`;
+    const endISO   = `${year}-${pad(month)}-${pad(day)}T${pad(hours + 1)}:${pad(minutes)}:00`;
 
     const nameParts = eventData.candidateName.trim().split(/\s+/);
     const shortName = nameParts.length > 1
@@ -59,24 +62,16 @@ export async function createMeetingEvent(eventData: {
       : '';
 
     const event = {
-      summary: `Entrevista - ${shortName}`,
-      description: `Candidato: ${eventData.candidateName}\nVaga: ${eventData.jobTitle}${
-        eventData.interviewerName ? `\nEntrevistador: ${eventData.interviewerName}` : ''
+      summary: `${eventData.useSdrCredentials ? 'Demo Elevva' : 'Entrevista'} - ${shortName}`,
+      description: `${eventData.useSdrCredentials ? 'Lead' : 'Candidato'}: ${eventData.candidateName}\n${eventData.useSdrCredentials ? 'Produto' : 'Vaga'}: ${eventData.jobTitle}${
+        eventData.interviewerName ? `\nResponsável: ${eventData.interviewerName}` : ''
       }${whatsappLink}`,
-      start: {
-        dateTime: startISO,
-        timeZone: 'America/Sao_Paulo',
-      },
-      end: {
-        dateTime: endISO,
-        timeZone: 'America/Sao_Paulo',
-      },
+      start: { dateTime: startISO, timeZone: 'America/Sao_Paulo' },
+      end:   { dateTime: endISO,   timeZone: 'America/Sao_Paulo' },
       conferenceData: {
         createRequest: {
-          requestId: `interview-${Date.now()}`,
-          conferenceSolutionKey: {
-            type: 'hangoutsMeet',
-          },
+          requestId: `event-${Date.now()}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
         },
       },
       attendees: [
@@ -85,9 +80,9 @@ export async function createMeetingEvent(eventData: {
       ],
     };
 
-    console.log('[Google Calendar] Creating event:', event.summary, 'at', eventData.slotDate, eventData.slotTime);
+    console.log('[Google Calendar] Criando evento:', event.summary, 'em', eventData.slotDate, eventData.slotTime, '| calendário:', targetCalendarId);
 
-    const response = await cal.events.insert({
+    const response = await client.events.insert({
       calendarId: targetCalendarId,
       requestBody: event as any,
       conferenceDataVersion: 1,
@@ -98,37 +93,35 @@ export async function createMeetingEvent(eventData: {
       (ep: any) => ep.entryPointType === 'video'
     )?.uri || response.data.hangoutLink;
 
-    console.log('[Google Calendar] Event created:', response.data.id, 'Meet Link:', meetLink);
+    console.log('[Google Calendar] Evento criado:', response.data.id, '| Meet:', meetLink);
 
-    return {
-      meetLink: meetLink || '',
-      eventId: response.data.id || '',
-    };
+    return { meetLink: meetLink || '', eventId: response.data.id || '' };
   } catch (err: any) {
-    console.error('[Google Calendar] Error creating event:', err?.message || err);
+    console.error('[Google Calendar] Erro ao criar evento:', err?.message || err);
     if (err?.response?.data) {
-      console.error('[Google Calendar] API response:', JSON.stringify(err.response.data));
+      console.error('[Google Calendar] Resposta da API:', JSON.stringify(err.response.data));
     }
     return null;
   }
 }
 
-export async function deleteCalendarEvent(eventId: string): Promise<boolean> {
-  if (!cal || !calendarId) {
-    console.warn('[Google Calendar] Service not configured — cannot delete event');
+export async function deleteCalendarEvent(eventId: string, useSdrCredentials?: boolean): Promise<boolean> {
+  const client = useSdrCredentials ? sdrCal : cal;
+  const targetCalendarId = useSdrCredentials
+    ? (process.env.SDR_GOOGLE_CALENDAR_ID || calendarId)
+    : calendarId;
+
+  if (!client || !targetCalendarId) {
+    console.warn('[Google Calendar] Serviço não configurado — não foi possível deletar evento');
     return false;
   }
 
   try {
-    await cal.events.delete({
-      calendarId,
-      eventId,
-      sendUpdates: 'none',
-    });
-    console.log('[Google Calendar] Event deleted:', eventId);
+    await client.events.delete({ calendarId: targetCalendarId, eventId, sendUpdates: 'none' });
+    console.log('[Google Calendar] Evento deletado:', eventId);
     return true;
   } catch (err: any) {
-    console.error('[Google Calendar] Error deleting event:', err?.message || err);
+    console.error('[Google Calendar] Erro ao deletar evento:', err?.message || err);
     return false;
   }
 }

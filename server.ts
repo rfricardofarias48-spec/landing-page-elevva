@@ -2246,7 +2246,8 @@ app.post("/api/sdr/agendar/:token/book", async (req, res) => {
       slotTime: booked.slot_time,
       candidatePhone: conv.phone,
       recruiterEmail: process.env.SDR_EMAIL,
-      calendarId: process.env.SDR_GOOGLE_CALENDAR_ID,
+      calendarId: process.env.SDR_GOOGLE_CALENDAR_ID || process.env.GOOGLE_CALENDAR_ID,
+      useSdrCredentials: true,
     });
 
     if (googleEvent?.meetLink) {

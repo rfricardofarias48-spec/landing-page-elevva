@@ -838,6 +838,7 @@ async function confirmDemo(
     candidatePhone: phone,
     recruiterEmail: sdrEmail,
     calendarId: sdrCalendarId,
+    useSdrCredentials: true,
   });
 
   const meetLink = result?.meetLink || '';
