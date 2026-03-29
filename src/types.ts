@@ -241,6 +241,7 @@ export interface SdrConversationContext {
   qualification_step?: number;
   pending_question?: string;
   unknown_count?: number;
+  pain_question_sent?: boolean;
 }
 
 export interface SdrConversation {

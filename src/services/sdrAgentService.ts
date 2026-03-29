@@ -240,6 +240,40 @@ async function sendAndLog(
   }
 }
 
+// ─────────────────────────── Pain Questions (conversion ammo) ───────────────────────────
+
+const PAIN_QUESTIONS = [
+  { id: 'triagem', trigger: /triagem|filtrar|curriculo|currículo|volume/, text: 'Hoje, quanto tempo o seu RH gasta apenas filtrando candidatos que sequer possuem o perfil básico para a vaga?' },
+  { id: 'turnover', trigger: /rotatividade|demissao|turnover|contrata(cao|ção) errada/, text: 'Você já calculou quanto custa para a empresa uma contratação errada que dura apenas 3 meses e pede demissão?' },
+  { id: 'custo', trigger: /atraso|demora|lento|tempo|urgente|urgencia/, text: 'Quanto dinheiro sua empresa deixa na mesa por atrasos operacionais causados por falta de contingência de pessoal?' },
+  { id: 'escala', trigger: /crescer|crescimento|escala|dobrar|expandir|grande/, text: 'Sua estrutura atual permite que você dobre o tamanho da sua empresa este ano sem que o RH se torne o seu principal gargalo?' },
+  { id: 'risco', trigger: /pessoa|sozinho|depende|chave|processo/, text: 'O que acontece com a sua operação se o responsável atual pelo recrutamento sair da empresa hoje? O processo está documentado ou está na cabeça de alguém?' },
+];
+
+/** Pick the best pain question based on context, or a random one */
+function pickPainQuestion(ctx: SdrConversationContext): string {
+  const painText = (ctx.pain || '').toLowerCase();
+  const sizeText = (ctx.company_size || '').toLowerCase();
+
+  // Try to match based on stated pain
+  for (const pq of PAIN_QUESTIONS) {
+    if (pq.trigger.test(painText)) return pq.text;
+  }
+
+  // Small company → risk question
+  if (/1|2|3|4|5|6|7|8|9|10|peque|micro|pouc/.test(sizeText)) {
+    return PAIN_QUESTIONS[4].text; // risco
+  }
+
+  // Large company → scale question
+  if (/50|100|200|500|1000|grand|muit/.test(sizeText)) {
+    return PAIN_QUESTIONS[3].text; // escala
+  }
+
+  // Default: triagem (most universal)
+  return PAIN_QUESTIONS[0].text;
+}
+
 // ─────────────────────────── Objection Handlers ───────────────────────────
 
 function handleObjection(intent: Intent): string {
@@ -469,14 +503,15 @@ async function handleQualificando(
   const nextStep = currentStep + 1;
 
   if (nextStep >= QUALIFICATION_QUESTIONS.length) {
-    // Qualification complete — thank and offer demo
-    const firstName = ctx.name?.split(' ')[0] || '';
-    const thanks = firstName
-      ? `Valeu, *${firstName}*! Tenho tudo que preciso.`
-      : `Valeu! Tenho tudo que preciso.`;
-    await sendAndLog(instance, phone, thanks, conv.lead_id, conv.id, supabase);
+    // Qualification complete — fire a pain question to deepen engagement before demo
     if (conv.lead_id) await updateLead(conv.lead_id, { status: 'QUALIFICADO' }, supabase);
-    await offerDemo(conv, instance, phone, supabase);
+
+    const painQ = pickPainQuestion(ctx);
+    await sendAndLog(instance, phone, painQ, conv.lead_id, conv.id, supabase);
+
+    // Move to OFERECENDO_DEMO — next message will trigger demo offer
+    ctx.pain_question_sent = true;
+    await updateConv(conv.id, { state: 'OFERECENDO_DEMO', context: ctx }, supabase);
     return;
   }
 
@@ -606,6 +641,35 @@ async function offerDemo(
   }, supabase);
 
   if (conv.lead_id) await updateLead(conv.lead_id, { status: 'DEMO_OFERECIDA' }, supabase);
+}
+
+async function handleOferecendoDemo(
+  conv: SdrConv,
+  instance: string,
+  phone: string,
+  text: string,
+  supabase: SupabaseClient,
+): Promise<void> {
+  const intent = detectIntent(text);
+  const firstName = conv.context.name?.split(' ')[0] || '';
+
+  if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
+  if (intent === 'NO') {
+    await sendAndLog(instance, phone,
+      `Sem problemas${firstName ? ', ' + firstName : ''}! Fico por aqui se precisar.`,
+      conv.lead_id, conv.id, supabase);
+    await updateConv(conv.id, { state: 'PERDIDO' }, supabase);
+    if (conv.lead_id) await updateLead(conv.lead_id, { status: 'PERDIDO', lost_reason: 'Declinou após pergunta de dor' }, supabase);
+    return;
+  }
+
+  // Any other response to the pain question — acknowledge and connect to demo
+  const nameRef = firstName ? `, *${firstName}*` : '';
+  await sendAndLog(instance, phone,
+    `É exatamente isso que a Elevva resolve${nameRef}. Na demonstração, mostro na prática como o sistema elimina esse problema da sua rotina.`,
+    conv.lead_id, conv.id, supabase);
+
+  await offerDemo(conv, instance, phone, supabase);
 }
 
 async function handleAguardandoSlot(
@@ -769,7 +833,7 @@ export async function processSdrMessage(
 
     case 'TIRANDO_DUVIDAS':
     case 'OFERECENDO_DEMO':
-      await handleTirandoDuvidas(conv, instance, phone, text, supabase);
+      await handleOferecendoDemo(conv, instance, phone, text, supabase);
       break;
 
     case 'AGUARDANDO_ESCOLHA_SLOT':
