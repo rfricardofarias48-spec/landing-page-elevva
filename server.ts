@@ -911,15 +911,17 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       .eq('id', interview.job_id)
       .single();
 
-    // Get recruiter email
+    // Get recruiter email and calendar ID
     let recruiterEmail: string | undefined;
+    let recruiterCalendarId: string | undefined;
     if (job?.user_id) {
       const { data: recruiterProfile } = await supabaseAdmin
         .from('profiles')
-        .select('email')
+        .select('email, google_calendar_id')
         .eq('id', job.user_id)
         .single();
       recruiterEmail = recruiterProfile?.email || undefined;
+      recruiterCalendarId = recruiterProfile?.google_calendar_id || undefined;
     }
 
     // Create Google Calendar event + Google Meet
@@ -937,6 +939,7 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       interviewerName: booked.interviewer_name || undefined,
       recruiterEmail,
       candidatePhone: candidatePhone || undefined,
+      calendarId: recruiterCalendarId,
     });
 
     if (googleEvent?.meetLink) {
@@ -2242,6 +2245,8 @@ app.post("/api/sdr/agendar/:token/book", async (req, res) => {
       slotDate: booked.slot_date,
       slotTime: booked.slot_time,
       candidatePhone: conv.phone,
+      recruiterEmail: process.env.SDR_EMAIL,
+      calendarId: process.env.SDR_GOOGLE_CALENDAR_ID,
     });
 
     if (googleEvent?.meetLink) {

@@ -92,19 +92,20 @@ export interface User {
   instancia_evolution?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
+  google_calendar_id?: string;
 }
 
 // Interface para o Dashboard do Admin
 export interface AdminUserProfile {
   id: string;
   email: string;
-  name?: string; 
-  phone?: string; 
+  name?: string;
+  phone?: string;
   role: string;
   plan: string;
   status: 'ACTIVE' | 'BLOCKED';
   created_at: string;
-  jobs_count?: number; 
+  jobs_count?: number;
   resume_usage?: number; // Adicionado para coluna da tabela
   last_active?: string;
   job_limit?: number; // Limite de vagas (customizável para Enterprise)
@@ -114,6 +115,7 @@ export interface AdminUserProfile {
   instancia_evolution?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
+  google_calendar_id?: string;
 }
 
 export interface Interview {

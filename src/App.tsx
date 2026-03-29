@@ -738,6 +738,23 @@ const App: React.FC = () => {
       if (error && error.code !== 'PGRST116' && !permissionError) {
         console.error("Erro ao buscar perfil:", error);
       }
+
+      // Auto-criar perfil para usuários Google que ainda não têm linha em profiles
+      if (!data && !permissionError) {
+        const googleName = (await supabase.auth.getUser()).data.user?.user_metadata?.full_name || '';
+        await supabase.from('profiles').upsert([{
+          id: userId,
+          email,
+          name: googleName || 'Usuário',
+          plan: 'ESSENCIAL',
+          job_limit: 3,
+          resume_limit: 9999,
+          resume_usage: 0,
+          role: 'USER',
+          status: 'ACTIVE',
+        }], { onConflict: 'id' });
+        console.log('[Auth] Perfil criado automaticamente para usuário Google:', email);
+      }
       
       const dbName = data?.name;
       

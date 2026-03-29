@@ -41,6 +41,7 @@ export const AdminDashboard: React.FC = () => {
   const [tempTelefoneAgente, setTempTelefoneAgente] = useState('');
   const [tempStatusAutomacao, setTempStatusAutomacao] = useState(false);
   const [tempJobLimit, setTempJobLimit] = useState<number>(9999);
+  const [tempCalendarId, setTempCalendarId] = useState('');
 
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
@@ -245,7 +246,8 @@ export const AdminDashboard: React.FC = () => {
                 instancia_evolution: tempInstancia,
                 telefone_agente: tempTelefoneAgente,
                 status_automacao: tempStatusAutomacao,
-                job_limit: jobLimitValue
+                job_limit: jobLimitValue,
+                google_calendar_id: tempCalendarId || null,
             })
             .eq('id', selectedUser.id);
 
@@ -256,7 +258,8 @@ export const AdminDashboard: React.FC = () => {
               instancia_evolution: tempInstancia,
               telefone_agente: tempTelefoneAgente,
               status_automacao: tempStatusAutomacao,
-              job_limit: jobLimitValue
+              job_limit: jobLimitValue,
+              google_calendar_id: tempCalendarId || undefined,
           };
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
@@ -1104,6 +1107,7 @@ export const AdminDashboard: React.FC = () => {
                                                 setTempTelefoneAgente(selectedUser.telefone_agente || '');
                                                 setTempStatusAutomacao(selectedUser.status_automacao || false);
                                                 setTempJobLimit(selectedUser.job_limit ?? 9999);
+                                                setTempCalendarId(selectedUser.google_calendar_id || '');
                                                 setIsEditingEnterprise(true);
                                             }
                                         }} 
@@ -1137,6 +1141,17 @@ export const AdminDashboard: React.FC = () => {
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
                                                 />
                                             </div>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="text-xs font-bold text-slate-700 block mb-1">Google Calendar ID</label>
+                                            <input
+                                                type="text"
+                                                value={tempCalendarId}
+                                                onChange={(e) => setTempCalendarId(e.target.value)}
+                                                placeholder="Ex: cliente@gmail.com"
+                                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                            />
+                                            <p className="text-[10px] text-slate-400 mt-1">Email do Google Calendar onde as entrevistas serão agendadas. Deixe vazio para usar o padrão.</p>
                                         </div>
                                         <div>
                                             <label className="text-xs font-bold text-slate-700 block mb-1">Limite de Vagas</label>
@@ -1194,6 +1209,10 @@ export const AdminDashboard: React.FC = () => {
                                         <div>
                                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Telefone</span>
                                             <span className="text-sm font-bold text-slate-900">{selectedUser.telefone_agente || <span className="text-slate-400 italic font-normal">Não configurado</span>}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Google Calendar</span>
+                                            <span className="text-sm font-bold text-slate-900">{selectedUser.google_calendar_id || <span className="text-slate-400 italic font-normal">Padrão</span>}</span>
                                         </div>
                                         <div>
                                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Status</span>
