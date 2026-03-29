@@ -22,17 +22,17 @@ import crypto from 'crypto';
 
 // ─────────────────────────── Knowledge Base (inline) ───────────────────────────
 
-const PITCH_CURTO = `A Elevva é uma IA que assume 100% da burocracia do seu recrutamento — da triagem de currículos até o agendamento de entrevistas. Tudo pelo WhatsApp, sem instalar nada.
+const PITCH_CURTO = `A Elevva é uma IA que cuida de toda a burocracia do recrutamento — triagem, relatórios e agendamento de entrevistas. Tudo pelo WhatsApp, sem instalar nada.
 
-Quer ver funcionando na prática?`;
+Quer ver funcionando?`;
 
-const PITCH_MEDIO = `Funciona assim: você cria a vaga no sistema, define os critérios e recebe um número de WhatsApp exclusivo para os anúncios. A partir daí, a IA faz tudo sozinha:
+const PITCH_MEDIO = `Você cria a vaga, define os critérios e recebe um WhatsApp exclusivo para os anúncios. A partir daí:
 
-📄 Recebe e lê cada currículo em segundos
-⚙️ Gera um relatório individual com nota de compatibilidade
-📅 Agenda entrevistas direto no Google Calendar com sala no Meet
+📄 A IA recebe e analisa cada currículo em segundos
+⚙️ Gera relatório com nota de compatibilidade
+📅 Agenda entrevistas no Google Calendar + Meet
 
-Um analista humano leva 3 minutos por currículo e 15 minutos por agendamento. A Elevva faz isso com 50 candidatos simultaneamente em menos de 10 segundos.`;
+Tudo automático. O que um analista leva horas, a Elevva faz em segundos com 50 candidatos ao mesmo tempo.`;
 
 const PLANOS = `Temos dois planos:
 
@@ -63,8 +63,9 @@ function detectIntent(text: string): Intent {
   if (/^(sim|s|claro|com certeza|quero|bora|vamos|pode ser|ok|beleza|show|top|massa|perfeito|isso|isso mesmo|fechou)$/i.test(t.trim())) return 'YES';
   if (/^(nao|n|nope|agora nao|sem interesse|nao quero|nao preciso|nao obrigado)$/i.test(t.trim())) return 'NO';
 
-  // Demo request
-  if (/demonstra(cao|ção)|demo|ver funciona|mostrar|apresenta(cao|ção)|quero ver|quero conhecer|agendar/.test(t)) return 'DEMO_REQUEST';
+  // Demo request — must not match "antes de agendar", "sem agendar", etc.
+  if (/\b(demonstra(cao|ção)|demo|ver funciona|mostrar|apresenta(cao|ção)|quero ver|quero conhecer)\b/.test(t)) return 'DEMO_REQUEST';
+  if (/^(agendar|quero agendar|marca|bora agendar|vamos agendar)/.test(t.trim())) return 'DEMO_REQUEST';
 
   // Price
   if (/pre(co|ço)|quanto custa|valor|plano|mensalidade|investimento|quanto (e|é)|tabela/.test(t)) return 'PRICE';
@@ -280,13 +281,10 @@ async function handleNovo(
   const name = pushName || '';
   const timeGreet = getTimeGreeting();
 
-  const greeting = name
-    ? `${timeGreet}, *${name}*! Tudo bem? Sou o Bento, consultor comercial da Elevva.
+  const nameRef = name ? `, *${name}*` : '';
+  const greeting = `${timeGreet}${nameRef}! Sou o Bento, da Elevva.
 
-Que bom ter você aqui! ${PITCH_CURTO}`
-    : `${timeGreet}! Tudo bem? Sou o Bento, consultor comercial da Elevva.
-
-Que bom ter você aqui! ${PITCH_CURTO}`;
+${PITCH_CURTO}`;
 
   await sendAndLog(instance, phone, greeting, conv.lead_id, conv.id, supabase);
 
@@ -356,11 +354,9 @@ async function handleSaudacaoEnviada(
 
   // If lead just replied with a greeting, acknowledge warmly and start qualification
   if (intent === 'GREETING') {
-    const name = conv.context.name || '';
-    const warmReply = name
-      ? `Que bom, *${name}*! Vou te fazer algumas perguntas rápidas para entender como a Elevva pode te ajudar.`
-      : `Que bom! Vou te fazer algumas perguntas rápidas para entender como a Elevva pode te ajudar.`;
-    await sendAndLog(instance, phone, warmReply, conv.lead_id, conv.id, supabase);
+    await sendAndLog(instance, phone,
+      'Vou te fazer umas perguntas rápidas para entender melhor o seu cenário.',
+      conv.lead_id, conv.id, supabase);
   }
 
   // Start qualification
@@ -472,8 +468,8 @@ async function handleQualificando(
     // Qualification complete — thank and offer demo
     const firstName = ctx.name?.split(' ')[0] || '';
     const thanks = firstName
-      ? `Obrigado pelas informações, *${firstName}*! Já tenho tudo que preciso para te mostrar como a Elevva se encaixa na sua operação.`
-      : `Obrigado pelas informações! Já tenho tudo que preciso.`;
+      ? `Valeu, *${firstName}*! Tenho tudo que preciso.`
+      : `Valeu! Tenho tudo que preciso.`;
     await sendAndLog(instance, phone, thanks, conv.lead_id, conv.id, supabase);
     if (conv.lead_id) await updateLead(conv.lead_id, { status: 'QUALIFICADO' }, supabase);
     await offerDemo(conv, instance, phone, supabase);
@@ -529,7 +525,7 @@ async function handleTirandoDuvidas(
   if (intent === 'PRICE') {
     await sendAndLog(instance, phone, PLANOS, conv.lead_id, conv.id, supabase);
     await sendAndLog(instance, phone,
-      'O legal é que você pode validar tudo isso na prática antes de decidir. Na demonstração, mostro o sistema funcionando ao vivo. Quer que eu libere um horário?',
+      'Quer ver o sistema ao vivo antes de decidir? A demo dura 30 minutos.',
       conv.lead_id, conv.id, supabase);
     return;
   }
@@ -537,14 +533,14 @@ async function handleTirandoDuvidas(
   if (intent === 'HOW_IT_WORKS') {
     await sendAndLog(instance, phone, PITCH_MEDIO, conv.lead_id, conv.id, supabase);
     await sendAndLog(instance, phone,
-      'Na demonstração, mostro tudo isso ao vivo. Dura cerca de 30 minutos e você pode trazer quem mais da equipe quiser. Quer agendar?',
+      'Quer ver ao vivo? A demo dura 30 min e você pode trazer quem quiser da equipe.',
       conv.lead_id, conv.id, supabase);
     return;
   }
 
   if (intent === 'LGPD') {
     await sendAndLog(instance, phone,
-      `Essa é uma preocupação super válida. A segurança está no DNA do sistema:\n\n📄 O candidato envia os documentos por um portal seguro\n⚙️ A Elevva gera o dossiê PDF para a contabilidade\n✅ Em 48h, todos os arquivos sensíveis são deletados automaticamente\n\nAssim vocês ficam em conformidade sem precisar se preocupar. Quer ver como funciona na prática?`,
+      `📄 O candidato envia docs por portal seguro\n⚙️ A Elevva gera o dossiê PDF\n✅ Em 48h os arquivos sensíveis são deletados\n\nConformidade automática. Quer ver na prática?`,
       conv.lead_id, conv.id, supabase);
     return;
   }
@@ -554,9 +550,9 @@ async function handleTirandoDuvidas(
     return;
   }
 
-  // Unknown question — give a helpful, conversational answer
+  // Unknown question — helpful answer without being repetitive
   await sendAndLog(instance, phone,
-    `Boa pergunta${firstName ? ', ' + firstName : ''}! Resumindo, a Elevva funciona assim:\n\n📄 O candidato envia o currículo pelo WhatsApp\n⚙️ A IA analisa e gera um relatório com nota de compatibilidade\n📅 As entrevistas são agendadas automaticamente no Google Calendar com sala no Meet\n\nTudo sem intervenção humana. E o melhor: você pode validar isso na prática. Quer ver uma demonstração ao vivo?`,
+    `A Elevva automatiza triagem de currículos, relatórios e agendamento de entrevistas — tudo pelo WhatsApp.\n\nTem alguma dúvida específica? Posso te explicar melhor qualquer ponto.`,
     conv.lead_id, conv.id, supabase);
 }
 
@@ -575,13 +571,7 @@ async function offerDemo(
   const nameRef = firstName ? `, *${firstName}*` : '';
 
   await sendAndLog(instance, phone,
-    `Excelente${nameRef}! Vou te mostrar a Elevva funcionando ao vivo.
-
-📅 Liberei os horários disponíveis na agenda abaixo. É só escolher o que funcionar melhor para você:
-
-${link}
-
-Fique à vontade para convidar outros tomadores de decisão da empresa para assistir junto.`,
+    `Excelente${nameRef}! 📅 Escolha o melhor horário para a demo:\n\n${link}\n\nDura 30 min. Pode trazer quem quiser da equipe.`,
     conv.lead_id, conv.id, supabase);
 
   const ctx = { ...conv.context, scheduling_token: token };
@@ -605,71 +595,35 @@ async function handleAguardandoSlot(
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
   if (intent === 'RESCHEDULE') { await handleReschedule(conv, instance, phone, supabase); return; }
 
-  // Answer questions instead of just resending the link
-  if (intent === 'HOW_IT_WORKS') {
-    await sendAndLog(instance, phone, PITCH_MEDIO, conv.lead_id, conv.id, supabase);
-    await resendLinkGently(conv, instance, phone, supabase);
-    return;
-  }
-
-  if (intent === 'PRICE') {
-    await sendAndLog(instance, phone, PLANOS, conv.lead_id, conv.id, supabase);
-    await sendAndLog(instance, phone,
-      'Na demonstração, você vê tudo isso funcionando ao vivo e pode tirar todas as dúvidas. Vale a pena conferir antes de decidir.',
-      conv.lead_id, conv.id, supabase);
-    await resendLinkGently(conv, instance, phone, supabase);
-    return;
-  }
-
-  if (intent === 'LGPD') {
-    await sendAndLog(instance, phone,
-      `A segurança está no DNA do sistema. Funciona assim:\n\n📄 O candidato envia os documentos\n⚙️ A Elevva monta o dossiê PDF para a contabilidade\n✅ Em 48 horas, os arquivos sensíveis são deletados automaticamente\n\nA gente elimina o risco na raiz.`,
-      conv.lead_id, conv.id, supabase);
-    await resendLinkGently(conv, instance, phone, supabase);
-    return;
-  }
-
-  if (['OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR'].includes(intent)) {
-    await sendAndLog(instance, phone, handleObjection(intent), conv.lead_id, conv.id, supabase);
-    await resendLinkGently(conv, instance, phone, supabase);
+  // Lead has questions — switch to TIRANDO_DUVIDAS to answer without loop
+  if (['HOW_IT_WORKS', 'PRICE', 'LGPD', 'OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR', 'UNKNOWN', 'GREETING'].includes(intent)) {
+    // Keep scheduling token in context so we can offer the link later
+    await updateConv(conv.id, { state: 'TIRANDO_DUVIDAS' }, supabase);
+    await handleTirandoDuvidas(conv, instance, phone, text, supabase);
     return;
   }
 
   if (intent === 'YES' || intent === 'DEMO_REQUEST') {
-    await resendLinkGently(conv, instance, phone, supabase);
+    const token = conv.context.scheduling_token;
+    if (token) {
+      const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
+      await sendAndLog(instance, phone,
+        `📅 Segue o link para escolher o horário:\n${baseUrl}/api/sdr/agendar/${token}`,
+        conv.lead_id, conv.id, supabase);
+    } else {
+      await offerDemo(conv, instance, phone, supabase);
+    }
     return;
   }
 
   if (intent === 'NO') {
     await sendAndLog(instance, phone,
-      'Sem problemas! Fico por aqui caso mude de ideia. A Elevva está à disposição quando você precisar.',
+      'Sem problemas! Fico por aqui se precisar.',
       conv.lead_id, conv.id, supabase);
     await updateConv(conv.id, { state: 'PERDIDO' }, supabase);
     if (conv.lead_id) await updateLead(conv.lead_id, { status: 'PERDIDO', lost_reason: 'Desistiu após oferta de demo' }, supabase);
     return;
   }
-
-  // Unknown intent — treat as a question, give helpful response + gentle link reminder
-  await sendAndLog(instance, phone,
-    `Boa pergunta! A Elevva cuida de todo o processo de recrutamento: a IA lê os currículos, gera relatórios com ranking de compatibilidade e agenda as entrevistas no seu Google Calendar com sala no Meet.\n\nTudo isso sem intervenção humana. Na demonstração, você vê na prática como funciona para o seu cenário.`,
-    conv.lead_id, conv.id, supabase);
-  await resendLinkGently(conv, instance, phone, supabase);
-}
-
-/** Resend the scheduling link in a soft, non-pushy way */
-async function resendLinkGently(
-  conv: SdrConv,
-  instance: string,
-  phone: string,
-  supabase: SupabaseClient,
-): Promise<void> {
-  const token = conv.context.scheduling_token;
-  if (!token) { await offerDemo(conv, instance, phone, supabase); return; }
-  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-  const link = `${baseUrl}/api/sdr/agendar/${token}`;
-  await sendAndLog(instance, phone,
-    `📅 Quando quiser agendar, o link está aqui:\n${link}`,
-    conv.lead_id, conv.id, supabase);
 }
 
 async function handleDemoAgendada(
