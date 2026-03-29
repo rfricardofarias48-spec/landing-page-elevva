@@ -1094,10 +1094,10 @@ export const AdminDashboard: React.FC = () => {
                             )}
                         </div>
 
-                        {selectedUser.plan === 'ENTERPRISE' && (
+                        {selectedUser.plan !== 'ADMIN' && (
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 relative group">
                                 <div className="flex justify-between items-start mb-4">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações Enterprise</p>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações do Agente</p>
                                     <button 
                                         onClick={() => {
                                             if (isEditingEnterprise) {
