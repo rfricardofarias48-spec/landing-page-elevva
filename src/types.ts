@@ -242,6 +242,7 @@ export interface SdrConversationContext {
   qualification_step?: number;
   pending_question?: string;
   unknown_count?: number;
+  question_count?: number;
   pain_question_sent?: boolean;
   proposed_date?: string;   // YYYY-MM-DD
   proposed_time?: string;   // HH:MM

@@ -543,6 +543,11 @@ async function handleTirandoDuvidas(
 ): Promise<void> {
   const intent = detectIntent(text);
   const firstName = conv.context.name?.split(' ')[0] || '';
+  const ctx = { ...conv.context };
+
+  // Track how many questions the lead has asked (indecision counter)
+  const questionCount = (ctx.question_count ?? 0) + 1;
+  ctx.question_count = questionCount;
 
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
 
@@ -552,68 +557,93 @@ async function handleTirandoDuvidas(
   }
 
   if (intent === 'NO') {
+    // Before giving up — if lead is just indecisive, fire a pain question
+    if (questionCount >= 2) {
+      const painQ = pickPainQuestion(ctx);
+      await sendAndLog(instance, phone, painQ, conv.lead_id, conv.id, supabase);
+      ctx.pain_question_sent = true;
+      await updateConv(conv.id, { state: 'OFERECENDO_DEMO', context: ctx }, supabase);
+      return;
+    }
     const nameRef = firstName ? `, ${firstName}` : '';
     await sendAndLog(instance, phone,
-      `Sem problemas${nameRef}! Fico por aqui caso precise. A Elevva está à disposição quando quiser conhecer.`,
+      `Sem problemas${nameRef}! Fico por aqui caso precise.`,
       conv.lead_id, conv.id, supabase);
-    await updateConv(conv.id, { state: 'PERDIDO' }, supabase);
+    await updateConv(conv.id, { state: 'PERDIDO', context: ctx }, supabase);
     if (conv.lead_id) await updateLead(conv.lead_id, { status: 'PERDIDO', lost_reason: 'Recusou demonstração' }, supabase);
     return;
   }
 
+  // Answer the question first
+  let answered = false;
+
   if (intent === 'PRICE') {
     await sendAndLog(instance, phone, PLANOS, conv.lead_id, conv.id, supabase);
+    answered = true;
+  } else if (intent === 'DISCOUNT') {
     await sendAndLog(instance, phone,
-      'Quer ver o sistema ao vivo antes de decidir?',
+      `Temos opção de plano anual com condições especiais. Na demonstração, consigo apresentar os valores e alinhar a melhor opção.`,
       conv.lead_id, conv.id, supabase);
-    return;
-  }
-
-  if (intent === 'DISCOUNT') {
-    await sendAndLog(instance, phone,
-      `Temos opção de plano anual com condições especiais. Na demonstração, consigo te apresentar os valores e alinhar a melhor opção para o seu cenário.\n\nQuer agendar?`,
-      conv.lead_id, conv.id, supabase);
-    return;
-  }
-
-  if (intent === 'HOW_IT_WORKS') {
+    answered = true;
+  } else if (intent === 'HOW_IT_WORKS') {
     await sendAndLog(instance, phone, PITCH_MEDIO, conv.lead_id, conv.id, supabase);
+    answered = true;
+  } else if (intent === 'INTEGRATION') {
     await sendAndLog(instance, phone,
-      'Quer ver ao vivo? A demo dura 30 min.',
+      `Integração nativa com Google Calendar e Meet. A IA agenda e cria salas automaticamente. Funciona no navegador, login com Google.`,
       conv.lead_id, conv.id, supabase);
-    return;
-  }
-
-  if (intent === 'INTEGRATION') {
+    answered = true;
+  } else if (intent === 'LGPD') {
     await sendAndLog(instance, phone,
-      `A Elevva tem integração nativa com Google Calendar e Google Meet. A IA agenda entrevistas e cria salas automaticamente.\n\nO sistema funciona como webapp no navegador, sem instalar nada. Login com Google e pronto.`,
+      `📄 Docs por portal seguro\n⚙️ Dossiê PDF gerado\n✅ Arquivos sensíveis deletados em 48h\n\nConformidade automática.`,
       conv.lead_id, conv.id, supabase);
-    return;
-  }
-
-  if (intent === 'LGPD') {
-    await sendAndLog(instance, phone,
-      `📄 O candidato envia docs por portal seguro\n⚙️ A Elevva gera o dossiê PDF\n✅ Em 48h os arquivos sensíveis são deletados\n\nConformidade automática. Quer ver na prática?`,
-      conv.lead_id, conv.id, supabase);
-    return;
-  }
-
-  if (['OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR'].includes(intent)) {
+    answered = true;
+  } else if (['OBJECTION_EXPENSIVE', 'OBJECTION_SMALL_COMPANY', 'OBJECTION_AI_TRUST', 'OBJECTION_COMPETITOR'].includes(intent)) {
     await sendAndLog(instance, phone, handleObjection(intent), conv.lead_id, conv.id, supabase);
+    answered = true;
+  }
+
+  // On 3rd+ question: fire a pain question to break indecision
+  if (questionCount >= 3 && !ctx.pain_question_sent) {
+    const painQ = pickPainQuestion(ctx);
+    await sendAndLog(instance, phone, painQ, conv.lead_id, conv.id, supabase);
+    ctx.pain_question_sent = true;
+    await updateConv(conv.id, { state: 'OFERECENDO_DEMO', context: ctx }, supabase);
     return;
   }
 
-  // Unknown question — varied responses to avoid repetition
+  // On 5th+ question: be more direct
+  if (questionCount >= 5) {
+    const painQs = PAIN_QUESTIONS.filter(pq => pq.id !== 'triagem'); // pick a different one
+    const randomPain = painQs[Math.floor(Math.random() * painQs.length)];
+    await sendAndLog(instance, phone,
+      `${firstName ? firstName + ', ' : ''}Deixa eu te fazer uma pergunta:\n\n${randomPain.text}`,
+      conv.lead_id, conv.id, supabase);
+    await updateConv(conv.id, { state: 'OFERECENDO_DEMO', context: ctx }, supabase);
+    return;
+  }
+
+  if (answered) {
+    // After answering, gentle CTA
+    if (questionCount >= 2) {
+      await sendAndLog(instance, phone,
+        'Quer ver tudo isso na prática? A demo dura 30 min.',
+        conv.lead_id, conv.id, supabase);
+    }
+    await updateConv(conv.id, { context: ctx }, supabase);
+    return;
+  }
+
+  // Unknown question — varied responses
   const unknownResponses = [
-    `Boa pergunta! Posso te ajudar melhor se souber exatamente o que quer entender. Pergunta sobre preço, como funciona, integrações, segurança... estou aqui.`,
-    `Fique à vontade para perguntar o que quiser — preços, funcionalidades, segurança. Se preferir, posso te mostrar tudo ao vivo na demonstração.`,
-    `Não sei se entendi bem. Pode reformular? Posso te falar sobre como funciona, preços, integrações ou segurança dos dados.`,
+    `Posso te ajudar com preços, funcionalidades, integrações ou segurança. O que quer saber?`,
+    `Pode perguntar o que quiser — estou aqui para ajudar.`,
+    `Não entendi bem. Pode reformular?`,
   ];
-  const ctx = conv.context;
-  const unknownCount = (ctx.unknown_count ?? 0) as number;
-  const response = unknownResponses[unknownCount % unknownResponses.length];
-  await sendAndLog(instance, phone, response, conv.lead_id, conv.id, supabase);
-  await updateConv(conv.id, { context: { ...ctx, unknown_count: unknownCount + 1 } }, supabase);
+  const unknownIdx = (ctx.unknown_count ?? 0);
+  ctx.unknown_count = unknownIdx + 1;
+  await sendAndLog(instance, phone, unknownResponses[unknownIdx % unknownResponses.length], conv.lead_id, conv.id, supabase);
+  await updateConv(conv.id, { context: ctx }, supabase);
 }
 
 /** Suggest a concrete demo time based on current time (Brazil UTC-3) */
