@@ -752,6 +752,7 @@ const App: React.FC = () => {
           resume_usage: 0,
           role: 'USER',
           status: 'ACTIVE',
+          google_calendar_id: email,
         }], { onConflict: 'id' });
         console.log('[Auth] Perfil criado automaticamente para usuário Google:', email);
       }

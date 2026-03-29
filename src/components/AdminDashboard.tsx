@@ -1107,7 +1107,7 @@ export const AdminDashboard: React.FC = () => {
                                                 setTempTelefoneAgente(selectedUser.telefone_agente || '');
                                                 setTempStatusAutomacao(selectedUser.status_automacao || false);
                                                 setTempJobLimit(selectedUser.job_limit ?? 9999);
-                                                setTempCalendarId(selectedUser.google_calendar_id || '');
+                                                setTempCalendarId(selectedUser.google_calendar_id || selectedUser.email || '');
                                                 setIsEditingEnterprise(true);
                                             }
                                         }} 
@@ -1120,7 +1120,7 @@ export const AdminDashboard: React.FC = () => {
 
                                 {isEditingEnterprise ? (
                                     <div className="space-y-3 animate-fade-in">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             <div>
                                                 <label className="text-xs font-bold text-slate-700 block mb-1">Instância Evolution</label>
                                                 <input
@@ -1141,17 +1141,16 @@ export const AdminDashboard: React.FC = () => {
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
                                                 />
                                             </div>
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="text-xs font-bold text-slate-700 block mb-1">Google Calendar ID</label>
-                                            <input
-                                                type="text"
-                                                value={tempCalendarId}
-                                                onChange={(e) => setTempCalendarId(e.target.value)}
-                                                placeholder="Ex: cliente@gmail.com"
-                                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
-                                            />
-                                            <p className="text-[10px] text-slate-400 mt-1">Email do Google Calendar onde as entrevistas serão agendadas. Deixe vazio para usar o padrão.</p>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 block mb-1">Google Calendar ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={tempCalendarId}
+                                                    onChange={(e) => setTempCalendarId(e.target.value)}
+                                                    placeholder="Ex: cliente@gmail.com"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                />
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="text-xs font-bold text-slate-700 block mb-1">Limite de Vagas</label>
