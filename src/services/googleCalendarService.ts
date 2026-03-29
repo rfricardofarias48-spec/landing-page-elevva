@@ -33,9 +33,11 @@ export async function createMeetingEvent(eventData: {
   candidateEmail?: string;
   recruiterEmail?: string;
   candidatePhone?: string;
+  calendarId?: string;
 }): Promise<{ meetLink: string; eventId: string } | null> {
-  if (!cal || !calendarId) {
-    console.warn('[Google Calendar] Service not configured — calendar:', !!cal, 'calendarId:', !!calendarId);
+  const targetCalendarId = eventData.calendarId || calendarId;
+  if (!cal || !targetCalendarId) {
+    console.warn('[Google Calendar] Service not configured — calendar:', !!cal, 'calendarId:', !!targetCalendarId);
     return null;
   }
 
@@ -86,7 +88,7 @@ export async function createMeetingEvent(eventData: {
     console.log('[Google Calendar] Creating event:', event.summary, 'at', eventData.slotDate, eventData.slotTime);
 
     const response = await cal.events.insert({
-      calendarId,
+      calendarId: targetCalendarId,
       requestBody: event as any,
       conferenceDataVersion: 1,
       sendUpdates: 'none',

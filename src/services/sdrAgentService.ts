@@ -59,8 +59,8 @@ function detectIntent(text: string): Intent {
   if (/falar com (alguem|pessoa|humano|atendente|vendedor)|quero (um|uma) (pessoa|humano|atendente)/.test(t)) return 'TALK_TO_HUMAN';
 
   // Yes / No
-  if (/^(sim|s|claro|com certeza|quero|bora|vamos|pode ser|ok|beleza|show|top|massa|perfeito|isso|isso mesmo|fechou)$/i.test(t.trim())) return 'YES';
-  if (/^(nao|n|nope|agora nao|sem interesse|nao quero|nao preciso|nao obrigado)$/i.test(t.trim())) return 'NO';
+  if (/^(sim|s|claro|com certeza|quero|bora|vamos|pode ser|pode|podemos|ok|beleza|show|top|massa|perfeito|isso|isso mesmo|fechou|confirma|confirmar|confirmo|confirme|vamos la|vamos nessa|fechar|fecha|combinado|certo|certeza|com certeza|ta bom|ta bem|tudo bem|tudo certo|blz)$/i.test(t.trim())) return 'YES';
+  if (/^(nao|n|nope|agora nao|sem interesse|nao quero|nao preciso|nao obrigado|depois|outra hora)$/i.test(t.trim())) return 'NO';
 
   // Demo request — must not match "antes de agendar", "sem agendar", etc.
   if (/\b(demonstra(cao|ção)|demo|ver funciona|mostrar|apresenta(cao|ção)|quero ver|quero conhecer)\b/.test(t)) return 'DEMO_REQUEST';
@@ -827,13 +827,17 @@ async function confirmDemo(
   const firstName = conv.context.name?.split(' ')[0] || '';
   const leadName = conv.context.name || 'Lead SDR';
 
-  // Create Google Calendar + Meet event
+  // Create Google Calendar + Meet event on the SDR's calendar
+  const sdrCalendarId = process.env.SDR_GOOGLE_CALENDAR_ID || process.env.GOOGLE_CALENDAR_ID;
+  const sdrEmail = process.env.SDR_EMAIL;
   const result = await createMeetingEvent({
     candidateName: leadName,
     jobTitle: 'Demonstração Elevva',
     slotDate: date,
     slotTime: time,
     candidatePhone: phone,
+    recruiterEmail: sdrEmail,
+    calendarId: sdrCalendarId,
   });
 
   const meetLink = result?.meetLink || '';
@@ -872,19 +876,14 @@ async function handleNegociandoHorario(
 
   if (intent === 'NO') {
     await sendAndLog(instance, phone,
-      `Sem problemas${firstName ? ', ' + firstName : ''}! Tem algum dia e horário que funcione melhor para você?`,
+      `Sem problemas${firstName ? ', ' + firstName : ''}! Tem algum dia e horário que funcione melhor?`,
       conv.lead_id, conv.id, supabase);
-    return; // Stay in NEGOCIANDO_HORARIO
+    return;
   }
 
-  // Lead accepted the proposed time
-  if (intent === 'YES') {
+  // Lead accepted — book immediately, no extra confirmation needed
+  if (intent === 'YES' || intent === 'DEMO_REQUEST') {
     if (proposedDate && proposedTime) {
-      const dateLabel = formatDateBR(proposedDate);
-      const hourLabel = proposedTime.replace(':00', 'h').replace(':30', 'h30');
-      await sendAndLog(instance, phone,
-        `Perfeito! Vou agendar para *${dateLabel} às ${hourLabel}*. Um momento...`,
-        conv.lead_id, conv.id, supabase);
       await confirmDemo(conv, instance, phone, proposedDate, proposedTime, supabase);
     } else {
       await offerDemo(conv, instance, phone, supabase);
@@ -892,7 +891,7 @@ async function handleNegociandoHorario(
     return;
   }
 
-  // Lead has questions — answer them without leaving negotiation
+  // Lead has questions — answer without leaving
   if (['PRICE', 'DISCOUNT', 'HOW_IT_WORKS', 'INTEGRATION', 'LGPD'].includes(intent)) {
     await updateConv(conv.id, { state: 'TIRANDO_DUVIDAS' }, supabase);
     await handleTirandoDuvidas(conv, instance, phone, text, supabase);
@@ -911,31 +910,31 @@ async function handleNegociandoHorario(
   if (newTime || newDate) {
     const finalDate = newDate || proposedDate;
     const finalTime = newTime || proposedTime;
-    const dateLabel = formatDateBR(finalDate);
-    const hourLabel = finalTime.replace(':00', 'h').replace(':30', 'h30');
 
     // Validate business hours
     const hour = parseInt(finalTime.split(':')[0]);
     if (hour < 8 || hour > 19) {
       await sendAndLog(instance, phone,
-        `Os horários disponíveis são das 8h às 19h. Qual horário funciona para você?`,
+        `Os horários disponíveis são das 8h às 19h. Qual horário funciona?`,
         conv.lead_id, conv.id, supabase);
       return;
     }
 
-    // Confirm the counter-proposal
-    await sendAndLog(instance, phone,
-      `Combinado! *${dateLabel} às ${hourLabel}*. Posso confirmar na agenda?`,
-      conv.lead_id, conv.id, supabase);
-
+    // Book directly — no extra "posso confirmar?" step
     const ctx = { ...conv.context, proposed_date: finalDate, proposed_time: finalTime };
     await updateConv(conv.id, { context: ctx }, supabase);
+    await confirmDemo(conv, instance, phone, finalDate, finalTime, supabase);
     return;
   }
 
-  // Couldn't understand — ask again naturally
+  // If text is short and doesn't contain a time — treat as confirmation
+  if (text.trim().length < 20 && !extractTime(text) && !extractDate(text) && proposedDate && proposedTime) {
+    await confirmDemo(conv, instance, phone, proposedDate, proposedTime, supabase);
+    return;
+  }
+
   await sendAndLog(instance, phone,
-    `Me diz um dia e horário que funcione para você. A demo dura 30 min, pode ser de segunda a sexta das 8h às 19h.`,
+    `Me diz um dia e horário que funcione. Pode ser de segunda a sexta, das 8h às 19h.`,
     conv.lead_id, conv.id, supabase);
 }
 
