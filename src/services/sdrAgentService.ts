@@ -50,13 +50,48 @@ const DEFAULT_PLANOS = `Temos dois planos:
 
 Também temos opção de plano anual com desconto. Posso detalhar na demonstração.`;
 
+const DEFAULT_OBJECTION_CARO = `Se um analista de R$ 3.000 perde duas horas por dia abrindo e-mails e cobrando candidatos no WhatsApp, são R$ 750 jogados fora todo mês. A Elevva automatiza isso 24h por R$ 29,90 ao dia, liberando a equipe para o que dá lucro.
+
+O próximo passo é ver o sistema funcionando. Posso liberar um horário para a demonstração?`;
+
+const DEFAULT_OBJECTION_PEQUENA = `Exatamente por ser uma operação enxuta, quem lê os currículos costuma ser o dono ou um gestor-chave. O seu tempo é o ativo mais caro da empresa.
+
+Se você abre uma vaga e recebe 150 currículos, a rotina paralisa. A Elevva analisa todos em segundos e entrega o ranking pronto.
+
+Quer ver isso ao vivo? Posso liberar um horário para a demonstração.`;
+
+const DEFAULT_OBJECTION_IA = `Você não precisa confiar cegamente. A Elevva é 100% transparente.
+
+Ao lado de cada relatório gerado pela IA, existe o botão "Abrir PDF". O sistema faz a triagem para você ganhar tempo, mas o currículo original está a um clique de distância. A IA trabalha, o humano decide.
+
+Quer ver como funciona na prática? Posso liberar um horário para a demonstração.`;
+
+const DEFAULT_OBJECTION_CONCORRENTE = `Quando você clica em "Aprovar" na ferramenta atual, o que acontece depois? Quem da sua equipe chama o candidato no WhatsApp, cobra foto de CNH, confere comprovante de residência e monta o dossiê para a contabilidade?
+
+A Elevva automatiza esse processo completo — da triagem até o dossiê final. Quer ver a diferença na prática?`;
+
+const DEFAULT_QUAL_NOME = `Para eu te atender melhor, como posso te chamar?`;
+const DEFAULT_QUAL_EMPRESA = `Prazer, *{name}*! E qual o nome da sua empresa? Atuam em qual segmento?`;
+const DEFAULT_QUAL_CARGO = `Boa! E qual a sua função lá na *{company}*?`;
+const DEFAULT_QUAL_TAMANHO = `Entendi, {name}. E mais ou menos quantos funcionários vocês têm hoje?`;
+const DEFAULT_QUAL_DOR = `E no dia a dia, qual a maior dificuldade de vocês com recrutamento? Triagem demorada, agendamento manual, volume grande de currículos...?`;
+
 // Textos ativos — carregados do banco, atualizados a cada uso
 let PITCH_CURTO = DEFAULT_PITCH_CURTO;
 let PITCH_MEDIO = DEFAULT_PITCH_MEDIO;
 let PLANOS = DEFAULT_PLANOS;
+let OBJECTION_CARO = DEFAULT_OBJECTION_CARO;
+let OBJECTION_PEQUENA = DEFAULT_OBJECTION_PEQUENA;
+let OBJECTION_IA = DEFAULT_OBJECTION_IA;
+let OBJECTION_CONCORRENTE = DEFAULT_OBJECTION_CONCORRENTE;
+let QUAL_NOME = DEFAULT_QUAL_NOME;
+let QUAL_EMPRESA = DEFAULT_QUAL_EMPRESA;
+let QUAL_CARGO = DEFAULT_QUAL_CARGO;
+let QUAL_TAMANHO = DEFAULT_QUAL_TAMANHO;
+let QUAL_DOR = DEFAULT_QUAL_DOR;
 
 // Cache de 5 minutos para não bater no banco a cada mensagem
-let _sdrPromptCache: { pitch_curto: string; pitch_medio: string; planos: string } | null = null;
+let _sdrPromptCache: Record<string, string> | null = null;
 let _sdrPromptCachedAt = 0;
 
 async function loadSdrTexts(): Promise<void> {
@@ -69,16 +104,21 @@ async function loadSdrTexts(): Promise<void> {
       const { prompt } = await res.json() as { prompt?: string };
       if (prompt) {
         try {
-          const parsed = JSON.parse(prompt) as { pitch_curto?: string; pitch_medio?: string; planos?: string };
-          _sdrPromptCache = {
-            pitch_curto: parsed.pitch_curto || DEFAULT_PITCH_CURTO,
-            pitch_medio: parsed.pitch_medio || DEFAULT_PITCH_MEDIO,
-            planos:      parsed.planos      || DEFAULT_PLANOS,
-          };
+          const p = JSON.parse(prompt) as Record<string, string>;
+          _sdrPromptCache = p;
           _sdrPromptCachedAt = now;
-          PITCH_CURTO = _sdrPromptCache.pitch_curto;
-          PITCH_MEDIO = _sdrPromptCache.pitch_medio;
-          PLANOS      = _sdrPromptCache.planos;
+          PITCH_CURTO          = p.pitch_curto          || DEFAULT_PITCH_CURTO;
+          PITCH_MEDIO          = p.pitch_medio          || DEFAULT_PITCH_MEDIO;
+          PLANOS               = p.planos               || DEFAULT_PLANOS;
+          OBJECTION_CARO       = p.objection_caro       || DEFAULT_OBJECTION_CARO;
+          OBJECTION_PEQUENA    = p.objection_pequena    || DEFAULT_OBJECTION_PEQUENA;
+          OBJECTION_IA         = p.objection_ia         || DEFAULT_OBJECTION_IA;
+          OBJECTION_CONCORRENTE= p.objection_concorrente|| DEFAULT_OBJECTION_CONCORRENTE;
+          QUAL_NOME            = p.qual_nome            || DEFAULT_QUAL_NOME;
+          QUAL_EMPRESA         = p.qual_empresa         || DEFAULT_QUAL_EMPRESA;
+          QUAL_CARGO           = p.qual_cargo           || DEFAULT_QUAL_CARGO;
+          QUAL_TAMANHO         = p.qual_tamanho         || DEFAULT_QUAL_TAMANHO;
+          QUAL_DOR             = p.qual_dor             || DEFAULT_QUAL_DOR;
         } catch { /* JSON inválido — mantém padrão */ }
       }
     }
@@ -135,13 +175,17 @@ function detectIntent(text: string): Intent {
 
 // ─────────────────────────── Qualification Questions ───────────────────────────
 
-const QUALIFICATION_QUESTIONS = [
-  { key: 'name', question: 'Para eu te atender melhor, como posso te chamar?' },
-  { key: 'company', question: 'Prazer, *{name}*! E qual o nome da sua empresa? Atuam em qual segmento?' },
-  { key: 'role', question: 'Boa! E qual a sua função lá na *{company}*?' },
-  { key: 'company_size', question: 'Entendi, {name}. E mais ou menos quantos funcionários vocês têm hoje?' },
-  { key: 'pain', question: 'E no dia a dia, qual a maior dificuldade de vocês com recrutamento? Triagem demorada, agendamento manual, volume grande de currículos...?' },
-];
+function getQualificationQuestions() {
+  return [
+    { key: 'name', question: QUAL_NOME },
+    { key: 'company', question: QUAL_EMPRESA },
+    { key: 'role', question: QUAL_CARGO },
+    { key: 'company_size', question: QUAL_TAMANHO },
+    { key: 'pain', question: QUAL_DOR },
+  ];
+}
+// kept for backwards-compat references below
+const QUALIFICATION_QUESTIONS = getQualificationQuestions();
 
 /** Acknowledgments to make qualification feel more human */
 const ACKNOWLEDGMENTS: Record<string, string[]> = {
@@ -315,32 +359,11 @@ function pickPainQuestion(ctx: SdrConversationContext): string {
 
 function handleObjection(intent: Intent): string {
   switch (intent) {
-    case 'OBJECTION_EXPENSIVE':
-      return `Se um analista de R$ 3.000 perde duas horas por dia abrindo e-mails e cobrando candidatos no WhatsApp, são R$ 750 jogados fora todo mês. A Elevva automatiza isso 24h por R$ 29,90 ao dia, liberando a equipe para o que dá lucro.
-
-O próximo passo é ver o sistema funcionando. Posso liberar um horário para a demonstração?`;
-
-    case 'OBJECTION_SMALL_COMPANY':
-      return `Exatamente por ser uma operação enxuta, quem lê os currículos costuma ser o dono ou um gestor-chave. O seu tempo é o ativo mais caro da empresa.
-
-Se você abre uma vaga e recebe 150 currículos, a rotina paralisa. A Elevva analisa todos em segundos e entrega o ranking pronto.
-
-Quer ver isso ao vivo? Posso liberar um horário para a demonstração.`;
-
-    case 'OBJECTION_AI_TRUST':
-      return `Você não precisa confiar cegamente. A Elevva é 100% transparente.
-
-Ao lado de cada relatório gerado pela IA, existe o botão "Abrir PDF". O sistema faz a triagem para você ganhar tempo, mas o currículo original está a um clique de distância. A IA trabalha, o humano decide.
-
-Quer ver como funciona na prática? Posso liberar um horário para a demonstração.`;
-
-    case 'OBJECTION_COMPETITOR':
-      return `Quando você clica em "Aprovar" na ferramenta atual, o que acontece depois? Quem da sua equipe chama o candidato no WhatsApp, cobra foto de CNH, confere comprovante de residência e monta o dossiê para a contabilidade?
-
-A Elevva automatiza esse processo completo — da triagem até o dossiê final. Quer ver a diferença na prática?`;
-
-    default:
-      return '';
+    case 'OBJECTION_EXPENSIVE':      return OBJECTION_CARO;
+    case 'OBJECTION_SMALL_COMPANY':  return OBJECTION_PEQUENA;
+    case 'OBJECTION_AI_TRUST':       return OBJECTION_IA;
+    case 'OBJECTION_COMPETITOR':     return OBJECTION_CONCORRENTE;
+    default:                         return '';
   }
 }
 
@@ -459,7 +482,7 @@ async function startQualification(
   }
 
   // Ask first unanswered question
-  const question = QUALIFICATION_QUESTIONS[step];
+  const question = getQualificationQuestions()[step];
   if (question) {
     const questionText = personalize(question.question, ctx);
     await sendAndLog(instance, phone, questionText, conv.lead_id, conv.id, supabase);
@@ -553,7 +576,7 @@ async function handleQualificando(
   }
 
   // Ask next question
-  const nextQ = QUALIFICATION_QUESTIONS[nextStep];
+  const nextQ = getQualificationQuestions()[nextStep];
   // Skip if already answered in context
   if ((ctx as Record<string, unknown>)[nextQ.key]) {
     ctx.qualification_step = nextStep;

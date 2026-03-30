@@ -14,6 +14,40 @@ import {
 
 type SdrView = 'OVERVIEW' | 'LEADS' | 'SLOTS' | 'CONVERSATIONS' | 'PROMPTS';
 
+// ─── Prompt SDR — tipos e constantes (fora do componente para referência estável) ───
+interface SdrSection { key: string; label: string; description: string; rows: number }
+interface SdrCustomSection { id: string; label: string; content: string }
+
+const SDR_FIXED_SECTIONS: SdrSection[] = [
+  { key: 'pitch_curto',           label: 'Pitch Curto',                description: 'Primeira mensagem quando o lead demonstra interesse.',              rows: 4  },
+  { key: 'pitch_medio',           label: 'Pitch Médio',                description: 'Explicação detalhada de como a Elevva funciona.',                   rows: 7  },
+  { key: 'planos',                label: 'Planos e Preços',            description: 'Apresentação dos planos Essencial e Pro.',                          rows: 10 },
+  { key: 'objection_caro',        label: 'Objeção: Muito caro',        description: 'Resposta quando o lead diz que é caro.',                            rows: 6  },
+  { key: 'objection_pequena',     label: 'Objeção: Empresa pequena',   description: 'Resposta quando o lead diz que a empresa é pequena.',               rows: 6  },
+  { key: 'objection_ia',          label: 'Objeção: Não confia em IA',  description: 'Resposta quando o lead não confia em inteligência artificial.',     rows: 6  },
+  { key: 'objection_concorrente', label: 'Objeção: Já usa concorrente',description: 'Resposta quando o lead já usa outra ferramenta.',                   rows: 5  },
+  { key: 'qual_nome',             label: 'Qualificação: Nome',         description: 'Pergunta para capturar o nome do lead.',                            rows: 2  },
+  { key: 'qual_empresa',          label: 'Qualificação: Empresa',      description: 'Pergunta sobre a empresa. Use {name} como variável.',               rows: 2  },
+  { key: 'qual_cargo',            label: 'Qualificação: Cargo',        description: 'Pergunta sobre o cargo. Use {company} como variável.',              rows: 2  },
+  { key: 'qual_tamanho',          label: 'Qualificação: Tamanho',      description: 'Pergunta sobre número de funcionários. Use {name} como variável.',  rows: 2  },
+  { key: 'qual_dor',              label: 'Qualificação: Dor principal', description: 'Última pergunta de qualificação sobre a principal dificuldade.',    rows: 3  },
+];
+
+const SDR_DEFAULTS: Record<string, string> = {
+  pitch_curto:           `A Elevva é uma IA que cuida de toda a burocracia do recrutamento — triagem, relatórios e agendamento de entrevistas. Tudo pelo WhatsApp, sem instalar nada.\n\nQuer ver funcionando?`,
+  pitch_medio:           `Você cria a vaga, define os critérios e recebe um WhatsApp exclusivo para os anúncios. A partir daí:\n\n📄 A IA recebe e analisa cada currículo em segundos\n⚙️ Gera relatório com nota de compatibilidade\n📅 Agenda entrevistas no Google Calendar + Meet\n\nTudo automático. O que um analista leva horas, a Elevva faz em segundos com 50 candidatos ao mesmo tempo.`,
+  planos:                `Temos dois planos:\n\n*Plano Essencial — R$ 499/mês*\n✅ Até 5 vagas simultâneas\n✅ WhatsApp autônomo + triagem com ranking\n✅ Agendamento automático (Calendar + Meet)\n\n*Plano Pro — R$ 899/mês*\n✅ Tudo do Essencial + até 10 vagas\n✅ Portal de Admissão + dossiê PDF\n✅ Exclusão automática de dados em 48h (LGPD)\n\nTambém temos opção de plano anual com desconto. Posso detalhar na demonstração.`,
+  objection_caro:        `Se um analista de R$ 3.000 perde duas horas por dia abrindo e-mails e cobrando candidatos no WhatsApp, são R$ 750 jogados fora todo mês. A Elevva automatiza isso 24h por R$ 29,90 ao dia, liberando a equipe para o que dá lucro.\n\nO próximo passo é ver o sistema funcionando. Posso liberar um horário para a demonstração?`,
+  objection_pequena:     `Exatamente por ser uma operação enxuta, quem lê os currículos costuma ser o dono ou um gestor-chave. O seu tempo é o ativo mais caro da empresa.\n\nSe você abre uma vaga e recebe 150 currículos, a rotina paralisa. A Elevva analisa todos em segundos e entrega o ranking pronto.\n\nQuer ver isso ao vivo? Posso liberar um horário para a demonstração.`,
+  objection_ia:          `Você não precisa confiar cegamente. A Elevva é 100% transparente.\n\nAo lado de cada relatório gerado pela IA, existe o botão "Abrir PDF". O sistema faz a triagem para você ganhar tempo, mas o currículo original está a um clique de distância. A IA trabalha, o humano decide.\n\nQuer ver como funciona na prática? Posso liberar um horário para a demonstração.`,
+  objection_concorrente: `Quando você clica em "Aprovar" na ferramenta atual, o que acontece depois? Quem da sua equipe chama o candidato no WhatsApp, cobra foto de CNH, confere comprovante de residência e monta o dossiê para a contabilidade?\n\nA Elevva automatiza esse processo completo — da triagem até o dossiê final. Quer ver a diferença na prática?`,
+  qual_nome:             `Para eu te atender melhor, como posso te chamar?`,
+  qual_empresa:          `Prazer, *{name}*! E qual o nome da sua empresa? Atuam em qual segmento?`,
+  qual_cargo:            `Boa! E qual a sua função lá na *{company}*?`,
+  qual_tamanho:          `Entendi, {name}. E mais ou menos quantos funcionários vocês têm hoje?`,
+  qual_dor:              `E no dia a dia, qual a maior dificuldade de vocês com recrutamento? Triagem demorada, agendamento manual, volume grande de currículos...?`,
+};
+
 interface FunnelData {
   novos: number;
   qualificando: number;
@@ -57,12 +91,10 @@ export const SdrDashboard: React.FC = () => {
   const [slotCreating, setSlotCreating] = useState(false);
 
   // ─────── Prompt SDR ──────────────────────────────────────────────────────────
-  const [sdrPitchCurto, setSdrPitchCurto] = useState('');
-  const [sdrPitchMedio, setSdrPitchMedio] = useState('');
-  const [sdrPlanos, setSdrPlanos] = useState('');
-  const [draftPitchCurto, setDraftPitchCurto] = useState('');
-  const [draftPitchMedio, setDraftPitchMedio] = useState('');
-  const [draftPlanos, setDraftPlanos] = useState('');
+  const [sdrFields, setSdrFields] = useState<Record<string, string>>(SDR_DEFAULTS);
+  const [draftFields, setDraftFields] = useState<Record<string, string>>(SDR_DEFAULTS);
+  const [sdrCustom, setSdrCustom] = useState<SdrCustomSection[]>([]);
+  const [draftCustom, setDraftCustom] = useState<SdrCustomSection[]>([]);
   const [sdrPromptUpdatedAt, setSdrPromptUpdatedAt] = useState<string | null>(null);
   const [isEditingSdrPrompt, setIsEditingSdrPrompt] = useState(false);
   const [sdrPromptLoading, setSdrPromptLoading] = useState(false);
@@ -118,26 +150,21 @@ export const SdrDashboard: React.FC = () => {
     try {
       const res = await fetch('/api/system-prompt/sdr');
       const data = await res.json() as { prompt?: string; updated_at?: string };
-      const defaultPitchCurto = `A Elevva é uma IA que cuida de toda a burocracia do recrutamento — triagem, relatórios e agendamento de entrevistas. Tudo pelo WhatsApp, sem instalar nada.\n\nQuer ver funcionando?`;
-      const defaultPitchMedio = `Você cria a vaga, define os critérios e recebe um WhatsApp exclusivo para os anúncios. A partir daí:\n\n📄 A IA recebe e analisa cada currículo em segundos\n⚙️ Gera relatório com nota de compatibilidade\n📅 Agenda entrevistas no Google Calendar + Meet\n\nTudo automático. O que um analista leva horas, a Elevva faz em segundos com 50 candidatos ao mesmo tempo.`;
-      const defaultPlanos = `Temos dois planos:\n\n*Plano Essencial — R$ 499/mês*\n✅ Até 5 vagas simultâneas\n✅ WhatsApp autônomo + triagem com ranking\n✅ Agendamento automático (Calendar + Meet)\n\n*Plano Pro — R$ 899/mês*\n✅ Tudo do Essencial + até 10 vagas\n✅ Portal de Admissão + dossiê PDF\n✅ Exclusão automática de dados em 48h (LGPD)\n\nTambém temos opção de plano anual com desconto. Posso detalhar na demonstração.`;
-
-      let pitchCurto = defaultPitchCurto;
-      let pitchMedio = defaultPitchMedio;
-      let planos = defaultPlanos;
-
+      const fields = { ...SDR_DEFAULTS };
+      let custom: SdrCustomSection[] = [];
       if (data.prompt) {
         try {
-          const parsed = JSON.parse(data.prompt) as { pitch_curto?: string; pitch_medio?: string; planos?: string };
-          if (parsed.pitch_curto) pitchCurto = parsed.pitch_curto;
-          if (parsed.pitch_medio) pitchMedio = parsed.pitch_medio;
-          if (parsed.planos) planos = parsed.planos;
+          const parsed = JSON.parse(data.prompt) as Record<string, unknown>;
+          for (const key of Object.keys(SDR_DEFAULTS)) {
+            if (typeof parsed[key] === 'string') fields[key] = parsed[key] as string;
+          }
+          if (Array.isArray(parsed.custom)) custom = parsed.custom as SdrCustomSection[];
         } catch { /* JSON inválido — mantém defaults */ }
       }
-
-      setSdrPitchCurto(pitchCurto);
-      setSdrPitchMedio(pitchMedio);
-      setSdrPlanos(planos);
+      setSdrFields(fields);
+      setDraftFields(fields);
+      setSdrCustom(custom);
+      setDraftCustom(custom);
       setSdrPromptUpdatedAt(data.updated_at || null);
     } catch (err) {
       console.error('Erro ao buscar prompt SDR:', err);
@@ -149,20 +176,15 @@ export const SdrDashboard: React.FC = () => {
   const saveSdrPrompt = async () => {
     setSdrPromptSaving(true);
     try {
-      const payload = JSON.stringify({
-        pitch_curto: draftPitchCurto,
-        pitch_medio: draftPitchMedio,
-        planos: draftPlanos,
-      });
+      const payload = JSON.stringify({ ...draftFields, custom: draftCustom });
       const res = await fetch('/api/system-prompt/sdr', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: payload }),
       });
       if (!res.ok) throw new Error('Erro ao salvar');
-      setSdrPitchCurto(draftPitchCurto);
-      setSdrPitchMedio(draftPitchMedio);
-      setSdrPlanos(draftPlanos);
+      setSdrFields(draftFields);
+      setSdrCustom(draftCustom);
       setSdrPromptUpdatedAt(new Date().toISOString());
       setIsEditingSdrPrompt(false);
     } catch (err) {
@@ -1080,7 +1102,7 @@ export const SdrDashboard: React.FC = () => {
                   </div>
                   {!isEditingSdrPrompt && (
                     <button
-                      onClick={() => { setDraftPitchCurto(sdrPitchCurto); setDraftPitchMedio(sdrPitchMedio); setDraftPlanos(sdrPlanos); setIsEditingSdrPrompt(true); }}
+                      onClick={() => { setDraftFields({ ...sdrFields }); setDraftCustom([...sdrCustom]); setIsEditingSdrPrompt(true); }}
                       className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
                     >
                       <Edit3 className="w-4 h-4" /> Editar
@@ -1095,38 +1117,55 @@ export const SdrDashboard: React.FC = () => {
                       <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
                     </div>
                   ) : isEditingSdrPrompt ? (
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Curto</label>
-                        <p className="text-xs text-slate-500">Resposta inicial quando o lead demonstra interesse.</p>
-                        <textarea
-                          value={draftPitchCurto}
-                          onChange={e => setDraftPitchCurto(e.target.value)}
-                          rows={4}
-                          className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Médio</label>
-                        <p className="text-xs text-slate-500">Explicação detalhada de como a Elevva funciona.</p>
-                        <textarea
-                          value={draftPitchMedio}
-                          onChange={e => setDraftPitchMedio(e.target.value)}
-                          rows={7}
-                          className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">Planos</label>
-                        <p className="text-xs text-slate-500">Apresentação dos planos e preços.</p>
-                        <textarea
-                          value={draftPlanos}
-                          onChange={e => setDraftPlanos(e.target.value)}
-                          rows={10}
-                          className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
-                        />
-                      </div>
-                      <div className="flex gap-3 justify-end pt-2">
+                    <div className="space-y-8">
+                      {SDR_FIXED_SECTIONS.map(sec => (
+                        <div key={sec.key} className="space-y-1.5">
+                          <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</label>
+                          <p className="text-xs text-slate-500">{sec.description}</p>
+                          <textarea
+                            value={draftFields[sec.key] ?? ''}
+                            onChange={e => setDraftFields(prev => ({ ...prev, [sec.key]: e.target.value }))}
+                            rows={sec.rows}
+                            className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
+                          />
+                        </div>
+                      ))}
+
+                      {/* Seções personalizadas */}
+                      {draftCustom.map((sec, idx) => (
+                        <div key={sec.id} className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={sec.label}
+                              onChange={e => setDraftCustom(prev => prev.map((s, i) => i === idx ? { ...s, label: e.target.value } : s))}
+                              placeholder="Nome da seção"
+                              className="flex-1 text-xs font-bold bg-transparent border-b border-slate-600 text-lime-400 uppercase tracking-wide focus:outline-none focus:border-lime-500 pb-0.5"
+                            />
+                            <button
+                              onClick={() => setDraftCustom(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-slate-600 hover:text-red-400 transition-colors text-xs"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                          <textarea
+                            value={sec.content}
+                            onChange={e => setDraftCustom(prev => prev.map((s, i) => i === idx ? { ...s, content: e.target.value } : s))}
+                            rows={4}
+                            placeholder="Conteúdo desta seção..."
+                            className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
+                          />
+                        </div>
+                      ))}
+
+                      <button
+                        onClick={() => setDraftCustom(prev => [...prev, { id: crypto.randomUUID(), label: 'Nova Seção', content: '' }])}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-slate-600 text-sm text-slate-400 hover:border-lime-500 hover:text-lime-400 transition-colors"
+                      >
+                        + Nova Seção
+                      </button>
+
+                      <div className="flex gap-3 justify-end pt-2 border-t border-slate-700">
                         <button
                           onClick={() => setIsEditingSdrPrompt(false)}
                           className="px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-400 hover:bg-slate-700 transition-colors"
@@ -1145,18 +1184,18 @@ export const SdrDashboard: React.FC = () => {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      <div className="space-y-2">
-                        <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Curto</p>
-                        <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrPitchCurto}</pre>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Médio</p>
-                        <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrPitchMedio}</pre>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">Planos</p>
-                        <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrPlanos}</pre>
-                      </div>
+                      {SDR_FIXED_SECTIONS.map(sec => (
+                        <div key={sec.key} className="space-y-1.5">
+                          <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</p>
+                          <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrFields[sec.key]}</pre>
+                        </div>
+                      ))}
+                      {sdrCustom.map(sec => (
+                        <div key={sec.id} className="space-y-1.5">
+                          <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</p>
+                          <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sec.content}</pre>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
