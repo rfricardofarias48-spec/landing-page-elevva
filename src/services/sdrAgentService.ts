@@ -22,11 +22,13 @@ import crypto from 'crypto';
 
 // ─────────────────────────── Knowledge Base (inline) ───────────────────────────
 
-const PITCH_CURTO = `A Elevva é uma IA que cuida de toda a burocracia do recrutamento — triagem, relatórios e agendamento de entrevistas. Tudo pelo WhatsApp, sem instalar nada.
+// ── Textos padrão (usados como fallback se o banco não tiver prompt configurado) ─
+
+const DEFAULT_PITCH_CURTO = `A Elevva é uma IA que cuida de toda a burocracia do recrutamento — triagem, relatórios e agendamento de entrevistas. Tudo pelo WhatsApp, sem instalar nada.
 
 Quer ver funcionando?`;
 
-const PITCH_MEDIO = `Você cria a vaga, define os critérios e recebe um WhatsApp exclusivo para os anúncios. A partir daí:
+const DEFAULT_PITCH_MEDIO = `Você cria a vaga, define os critérios e recebe um WhatsApp exclusivo para os anúncios. A partir daí:
 
 📄 A IA recebe e analisa cada currículo em segundos
 ⚙️ Gera relatório com nota de compatibilidade
@@ -34,7 +36,7 @@ const PITCH_MEDIO = `Você cria a vaga, define os critérios e recebe um WhatsAp
 
 Tudo automático. O que um analista leva horas, a Elevva faz em segundos com 50 candidatos ao mesmo tempo.`;
 
-const PLANOS = `Temos dois planos:
+const DEFAULT_PLANOS = `Temos dois planos:
 
 *Plano Essencial — R$ 499/mês*
 ✅ Até 5 vagas simultâneas
@@ -47,6 +49,41 @@ const PLANOS = `Temos dois planos:
 ✅ Exclusão automática de dados em 48h (LGPD)
 
 Também temos opção de plano anual com desconto. Posso detalhar na demonstração.`;
+
+// Textos ativos — carregados do banco, atualizados a cada uso
+let PITCH_CURTO = DEFAULT_PITCH_CURTO;
+let PITCH_MEDIO = DEFAULT_PITCH_MEDIO;
+let PLANOS = DEFAULT_PLANOS;
+
+// Cache de 5 minutos para não bater no banco a cada mensagem
+let _sdrPromptCache: { pitch_curto: string; pitch_medio: string; planos: string } | null = null;
+let _sdrPromptCachedAt = 0;
+
+async function loadSdrTexts(): Promise<void> {
+  const now = Date.now();
+  if (_sdrPromptCache && now - _sdrPromptCachedAt < 5 * 60 * 1000) return;
+  try {
+    const base = process.env.BASE_URL || 'http://localhost:3000';
+    const res = await fetch(`${base}/api/system-prompt/sdr`);
+    if (res.ok) {
+      const { prompt } = await res.json() as { prompt?: string };
+      if (prompt) {
+        try {
+          const parsed = JSON.parse(prompt) as { pitch_curto?: string; pitch_medio?: string; planos?: string };
+          _sdrPromptCache = {
+            pitch_curto: parsed.pitch_curto || DEFAULT_PITCH_CURTO,
+            pitch_medio: parsed.pitch_medio || DEFAULT_PITCH_MEDIO,
+            planos:      parsed.planos      || DEFAULT_PLANOS,
+          };
+          _sdrPromptCachedAt = now;
+          PITCH_CURTO = _sdrPromptCache.pitch_curto;
+          PITCH_MEDIO = _sdrPromptCache.pitch_medio;
+          PLANOS      = _sdrPromptCache.planos;
+        } catch { /* JSON inválido — mantém padrão */ }
+      }
+    }
+  } catch { /* rede indisponível — mantém padrão */ }
+}
 
 // ─────────────────────────── Intent Detection ───────────────────────────
 
@@ -1070,6 +1107,9 @@ export async function processSdrMessage(
   referralData: Record<string, unknown> | null,
   supabase: SupabaseClient,
 ): Promise<void> {
+  // Atualiza textos do agente a partir do banco (cache de 5 min)
+  await loadSdrTexts();
+
   const conv = await getOrCreateConversation(phone, instance, supabase);
   const text = (textContent || '').trim();
 

@@ -2433,6 +2433,35 @@ app.get("/api/sdr/leads/:leadId/messages", async (req, res) => {
   }
 });
 
+// ──────────────────────────────────────────────────────────────────────────────
+// GET /api/system-prompt/:id — busca prompt ('recruiter' | 'sdr')
+// PUT /api/system-prompt/:id — salva prompt (apenas admin/sdr autenticado)
+// ──────────────────────────────────────────────────────────────────────────────
+
+app.get("/api/system-prompt/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!['recruiter', 'sdr'].includes(id)) return res.status(400).json({ error: 'ID inválido' });
+  const { data, error } = await supabaseAdmin
+    .from('system_prompts')
+    .select('prompt, updated_at')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json(data || { prompt: '', updated_at: null });
+});
+
+app.put("/api/system-prompt/:id", async (req, res) => {
+  const { id } = req.params;
+  const { prompt } = req.body as { prompt?: string };
+  if (!['recruiter', 'sdr'].includes(id)) return res.status(400).json({ error: 'ID inválido' });
+  if (!prompt || typeof prompt !== 'string') return res.status(400).json({ error: 'Campo prompt obrigatório' });
+  const { error } = await supabaseAdmin
+    .from('system_prompts')
+    .upsert({ id, prompt, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true });
+});
+
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

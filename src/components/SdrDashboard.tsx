@@ -9,10 +9,10 @@ import {
   LayoutDashboard, Users, Calendar, MessageSquare, LogOut, Loader2,
   Search, Plus, Trash2, ChevronRight, ArrowUpRight, TrendingUp, TrendingDown,
   Phone, Building2, UserCheck, Target, X, Send, Clock, Filter,
-  RefreshCcw, Zap, CheckCircle2, AlertCircle, Activity,
+  RefreshCcw, Zap, CheckCircle2, AlertCircle, Activity, Bot, Edit3, Save,
 } from 'lucide-react';
 
-type SdrView = 'OVERVIEW' | 'LEADS' | 'SLOTS' | 'CONVERSATIONS';
+type SdrView = 'OVERVIEW' | 'LEADS' | 'SLOTS' | 'CONVERSATIONS' | 'PROMPTS';
 
 interface FunnelData {
   novos: number;
@@ -55,6 +55,14 @@ export const SdrDashboard: React.FC = () => {
   const [newSlotDate, setNewSlotDate] = useState('');
   const [newSlotTime, setNewSlotTime] = useState('');
   const [slotCreating, setSlotCreating] = useState(false);
+
+  // ─────── Prompt SDR ──────────────────────────────────────────────────────────
+  const [sdrPromptRaw, setSdrPromptRaw] = useState('');
+  const [sdrPromptDraft, setSdrPromptDraft] = useState('');
+  const [sdrPromptUpdatedAt, setSdrPromptUpdatedAt] = useState<string | null>(null);
+  const [isEditingSdrPrompt, setIsEditingSdrPrompt] = useState(false);
+  const [sdrPromptLoading, setSdrPromptLoading] = useState(false);
+  const [sdrPromptSaving, setSdrPromptSaving] = useState(false);
 
   // ─────── Data Fetching ───────────────────────────────────────────────────────
 
@@ -100,6 +108,41 @@ export const SdrDashboard: React.FC = () => {
       setMessagesLoading(false);
     }
   }, []);
+
+  const fetchSdrPrompt = useCallback(async () => {
+    setSdrPromptLoading(true);
+    try {
+      const res = await fetch('/api/system-prompt/sdr');
+      const data = await res.json() as { prompt?: string; updated_at?: string };
+      const raw = data.prompt || '';
+      setSdrPromptRaw(raw);
+      setSdrPromptDraft(raw);
+      setSdrPromptUpdatedAt(data.updated_at || null);
+    } catch (err) {
+      console.error('Erro ao buscar prompt SDR:', err);
+    } finally {
+      setSdrPromptLoading(false);
+    }
+  }, []);
+
+  const saveSdrPrompt = async () => {
+    setSdrPromptSaving(true);
+    try {
+      const res = await fetch('/api/system-prompt/sdr', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: sdrPromptDraft }),
+      });
+      if (!res.ok) throw new Error('Erro ao salvar');
+      setSdrPromptRaw(sdrPromptDraft);
+      setSdrPromptUpdatedAt(new Date().toISOString());
+      setIsEditingSdrPrompt(false);
+    } catch (err) {
+      alert('Erro ao salvar: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setSdrPromptSaving(false);
+    }
+  };
 
   useEffect(() => {
     const loadAll = async () => {
@@ -338,10 +381,11 @@ export const SdrDashboard: React.FC = () => {
             { key: 'LEADS', icon: Users, label: 'Leads' },
             { key: 'SLOTS', icon: Calendar, label: 'Agenda' },
             { key: 'CONVERSATIONS', icon: MessageSquare, label: 'Conversas' },
+            { key: 'PROMPTS', icon: Bot, label: 'Prompt System' },
           ] as const).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              onClick={() => setCurrentView(key)}
+              onClick={() => { setCurrentView(key); if (key === 'PROMPTS') fetchSdrPrompt(); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
                 ${currentView === key
                   ? 'bg-lime-500/10 text-lime-400 border border-lime-500/20'
@@ -978,6 +1022,90 @@ export const SdrDashboard: React.FC = () => {
                 </div>
               </div>
             </>
+          )}
+
+          {/* ══════ PROMPTS VIEW ══════════════════════════════════════════════════ */}
+          {currentView === 'PROMPTS' && (
+            <div className="max-w-3xl">
+              <div className="mb-6">
+                <h1 className="text-2xl font-black text-white">Prompt System</h1>
+                <p className="text-slate-400 text-sm mt-1">
+                  Textos usados pelo Bento nas conversas com leads. O prompt é salvo como JSON com três seções:
+                  <code className="bg-slate-800 px-1.5 py-0.5 rounded text-lime-400 text-xs ml-1">pitch_curto</code>,
+                  <code className="bg-slate-800 px-1.5 py-0.5 rounded text-lime-400 text-xs ml-1">pitch_medio</code>,
+                  <code className="bg-slate-800 px-1.5 py-0.5 rounded text-lime-400 text-xs ml-1">planos</code>.
+                </p>
+              </div>
+
+              <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-lime-500/10 border border-lime-500/20 rounded-xl flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-lime-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">Bento — Agente SDR</p>
+                      <p className="text-xs text-slate-500">
+                        {sdrPromptUpdatedAt
+                          ? `Atualizado em ${new Date(sdrPromptUpdatedAt).toLocaleString('pt-BR')}`
+                          : 'Nunca editado — usando textos padrão'}
+                      </p>
+                    </div>
+                  </div>
+                  {!isEditingSdrPrompt && (
+                    <button
+                      onClick={() => { setSdrPromptDraft(sdrPromptRaw); setIsEditingSdrPrompt(true); }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4" /> Editar
+                    </button>
+                  )}
+                </div>
+
+                {/* Corpo */}
+                <div className="p-6">
+                  {sdrPromptLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
+                    </div>
+                  ) : isEditingSdrPrompt ? (
+                    <div className="space-y-4">
+                      <p className="text-xs text-slate-500">
+                        Cole um JSON com as chaves <span className="text-lime-400">pitch_curto</span>, <span className="text-lime-400">pitch_medio</span> e <span className="text-lime-400">planos</span>. Ou escreva texto livre — o agente vai usar como está.
+                      </p>
+                      <textarea
+                        value={sdrPromptDraft}
+                        onChange={e => setSdrPromptDraft(e.target.value)}
+                        rows={22}
+                        className="w-full font-mono text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
+                        placeholder={'{\n  "pitch_curto": "A Elevva é uma IA que...",\n  "pitch_medio": "Você cria a vaga...",\n  "planos": "Temos dois planos:\\n..."\n}'}
+                      />
+                      <div className="flex gap-3 justify-end">
+                        <button
+                          onClick={() => setIsEditingSdrPrompt(false)}
+                          className="px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-400 hover:bg-slate-700 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={saveSdrPrompt}
+                          disabled={sdrPromptSaving}
+                          className="flex items-center gap-2 px-5 py-2 bg-lime-500 text-white rounded-xl text-sm font-bold hover:bg-lime-400 transition-colors disabled:opacity-50"
+                        >
+                          {sdrPromptSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                          Salvar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <pre className="whitespace-pre-wrap font-mono text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3 min-h-[200px]">
+                      {sdrPromptRaw || <span className="text-slate-600 italic">Nenhum prompt salvo. Clique em Editar para configurar.</span>}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
         </div>

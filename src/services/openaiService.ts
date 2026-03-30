@@ -7,6 +7,24 @@ import { createRequire } from 'module';
 import OpenAI from 'openai';
 import { AnalysisResult } from '../types.js';
 
+// Busca o prompt configurável do banco; usa padrão se não encontrar
+async function fetchRecruiterPrompt(jobTitle: string, criteria: string): Promise<string> {
+  try {
+    const res = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/system-prompt/recruiter`);
+    if (res.ok) {
+      const { prompt } = await res.json() as { prompt?: string };
+      if (prompt) {
+        return prompt
+          .replace('{jobTitle}', jobTitle)
+          .replace('{criteria}', criteria || 'Não especificados');
+      }
+    }
+  } catch {
+    // fallback silencioso
+  }
+  return ''; // vazio = usa o padrão hardcoded
+}
+
 // pdf-parse é CJS — usar createRequire para compatibilidade com ESM
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>;
@@ -69,7 +87,8 @@ export const analyzeResume = async (
   try {
     const client = new OpenAI({ apiKey });
 
-    const systemPrompt = `Você é um especialista em recrutamento e seleção. Analise o currículo abaixo para a vaga indicada e retorne APENAS um JSON válido, sem markdown, sem explicações.
+    const customPrompt = await fetchRecruiterPrompt(jobTitle, criteria);
+    const systemPrompt = customPrompt || `Você é um especialista em recrutamento e seleção. Analise o currículo abaixo para a vaga indicada e retorne APENAS um JSON válido, sem markdown, sem explicações.
 
 VAGA: ${jobTitle}
 REQUISITOS DA VAGA: ${criteria || 'Não especificados'}

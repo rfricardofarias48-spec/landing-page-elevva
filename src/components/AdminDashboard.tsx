@@ -3,12 +3,12 @@ import { supabase } from '../services/supabaseClient';
 import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import { 
-  Users, Calendar, CreditCard, Search, Activity, 
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase
+  Users, Calendar, CreditCard, Search, Activity,
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
-type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS';
+type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS';
 
 interface AdminJob {
   id: string;
@@ -42,6 +42,14 @@ export const AdminDashboard: React.FC = () => {
   const [tempStatusAutomacao, setTempStatusAutomacao] = useState(false);
   const [tempJobLimit, setTempJobLimit] = useState<number>(9999);
   const [tempCalendarId, setTempCalendarId] = useState('');
+
+  // States para Prompt System (recrutador)
+  const [recruiterPrompt, setRecruiterPrompt] = useState('');
+  const [recruiterPromptDraft, setRecruiterPromptDraft] = useState('');
+  const [promptUpdatedAt, setPromptUpdatedAt] = useState<string | null>(null);
+  const [isEditingPrompt, setIsEditingPrompt] = useState(false);
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptSaving, setPromptSaving] = useState(false);
 
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
@@ -271,6 +279,41 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
+  const fetchRecruiterPrompt = async () => {
+      setPromptLoading(true);
+      try {
+          const res = await fetch('/api/system-prompt/recruiter');
+          const data = await res.json() as { prompt?: string; updated_at?: string };
+          const text = data.prompt || '';
+          setRecruiterPrompt(text);
+          setRecruiterPromptDraft(text);
+          setPromptUpdatedAt(data.updated_at || null);
+      } catch (err) {
+          console.error('Erro ao buscar prompt:', err);
+      } finally {
+          setPromptLoading(false);
+      }
+  };
+
+  const saveRecruiterPrompt = async () => {
+      setPromptSaving(true);
+      try {
+          const res = await fetch('/api/system-prompt/recruiter', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: recruiterPromptDraft }),
+          });
+          if (!res.ok) throw new Error('Erro ao salvar');
+          setRecruiterPrompt(recruiterPromptDraft);
+          setPromptUpdatedAt(new Date().toISOString());
+          setIsEditingPrompt(false);
+      } catch (err) {
+          alert('Erro ao salvar prompt: ' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+          setPromptSaving(false);
+      }
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
@@ -403,6 +446,9 @@ export const AdminDashboard: React.FC = () => {
             </button>
             <button onClick={() => setCurrentView('COMMISSIONS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'COMMISSIONS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Banknote className="w-5 h-5" /> Comissões
+            </button>
+            <button onClick={() => { setCurrentView('PROMPTS'); fetchRecruiterPrompt(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'PROMPTS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <Bot className="w-5 h-5" /> Prompt System
             </button>
             <button onClick={() => setCurrentView('DATABASE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'DATABASE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Database className="w-5 h-5" /> Banco de Dados
@@ -986,6 +1032,80 @@ export const AdminDashboard: React.FC = () => {
             {currentView === 'ADS' && renderAdsManager()}
             {currentView === 'FINANCE' && renderFinance()} 
             {currentView === 'COMMISSIONS' && renderCommissions()}
+            {currentView === 'PROMPTS' && (
+                <div className="max-w-3xl">
+                    <div className="mb-6">
+                        <h1 className="text-2xl font-black text-zinc-900">Prompt System</h1>
+                        <p className="text-sm text-zinc-500 mt-1">Instruções enviadas para a IA ao analisar currículos. Use <code className="bg-zinc-100 px-1 rounded text-xs">{'{jobTitle}'}</code> e <code className="bg-zinc-100 px-1 rounded text-xs">{'{criteria}'}</code> como variáveis dinâmicas.</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
+                        {/* Header do card */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center">
+                                    <Bot className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-zinc-900">Agente Recrutador</p>
+                                    <p className="text-xs text-zinc-400">
+                                        {promptUpdatedAt
+                                            ? `Atualizado em ${new Date(promptUpdatedAt).toLocaleString('pt-BR')}`
+                                            : 'Nunca editado — usando prompt padrão'}
+                                    </p>
+                                </div>
+                            </div>
+                            {!isEditingPrompt && (
+                                <button
+                                    onClick={() => { setRecruiterPromptDraft(recruiterPrompt); setIsEditingPrompt(true); }}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-700 hover:bg-zinc-50 transition-colors"
+                                >
+                                    <Edit3 className="w-4 h-4" /> Editar
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Corpo */}
+                        <div className="p-6">
+                            {promptLoading ? (
+                                <div className="flex items-center justify-center py-16">
+                                    <Loader2 className="w-6 h-6 animate-spin text-zinc-300" />
+                                </div>
+                            ) : isEditingPrompt ? (
+                                <div className="space-y-4">
+                                    <textarea
+                                        value={recruiterPromptDraft}
+                                        onChange={e => setRecruiterPromptDraft(e.target.value)}
+                                        rows={22}
+                                        className="w-full font-mono text-sm bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-zinc-400 resize-none"
+                                        placeholder="Digite o prompt do agente recrutador..."
+                                    />
+                                    <div className="flex gap-3 justify-end">
+                                        <button
+                                            onClick={() => setIsEditingPrompt(false)}
+                                            className="px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-500 hover:bg-zinc-50 transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={saveRecruiterPrompt}
+                                            disabled={promptSaving}
+                                            className="flex items-center gap-2 px-5 py-2 bg-black text-white rounded-xl text-sm font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                                        >
+                                            {promptSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                            Salvar
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <pre className="whitespace-pre-wrap font-mono text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">
+                                    {recruiterPrompt || <span className="text-zinc-400 italic">Nenhum prompt salvo. Clique em Editar para configurar.</span>}
+                                </pre>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
             {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
             {currentView === 'CANCELLATIONS' && (
                 <div className="text-center py-20">
