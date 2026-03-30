@@ -95,6 +95,8 @@ export const SdrDashboard: React.FC = () => {
   const [draftFields, setDraftFields] = useState<Record<string, string>>(SDR_DEFAULTS);
   const [sdrCustom, setSdrCustom] = useState<SdrCustomSection[]>([]);
   const [draftCustom, setDraftCustom] = useState<SdrCustomSection[]>([]);
+  const [sdrDeletedKeys, setSdrDeletedKeys] = useState<string[]>([]);
+  const [draftDeletedKeys, setDraftDeletedKeys] = useState<string[]>([]);
   const [sdrPromptUpdatedAt, setSdrPromptUpdatedAt] = useState<string | null>(null);
   const [isEditingSdrPrompt, setIsEditingSdrPrompt] = useState(false);
   const [sdrPromptLoading, setSdrPromptLoading] = useState(false);
@@ -152,6 +154,7 @@ export const SdrDashboard: React.FC = () => {
       const data = await res.json() as { prompt?: string; updated_at?: string };
       const fields = { ...SDR_DEFAULTS };
       let custom: SdrCustomSection[] = [];
+      let deleted: string[] = [];
       if (data.prompt) {
         try {
           const parsed = JSON.parse(data.prompt) as Record<string, unknown>;
@@ -159,12 +162,15 @@ export const SdrDashboard: React.FC = () => {
             if (typeof parsed[key] === 'string') fields[key] = parsed[key] as string;
           }
           if (Array.isArray(parsed.custom)) custom = parsed.custom as SdrCustomSection[];
+          if (Array.isArray(parsed._deleted)) deleted = parsed._deleted as string[];
         } catch { /* JSON inválido — mantém defaults */ }
       }
       setSdrFields(fields);
       setDraftFields(fields);
       setSdrCustom(custom);
       setDraftCustom(custom);
+      setSdrDeletedKeys(deleted);
+      setDraftDeletedKeys(deleted);
       setSdrPromptUpdatedAt(data.updated_at || null);
     } catch (err) {
       console.error('Erro ao buscar prompt SDR:', err);
@@ -176,7 +182,7 @@ export const SdrDashboard: React.FC = () => {
   const saveSdrPrompt = async () => {
     setSdrPromptSaving(true);
     try {
-      const payload = JSON.stringify({ ...draftFields, custom: draftCustom });
+      const payload = JSON.stringify({ ...draftFields, custom: draftCustom, _deleted: draftDeletedKeys });
       const res = await fetch('/api/system-prompt/sdr', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -185,6 +191,7 @@ export const SdrDashboard: React.FC = () => {
       if (!res.ok) throw new Error('Erro ao salvar');
       setSdrFields(draftFields);
       setSdrCustom(draftCustom);
+      setSdrDeletedKeys(draftDeletedKeys);
       setSdrPromptUpdatedAt(new Date().toISOString());
       setIsEditingSdrPrompt(false);
     } catch (err) {
@@ -1102,7 +1109,7 @@ export const SdrDashboard: React.FC = () => {
                   </div>
                   {!isEditingSdrPrompt && (
                     <button
-                      onClick={() => { setDraftFields({ ...sdrFields }); setDraftCustom([...sdrCustom]); setIsEditingSdrPrompt(true); }}
+                      onClick={() => { setDraftFields({ ...sdrFields }); setDraftCustom([...sdrCustom]); setDraftDeletedKeys([...sdrDeletedKeys]); setIsEditingSdrPrompt(true); }}
                       className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
                     >
                       <Edit3 className="w-4 h-4" /> Editar
@@ -1118,9 +1125,18 @@ export const SdrDashboard: React.FC = () => {
                     </div>
                   ) : isEditingSdrPrompt ? (
                     <div className="space-y-8">
-                      {SDR_FIXED_SECTIONS.map(sec => (
+                      {SDR_FIXED_SECTIONS.filter(sec => !draftDeletedKeys.includes(sec.key)).map(sec => (
                         <div key={sec.key} className="space-y-1.5">
-                          <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</label>
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</label>
+                            <button
+                              onClick={() => setDraftDeletedKeys(prev => [...prev, sec.key])}
+                              className="text-slate-600 hover:text-red-400 transition-colors text-xs flex items-center gap-1"
+                              title="Remover seção"
+                            >
+                              <X className="w-3.5 h-3.5" /> Remover
+                            </button>
+                          </div>
                           <p className="text-xs text-slate-500">{sec.description}</p>
                           <textarea
                             value={draftFields[sec.key] ?? ''}
@@ -1130,6 +1146,28 @@ export const SdrDashboard: React.FC = () => {
                           />
                         </div>
                       ))}
+
+                      {/* Seções removidas — opção de restaurar */}
+                      {draftDeletedKeys.length > 0 && (
+                        <div className="rounded-xl border border-dashed border-slate-700 px-4 py-3 space-y-2">
+                          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Seções removidas</p>
+                          {draftDeletedKeys.map(key => {
+                            const sec = SDR_FIXED_SECTIONS.find(s => s.key === key);
+                            if (!sec) return null;
+                            return (
+                              <div key={key} className="flex items-center justify-between">
+                                <span className="text-xs text-slate-400">{sec.label}</span>
+                                <button
+                                  onClick={() => setDraftDeletedKeys(prev => prev.filter(k => k !== key))}
+                                  className="text-xs text-lime-400 hover:text-lime-300 transition-colors"
+                                >
+                                  Restaurar
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Seções personalizadas */}
                       {draftCustom.map((sec, idx) => (
@@ -1184,7 +1222,7 @@ export const SdrDashboard: React.FC = () => {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {SDR_FIXED_SECTIONS.map(sec => (
+                      {SDR_FIXED_SECTIONS.filter(sec => !sdrDeletedKeys.includes(sec.key)).map(sec => (
                         <div key={sec.key} className="space-y-1.5">
                           <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</p>
                           <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrFields[sec.key]}</pre>
