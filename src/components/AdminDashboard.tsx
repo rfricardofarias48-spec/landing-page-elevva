@@ -279,17 +279,48 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
+  const DEFAULT_RECRUITER_PROMPT = `Você é um especialista em recrutamento e seleção. Analise o currículo abaixo para a vaga indicada e retorne APENAS um JSON válido, sem markdown, sem explicações.
+
+VAGA: {jobTitle}
+REQUISITOS DA VAGA: {criteria}
+
+Estrutura JSON obrigatória:
+{
+  "candidateName": "nome completo do candidato",
+  "matchScore": <número de 0.0 a 10.0>,
+  "yearsExperience": "tempo total de experiência exata no cargo (ex: '2 anos e 3 meses' ou 'Sem experiência')",
+  "city": "cidade de residência ou 'Não informado'",
+  "neighborhood": "bairro ou 'Não informado'",
+  "phoneNumbers": ["telefone1", "telefone2"],
+  "summary": "análise técnica de aproximadamente 400 caracteres justificando a nota",
+  "pros": ["ponto forte 1", "ponto forte 2", "ponto forte 3"],
+  "cons": ["ponto de atenção 1", "ponto de atenção 2", "ponto de atenção 3"],
+  "workHistory": [
+    { "company": "nome da empresa", "role": "cargo", "duration": "duração calculada (ex: '1 ano e 5 meses')" }
+  ]
+}
+
+REGRAS DE PONTUAÇÃO (matchScore):
+- 9.0 a 10.0: Experiência EXATA no cargo + todos os requisitos atendidos
+- 7.0 a 8.9: Experiência exata no cargo, mas falta algum requisito
+- 4.0 a 6.9: Experiência correlata, mas não exata no cargo solicitado
+- 0.0 a 3.9: Sem experiência relevante para a vaga
+
+Inclua as 3 experiências profissionais mais recentes em workHistory.`;
+
   const fetchRecruiterPrompt = async () => {
       setPromptLoading(true);
       try {
           const res = await fetch('/api/system-prompt/recruiter');
           const data = await res.json() as { prompt?: string; updated_at?: string };
-          const text = data.prompt || '';
+          const text = data.prompt || DEFAULT_RECRUITER_PROMPT;
           setRecruiterPrompt(text);
           setRecruiterPromptDraft(text);
           setPromptUpdatedAt(data.updated_at || null);
       } catch (err) {
           console.error('Erro ao buscar prompt:', err);
+          setRecruiterPrompt(DEFAULT_RECRUITER_PROMPT);
+          setRecruiterPromptDraft(DEFAULT_RECRUITER_PROMPT);
       } finally {
           setPromptLoading(false);
       }
@@ -1057,7 +1088,7 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                             {!isEditingPrompt && (
                                 <button
-                                    onClick={() => { setRecruiterPromptDraft(recruiterPrompt); setIsEditingPrompt(true); }}
+                                    onClick={() => { setRecruiterPromptDraft(recruiterPrompt || DEFAULT_RECRUITER_PROMPT); setIsEditingPrompt(true); }}
                                     className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-700 hover:bg-zinc-50 transition-colors"
                                 >
                                     <Edit3 className="w-4 h-4" /> Editar
@@ -1076,8 +1107,8 @@ export const AdminDashboard: React.FC = () => {
                                     <textarea
                                         value={recruiterPromptDraft}
                                         onChange={e => setRecruiterPromptDraft(e.target.value)}
-                                        rows={22}
-                                        className="w-full font-mono text-sm bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-zinc-400 resize-none"
+                                        rows={26}
+                                        className="w-full text-sm bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-zinc-400 resize-none"
                                         placeholder="Digite o prompt do agente recrutador..."
                                     />
                                     <div className="flex gap-3 justify-end">
@@ -1098,8 +1129,8 @@ export const AdminDashboard: React.FC = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <pre className="whitespace-pre-wrap font-mono text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">
-                                    {recruiterPrompt || <span className="text-zinc-400 italic">Nenhum prompt salvo. Clique em Editar para configurar.</span>}
+                                <pre className="whitespace-pre-wrap text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">
+                                    {recruiterPrompt || DEFAULT_RECRUITER_PROMPT}
                                 </pre>
                             )}
                         </div>

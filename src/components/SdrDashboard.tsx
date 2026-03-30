@@ -57,8 +57,12 @@ export const SdrDashboard: React.FC = () => {
   const [slotCreating, setSlotCreating] = useState(false);
 
   // ─────── Prompt SDR ──────────────────────────────────────────────────────────
-  const [sdrPromptRaw, setSdrPromptRaw] = useState('');
-  const [sdrPromptDraft, setSdrPromptDraft] = useState('');
+  const [sdrPitchCurto, setSdrPitchCurto] = useState('');
+  const [sdrPitchMedio, setSdrPitchMedio] = useState('');
+  const [sdrPlanos, setSdrPlanos] = useState('');
+  const [draftPitchCurto, setDraftPitchCurto] = useState('');
+  const [draftPitchMedio, setDraftPitchMedio] = useState('');
+  const [draftPlanos, setDraftPlanos] = useState('');
   const [sdrPromptUpdatedAt, setSdrPromptUpdatedAt] = useState<string | null>(null);
   const [isEditingSdrPrompt, setIsEditingSdrPrompt] = useState(false);
   const [sdrPromptLoading, setSdrPromptLoading] = useState(false);
@@ -114,9 +118,26 @@ export const SdrDashboard: React.FC = () => {
     try {
       const res = await fetch('/api/system-prompt/sdr');
       const data = await res.json() as { prompt?: string; updated_at?: string };
-      const raw = data.prompt || '';
-      setSdrPromptRaw(raw);
-      setSdrPromptDraft(raw);
+      const defaultPitchCurto = `A Elevva é uma IA que cuida de toda a burocracia do recrutamento — triagem, relatórios e agendamento de entrevistas. Tudo pelo WhatsApp, sem instalar nada.\n\nQuer ver funcionando?`;
+      const defaultPitchMedio = `Você cria a vaga, define os critérios e recebe um WhatsApp exclusivo para os anúncios. A partir daí:\n\n📄 A IA recebe e analisa cada currículo em segundos\n⚙️ Gera relatório com nota de compatibilidade\n📅 Agenda entrevistas no Google Calendar + Meet\n\nTudo automático. O que um analista leva horas, a Elevva faz em segundos com 50 candidatos ao mesmo tempo.`;
+      const defaultPlanos = `Temos dois planos:\n\n*Plano Essencial — R$ 499/mês*\n✅ Até 5 vagas simultâneas\n✅ WhatsApp autônomo + triagem com ranking\n✅ Agendamento automático (Calendar + Meet)\n\n*Plano Pro — R$ 899/mês*\n✅ Tudo do Essencial + até 10 vagas\n✅ Portal de Admissão + dossiê PDF\n✅ Exclusão automática de dados em 48h (LGPD)\n\nTambém temos opção de plano anual com desconto. Posso detalhar na demonstração.`;
+
+      let pitchCurto = defaultPitchCurto;
+      let pitchMedio = defaultPitchMedio;
+      let planos = defaultPlanos;
+
+      if (data.prompt) {
+        try {
+          const parsed = JSON.parse(data.prompt) as { pitch_curto?: string; pitch_medio?: string; planos?: string };
+          if (parsed.pitch_curto) pitchCurto = parsed.pitch_curto;
+          if (parsed.pitch_medio) pitchMedio = parsed.pitch_medio;
+          if (parsed.planos) planos = parsed.planos;
+        } catch { /* JSON inválido — mantém defaults */ }
+      }
+
+      setSdrPitchCurto(pitchCurto);
+      setSdrPitchMedio(pitchMedio);
+      setSdrPlanos(planos);
       setSdrPromptUpdatedAt(data.updated_at || null);
     } catch (err) {
       console.error('Erro ao buscar prompt SDR:', err);
@@ -128,13 +149,20 @@ export const SdrDashboard: React.FC = () => {
   const saveSdrPrompt = async () => {
     setSdrPromptSaving(true);
     try {
+      const payload = JSON.stringify({
+        pitch_curto: draftPitchCurto,
+        pitch_medio: draftPitchMedio,
+        planos: draftPlanos,
+      });
       const res = await fetch('/api/system-prompt/sdr', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: sdrPromptDraft }),
+        body: JSON.stringify({ prompt: payload }),
       });
       if (!res.ok) throw new Error('Erro ao salvar');
-      setSdrPromptRaw(sdrPromptDraft);
+      setSdrPitchCurto(draftPitchCurto);
+      setSdrPitchMedio(draftPitchMedio);
+      setSdrPlanos(draftPlanos);
       setSdrPromptUpdatedAt(new Date().toISOString());
       setIsEditingSdrPrompt(false);
     } catch (err) {
@@ -1030,10 +1058,7 @@ export const SdrDashboard: React.FC = () => {
               <div className="mb-6">
                 <h1 className="text-2xl font-black text-white">Prompt System</h1>
                 <p className="text-slate-400 text-sm mt-1">
-                  Textos usados pelo Bento nas conversas com leads. O prompt é salvo como JSON com três seções:
-                  <code className="bg-slate-800 px-1.5 py-0.5 rounded text-lime-400 text-xs ml-1">pitch_curto</code>,
-                  <code className="bg-slate-800 px-1.5 py-0.5 rounded text-lime-400 text-xs ml-1">pitch_medio</code>,
-                  <code className="bg-slate-800 px-1.5 py-0.5 rounded text-lime-400 text-xs ml-1">planos</code>.
+                  Textos usados pelo Bento nas conversas com leads. Edite cada seção diretamente em texto normal.
                 </p>
               </div>
 
@@ -1055,7 +1080,7 @@ export const SdrDashboard: React.FC = () => {
                   </div>
                   {!isEditingSdrPrompt && (
                     <button
-                      onClick={() => { setSdrPromptDraft(sdrPromptRaw); setIsEditingSdrPrompt(true); }}
+                      onClick={() => { setDraftPitchCurto(sdrPitchCurto); setDraftPitchMedio(sdrPitchMedio); setDraftPlanos(sdrPlanos); setIsEditingSdrPrompt(true); }}
                       className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
                     >
                       <Edit3 className="w-4 h-4" /> Editar
@@ -1070,18 +1095,38 @@ export const SdrDashboard: React.FC = () => {
                       <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
                     </div>
                   ) : isEditingSdrPrompt ? (
-                    <div className="space-y-4">
-                      <p className="text-xs text-slate-500">
-                        Cole um JSON com as chaves <span className="text-lime-400">pitch_curto</span>, <span className="text-lime-400">pitch_medio</span> e <span className="text-lime-400">planos</span>. Ou escreva texto livre — o agente vai usar como está.
-                      </p>
-                      <textarea
-                        value={sdrPromptDraft}
-                        onChange={e => setSdrPromptDraft(e.target.value)}
-                        rows={22}
-                        className="w-full font-mono text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
-                        placeholder={'{\n  "pitch_curto": "A Elevva é uma IA que...",\n  "pitch_medio": "Você cria a vaga...",\n  "planos": "Temos dois planos:\\n..."\n}'}
-                      />
-                      <div className="flex gap-3 justify-end">
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Curto</label>
+                        <p className="text-xs text-slate-500">Resposta inicial quando o lead demonstra interesse.</p>
+                        <textarea
+                          value={draftPitchCurto}
+                          onChange={e => setDraftPitchCurto(e.target.value)}
+                          rows={4}
+                          className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Médio</label>
+                        <p className="text-xs text-slate-500">Explicação detalhada de como a Elevva funciona.</p>
+                        <textarea
+                          value={draftPitchMedio}
+                          onChange={e => setDraftPitchMedio(e.target.value)}
+                          rows={7}
+                          className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold text-lime-400 uppercase tracking-wide">Planos</label>
+                        <p className="text-xs text-slate-500">Apresentação dos planos e preços.</p>
+                        <textarea
+                          value={draftPlanos}
+                          onChange={e => setDraftPlanos(e.target.value)}
+                          rows={10}
+                          className="w-full text-sm bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50 resize-none"
+                        />
+                      </div>
+                      <div className="flex gap-3 justify-end pt-2">
                         <button
                           onClick={() => setIsEditingSdrPrompt(false)}
                           className="px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-400 hover:bg-slate-700 transition-colors"
@@ -1099,9 +1144,20 @@ export const SdrDashboard: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <pre className="whitespace-pre-wrap font-mono text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3 min-h-[200px]">
-                      {sdrPromptRaw || <span className="text-slate-600 italic">Nenhum prompt salvo. Clique em Editar para configurar.</span>}
-                    </pre>
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Curto</p>
+                        <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrPitchCurto}</pre>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">Pitch Médio</p>
+                        <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrPitchMedio}</pre>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">Planos</p>
+                        <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrPlanos}</pre>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
