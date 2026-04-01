@@ -2449,10 +2449,13 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
 
   try {
     const runRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs?token=${token}`,
+      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           searchStringsArray: [searchQuery],
           maxCrawledPlacesPerSearch: maxItems,
@@ -2466,11 +2469,13 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
       }
     );
 
-    const runData = await runRes.json() as any;
+    const rawText = await runRes.text();
+    let runData: any;
+    try { runData = JSON.parse(rawText); } catch { runData = { raw: rawText }; }
 
     if (!runData?.data?.id) {
-      const apifyMsg = runData?.error?.message || runData?.error?.type || JSON.stringify(runData).slice(0, 200);
-      return res.status(500).json({ error: `Apify: ${apifyMsg}` });
+      const apifyMsg = runData?.error?.message || runData?.error?.type || rawText.slice(0, 300);
+      return res.status(500).json({ error: `Apify erro (${runRes.status}): ${apifyMsg}` });
     }
 
     return res.json({ runId: runData.data.id, status: runData.data.status });
@@ -2488,7 +2493,8 @@ app.get("/api/sdr/leads/result/:runId", async (req, res) => {
 
   try {
     const runRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs/${runId}?token=${token}`
+      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs/${runId}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
     );
     const runData = await runRes.json() as any;
     const status = runData?.data?.status;
@@ -2508,7 +2514,8 @@ app.get("/api/sdr/leads/result/:runId", async (req, res) => {
     const datasetId = runData.data.defaultDatasetId;
     const limit = 100;
     const itemsRes = await fetch(
-      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&limit=${limit}&clean=true`
+      `https://api.apify.com/v2/datasets/${datasetId}/items?limit=${limit}&clean=true`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
     );
     const items = await itemsRes.json() as any[];
 
