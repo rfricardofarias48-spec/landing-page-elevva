@@ -10,9 +10,11 @@ import {
   Search, Plus, Trash2, ChevronRight, ArrowUpRight, TrendingUp, TrendingDown,
   Phone, Building2, UserCheck, Target, X, Send, Clock, Filter,
   RefreshCcw, Zap, CheckCircle2, AlertCircle, Activity, Bot, Edit3, Save,
+  Download, Globe,
 } from 'lucide-react';
 
-type SdrView = 'OVERVIEW' | 'LEADS' | 'SLOTS' | 'CONVERSATIONS' | 'PROMPTS';
+type SdrView = 'OVERVIEW' | 'LEADS' | 'SLOTS' | 'CONVERSATIONS' | 'PROMPTS' | 'GERADOR_LEADS';
+interface GeneratedLead { nome: string; categoria: string; endereco: string; telefone: string; site: string; email: string; rating: number | null; reviews: number }
 
 // ─── Prompt SDR — tipos e constantes (fora do componente para referência estável) ───
 interface SdrSection { key: string; label: string; description: string; rows: number }
@@ -101,6 +103,14 @@ export const SdrDashboard: React.FC = () => {
   const [isEditingSdrPrompt, setIsEditingSdrPrompt] = useState(false);
   const [sdrPromptLoading, setSdrPromptLoading] = useState(false);
   const [sdrPromptSaving, setSdrPromptSaving] = useState(false);
+
+  // ─────── Gerador de Leads ────────────────────────────────────────────────────
+  const [gNicho, setGNicho] = useState('');
+  const [gRegiao, setGRegiao] = useState('');
+  const [gQtd, setGQtd] = useState(20);
+  const [gLeads, setGLeads] = useState<GeneratedLead[]>([] as GeneratedLead[]);
+  const [gLoading, setGLoading] = useState(false);
+  const [gError, setGError] = useState<string | null>(null);
 
   // ─────── Data Fetching ───────────────────────────────────────────────────────
 
@@ -278,15 +288,36 @@ export const SdrDashboard: React.FC = () => {
 
   const statusColor = (status: string) => {
     const colors: Record<string, string> = {
-      NOVO: 'bg-indigo-100 text-indigo-700',
-      QUALIFICANDO: 'bg-amber-100 text-amber-700',
-      QUALIFICADO: 'bg-purple-100 text-purple-700',
-      DEMO_OFERECIDA: 'bg-blue-100 text-blue-700',
-      DEMO_AGENDADA: 'bg-lime-100 text-lime-700',
-      CONVERTIDO: 'bg-green-100 text-green-700',
-      PERDIDO: 'bg-red-100 text-red-700',
+      NOVO: 'bg-indigo-500/15 text-indigo-300',
+      QUALIFICANDO: 'bg-amber-500/15 text-amber-300',
+      QUALIFICADO: 'bg-purple-500/15 text-purple-300',
+      DEMO_OFERECIDA: 'bg-blue-500/15 text-blue-300',
+      DEMO_AGENDADA: 'bg-lime-500/15 text-lime-300',
+      CONVERTIDO: 'bg-green-500/15 text-green-300',
+      PERDIDO: 'bg-red-500/15 text-red-300',
     };
-    return colors[status] || 'bg-slate-100 text-slate-700';
+    return colors[status] || 'bg-slate-500/15 text-slate-400';
+  };
+
+  const avatarColor = (name: string) => {
+    const code = (name || '?').charCodeAt(0) % 6;
+    const colors = [
+      'bg-violet-500/20 text-violet-300',
+      'bg-blue-500/20 text-blue-300',
+      'bg-cyan-500/20 text-cyan-300',
+      'bg-amber-500/20 text-amber-300',
+      'bg-rose-500/20 text-rose-300',
+      'bg-lime-500/20 text-lime-300',
+    ];
+    return colors[code];
+  };
+
+  const statusDot = (status: string) => {
+    const dots: Record<string, string> = {
+      NOVO: 'bg-indigo-400', QUALIFICANDO: 'bg-amber-400', QUALIFICADO: 'bg-purple-400',
+      DEMO_OFERECIDA: 'bg-blue-400', DEMO_AGENDADA: 'bg-lime-400', CONVERTIDO: 'bg-green-400', PERDIDO: 'bg-red-400',
+    };
+    return dots[status] || 'bg-slate-400';
   };
 
   const statusLabel = (status: string) => {
@@ -403,11 +434,17 @@ export const SdrDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-lime-500 flex items-center justify-center animate-pulse">
-            <Zap className="w-6 h-6 text-white" />
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-3xl bg-lime-500 flex items-center justify-center shadow-2xl shadow-lime-500/30">
+              <Zap className="w-10 h-10 text-slate-950" />
+            </div>
+            <div className="absolute inset-0 rounded-3xl border-2 border-lime-400/50 animate-ping" />
           </div>
-          <p className="text-slate-400 text-sm font-medium">Carregando dashboard...</p>
+          <div className="text-center">
+            <p className="text-white font-black text-xl tracking-tight">Elevva</p>
+            <p className="text-slate-500 text-sm mt-1">Carregando dashboard...</p>
+          </div>
         </div>
       </div>
     );
@@ -419,55 +456,59 @@ export const SdrDashboard: React.FC = () => {
     <div className="h-screen bg-slate-950 flex overflow-hidden font-sans">
 
       {/* ══ SIDEBAR ══════════════════════════════════════════════════════════════ */}
-      <aside className="w-16 lg:w-60 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
+      <aside className="w-16 lg:w-60 bg-[#0d1117] border-r border-slate-800/50 flex flex-col shrink-0">
         {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-slate-800 gap-3">
+        <div className="h-16 flex items-center px-4 border-b border-slate-800/50 gap-3">
           <div className="w-8 h-8 bg-lime-500 rounded-xl flex items-center justify-center shrink-0">
-            <Zap className="w-4 h-4 text-white" />
+            <Zap className="w-4 h-4 text-slate-950" />
           </div>
           <div className="hidden lg:block">
             <p className="text-white font-black text-sm leading-none">Elevva</p>
-            <p className="text-lime-500 text-xs font-bold mt-0.5">SDR Panel</p>
+            <p className="text-xs font-bold mt-0.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-lime-500 inline-block animate-pulse" />
+              <span className="text-lime-500">SDR Panel</span>
+            </p>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-4 px-2 space-y-1">
+        <nav className="flex-1 py-4 px-2 space-y-0.5">
           {([
             { key: 'OVERVIEW', icon: LayoutDashboard, label: 'Dashboard' },
             { key: 'LEADS', icon: Users, label: 'Leads' },
             { key: 'SLOTS', icon: Calendar, label: 'Agenda' },
             { key: 'CONVERSATIONS', icon: MessageSquare, label: 'Conversas' },
             { key: 'PROMPTS', icon: Bot, label: 'Prompt System' },
+            { key: 'GERADOR_LEADS', icon: Zap, label: 'Gerador de Leads' },
           ] as const).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
               onClick={() => { setCurrentView(key); if (key === 'PROMPTS') fetchSdrPrompt(); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
                 ${currentView === key
-                  ? 'bg-lime-500/10 text-lime-400 border border-lime-500/20'
-                  : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'}`}
+                  ? 'border-l-2 border-lime-500 bg-lime-500/[0.08] text-lime-400 rounded-l-none'
+                  : 'text-slate-500 hover:text-slate-200 hover:bg-white/[0.04]'}`}
             >
-              <Icon className="w-4 h-4 shrink-0" />
+              <Icon className="w-[18px] h-[18px] shrink-0" />
               <span className="hidden lg:block">{label}</span>
             </button>
           ))}
         </nav>
 
         {/* Footer */}
-        <div className="p-2 border-t border-slate-800">
+        <div className="p-2 border-t border-slate-800/50">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-red-500/10 hover:text-red-400 transition-all"
           >
-            <LogOut className="w-4 h-4 shrink-0" />
+            <LogOut className="w-[18px] h-[18px] shrink-0" />
             <span className="hidden lg:block">Sair</span>
           </button>
         </div>
       </aside>
 
       {/* ══ MAIN ═════════════════════════════════════════════════════════════════ */}
-      <main className="flex-1 overflow-y-auto bg-slate-950">
+      <main className="flex-1 overflow-y-auto bg-slate-950" style={{ background: 'radial-gradient(ellipse at 60% 0%, rgba(132,204,22,0.04) 0%, transparent 60%), #020617' }}>
         <div className="max-w-7xl mx-auto p-6">
 
           {/* ══════ OVERVIEW ══════════════════════════════════════════════════════ */}
@@ -476,14 +517,14 @@ export const SdrDashboard: React.FC = () => {
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h1 className="text-2xl font-black text-white">Dashboard SDR</h1>
-                  <p className="text-slate-400 text-sm mt-0.5">
+                  <h1 className="text-3xl font-black tracking-tight text-white">Dashboard SDR</h1>
+                  <p className="text-slate-500 text-sm mt-0.5">
                     {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                   </p>
                 </div>
                 <button
                   onClick={() => { fetchFunnel(); fetchLeads(); fetchSlots(); }}
-                  className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
+                  className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
                 >
                   <RefreshCcw className="w-4 h-4" />
                 </button>
@@ -492,35 +533,35 @@ export const SdrDashboard: React.FC = () => {
               {/* ── KPI Row ──────────────────────────────────────────────────── */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {/* Total Leads */}
-                <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-5">
+                <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 border-t-2 border-t-indigo-500 shadow-lg shadow-indigo-900/20">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
-                      <Users className="w-4 h-4 text-white" />
+                    <div className="w-9 h-9 bg-indigo-500/20 rounded-xl flex items-center justify-center">
+                      <Users className="w-4 h-4 text-indigo-400" />
                     </div>
-                    <span className="text-indigo-200 text-xs font-semibold bg-white/10 px-2 py-0.5 rounded-full">
+                    <span className="text-indigo-300 text-xs font-semibold bg-indigo-500/10 px-2 py-0.5 rounded-full">
                       +{todayLeads} hoje
                     </span>
                   </div>
-                  <p className="text-4xl font-black text-white">{funnel.total}</p>
-                  <p className="text-indigo-200 text-xs font-semibold mt-1">Total de Leads</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.total}</p>
+                  <p className="text-slate-500 text-xs font-semibold mt-1">Total de Leads</p>
                 </div>
 
                 {/* Demos Agendadas */}
-                <div className="bg-gradient-to-br from-lime-500 to-green-600 rounded-2xl p-5">
+                <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 border-t-2 border-t-lime-500 shadow-lg shadow-lime-900/20">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
-                      <Calendar className="w-4 h-4 text-white" />
+                    <div className="w-9 h-9 bg-lime-500/20 rounded-xl flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-lime-400" />
                     </div>
-                    <span className="text-lime-100 text-xs font-semibold bg-white/10 px-2 py-0.5 rounded-full">
+                    <span className="text-lime-300 text-xs font-semibold bg-lime-500/10 px-2 py-0.5 rounded-full">
                       {upcomingDemos.length} próximas
                     </span>
                   </div>
-                  <p className="text-4xl font-black text-white">{funnel.demos_agendadas}</p>
-                  <p className="text-lime-100 text-xs font-semibold mt-1">Demos Agendadas</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.demos_agendadas}</p>
+                  <p className="text-slate-500 text-xs font-semibold mt-1">Demos Agendadas</p>
                 </div>
 
                 {/* Convertidos */}
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700">
+                <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 border-t-2 border-t-emerald-500 shadow-lg shadow-emerald-900/20">
                   <div className="flex items-start justify-between mb-3">
                     <div className="w-9 h-9 bg-green-500/20 rounded-xl flex items-center justify-center">
                       <CheckCircle2 className="w-4 h-4 text-green-400" />
@@ -530,20 +571,20 @@ export const SdrDashboard: React.FC = () => {
                       {funnel.taxa_agendamento_pct || 0}%
                     </div>
                   </div>
-                  <p className="text-4xl font-black text-white">{funnel.convertidos}</p>
-                  <p className="text-slate-400 text-xs font-semibold mt-1">Convertidos</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.convertidos}</p>
+                  <p className="text-slate-500 text-xs font-semibold mt-1">Convertidos</p>
                 </div>
 
                 {/* Perdidos */}
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700">
+                <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 border-t-2 border-t-red-500 shadow-lg shadow-red-900/20">
                   <div className="flex items-start justify-between mb-3">
                     <div className="w-9 h-9 bg-red-500/20 rounded-xl flex items-center justify-center">
                       <AlertCircle className="w-4 h-4 text-red-400" />
                     </div>
                     <span className="text-slate-500 text-xs font-semibold">esta semana: {weekLeads}</span>
                   </div>
-                  <p className="text-4xl font-black text-white">{funnel.perdidos}</p>
-                  <p className="text-slate-400 text-xs font-semibold mt-1">Perdidos</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.perdidos}</p>
+                  <p className="text-slate-500 text-xs font-semibold mt-1">Perdidos</p>
                 </div>
               </div>
 
@@ -551,7 +592,7 @@ export const SdrDashboard: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
 
                 {/* Leads por dia (últimos 14 dias) */}
-                <div className="lg:col-span-2 bg-slate-800 rounded-2xl p-5 border border-slate-700">
+                <div className="lg:col-span-2 bg-slate-900 rounded-2xl p-5 border border-slate-800">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-white font-bold text-sm">Leads por dia</p>
@@ -584,7 +625,7 @@ export const SdrDashboard: React.FC = () => {
                 </div>
 
                 {/* Distribuição de Status */}
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700">
+                <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
                   <p className="text-white font-bold text-sm mb-1">Distribuição</p>
                   <p className="text-slate-500 text-xs mb-4">Status atual dos leads</p>
                   {statusDistribution.length > 0 ? (
@@ -630,13 +671,13 @@ export const SdrDashboard: React.FC = () => {
               </div>
 
               {/* ── Funil de Conversão ───────────────────────────────────────── */}
-              <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 mb-6">
+              <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 mb-6">
                 <div className="flex items-center justify-between mb-5">
                   <div>
                     <p className="text-white font-bold text-sm">Funil de Conversão</p>
                     <p className="text-slate-500 text-xs">Taxa de avanço entre etapas</p>
                   </div>
-                  <div className="flex items-center gap-1.5 bg-slate-700 px-3 py-1.5 rounded-xl">
+                  <div className="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
                     <Target className="w-3.5 h-3.5 text-lime-400" />
                     <span className="text-lime-400 text-xs font-bold">
                       {funnel.taxa_agendamento_pct || 0}% taxa de agendamento
@@ -653,7 +694,7 @@ export const SdrDashboard: React.FC = () => {
                         <div className="h-8 bg-slate-700 rounded-lg overflow-hidden">
                           <div
                             className="h-full rounded-lg flex items-center px-3 transition-all duration-700"
-                            style={{ width: `${Math.max(stage.pct, 4)}%`, background: stage.color }}
+                            style={{ width: `${Math.max(stage.pct, 4)}%`, background: `linear-gradient(90deg, ${stage.color}, ${stage.color}cc)` }}
                           >
                             <span className="text-white text-xs font-black">{stage.value}</span>
                           </div>
@@ -678,15 +719,15 @@ export const SdrDashboard: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
                 {/* Próximas Demos */}
-                <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-700 flex items-center gap-2">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-800 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-lime-400" />
                     <p className="text-white font-bold text-sm">Próximas Demos</p>
                     <span className="ml-auto text-xs font-bold text-lime-500 bg-lime-500/10 px-2 py-0.5 rounded-full">
                       {upcomingDemos.length} agendadas
                     </span>
                   </div>
-                  <div className="divide-y divide-slate-700/50">
+                  <div className="divide-y divide-slate-800/50">
                     {upcomingDemos.length === 0 ? (
                       <div className="p-6 text-center">
                         <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-700" />
@@ -727,8 +768,8 @@ export const SdrDashboard: React.FC = () => {
                 </div>
 
                 {/* Leads Recentes */}
-                <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-700 flex items-center gap-2">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-800 flex items-center gap-2">
                     <Activity className="w-4 h-4 text-indigo-400" />
                     <p className="text-white font-bold text-sm">Leads Recentes</p>
                     <button
@@ -738,21 +779,22 @@ export const SdrDashboard: React.FC = () => {
                       Ver todos <ArrowUpRight className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="divide-y divide-slate-700/50">
+                  <div className="divide-y divide-slate-800/50">
                     {leads.slice(0, 6).map(lead => (
                       <div
                         key={lead.id}
-                        className="px-5 py-3 flex items-center gap-3 hover:bg-slate-700/50 cursor-pointer transition-colors"
+                        className="px-5 py-3 flex items-center gap-3 hover:bg-white/[0.03] cursor-pointer transition-colors"
                         onClick={() => { setSelectedLead(lead); fetchMessages(lead.id); }}
                       >
-                        <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold text-xs shrink-0">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${avatarColor(lead.name || '?')}`}>
                           {(lead.name || '?')[0].toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-white text-sm font-semibold truncate">{lead.name || lead.phone}</p>
                           <p className="text-slate-500 text-xs truncate">{lead.company || lead.phone}</p>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${statusColor(lead.status)}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1 ${statusColor(lead.status)}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-current inline-block shrink-0" />
                           {statusLabel(lead.status)}
                         </span>
                       </div>
@@ -774,8 +816,8 @@ export const SdrDashboard: React.FC = () => {
             <>
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h1 className="text-2xl font-black text-white">Leads</h1>
-                  <p className="text-slate-400 text-sm mt-0.5">{filteredLeads.length} leads encontrados</p>
+                  <h1 className="text-3xl font-black tracking-tight text-white">Leads</h1>
+                  <p className="text-slate-500 text-sm mt-0.5">{filteredLeads.length} leads encontrados</p>
                 </div>
               </div>
 
@@ -787,13 +829,13 @@ export const SdrDashboard: React.FC = () => {
                     placeholder="Buscar por nome, telefone ou empresa..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500"
                   />
                 </div>
                 <select
                   value={statusFilter}
                   onChange={e => setStatusFilter(e.target.value)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm font-semibold text-slate-300 focus:outline-none focus:ring-2 focus:ring-lime-500/30"
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-sm font-semibold text-slate-300 focus:outline-none focus:ring-2 focus:ring-lime-500/30"
                 >
                   <option value="ALL">Todos os status</option>
                   <option value="NOVO">Novo</option>
@@ -806,28 +848,28 @@ export const SdrDashboard: React.FC = () => {
                 </select>
               </div>
 
-              <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+              <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-slate-700">
-                      <th className="text-left px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Lead</th>
-                      <th className="text-left px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Empresa</th>
-                      <th className="text-left px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Origem</th>
-                      <th className="text-left px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="text-left px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Data</th>
+                    <tr className="border-b border-slate-800 bg-slate-900/80">
+                      <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Lead</th>
+                      <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest hidden md:table-cell">Empresa</th>
+                      <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest hidden lg:table-cell">Origem</th>
+                      <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
+                      <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest hidden md:table-cell">Data</th>
                       <th className="w-10"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/50">
+                  <tbody className="divide-y divide-slate-800/60">
                     {filteredLeads.map(lead => (
                       <tr
                         key={lead.id}
-                        className="hover:bg-slate-700/50 cursor-pointer transition-colors"
+                        className="hover:bg-white/[0.03] cursor-pointer transition-colors group"
                         onClick={() => { setSelectedLead(lead); fetchMessages(lead.id); }}
                       >
-                        <td className="px-5 py-3">
+                        <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold text-xs shrink-0">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${avatarColor(lead.name || '?')}`}>
                               {(lead.name || '?')[0].toUpperCase()}
                             </div>
                             <div>
@@ -843,16 +885,17 @@ export const SdrDashboard: React.FC = () => {
                         <td className="px-5 py-3 hidden lg:table-cell">
                           <span className="text-xs font-semibold text-slate-500">{lead.source}</span>
                         </td>
-                        <td className="px-5 py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusColor(lead.status)}`}>
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${statusColor(lead.status)}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusDot(lead.status)}`} />
                             {statusLabel(lead.status)}
                           </span>
                         </td>
-                        <td className="px-5 py-3 hidden md:table-cell">
-                          <span className="text-xs text-slate-500">{formatDate(lead.created_at)}</span>
+                        <td className="px-5 py-3.5 hidden md:table-cell">
+                          <span className="text-xs font-mono text-slate-500">{formatDate(lead.created_at)}</span>
                         </td>
                         <td className="px-3">
-                          <ChevronRight className="w-4 h-4 text-slate-600" />
+                          <ChevronRight className="w-4 h-4 text-slate-700 group-hover:text-slate-400 transition-colors" />
                         </td>
                       </tr>
                     ))}
@@ -873,12 +916,12 @@ export const SdrDashboard: React.FC = () => {
             <>
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h1 className="text-2xl font-black text-white">Agenda de Demos</h1>
-                  <p className="text-slate-400 text-sm mt-0.5">Gerencie os horários disponíveis (8h–20h)</p>
+                  <h1 className="text-3xl font-black tracking-tight text-white">Agenda de Demos</h1>
+                  <p className="text-slate-500 text-sm mt-0.5">Gerencie os horários disponíveis (8h–20h)</p>
                 </div>
               </div>
 
-              <div className="bg-slate-800 rounded-2xl border border-slate-700 p-5 mb-6">
+              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 mb-6">
                 <h3 className="text-sm font-bold text-white mb-3">Adicionar Horários</h3>
                 <div className="flex gap-3 items-end flex-wrap">
                   <div>
@@ -887,7 +930,7 @@ export const SdrDashboard: React.FC = () => {
                       type="date"
                       value={newSlotDate}
                       onChange={e => setNewSlotDate(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-700 border border-slate-600 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
+                      className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
                     />
                   </div>
                   <div>
@@ -896,13 +939,13 @@ export const SdrDashboard: React.FC = () => {
                       type="time"
                       value={newSlotTime}
                       onChange={e => setNewSlotTime(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-700 border border-slate-600 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
+                      className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
                     />
                   </div>
                   <button
                     onClick={createSlot}
                     disabled={!newSlotDate || !newSlotTime || slotCreating}
-                    className="px-4 py-2 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 border border-slate-600"
+                    className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {slotCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     Adicionar
@@ -910,7 +953,7 @@ export const SdrDashboard: React.FC = () => {
                   <button
                     onClick={createBulkSlots}
                     disabled={!newSlotDate || slotCreating}
-                    className="px-4 py-2 bg-lime-500 text-white rounded-xl text-sm font-bold hover:bg-lime-400 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-2 bg-lime-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-lime-400 active:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {slotCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
                     Preencher dia inteiro (8h–20h)
@@ -919,15 +962,15 @@ export const SdrDashboard: React.FC = () => {
               </div>
 
               {Object.keys(slotsByDate).length === 0 ? (
-                <div className="bg-slate-800 rounded-2xl border border-slate-700 p-10 text-center">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-10 text-center">
                   <Calendar className="w-10 h-10 mx-auto mb-2 text-slate-700" />
                   <p className="font-semibold text-slate-400">Nenhum horário cadastrado</p>
                   <p className="text-sm text-slate-600 mt-1">Selecione uma data acima e clique em "Preencher dia inteiro".</p>
                 </div>
               ) : (
                 Object.entries(slotsByDate).map(([date, dateSlots]) => (
-                  <div key={date} className="bg-slate-800 rounded-2xl border border-slate-700 mb-4 overflow-hidden">
-                    <div className="px-5 py-3 border-b border-slate-700 bg-slate-700/50">
+                  <div key={date} className="bg-slate-900 rounded-2xl border border-slate-800 mb-4 overflow-hidden">
+                    <div className="px-5 py-3 border-b border-slate-800 bg-slate-900/60">
                       <p className="text-sm font-bold text-slate-200">{formatDateFull(date)}</p>
                     </div>
                     <div className="p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
@@ -936,8 +979,8 @@ export const SdrDashboard: React.FC = () => {
                           key={slot.id}
                           className={`relative group rounded-xl px-3 py-2 text-center text-sm font-bold transition-all ${
                             slot.is_booked
-                              ? 'bg-lime-500/20 text-lime-300 border-2 border-lime-500/40'
-                              : 'bg-slate-700 text-slate-300 border-2 border-slate-600 hover:border-slate-500'
+                              ? 'bg-lime-500/10 border border-lime-500/40 text-lime-300'
+                              : 'bg-slate-800 border border-slate-700 text-slate-300 hover:border-lime-500/50 hover:text-white'
                           }`}
                         >
                           <span>{formatTime(slot.slot_time)}</span>
@@ -964,15 +1007,15 @@ export const SdrDashboard: React.FC = () => {
             <>
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h1 className="text-2xl font-black text-white">Conversas</h1>
-                  <p className="text-slate-400 text-sm mt-0.5">Histórico de todas as interações</p>
+                  <h1 className="text-3xl font-black tracking-tight text-white">Conversas</h1>
+                  <p className="text-slate-500 text-sm mt-0.5">Histórico de todas as interações</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Lead List */}
-                <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden lg:col-span-1">
-                  <div className="p-3 border-b border-slate-700">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden lg:col-span-1">
+                  <div className="p-3 border-b border-slate-800">
                     <div className="relative">
                       <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                       <input
@@ -980,11 +1023,11 @@ export const SdrDashboard: React.FC = () => {
                         placeholder="Buscar lead..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-lime-500/30"
+                        className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-lime-500/30"
                       />
                     </div>
                   </div>
-                  <div className="divide-y divide-slate-700/50 max-h-[calc(100vh-220px)] overflow-y-auto">
+                  <div className="divide-y divide-slate-800/50 max-h-[calc(100vh-220px)] overflow-y-auto">
                     {leads
                       .filter(l => !searchTerm || (l.name || l.phone).toLowerCase().includes(searchTerm.toLowerCase()))
                       .map(lead => (
@@ -993,18 +1036,19 @@ export const SdrDashboard: React.FC = () => {
                           onClick={() => { setSelectedLead(lead); fetchMessages(lead.id); }}
                           className={`px-4 py-3 cursor-pointer transition-colors flex items-center gap-3 ${
                             selectedLead?.id === lead.id
-                              ? 'bg-lime-500/10 border-l-2 border-lime-500'
-                              : 'hover:bg-slate-700/50'
+                              ? 'bg-lime-500/[0.08] border-l-2 border-lime-500'
+                              : 'hover:bg-white/[0.04]'
                           }`}
                         >
-                          <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold text-sm shrink-0">
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${avatarColor(lead.name || '?')}`}>
                             {(lead.name || '?')[0].toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-white truncate">{lead.name || lead.phone}</p>
                             <p className="text-xs text-slate-500 truncate">{lead.company || lead.phone}</p>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${statusColor(lead.status)}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold shrink-0 ${statusColor(lead.status)}`}>
+                            <span className={`w-1 h-1 rounded-full ${statusDot(lead.status)}`} />
                             {statusLabel(lead.status)}
                           </span>
                         </div>
@@ -1013,29 +1057,31 @@ export const SdrDashboard: React.FC = () => {
                 </div>
 
                 {/* Messages Panel */}
-                <div className="bg-slate-800 rounded-2xl border border-slate-700 lg:col-span-2 flex flex-col min-h-[500px]">
+                <div className="bg-slate-900 rounded-2xl border border-slate-800 lg:col-span-2 flex flex-col min-h-[500px]">
                   {selectedLead ? (
                     <>
-                      <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+                      <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${avatarColor(selectedLead.name || '?')}`}>
                             {(selectedLead.name || '?')[0].toUpperCase()}
                           </div>
                           <div>
                             <p className="text-sm font-bold text-white">{selectedLead.name || selectedLead.phone}</p>
                             <div className="flex items-center gap-2 text-xs text-slate-500">
                               <Phone className="w-3 h-3" />
-                              <span>{selectedLead.phone}</span>
+                              <span className="font-mono">{selectedLead.phone}</span>
                               {selectedLead.company && (
                                 <>
-                                  <Building2 className="w-3 h-3 ml-2" />
+                                  <span className="text-slate-700">·</span>
+                                  <Building2 className="w-3 h-3" />
                                   <span>{selectedLead.company}</span>
                                 </>
                               )}
                             </div>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusColor(selectedLead.status)}`}>
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold ${statusColor(selectedLead.status)}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusDot(selectedLead.status)}`} />
                           {statusLabel(selectedLead.status)}
                         </span>
                       </div>
@@ -1052,13 +1098,13 @@ export const SdrDashboard: React.FC = () => {
                         ) : (
                           messages.map(msg => (
                             <div key={msg.id} className={`flex ${msg.direction === 'OUT' ? 'justify-end' : 'justify-start'}`}>
-                              <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+                              <div className={`max-w-[75%] px-4 py-2.5 ${
                                 msg.direction === 'OUT'
-                                  ? 'bg-lime-600 text-white rounded-br-md'
-                                  : 'bg-slate-700 text-slate-200 rounded-bl-md'
+                                  ? 'bg-lime-500 text-slate-950 rounded-2xl rounded-br-sm shadow-md shadow-lime-900/30'
+                                  : 'bg-[#0f1e35] text-slate-200 rounded-2xl rounded-bl-sm border border-slate-700/50'
                               }`}>
-                                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                <p className="text-[10px] mt-1 opacity-60">
+                                <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                <p className={`text-[10px] mt-1 font-mono ${msg.direction === 'OUT' ? 'text-lime-900/70' : 'text-slate-600'}`}>
                                   {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
@@ -1085,15 +1131,15 @@ export const SdrDashboard: React.FC = () => {
           {currentView === 'PROMPTS' && (
             <div className="max-w-3xl">
               <div className="mb-6">
-                <h1 className="text-2xl font-black text-white">Prompt System</h1>
-                <p className="text-slate-400 text-sm mt-1">
+                <h1 className="text-3xl font-black tracking-tight text-white">Prompt System</h1>
+                <p className="text-slate-500 text-sm mt-1">
                   Textos usados pelo Bento nas conversas com leads. Edite cada seção diretamente em texto normal.
                 </p>
               </div>
 
-              <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+              <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-lime-500/10 border border-lime-500/20 rounded-xl flex items-center justify-center">
                       <Bot className="w-5 h-5 text-lime-400" />
@@ -1110,7 +1156,7 @@ export const SdrDashboard: React.FC = () => {
                   {!isEditingSdrPrompt && (
                     <button
                       onClick={() => { setDraftFields({ ...sdrFields }); setDraftCustom([...sdrCustom]); setDraftDeletedKeys([...sdrDeletedKeys]); setIsEditingSdrPrompt(true); }}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
                     >
                       <Edit3 className="w-4 h-4" /> Editar
                     </button>
@@ -1203,17 +1249,17 @@ export const SdrDashboard: React.FC = () => {
                         + Nova Seção
                       </button>
 
-                      <div className="flex gap-3 justify-end pt-2 border-t border-slate-700">
+                      <div className="flex gap-3 justify-end pt-2 border-t border-slate-800">
                         <button
                           onClick={() => setIsEditingSdrPrompt(false)}
-                          className="px-4 py-2 rounded-xl border border-slate-600 text-sm font-semibold text-slate-400 hover:bg-slate-700 transition-colors"
+                          className="px-4 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm font-semibold text-slate-300 hover:bg-slate-700 transition-colors"
                         >
                           Cancelar
                         </button>
                         <button
                           onClick={saveSdrPrompt}
                           disabled={sdrPromptSaving}
-                          className="flex items-center gap-2 px-5 py-2 bg-lime-500 text-white rounded-xl text-sm font-bold hover:bg-lime-400 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-2 px-5 py-2 bg-lime-500 hover:bg-lime-400 active:bg-lime-600 text-slate-950 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
                         >
                           {sdrPromptSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                           Salvar
@@ -1221,17 +1267,17 @@ export const SdrDashboard: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {SDR_FIXED_SECTIONS.filter(sec => !sdrDeletedKeys.includes(sec.key)).map(sec => (
-                        <div key={sec.key} className="space-y-1.5">
-                          <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</p>
-                          <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sdrFields[sec.key]}</pre>
+                        <div key={sec.key} className="border-l-2 border-lime-500/30 pl-4 space-y-1.5 hover:border-lime-500/70 transition-colors">
+                          <p className="text-[10px] font-bold text-lime-400 uppercase tracking-widest">{sec.label}</p>
+                          <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-[#0a1525] rounded-lg px-4 py-3 leading-relaxed border border-slate-800/60 font-sans">{sdrFields[sec.key]}</pre>
                         </div>
                       ))}
                       {sdrCustom.map(sec => (
-                        <div key={sec.id} className="space-y-1.5">
-                          <p className="text-xs font-bold text-lime-400 uppercase tracking-wide">{sec.label}</p>
-                          <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-900 rounded-xl px-4 py-3">{sec.content}</pre>
+                        <div key={sec.id} className="border-l-2 border-violet-500/30 pl-4 space-y-1.5 hover:border-violet-500/70 transition-colors">
+                          <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">{sec.label}</p>
+                          <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-[#0a1525] rounded-lg px-4 py-3 leading-relaxed border border-slate-800/60 font-sans">{sec.content}</pre>
                         </div>
                       ))}
                     </div>
@@ -1241,28 +1287,189 @@ export const SdrDashboard: React.FC = () => {
             </div>
           )}
 
+          {/* ══════ GERADOR DE LEADS ══════════════════════════════════════════════ */}
+          {currentView === 'GERADOR_LEADS' && (
+            <>
+              <div className="mb-6">
+                <h1 className="text-3xl font-black tracking-tight text-white">Gerador de Leads</h1>
+                <p className="text-slate-500 text-sm mt-1">Busca empresas por nicho e região via Google Maps. Os dados ficam disponíveis para exportação.</p>
+              </div>
+
+              {/* Formulário */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Nicho</label>
+                    <input
+                      type="text"
+                      placeholder="ex: consultoria de RH, recrutamento..."
+                      value={gNicho}
+                      onChange={e => setGNicho(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-lime-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Região</label>
+                    <input
+                      type="text"
+                      placeholder="ex: São Paulo, Curitiba, RS..."
+                      value={gRegiao}
+                      onChange={e => setGRegiao(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-lime-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Quantidade (máx. 100)</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={100}
+                      value={gQtd}
+                      onChange={e => setGQtd(Math.min(100, Math.max(1, Number(e.target.value))))}
+                      className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    disabled={gLoading || !gNicho.trim() || !gRegiao.trim()}
+                    onClick={async () => {
+                      setGLoading(true);
+                      setGError(null);
+                      setGLeads([]);
+                      try {
+                        const res = await fetch('/api/sdr/leads/generate', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ nicho: gNicho.trim(), regiao: gRegiao.trim(), quantidade: gQtd }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) { setGError(data.error || 'Erro desconhecido'); return; }
+                        setGLeads(data.leads || []);
+                      } catch (err: any) {
+                        setGError('Falha na comunicação com o servidor.');
+                      } finally {
+                        setGLoading(false);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-lime-500 hover:bg-lime-400 active:bg-lime-600 text-slate-950 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {gLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    {gLoading ? 'Buscando...' : 'Gerar Leads'}
+                  </button>
+                  {gLeads.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const header = 'Nome,Categoria,Endereço,Telefone,Site,Email,Rating\n';
+                        const rows = gLeads.map(l =>
+                          [l.nome, l.categoria, l.endereco, l.telefone, l.site, l.email, l.rating ?? '']
+                            .map(v => `"${String(v).replace(/"/g, '""')}"`)
+                            .join(',')
+                        ).join('\n');
+                        const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `leads-${gNicho}-${gRegiao}.csv`.replace(/\s+/g, '-').toLowerCase();
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      Exportar CSV
+                    </button>
+                  )}
+                </div>
+                {gError && (
+                  <div className="mt-4 flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {gError}
+                  </div>
+                )}
+              </div>
+
+              {/* Resultados */}
+              {gLeads.length > 0 && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                    <span className="text-sm font-bold text-white">{gLeads.length} leads encontrados</span>
+                    <span className="text-xs text-slate-500">{gNicho} · {gRegiao}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-800 bg-slate-950/80 text-xs text-slate-500 uppercase tracking-wide">
+                          <th className="px-4 py-3 text-left">Empresa</th>
+                          <th className="px-4 py-3 text-left">Categoria</th>
+                          <th className="px-4 py-3 text-left">Telefone</th>
+                          <th className="px-4 py-3 text-left">Email</th>
+                          <th className="px-4 py-3 text-left">Site</th>
+                          <th className="px-4 py-3 text-left">Rating</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gLeads.map((lead, i) => (
+                          <tr key={i} className="border-b border-slate-800/50 hover:bg-white/[0.03] transition-colors">
+                            <td className="px-4 py-3 font-semibold text-white max-w-[200px] truncate">{lead.nome || '—'}</td>
+                            <td className="px-4 py-3 text-slate-400 max-w-[160px] truncate">{lead.categoria || '—'}</td>
+                            <td className="px-4 py-3 text-slate-300">{lead.telefone || '—'}</td>
+                            <td className="px-4 py-3 text-slate-300">{lead.email || '—'}</td>
+                            <td className="px-4 py-3">
+                              {lead.site
+                                ? <a href={lead.site} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-lime-400 hover:text-lime-300 transition-colors"><Globe className="w-3 h-3" /><span className="truncate max-w-[120px]">{lead.site.replace(/^https?:\/\//, '')}</span></a>
+                                : <span className="text-slate-600">—</span>
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-slate-300">{lead.rating != null ? `${lead.rating} ★` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {gLoading && (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+                  <Loader2 className="w-10 h-10 mb-4 animate-spin text-lime-500" />
+                  <p className="font-semibold">Buscando leads...</p>
+                  <p className="text-sm mt-1 text-slate-600">Isso pode levar até 2 minutos...</p>
+                </div>
+              )}
+
+              {!gLoading && gLeads.length === 0 && !gError && (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-600">
+                  <Zap className="w-12 h-12 mb-3 opacity-20" />
+                  <p className="font-semibold text-slate-500">Nenhuma busca realizada</p>
+                  <p className="text-sm mt-1">Preencha o nicho e a região e clique em Gerar Leads.</p>
+                </div>
+              )}
+            </>
+          )}
+
         </div>
       </main>
 
       {/* ══ LEAD DETAIL MODAL ════════════════════════════════════════════════════ */}
       {selectedLead && currentView !== 'CONVERSATIONS' && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedLead(null)}
         >
           <div
-            className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50"
             onClick={e => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-slate-700 flex items-center justify-between">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between" style={{ borderTop: `3px solid ${PIE_COLORS[selectedLead.status] || '#64748b'}` }}>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold text-lg">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${avatarColor(selectedLead.name || '?')}`}>
                   {(selectedLead.name || '?')[0].toUpperCase()}
                 </div>
                 <div>
                   <p className="text-lg font-bold text-white">{selectedLead.name || 'Sem nome'}</p>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusColor(selectedLead.status)}`}>
-                    {statusLabel(selectedLead.status)}
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${statusColor(selectedLead.status)}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusDot(selectedLead.status)}`} />{statusLabel(selectedLead.status)}
                   </span>
                 </div>
               </div>
@@ -1272,44 +1479,33 @@ export const SdrDashboard: React.FC = () => {
             </div>
 
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Telefone</p>
-                  <p className="text-sm font-semibold text-white">{selectedLead.phone}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Empresa</p>
-                  <p className="text-sm font-semibold text-white">{selectedLead.company || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Cargo</p>
-                  <p className="text-sm font-semibold text-white">{selectedLead.role || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Tamanho</p>
-                  <p className="text-sm font-semibold text-white">{selectedLead.company_size || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Origem</p>
-                  <p className="text-sm font-semibold text-white">{selectedLead.source}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Desde</p>
-                  <p className="text-sm font-semibold text-white">{formatDate(selectedLead.created_at)}</p>
-                </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                {[
+                  { label: 'Telefone', value: selectedLead.phone, mono: true },
+                  { label: 'Empresa', value: selectedLead.company || '—', mono: false },
+                  { label: 'Cargo', value: selectedLead.role || '—', mono: false },
+                  { label: 'Tamanho', value: selectedLead.company_size || '—', mono: false },
+                  { label: 'Origem', value: selectedLead.source, mono: false },
+                  { label: 'Desde', value: formatDate(selectedLead.created_at), mono: true },
+                ].map(({ label, value, mono }) => (
+                  <div key={label} className="bg-slate-900/70 rounded-lg px-3 py-2.5 border border-slate-800/60">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{label}</p>
+                    <p className={`text-sm font-semibold text-white truncate ${mono ? 'font-mono' : ''}`}>{value}</p>
+                  </div>
+                ))}
               </div>
 
               {selectedLead.main_pain && (
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-1">Principal Dor</p>
-                  <p className="text-sm text-slate-300 bg-slate-700 p-3 rounded-xl">{selectedLead.main_pain}</p>
+                <div className="border-l-2 border-lime-500/40 pl-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-lime-400/70 mb-1.5">Principal Dor</p>
+                  <p className="text-sm text-slate-300 leading-relaxed">{selectedLead.main_pain}</p>
                 </div>
               )}
 
               {selectedLead.lost_reason && (
-                <div>
-                  <p className="text-xs font-semibold text-red-400 mb-1">Motivo da Perda</p>
-                  <p className="text-sm text-red-300 bg-red-500/10 p-3 rounded-xl">{selectedLead.lost_reason}</p>
+                <div className="border-l-2 border-red-500/40 pl-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-red-400/70 mb-1.5">Motivo da Perda</p>
+                  <p className="text-sm text-red-300 leading-relaxed">{selectedLead.lost_reason}</p>
                 </div>
               )}
 
@@ -1318,14 +1514,14 @@ export const SdrDashboard: React.FC = () => {
                   href={`https://wa.me/55${selectedLead.phone.replace(/\D/g, '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-500 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#25d366] text-slate-950 rounded-xl text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-[#25d366]/20"
                 >
                   <Send className="w-4 h-4" />
                   WhatsApp
                 </a>
                 <button
                   onClick={() => { setCurrentView('CONVERSATIONS'); fetchMessages(selectedLead.id); }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-600 transition-colors border border-slate-600"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-700/60 text-slate-300 rounded-xl text-sm font-bold hover:border-slate-600 hover:text-white transition-all"
                 >
                   <MessageSquare className="w-4 h-4" />
                   Ver Conversa

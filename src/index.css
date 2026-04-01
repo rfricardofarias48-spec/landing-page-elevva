@@ -1,6 +1,43 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+}
+
+/* SDR Dashboard — Intelligence Terminal */
+.sdr-root {
+  background-color: #060c18;
+}
+.sdr-surface {
+  background-color: #0b1525;
+  border-color: #162036;
+}
+.sdr-surface-2 {
+  background-color: #0f1c30;
+  border-color: #1a2840;
+}
+.sdr-num {
+  font-family: "DM Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes sdr-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.sdr-live-dot {
+  animation: sdr-pulse-dot 2s ease-in-out infinite;
+}
+@keyframes sdr-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.sdr-shimmer {
+  background: linear-gradient(90deg, #a3e635 0%, #facc15 40%, #a3e635 80%);
+  background-size: 200% auto;
+  animation: sdr-shimmer 2s linear infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

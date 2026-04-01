@@ -2433,6 +2433,73 @@ app.get("/api/sdr/leads/:leadId/messages", async (req, res) => {
   }
 });
 
+// ── Gerador de Leads via Apify ────────────────────────────────────────────────
+app.post("/api/sdr/leads/generate", async (req, res) => {
+  const { nicho, regiao, quantidade } = req.body as { nicho: string; regiao: string; quantidade: number };
+  if (!nicho || !regiao || !quantidade) {
+    return res.status(400).json({ error: 'Parâmetros obrigatórios: nicho, regiao, quantidade' });
+  }
+
+  const token = process.env.APIFY_TOKEN;
+  if (!token) return res.status(500).json({ error: 'APIFY_TOKEN não configurado no servidor' });
+
+  const maxItems = Math.min(Number(quantidade) || 20, 100);
+  const searchQuery = `${nicho} ${regiao}`;
+
+  try {
+    // Inicia o run e aguarda até 5 minutos (waitForFinish=300)
+    const runRes = await fetch(
+      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs?token=${token}&waitForFinish=300`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          searchStringsArray: [searchQuery],
+          maxCrawledPlacesPerSearch: maxItems,
+          language: 'pt',
+          includeHistogram: false,
+          includeOpeningHours: false,
+          includePeopleAlsoSearch: false,
+          maxImages: 0,
+          maxReviews: 0,
+        }),
+      }
+    );
+
+    const runData = await runRes.json() as any;
+
+    if (!runData?.data?.defaultDatasetId) {
+      return res.status(500).json({ error: 'Falha ao iniciar busca no Apify', detail: runData });
+    }
+
+    if (runData.data.status !== 'SUCCEEDED') {
+      return res.status(202).json({ error: `Run finalizado com status: ${runData.data.status}` });
+    }
+
+    const datasetId = runData.data.defaultDatasetId;
+    const itemsRes = await fetch(
+      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&limit=${maxItems}&clean=true`
+    );
+    const items = await itemsRes.json() as any[];
+
+    const leads = items.map((item: any) => ({
+      nome: item.title || '',
+      categoria: item.categoryName || '',
+      endereco: item.address || '',
+      telefone: item.phone || '',
+      site: item.website || '',
+      email: item.email || '',
+      rating: item.totalScore ?? null,
+      reviews: item.reviewsCount || 0,
+    }));
+
+    return res.json({ leads, total: leads.length });
+  } catch (err: any) {
+    console.error('[Apify] Erro:', err);
+    return res.status(500).json({ error: 'Erro interno ao buscar leads', detail: err.message });
+  }
+});
+
 // ──────────────────────────────────────────────────────────────────────────────
 // GET /api/system-prompt/:id — busca prompt ('recruiter' | 'sdr')
 // PUT /api/system-prompt/:id — salva prompt (apenas admin/sdr autenticado)
