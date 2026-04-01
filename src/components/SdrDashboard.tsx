@@ -1389,24 +1389,44 @@ export const SdrDashboard: React.FC = () => {
                   {gLeads.length > 0 && (
                     <button
                       onClick={() => {
-                        const header = 'Nome,Categoria,Endereço,Telefone,Site,Email,Rating\n';
-                        const rows = gLeads.map(l =>
-                          [l.nome, l.categoria, l.endereco, l.telefone, l.site, l.email, l.rating ?? '']
-                            .map(v => `"${String(v).replace(/"/g, '""')}"`)
-                            .join(',')
-                        ).join('\n');
-                        const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `leads-${gNicho}-${gRegiao}.csv`.replace(/\s+/g, '-').toLowerCase();
-                        a.click();
-                        URL.revokeObjectURL(url);
+                        const rows = gLeads.map((l, i) => `
+                          <tr style="background:${i % 2 === 0 ? '#f9fafb' : '#ffffff'}">
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111">${l.nome || '—'}</td>
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#555">${l.categoria || '—'}</td>
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:monospace;color:#111">${l.telefone || '—'}</td>
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#555">${l.email || '—'}</td>
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#2563eb">${l.site ? `<a href="${l.site}">${l.site}</a>` : '—'}</td>
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#111">${l.rating ?? '—'}</td>
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#555">${l.endereco || '—'}</td>
+                          </tr>`).join('');
+                        const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+                          <title>Leads — ${gNicho} · ${gRegiao}</title>
+                          <style>
+                            body { font-family: Arial, sans-serif; margin: 32px; color: #111; }
+                            h1 { font-size: 22px; margin-bottom: 4px; }
+                            p { color: #666; font-size: 13px; margin-bottom: 24px; }
+                            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+                            th { background: #1e293b; color: #fff; padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+                            @media print { @page { margin: 20mm; } }
+                          </style>
+                        </head><body>
+                          <h1>Leads — ${gNicho}</h1>
+                          <p>${gLeads.length} empresas encontradas · Região: ${gRegiao} · Elevva SDR</p>
+                          <table>
+                            <thead><tr>
+                              <th>Empresa</th><th>Categoria</th><th>Telefone</th>
+                              <th>Email</th><th>Site</th><th>Rating</th><th>Endereço</th>
+                            </tr></thead>
+                            <tbody>${rows}</tbody>
+                          </table>
+                        </body></html>`;
+                        const w = window.open('', '_blank');
+                        if (w) { w.document.write(html); w.document.close(); w.print(); }
                       }}
                       className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors"
                     >
                       <Download className="w-4 h-4" />
-                      Exportar CSV
+                      Exportar PDF
                     </button>
                   )}
                 </div>

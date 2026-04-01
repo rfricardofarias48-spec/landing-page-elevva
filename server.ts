@@ -2459,12 +2459,10 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
         body: JSON.stringify({
           searchStringsArray: [searchQuery],
           maxCrawledPlacesPerSearch: maxItems,
+          maxCrawledPlaces: maxItems,
           language: 'pt-BR',
-          includeHistogram: false,
-          includeOpeningHours: false,
-          includePeopleAlsoSearch: false,
-          maxImages: 0,
-          maxReviews: 0,
+          countryCode: 'br',
+          searchMatching: 'all',
         }),
       }
     );
