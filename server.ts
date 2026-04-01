@@ -2449,7 +2449,7 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
 
   try {
     const runRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs`,
+      `https://api.apify.com/v2/acts/compass~crawler-google-places/runs`,
       {
         method: 'POST',
         headers: {
@@ -2493,7 +2493,7 @@ app.get("/api/sdr/leads/result/:runId", async (req, res) => {
 
   try {
     const runRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs/${runId}`,
+      `https://api.apify.com/v2/acts/compass~crawler-google-places/runs/${runId}`,
       { headers: { 'Authorization': `Bearer ${token}` } }
     );
     const runData = await runRes.json() as any;
