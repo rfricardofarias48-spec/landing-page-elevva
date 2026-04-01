@@ -1407,7 +1407,7 @@ export const SdrDashboard: React.FC = () => {
                             p { color: #666; font-size: 13px; margin-bottom: 24px; }
                             table { width: 100%; border-collapse: collapse; font-size: 13px; }
                             th { background: #1e293b; color: #fff; padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-                            @media print { @page { margin: 20mm; } }
+                            @media print { @page { margin: 15mm; size: A4 landscape; } }
                           </style>
                         </head><body>
                           <h1>Leads — ${gNicho}</h1>
