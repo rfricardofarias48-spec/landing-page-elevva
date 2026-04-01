@@ -2517,16 +2517,22 @@ app.get("/api/sdr/leads/result/:runId", async (req, res) => {
     );
     const items = await itemsRes.json() as any[];
 
-    const leads = items.map((item: any) => ({
-      nome: item.title || '',
-      categoria: item.categoryName || '',
-      endereco: item.address || '',
-      telefone: item.phone || '',
-      site: item.website || '',
-      email: item.email || '',
-      rating: item.totalScore ?? null,
-      reviews: item.reviewsCount || 0,
-    }));
+    const leads = items.map((item: any) => {
+      const city = item.city || item.addressParsed?.city || '';
+      const state = item.state || item.addressParsed?.state || '';
+      const regiao = city && state ? `${city}/${state}` : city || state || '';
+      return {
+        nome: item.title || '',
+        categoria: item.categoryName || '',
+        endereco: item.address || '',
+        cidade: regiao,
+        telefone: item.phone || '',
+        site: item.website || '',
+        email: item.email || '',
+        rating: item.totalScore ?? null,
+        reviews: item.reviewsCount || 0,
+      };
+    });
 
     return res.json({ status: 'SUCCEEDED', leads, total: leads.length });
   } catch (err: any) {

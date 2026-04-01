@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 type SdrView = 'OVERVIEW' | 'LEADS' | 'SLOTS' | 'CONVERSATIONS' | 'PROMPTS' | 'GERADOR_LEADS';
-interface GeneratedLead { nome: string; categoria: string; endereco: string; telefone: string; site: string; email: string; rating: number | null; reviews: number }
+interface GeneratedLead { nome: string; categoria: string; endereco: string; cidade: string; telefone: string; site: string; email: string; rating: number | null; reviews: number }
 
 // ─── Prompt SDR — tipos e constantes (fora do componente para referência estável) ───
 interface SdrSection { key: string; label: string; description: string; rows: number }
@@ -1393,11 +1393,11 @@ export const SdrDashboard: React.FC = () => {
                           <tr style="background:${i % 2 === 0 ? '#f9fafb' : '#ffffff'}">
                             <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111">${l.nome || '—'}</td>
                             <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#555">${l.categoria || '—'}</td>
+                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:monospace;color:#111">${l.cidade || '—'}</td>
                             <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:monospace;color:#111">${l.telefone || '—'}</td>
                             <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#555">${l.email || '—'}</td>
                             <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#2563eb">${l.site ? `<a href="${l.site}">${l.site}</a>` : '—'}</td>
                             <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#111">${l.rating ?? '—'}</td>
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#555">${l.endereco || '—'}</td>
                           </tr>`).join('');
                         const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
                           <title>Leads — ${gNicho} · ${gRegiao}</title>
@@ -1414,8 +1414,8 @@ export const SdrDashboard: React.FC = () => {
                           <p>${gLeads.length} empresas encontradas · Região: ${gRegiao} · Elevva SDR</p>
                           <table>
                             <thead><tr>
-                              <th>Empresa</th><th>Categoria</th><th>Telefone</th>
-                              <th>Email</th><th>Site</th><th>Rating</th><th>Endereço</th>
+                              <th>Empresa</th><th>Categoria</th><th>Região</th>
+                              <th>Telefone</th><th>Email</th><th>Site</th><th>Rating</th>
                             </tr></thead>
                             <tbody>${rows}</tbody>
                           </table>
@@ -1457,6 +1457,7 @@ export const SdrDashboard: React.FC = () => {
                         <tr className="border-b border-slate-800 bg-slate-950/80 text-xs text-slate-500 uppercase tracking-wide">
                           <th className="px-4 py-3 text-left">Empresa</th>
                           <th className="px-4 py-3 text-left">Categoria</th>
+                          <th className="px-4 py-3 text-left">Região</th>
                           <th className="px-4 py-3 text-left">Telefone</th>
                           <th className="px-4 py-3 text-left">Email</th>
                           <th className="px-4 py-3 text-left">Site</th>
@@ -1468,7 +1469,8 @@ export const SdrDashboard: React.FC = () => {
                           <tr key={i} className="border-b border-slate-800/50 hover:bg-white/[0.03] transition-colors">
                             <td className="px-4 py-3 font-semibold text-white max-w-[200px] truncate">{lead.nome || '—'}</td>
                             <td className="px-4 py-3 text-slate-400 max-w-[160px] truncate">{lead.categoria || '—'}</td>
-                            <td className="px-4 py-3 text-slate-300">{lead.telefone || '—'}</td>
+                            <td className="px-4 py-3 text-slate-300 font-mono text-xs whitespace-nowrap">{lead.cidade || '—'}</td>
+                            <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{lead.telefone || '—'}</td>
                             <td className="px-4 py-3 text-slate-300">{lead.email || '—'}</td>
                             <td className="px-4 py-3">
                               {lead.site
@@ -1476,7 +1478,7 @@ export const SdrDashboard: React.FC = () => {
                                 : <span className="text-slate-600">—</span>
                               }
                             </td>
-                            <td className="px-4 py-3 text-slate-300">{lead.rating != null ? `${lead.rating} ★` : '—'}</td>
+                            <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{lead.rating != null ? `${lead.rating} ★` : '—'}</td>
                           </tr>
                         ))}
                       </tbody>
