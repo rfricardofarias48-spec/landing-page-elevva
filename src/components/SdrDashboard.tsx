@@ -111,6 +111,7 @@ export const SdrDashboard: React.FC = () => {
   const [gLeads, setGLeads] = useState<GeneratedLead[]>([] as GeneratedLead[]);
   const [gLoading, setGLoading] = useState(false);
   const [gError, setGError] = useState<string | null>(null);
+  const [gStatus, setGStatus] = useState<string>('');
 
   // ─────── Data Fetching ───────────────────────────────────────────────────────
 
@@ -1337,25 +1338,53 @@ export const SdrDashboard: React.FC = () => {
                       setGLoading(true);
                       setGError(null);
                       setGLeads([]);
+                      setGStatus('Iniciando busca...');
                       try {
-                        const res = await fetch('/api/sdr/leads/generate', {
+                        // Passo 1: inicia o run
+                        const startRes = await fetch('/api/sdr/leads/generate', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ nicho: gNicho.trim(), regiao: gRegiao.trim(), quantidade: gQtd }),
                         });
-                        const data = await res.json();
-                        if (!res.ok) { setGError(data.error || 'Erro desconhecido'); return; }
-                        setGLeads(data.leads || []);
+                        const startData = await startRes.json();
+                        if (!startRes.ok || !startData.runId) {
+                          setGError(startData.error || 'Erro ao iniciar busca');
+                          return;
+                        }
+                        // Passo 2: polling a cada 5s até SUCCEEDED (máx 2min)
+                        const runId = startData.runId;
+                        setGStatus('Buscando empresas no Google Maps...');
+                        let attempts = 0;
+                        const maxAttempts = 24; // 24 × 5s = 2min
+                        while (attempts < maxAttempts) {
+                          await new Promise(r => setTimeout(r, 5000));
+                          attempts++;
+                          const pollRes = await fetch(`/api/sdr/leads/result/${runId}`);
+                          const pollData = await pollRes.json();
+                          if (!pollRes.ok) { setGError(pollData.error || 'Erro ao buscar resultado'); return; }
+                          if (pollData.status === 'SUCCEEDED') {
+                            setGLeads(pollData.leads || []);
+                            setGStatus('');
+                            return;
+                          }
+                          if (pollData.status !== 'RUNNING' && pollData.status !== 'READY') {
+                            setGError(`Busca falhou com status: ${pollData.status}`);
+                            return;
+                          }
+                          setGStatus(`Buscando... (${attempts * 5}s)`);
+                        }
+                        setGError('Tempo limite excedido. Tente novamente com menos resultados.');
                       } catch (err: any) {
                         setGError('Falha na comunicação com o servidor.');
                       } finally {
                         setGLoading(false);
+                        setGStatus('');
                       }
                     }}
                     className="flex items-center gap-2 px-6 py-2.5 bg-lime-500 hover:bg-lime-400 active:bg-lime-600 text-slate-950 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {gLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                    {gLoading ? 'Buscando...' : 'Gerar Leads'}
+                    {gLoading ? (gStatus || 'Buscando...') : 'Gerar Leads'}
                   </button>
                   {gLeads.length > 0 && (
                     <button
@@ -1381,6 +1410,12 @@ export const SdrDashboard: React.FC = () => {
                     </button>
                   )}
                 </div>
+                {gLoading && gStatus && (
+                  <div className="mt-4 flex items-center gap-2 text-sm text-lime-400 bg-lime-500/10 border border-lime-500/20 rounded-xl px-4 py-3">
+                    <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                    {gStatus}
+                  </div>
+                )}
                 {gError && (
                   <div className="mt-4 flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
                     <AlertCircle className="w-4 h-4 shrink-0" />

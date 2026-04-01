@@ -2434,6 +2434,7 @@ app.get("/api/sdr/leads/:leadId/messages", async (req, res) => {
 });
 
 // ── Gerador de Leads via Apify ────────────────────────────────────────────────
+// Passo 1: inicia o run e retorna runId imediatamente
 app.post("/api/sdr/leads/generate", async (req, res) => {
   const { nicho, regiao, quantidade } = req.body as { nicho: string; regiao: string; quantidade: number };
   if (!nicho || !regiao || !quantidade) {
@@ -2447,9 +2448,8 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
   const searchQuery = `${nicho} ${regiao}`;
 
   try {
-    // Inicia o run e aguarda até 5 minutos (waitForFinish=300)
     const runRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs?token=${token}&waitForFinish=300`,
+      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs?token=${token}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2468,17 +2468,46 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
 
     const runData = await runRes.json() as any;
 
-    if (!runData?.data?.defaultDatasetId) {
+    if (!runData?.data?.id) {
       return res.status(500).json({ error: 'Falha ao iniciar busca no Apify', detail: runData });
     }
 
-    if (runData.data.status !== 'SUCCEEDED') {
-      return res.status(202).json({ error: `Run finalizado com status: ${runData.data.status}` });
+    return res.json({ runId: runData.data.id, status: runData.data.status });
+  } catch (err: any) {
+    console.error('[Apify] Erro ao iniciar run:', err);
+    return res.status(500).json({ error: 'Erro interno ao iniciar busca', detail: err.message });
+  }
+});
+
+// Passo 2: consulta status/resultado do run pelo runId
+app.get("/api/sdr/leads/result/:runId", async (req, res) => {
+  const { runId } = req.params;
+  const token = process.env.APIFY_TOKEN;
+  if (!token) return res.status(500).json({ error: 'APIFY_TOKEN não configurado no servidor' });
+
+  try {
+    const runRes = await fetch(
+      `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs/${runId}?token=${token}`
+    );
+    const runData = await runRes.json() as any;
+    const status = runData?.data?.status;
+
+    if (!status) {
+      return res.status(500).json({ error: 'Não foi possível obter o status do run', detail: runData });
+    }
+
+    if (status === 'RUNNING' || status === 'READY' || status === 'ABORTING') {
+      return res.json({ status });
+    }
+
+    if (status !== 'SUCCEEDED') {
+      return res.status(500).json({ error: `Run finalizado com status: ${status}` });
     }
 
     const datasetId = runData.data.defaultDatasetId;
+    const limit = 100;
     const itemsRes = await fetch(
-      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&limit=${maxItems}&clean=true`
+      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&limit=${limit}&clean=true`
     );
     const items = await itemsRes.json() as any[];
 
@@ -2493,10 +2522,10 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
       reviews: item.reviewsCount || 0,
     }));
 
-    return res.json({ leads, total: leads.length });
+    return res.json({ status: 'SUCCEEDED', leads, total: leads.length });
   } catch (err: any) {
-    console.error('[Apify] Erro:', err);
-    return res.status(500).json({ error: 'Erro interno ao buscar leads', detail: err.message });
+    console.error('[Apify] Erro ao buscar resultado:', err);
+    return res.status(500).json({ error: 'Erro interno ao buscar resultado', detail: err.message });
   }
 });
 
