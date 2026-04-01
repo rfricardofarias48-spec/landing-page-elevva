@@ -2469,7 +2469,8 @@ app.post("/api/sdr/leads/generate", async (req, res) => {
     const runData = await runRes.json() as any;
 
     if (!runData?.data?.id) {
-      return res.status(500).json({ error: 'Falha ao iniciar busca no Apify', detail: runData });
+      const apifyMsg = runData?.error?.message || runData?.error?.type || JSON.stringify(runData).slice(0, 200);
+      return res.status(500).json({ error: `Apify: ${apifyMsg}` });
     }
 
     return res.json({ runId: runData.data.id, status: runData.data.status });
