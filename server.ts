@@ -552,36 +552,65 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
 
-    // LOG DIAGNÓSTICO — dump completo do payload para entender estrutura do Evolution GO
-    const eventName = String(payload.event || "").toLowerCase().replace(/_/g, ".");
-    const instance  = String(payload.instanceName || payload.instance || "");
-    const data      = payload.data as Record<string, unknown> | undefined;
-    console.log(`[Webhook] event="${eventName}" instance="${instance}" dataKeys=${JSON.stringify(Object.keys(data || {}))}`);
-    console.log(`[Webhook] payload top-level keys=${JSON.stringify(Object.keys(payload))}`);
-    if (data) console.log(`[Webhook] data sample=${JSON.stringify(data).slice(0, 500)}`);
+    const eventName     = String(payload.event || "").toLowerCase().replace(/_/g, ".");
+    const instance      = String(payload.instanceName || payload.instance || "");
+    const instanceToken = String(payload.instanceToken || "");  // Evolution GO envia o token no payload
+    const data          = payload.data as Record<string, unknown> | undefined;
 
-    // Evolution GO envia "message"; Evolution API v2 envia "MESSAGES_UPSERT"
-    const isMessageEvent = eventName.includes("messages.upsert") || eventName === "message";
-    if (!isMessageEvent) { console.log(`[Webhook] IGNORED event: "${eventName}"`); return; }
+    // Aceita "message" (Evolution GO) e "messages.upsert" (Evolution API v2)
+    const isMessageEvent = eventName === "message" || eventName.includes("messages.upsert");
+    if (!isMessageEvent || !data) return;
 
-    if (!data) { console.log(`[Webhook] IGNORED: no data`); return; }
+    // ── Normaliza payload: Evolution GO usa data.Info / data.Message (capitals)
+    //    Evolution API v2 usa data.key / data.message (lowercase)
+    const isEvolutionGO = !!(data.Info);
 
-    // Evolution GO pode ter estrutura diferente — tenta ambas
-    const key       = (data.key || data.message?.valueOf()) as Record<string, unknown> | undefined;
-    const remoteJid = String((data.key as any)?.remoteJid || (data as any).remoteJid || "");
-    const fromMe    = (data.key as any)?.fromMe ?? (data as any).fromMe;
+    let remoteJid: string;
+    let fromMe: boolean;
+    let pushName: string;
+    let messageType: string;
+    let message: Record<string, unknown>;
+    let msgKey: Record<string, unknown>;
 
-    console.log(`[Webhook] key=${JSON.stringify(data.key)} remoteJid="${remoteJid}" fromMe=${fromMe}`);
+    if (isEvolutionGO) {
+      // Evolution GO: PascalCase Info, proto-tagged camelCase Message
+      const info = data.Info as Record<string, unknown>;
+      remoteJid   = String(info.Chat || "");
+      fromMe      = info.IsFromMe === true;
+      pushName    = String(info.PushName || "");
+      const msg   = (data.Message as Record<string, unknown>) || {};
+      msgKey      = { remoteJid, fromMe, id: info.ID };
 
-    if (!remoteJid)                  { console.log(`[Webhook] IGNORED: no remoteJid`); return; }
-    if (fromMe === true)             { console.log(`[Webhook] IGNORED: fromMe`); return; }
-    if (remoteJid.endsWith("@g.us")) { console.log(`[Webhook] IGNORED: group`); return; }
-    const phone       = cleanPhone(remoteJid);
-    const pushName    = String(data.pushName || "");
-    const messageType = String(data.messageType || "");
-    const message     = (data.message as Record<string, unknown>) || {};
+      // data.Message usa proto json tags (camelCase) — confirmed via source code
+      if (data.IsDocumentWithCaption || msg.documentMessage) {
+        messageType = "documentMessage";
+        message     = msg;
+      } else if (msg.extendedTextMessage) {
+        messageType = "extendedTextMessage";
+        message     = msg;
+      } else if (msg.conversation !== undefined) {
+        messageType = "conversation";
+        message     = msg;  // já tem { conversation: "..." }
+      } else {
+        messageType = "unknown";
+        message     = msg;
+      }
+    } else {
+      // Evolution API v2 — formato padrão
+      const key = data.key as Record<string, unknown> | undefined;
+      remoteJid   = String(key?.remoteJid || "");
+      fromMe      = key?.fromMe === true;
+      pushName    = String(data.pushName || "");
+      messageType = String(data.messageType || "");
+      message     = (data.message as Record<string, unknown>) || {};
+      msgKey      = key || {};
+    }
 
-    // Extract text content from various message types
+    if (!remoteJid || fromMe || remoteJid.endsWith("@g.us")) return;
+
+    const phone = cleanPhone(remoteJid);
+
+    // Extrai texto conforme tipo
     let textContent: string | null = null;
     if (messageType === "conversation") {
       textContent = String(message.conversation || "");
@@ -593,7 +622,6 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       textContent = String(lr?.title || "");
     }
 
-    // Extract list response row ID (when candidate picks from a list)
     let selectedRowId: string | null = null;
     if (messageType === "listResponseMessage") {
       const lr  = message.listResponseMessage as Record<string, unknown> | undefined;
@@ -601,7 +629,6 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       selectedRowId = ssr?.selectedRowId ? String(ssr.selectedRowId) : null;
     }
 
-    // Build media data — extract embedded base64 if webhook_base64:true is set
     let mediaData: {
       key: Record<string, unknown>;
       message: Record<string, unknown>;
@@ -610,24 +637,27 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
     } | null = null;
 
     if (["documentMessage", "documentWithCaptionMessage"].includes(messageType)) {
-      // documentMessage: { documentMessage: { base64, mimetype, fileName, ... } }
-      // documentWithCaptionMessage: { documentWithCaptionMessage: { message: { documentMessage: { base64, ... } }, caption } }
       let docMsg = message.documentMessage as Record<string, unknown> | undefined;
+      if (!docMsg && (message.DocumentMessage || message.Document)) {
+        docMsg = (message.DocumentMessage || message.Document) as Record<string, unknown>;
+      }
       if (!docMsg && message.documentWithCaptionMessage) {
         const wrapper = message.documentWithCaptionMessage as Record<string, unknown>;
-        // Try nested structure first: wrapper.message.documentMessage
         const innerMsg = wrapper.message as Record<string, unknown> | undefined;
         docMsg = (innerMsg?.documentMessage as Record<string, unknown> | undefined) ?? wrapper;
       }
       mediaData = {
-        key: (data.key || {}) as Record<string, unknown>,
+        key: msgKey,
         message,
         embeddedBase64: docMsg?.base64 ? String(docMsg.base64) : undefined,
         embeddedMimetype: docMsg?.mimetype ? String(docMsg.mimetype) : 'application/pdf',
       };
     }
 
+    console.log(`[Webhook] OK instance="${instance}" phone="${phone}" type="${messageType}" go=${isEvolutionGO}`);
+
     // Processa em background (fire & forget)
+    // instanceToken do payload tem prioridade (Evolution GO envia junto)
     processIncomingMessage(
       instance,
       phone,
@@ -637,6 +667,7 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       mediaData,
       selectedRowId,
       supabaseAdmin,
+      instanceToken || undefined,
     ).catch(err => console.error("[Agent Webhook] processIncomingMessage error:", err));
 
   } catch (err) {

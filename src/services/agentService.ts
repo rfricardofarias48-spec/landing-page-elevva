@@ -514,6 +514,7 @@ export async function processIncomingMessage(
   } | null,
   selectedRowId: string | null,
   supabase: SupabaseClient,
+  webhookToken?: string,   // token enviado diretamente pelo Evolution GO no payload
 ): Promise<void> {
   // Identify recruiter from Evolution instance name
   const { data: profile } = await supabase
@@ -528,8 +529,8 @@ export async function processIncomingMessage(
     return;
   }
 
-  // Token da instância: prioriza o salvo no DB, cai no env var como fallback
-  const instanceToken: string | undefined = profile.evolution_token || undefined;
+  // Prioridade: token do payload (Evolution GO) > token do DB > env var
+  const instanceToken: string | undefined = webhookToken || profile.evolution_token || undefined;
 
   // Helper bound — não precisa passar instance/token em cada chamada
   const send = (jid: string, text: string) => evo.sendText(instance, jid, text, instanceToken);
