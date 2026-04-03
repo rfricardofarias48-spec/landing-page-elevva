@@ -620,7 +620,11 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       };
     }
 
-    await processIncomingMessage(
+    // ACK imediato — Evolution não espera, Vercel não timeout
+    res.status(200).json({ received: true });
+
+    // Processa em background (fire & forget)
+    processIncomingMessage(
       instance,
       phone,
       pushName,
@@ -629,12 +633,11 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       mediaData,
       selectedRowId,
       supabaseAdmin,
-    );
+    ).catch(err => console.error("[Agent Webhook] processIncomingMessage error:", err));
 
-    return res.status(200).json({ received: true });
   } catch (err) {
     console.error("[Agent Webhook] Error:", err);
-    return res.status(200).json({ received: true }); // always ACK even on error
+    res.status(200).json({ received: true });
   }
 });
 
