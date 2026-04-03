@@ -552,19 +552,30 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
 
-    // LOG DIAGNÓSTICO — mostra o payload completo antes de qualquer guard
+    // LOG DIAGNÓSTICO — dump completo do payload para entender estrutura do Evolution GO
     const eventName = String(payload.event || "").toLowerCase().replace(/_/g, ".");
     const instance  = String(payload.instanceName || payload.instance || "");
     const data      = payload.data as Record<string, unknown> | undefined;
-    const key       = data?.key as Record<string, unknown> | undefined;
-    const remoteJid = String(key?.remoteJid || "");
-    console.log(`[Webhook] event="${eventName}" instance="${instance}" fromMe=${key?.fromMe} remoteJid="${remoteJid}" hasData=${!!data}`);
+    console.log(`[Webhook] event="${eventName}" instance="${instance}" dataKeys=${JSON.stringify(Object.keys(data || {}))}`);
+    console.log(`[Webhook] payload top-level keys=${JSON.stringify(Object.keys(payload))}`);
+    if (data) console.log(`[Webhook] data sample=${JSON.stringify(data).slice(0, 500)}`);
 
-    if (!eventName.includes("messages.upsert")) { console.log(`[Webhook] IGNORED: event "${eventName}" is not messages.upsert`); return; }
-    if (!data)                                   { console.log(`[Webhook] IGNORED: no data`); return; }
-    if (!key)                                    { console.log(`[Webhook] IGNORED: no key`); return; }
-    if (key.fromMe === true)                     { console.log(`[Webhook] IGNORED: fromMe`); return; }
-    if (remoteJid.endsWith("@g.us"))             { console.log(`[Webhook] IGNORED: group message`); return; }
+    // Evolution GO envia "message"; Evolution API v2 envia "MESSAGES_UPSERT"
+    const isMessageEvent = eventName.includes("messages.upsert") || eventName === "message";
+    if (!isMessageEvent) { console.log(`[Webhook] IGNORED event: "${eventName}"`); return; }
+
+    if (!data) { console.log(`[Webhook] IGNORED: no data`); return; }
+
+    // Evolution GO pode ter estrutura diferente — tenta ambas
+    const key       = (data.key || data.message?.valueOf()) as Record<string, unknown> | undefined;
+    const remoteJid = String((data.key as any)?.remoteJid || (data as any).remoteJid || "");
+    const fromMe    = (data.key as any)?.fromMe ?? (data as any).fromMe;
+
+    console.log(`[Webhook] key=${JSON.stringify(data.key)} remoteJid="${remoteJid}" fromMe=${fromMe}`);
+
+    if (!remoteJid)                  { console.log(`[Webhook] IGNORED: no remoteJid`); return; }
+    if (fromMe === true)             { console.log(`[Webhook] IGNORED: fromMe`); return; }
+    if (remoteJid.endsWith("@g.us")) { console.log(`[Webhook] IGNORED: group`); return; }
     const phone       = cleanPhone(remoteJid);
     const pushName    = String(data.pushName || "");
     const messageType = String(data.messageType || "");
@@ -609,7 +620,7 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
         docMsg = (innerMsg?.documentMessage as Record<string, unknown> | undefined) ?? wrapper;
       }
       mediaData = {
-        key: key as Record<string, unknown>,
+        key: (data.key || {}) as Record<string, unknown>,
         message,
         embeddedBase64: docMsg?.base64 ? String(docMsg.base64) : undefined,
         embeddedMimetype: docMsg?.mimetype ? String(docMsg.mimetype) : 'application/pdf',
