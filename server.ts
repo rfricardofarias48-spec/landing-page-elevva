@@ -545,6 +545,10 @@ app.post("/api/webhooks/interviews/confirm", async (req, res) => {
 // POST https://seu-dominio.com/api/webhooks/agent/whatsapp
 // ─────────────────────────────────────────────────────────────────────
 app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
+  // ACK imediato — SEMPRE responde 200 antes de qualquer processamento
+  // Sem isso, returns antecipados causam timeout de 60s no Vercel
+  res.status(200).json({ received: true });
+
   try {
     const payload = req.body as Record<string, unknown>;
 
@@ -620,9 +624,6 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       };
     }
 
-    // ACK imediato — Evolution não espera, Vercel não timeout
-    res.status(200).json({ received: true });
-
     // Processa em background (fire & forget)
     processIncomingMessage(
       instance,
@@ -637,7 +638,6 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
 
   } catch (err) {
     console.error("[Agent Webhook] Error:", err);
-    res.status(200).json({ received: true });
   }
 });
 
