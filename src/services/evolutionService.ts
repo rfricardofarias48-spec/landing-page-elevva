@@ -39,10 +39,11 @@ export function cleanPhone(rawJid: string): string {
 }
 
 async function post(path: string, body: Record<string, unknown>, apiKey?: string): Promise<unknown> {
+  const key = apiKey || API_KEY;
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: apiKey || API_KEY },
+      headers: { 'Content-Type': 'application/json', apikey: key },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -57,10 +58,10 @@ async function post(path: string, body: Record<string, unknown>, apiKey?: string
 }
 
 /** Send a plain text message (Evolution GO: POST /send/text) */
-export async function sendText(instance: string, jid: string, text: string): Promise<void> {
+export async function sendText(instance: string, jid: string, text: string, tokenOverride?: string): Promise<void> {
   const phone = cleanPhone(jid);
   console.log(`[Evolution] sendText → instance: ${instance}, phone: ${phone}, text length: ${text.length}`);
-  await post('/send/text', { number: phone, text }, getApiKey(instance));
+  await post('/send/text', { number: phone, text }, tokenOverride || getApiKey(instance));
 }
 
 /** Send an interactive list message (renders as a tappable menu on WhatsApp) */
@@ -71,11 +72,12 @@ export async function sendList(
   description: string,
   buttonText: string,
   sections: ListSection[],
+  tokenOverride?: string,
 ): Promise<void> {
   await post('/send/text', {
     number: cleanPhone(jid),
     text: `${title}\n\n${description}\n\n${sections.map(s => s.rows.map(r => `• ${r.title}`).join('\n')).join('\n')}`,
-  }, getApiKey(instance));
+  }, tokenOverride || getApiKey(instance));
 }
 
 /** Sanitize fileName fields deep inside a message object to prevent API failures with special chars */

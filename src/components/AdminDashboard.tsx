@@ -38,6 +38,7 @@ export const AdminDashboard: React.FC = () => {
   // States para Edição Enterprise
   const [isEditingEnterprise, setIsEditingEnterprise] = useState(false);
   const [tempInstancia, setTempInstancia] = useState('');
+  const [tempEvolutionToken, setTempEvolutionToken] = useState('');
   const [tempTelefoneAgente, setTempTelefoneAgente] = useState('');
   const [tempStatusAutomacao, setTempStatusAutomacao] = useState(false);
   const [tempJobLimit, setTempJobLimit] = useState<number>(9999);
@@ -113,6 +114,7 @@ export const AdminDashboard: React.FC = () => {
             current_period_end: u.current_period_end,
             salesperson: u.salesperson, // Mapeia o vendedor
             instancia_evolution: u.instancia_evolution,
+            evolution_token: u.evolution_token,
             telefone_agente: u.telefone_agente,
             status_automacao: u.status_automacao
           };
@@ -252,6 +254,7 @@ export const AdminDashboard: React.FC = () => {
             .from('profiles')
             .update({
                 instancia_evolution: tempInstancia,
+                evolution_token: tempEvolutionToken || null,
                 telefone_agente: tempTelefoneAgente,
                 status_automacao: tempStatusAutomacao,
                 job_limit: jobLimitValue,
@@ -264,6 +267,7 @@ export const AdminDashboard: React.FC = () => {
           const updatedUser = {
               ...selectedUser,
               instancia_evolution: tempInstancia,
+              evolution_token: tempEvolutionToken || undefined,
               telefone_agente: tempTelefoneAgente,
               status_automacao: tempStatusAutomacao,
               job_limit: jobLimitValue,
@@ -1255,6 +1259,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 setIsEditingEnterprise(false);
                                             } else {
                                                 setTempInstancia(selectedUser.instancia_evolution || '');
+                                                setTempEvolutionToken(selectedUser.evolution_token || '');
                                                 setTempTelefoneAgente(selectedUser.telefone_agente || '');
                                                 setTempStatusAutomacao(selectedUser.status_automacao || false);
                                                 setTempJobLimit(selectedUser.job_limit ?? 9999);
@@ -1271,17 +1276,31 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
                                 {isEditingEnterprise ? (
                                     <div className="space-y-3 animate-fade-in">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div>
                                                 <label className="text-xs font-bold text-slate-700 block mb-1">Instância Evolution</label>
                                                 <input
                                                     type="text"
                                                     value={tempInstancia}
                                                     onChange={(e) => setTempInstancia(e.target.value)}
-                                                    placeholder="Ex: cliente_xyz"
+                                                    placeholder="Ex: Farilog"
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
                                                 />
+                                                <p className="text-[10px] text-slate-400 mt-1">Nome exato da instância no Evolution GO (case-sensitive)</p>
                                             </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 block mb-1">Token da Instância Evolution</label>
+                                                <input
+                                                    type="password"
+                                                    value={tempEvolutionToken}
+                                                    onChange={(e) => setTempEvolutionToken(e.target.value)}
+                                                    placeholder="Token da instância no Evolution GO"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                />
+                                                <p className="text-[10px] text-slate-400 mt-1">Evolution GO → instância → "Token da Instância"</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div>
                                                 <label className="text-xs font-bold text-slate-700 block mb-1">Telefone do Agente</label>
                                                 <input

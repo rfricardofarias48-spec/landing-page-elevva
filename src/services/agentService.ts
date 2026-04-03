@@ -18,6 +18,24 @@ import * as evo from './evolutionService.js';
 import { deleteCalendarEvent } from './googleCalendarService.js';
 import crypto from 'crypto';
 
+// ─────────────────────────── Helpers ─────────────────────────
+
+const INVALID_NAME_WORDS = ['erro', 'error', 'null', 'undefined', 'candidato', 'não', 'nao', 'análise', 'analise', 'identificado', 'whatsapp', 'desconhecido'];
+
+function isValidName(name: string): boolean {
+  if (!name || name.length < 3) return false;
+  const lower = name.toLowerCase();
+  return !INVALID_NAME_WORDS.some(w => lower.includes(w));
+}
+
+function normalizeName(raw: string): string {
+  if (!isValidName(raw)) return raw;
+  const parts = raw.trim().toLowerCase().split(/\s+/);
+  const capitalize = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+  if (parts.length <= 1) return capitalize(parts[0] || raw);
+  return capitalize(parts[0]) + ' ' + capitalize(parts[1]);
+}
+
 // ─────────────────────────── Types ───────────────────────────
 
 interface ConversationContext {
@@ -95,17 +113,14 @@ async function handleNovo(
     .order('created_at', { ascending: false });
 
   if (!jobs || jobs.length === 0) {
-    await evo.sendText(instance, phone, 'Olá! No momento não há vagas abertas. Fique atento às nossas oportunidades!');
+    await send(phone, 'Olá! No momento não há vagas abertas. Fique atento às nossas oportunidades!');
     return;
   }
 
   const greeting = pushName ? `Olá, *${pushName}*! 👋` : 'Olá! 👋';
   const jobList = jobs.map((j, i) => `*${i + 1}.* ${j.title}`).join('\n');
 
-  await evo.sendText(
-    instance, phone,
-    `${greeting} Sou o Bento, assistente de recrutamento.\n\nNossas vagas abertas:\n\n${jobList}\n\nResponda com o *número* da vaga que deseja se candidatar.`,
-  );
+  await send(phone, `${greeting} Sou o Bento, assistente de recrutamento.\n\nNossas vagas abertas:\n\n${jobList}\n\nResponda com o *número* da vaga que deseja se candidatar.`);
 
   await updateConversation(conv.id, {
     state: 'SELECIONANDO_VAGA',
@@ -151,7 +166,7 @@ async function handleSelecionandoVaga(
 
   if (!selectedJob) {
     const listText = jobs.map((j, i) => `${i + 1}. ${j.title}`).join('\n');
-    await evo.sendText(instance, phone, `Não entendi. Por favor, responda com o número da vaga:\n\n${listText}`);
+    await send(phone, `Não entendi. Por favor, responda com o número da vaga:\n\n${listText}`);
     return;
   }
 
@@ -180,7 +195,7 @@ async function handleSelecionandoVaga(
 
     if (candidateError || !inserted) {
       console.error('[Agent] insert candidate:', candidateError);
-      await evo.sendText(instance, phone, 'Ocorreu um erro. Por favor, tente novamente em instantes.');
+      await send(phone, 'Ocorreu um erro. Por favor, tente novamente em instantes.');
       return;
     }
     candidate = inserted;
@@ -192,10 +207,7 @@ async function handleSelecionandoVaga(
       .eq('id', existing.id);
   }
 
-  await evo.sendText(
-    instance, phone,
-    `✅ A vaga de *${selectedJob.title}* foi registrada!\n\nAgora, por favor, envie seu currículo em formato *PDF*.`,
-  );
+  await send(phone, `✅ A vaga de *${selectedJob.title}* foi registrada!\n\nAgora, por favor, envie seu currículo em formato *PDF*.`);
 
   await updateConversation(conv.id, {
     state: 'AGUARDANDO_CURRICULO',
@@ -220,17 +232,14 @@ async function handleAguardandoCurriculo(
   const isPDF = ['documentMessage', 'documentWithCaptionMessage'].includes(messageType);
 
   if (!isPDF || !mediaData) {
-    await evo.sendText(instance, phone, 'Por favor, envie seu currículo em formato *PDF* para prosseguir. 📄');
+    await send(phone, 'Por favor, envie seu currículo em formato *PDF* para prosseguir. 📄');
     return;
   }
 
   // Lock state immediately to prevent duplicate processing if message fires twice
   await updateConversation(conv.id, { state: 'ANALISANDO' }, supabase);
 
-  await evo.sendText(
-    instance, phone,
-    '✅ Currículo recebido! Vamos analisar o seu perfil e entraremos em contato em breve com os próximos passos.',
-  );
+  await send(phone, '✅ Currículo recebido! Vamos analisar o seu perfil e entraremos em contato em breve com os próximos passos.');
 
   // Use embedded base64 from webhook (webhook_base64:true) — avoids a separate download call
   let media: { base64: string; mimetype: string } | null = null;
@@ -264,7 +273,7 @@ async function handleAguardandoCurriculo(
   }
 
   if (!media?.base64) {
-    await evo.sendText(instance, phone, 'Não consegui abrir o arquivo. Por favor, envie novamente em formato *PDF*.');
+    await send(phone, 'Não consegui abrir o arquivo. Por favor, envie novamente em formato *PDF*.');
     await updateConversation(conv.id, { state: 'AGUARDANDO_CURRICULO' }, supabase);
     return;
   }
@@ -298,10 +307,11 @@ async function handleAguardandoCurriculo(
   if (analysis.matchScore >= 7) status = 'APROVADO';
   else if (analysis.matchScore >= 4) status = 'EM_ANALISE';
 
-  const finalName =
-    analysis.candidateName && analysis.candidateName !== 'Não identificado'
-      ? analysis.candidateName
-      : conv.context.candidate_name || 'Candidato via WhatsApp';
+  const aiName = analysis.candidateName && analysis.candidateName !== 'Não identificado' && isValidName(analysis.candidateName)
+    ? analysis.candidateName
+    : null;
+  const rawName = aiName || conv.context.candidate_name || 'Candidato via WhatsApp';
+  const finalName = isValidName(rawName) ? normalizeName(rawName) : rawName;
 
   // Update candidate record with analysis result
   if (conv.context.candidate_id) {
@@ -367,7 +377,7 @@ async function handleReschedule(
   }
 
   if (!candidateId) {
-    await evo.sendText(instance, phone, 'Não encontrei uma entrevista agendada para você. Se precisar de ajuda, fale com o recrutador.');
+    await send(phone, 'Não encontrei uma entrevista agendada para você. Se precisar de ajuda, fale com o recrutador.');
     return;
   }
 
@@ -383,7 +393,7 @@ async function handleReschedule(
 
   if (!interview) {
     console.log(`[Agent] Reschedule: no interview found for candidate ${candidateId}`);
-    await evo.sendText(instance, phone, 'Não encontrei uma entrevista agendada para você. Se precisar de ajuda, fale com o recrutador.');
+    await send(phone, 'Não encontrei uma entrevista agendada para você. Se precisar de ajuda, fale com o recrutador.');
     return;
   }
 
@@ -407,10 +417,7 @@ async function handleReschedule(
 
     console.log(`[Agent] No slots available for reschedule. Candidate: ${candidateName}, Job: ${jobTitle}. Recruiter: ${recruiterProfile?.id}`);
 
-    await evo.sendText(
-      instance, phone,
-      `Entendi que você precisa reagendar, *${conv.context.candidate_name || 'candidato'}*.\n\nInfelizmente, não há outros horários disponíveis no momento. Já notificamos o recrutador para liberar novas datas.\n\nAssim que houver novos horários, enviaremos o link para você escolher. 😊`,
-    );
+    await send(phone, `Entendi que você precisa reagendar, *${conv.context.candidate_name || 'candidato'}*.\n\nInfelizmente, não há outros horários disponíveis no momento. Já notificamos o recrutador para liberar novas datas.\n\nAssim que houver novos horários, enviaremos o link para você escolher. 😊`);
     return;
   }
 
@@ -464,11 +471,7 @@ async function handleReschedule(
   const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
   const link = `${baseUrl}/agendar/${token}`;
 
-  await evo.sendText(
-    instance, phone,
-    `Sem problemas, *${conv.context.candidate_name || 'candidato'}*! Vamos reagendar.\n\nEscolha um novo horário no link abaixo:\n\n${link}\n\n_Clique no link para selecionar seu novo horário._`,
-    false,
-  );
+  await evo.sendText(instance, phone, `Sem problemas, *${conv.context.candidate_name || 'candidato'}*! Vamos reagendar.\n\nEscolha um novo horário no link abaixo:\n\n${link}\n\n_Clique no link para selecionar seu novo horário._`);
 }
 
 async function handleAguardandoEscolhaSlot(
@@ -486,15 +489,9 @@ async function handleAguardandoEscolhaSlot(
     const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
 
     const link = `${baseUrl}/agendar/${token}`;
-    await evo.sendText(
-      instance, phone,
-      `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`,
-    );
+    await evo.sendText(instance, phone, `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`);
   } else {
-    await evo.sendText(
-      instance, phone,
-      'Sua entrevista está sendo agendada. Em breve você receberá o link para escolher o horário.',
-    );
+    await evo.sendText(instance, phone, 'Sua entrevista está sendo agendada. Em breve você receberá o link para escolher o horário.');
   }
 }
 
@@ -521,7 +518,7 @@ export async function processIncomingMessage(
   // Identify recruiter from Evolution instance name
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, status_automacao')
+    .select('id, status_automacao, evolution_token')
     .eq('instancia_evolution', instance)
     .eq('status_automacao', true)
     .maybeSingle();
@@ -531,11 +528,17 @@ export async function processIncomingMessage(
     return;
   }
 
+  // Token da instância: prioriza o salvo no DB, cai no env var como fallback
+  const instanceToken: string | undefined = profile.evolution_token || undefined;
+
+  // Helper bound — não precisa passar instance/token em cada chamada
+  const send = (jid: string, text: string) => evo.sendText(instance, jid, text, instanceToken);
+
   const conv = await getOrCreateConversation(phone, profile.id, supabase);
 
   // Store WhatsApp display name on first contact
   if (pushName && !conv.context.candidate_name) {
-    conv.context = { ...conv.context, candidate_name: pushName };
+    conv.context = { ...conv.context, candidate_name: normalizeName(pushName) };
     await updateConversation(conv.id, { context: conv.context }, supabase);
   }
 
@@ -572,12 +575,12 @@ export async function processIncomingMessage(
       if (['documentMessage', 'documentWithCaptionMessage'].includes(messageType) && mediaData) {
         await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase);
       } else {
-        await evo.sendText(instance, phone, 'Aguarde! Estamos analisando seu currículo... ⏳');
+        await send(phone, 'Aguarde! Estamos analisando seu currículo... ⏳');
       }
       break;
 
     case 'CURRICULO_RECEBIDO':
-      await evo.sendText(instance, phone, 'Seu currículo já foi recebido! Em breve nossa equipe entrará em contato com os próximos passos. 😊');
+      await send(phone, 'Seu currículo já foi recebido! Em breve nossa equipe entrará em contato com os próximos passos. 😊');
       break;
 
     case 'AGUARDANDO_ESCOLHA_SLOT':
@@ -707,10 +710,7 @@ export async function triggerSchedulingForCandidates(
         ? '\n💻 *Formato:* Online'
         : '\n🏢 *Formato:* Presencial';
 
-      await evo.sendText(
-        instance, phone,
-        `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`,
-      );
+      await evo.sendText(instance, phone, `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`);
 
       sent++;
     } catch (err) {
