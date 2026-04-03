@@ -552,27 +552,19 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
 
-    // Only process incoming messages — handle both formats (messages.upsert and MESSAGES_UPSERT)
+    // LOG DIAGNÓSTICO — mostra o payload completo antes de qualquer guard
     const eventName = String(payload.event || "").toLowerCase().replace(/_/g, ".");
-    if (!eventName.includes("messages.upsert")) return;
+    const instance  = String(payload.instanceName || payload.instance || "");
+    const data      = payload.data as Record<string, unknown> | undefined;
+    const key       = data?.key as Record<string, unknown> | undefined;
+    const remoteJid = String(key?.remoteJid || "");
+    console.log(`[Webhook] event="${eventName}" instance="${instance}" fromMe=${key?.fromMe} remoteJid="${remoteJid}" hasData=${!!data}`);
 
-    const data = payload.data as Record<string, unknown> | undefined;
-    if (!data) return;
-
-    const key = data.key as Record<string, unknown> | undefined;
-    if (!key) return;
-
-    // Ignore messages sent by the bot itself
-    if (key.fromMe === true) return;
-
-    const remoteJid = String(key.remoteJid || "");
-
-    // Ignore group messages
-    if (remoteJid.endsWith("@g.us")) return;
-
-    // Evolution API v1 sends "instance", v2 sends "instanceName"
-    const instance    = String(payload.instanceName || payload.instance || "");
-    console.log(`[Webhook] event="${eventName}" instance="${instance}" raw_instance=${JSON.stringify(payload.instance)} raw_instanceName=${JSON.stringify(payload.instanceName)}`);
+    if (!eventName.includes("messages.upsert")) { console.log(`[Webhook] IGNORED: event "${eventName}" is not messages.upsert`); return; }
+    if (!data)                                   { console.log(`[Webhook] IGNORED: no data`); return; }
+    if (!key)                                    { console.log(`[Webhook] IGNORED: no key`); return; }
+    if (key.fromMe === true)                     { console.log(`[Webhook] IGNORED: fromMe`); return; }
+    if (remoteJid.endsWith("@g.us"))             { console.log(`[Webhook] IGNORED: group message`); return; }
     const phone       = cleanPhone(remoteJid);
     const pushName    = String(data.pushName || "");
     const messageType = String(data.messageType || "");
