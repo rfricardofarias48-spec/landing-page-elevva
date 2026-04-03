@@ -1154,10 +1154,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
         {/* USER DETAILS MODAL */}
         {selectedUser && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative">
-                    <button onClick={() => { setSelectedUser(null); setIsEditingPlan(false); }} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
-                    
-                    <div className="flex items-center gap-4 mb-8">
+                <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl relative">
+                    <button onClick={() => { setSelectedUser(null); setIsEditingPlan(false); }} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors z-10"><X className="w-5 h-5"/></button>
+
+                    <div className="flex items-center gap-4 mb-6">
                         <div className="w-16 h-16 bg-zinc-100 rounded-2xl flex items-center justify-center text-2xl font-black text-zinc-400">
                             {selectedUser.name?.charAt(0) || selectedUser.email.charAt(0).toUpperCase()}
                         </div>
@@ -1168,7 +1168,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                     </div>
 
                     {/* SALESPERSON FIELD */}
-                    <div className="mb-6 bg-zinc-50 p-4 rounded-xl border border-zinc-100">
+                    <div className="mb-4 bg-zinc-50 p-3 rounded-xl border border-zinc-100">
                          <div className="flex justify-between items-center mb-2">
                              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Vendedor Responsável</p>
                              <button 
@@ -1276,7 +1276,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
                                 {isEditingEnterprise ? (
                                     <div className="space-y-3 animate-fade-in">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label className="text-xs font-bold text-slate-700 block mb-1">Instância Evolution</label>
                                                 <input
@@ -1300,7 +1300,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 <p className="text-[10px] text-slate-400 mt-1">Evolution GO → instância → "Token da Instância"</p>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-3 gap-3">
                                             <div>
                                                 <label className="text-xs font-bold text-slate-700 block mb-1">Telefone do Agente</label>
                                                 <input
@@ -1321,26 +1321,25 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
                                                 />
                                             </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-slate-700 block mb-1">Limite de Vagas</label>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="number"
-                                                    min={1}
-                                                    value={tempJobLimit}
-                                                    onChange={(e) => setTempJobLimit(parseInt(e.target.value) || 1)}
-                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setTempJobLimit(9999)}
-                                                    className={`text-xs font-bold px-3 py-2 rounded-lg border transition-colors whitespace-nowrap ${tempJobLimit === 9999 ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-400'}`}
-                                                >
-                                                    Ilimitado
-                                                </button>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 block mb-1">Limite de Vagas</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        value={tempJobLimit}
+                                                        onChange={(e) => setTempJobLimit(parseInt(e.target.value) || 1)}
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setTempJobLimit(9999)}
+                                                        className={`text-xs font-bold px-3 py-2 rounded-lg border transition-colors whitespace-nowrap ${tempJobLimit === 9999 ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-400'}`}
+                                                    >
+                                                        Ilimitado
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <p className="text-[10px] text-slate-400 mt-1">Defina quantas vagas este cliente pode criar. "Ilimitado" = 9999.</p>
                                         </div>
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
                                             <div className="flex items-center gap-2">
@@ -1366,11 +1365,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Limite de Vagas</span>
-                                            <span className="text-sm font-bold text-slate-900">{selectedUser.job_limit === 9999 ? 'Ilimitado' : selectedUser.job_limit ?? 'Ilimitado'}</span>
-                                        </div>
+                                    <div className="grid grid-cols-3 gap-3">
                                         <div>
                                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Instância</span>
                                             <span className="text-sm font-bold text-slate-900">{selectedUser.instancia_evolution || <span className="text-slate-400 italic font-normal">Não configurada</span>}</span>
@@ -1380,11 +1375,15 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                             <span className="text-sm font-bold text-slate-900">{selectedUser.telefone_agente || <span className="text-slate-400 italic font-normal">Não configurado</span>}</span>
                                         </div>
                                         <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Google Calendar</span>
-                                            <span className="text-sm font-bold text-slate-900">{selectedUser.google_calendar_id || <span className="text-slate-400 italic font-normal">Padrão</span>}</span>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Limite de Vagas</span>
+                                            <span className="text-sm font-bold text-slate-900">{selectedUser.job_limit === 9999 ? 'Ilimitado' : selectedUser.job_limit ?? 'Ilimitado'}</span>
                                         </div>
                                         <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Status</span>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Google Calendar</span>
+                                            <span className="text-sm font-bold text-slate-900 truncate block">{selectedUser.google_calendar_id || <span className="text-slate-400 italic font-normal">Padrão</span>}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Status Bot</span>
                                             <span className={`text-xs font-bold px-2 py-1 rounded-md inline-block ${selectedUser.status_automacao ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
                                                 {selectedUser.status_automacao ? 'Ativo' : 'Inativo'}
                                             </span>
