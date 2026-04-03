@@ -566,7 +566,9 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
     // Ignore group messages
     if (remoteJid.endsWith("@g.us")) return;
 
-    const instance    = String(payload.instance || "");
+    // Evolution API v1 sends "instance", v2 sends "instanceName"
+    const instance    = String(payload.instanceName || payload.instance || "");
+    console.log(`[Webhook] event="${eventName}" instance="${instance}" raw_instance=${JSON.stringify(payload.instance)} raw_instanceName=${JSON.stringify(payload.instanceName)}`);
     const phone       = cleanPhone(remoteJid);
     const pushName    = String(data.pushName || "");
     const messageType = String(data.messageType || "");
