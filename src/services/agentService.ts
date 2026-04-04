@@ -516,18 +516,26 @@ export async function processIncomingMessage(
   supabase: SupabaseClient,
   webhookToken?: string,   // token enviado diretamente pelo Evolution GO no payload
 ): Promise<void> {
+  console.log(`[Agent] START instance="${instance}" phone="${phone}" type="${messageType}"`);
+
   // Identify recruiter from Evolution instance name
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id, status_automacao, evolution_token')
     .eq('instancia_evolution', instance)
     .eq('status_automacao', true)
     .maybeSingle();
 
+  if (profileError) {
+    console.error(`[Agent] Profile query error: ${profileError.message}`);
+  }
+
   if (!profile) {
-    console.log(`[Agent] No active profile for instance "${instance}" — check instancia_evolution and status_automacao in profiles`);
+    console.log(`[Agent] No active profile for instance "${instance}" (error: ${profileError?.message || 'none'})`);
     return;
   }
+
+  console.log(`[Agent] Profile found id="${profile.id}" hasToken=${!!profile.evolution_token}`);
 
   // Prioridade: token do payload (Evolution GO) > token do DB > env var
   const instanceToken: string | undefined = webhookToken || profile.evolution_token || undefined;

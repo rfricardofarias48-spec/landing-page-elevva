@@ -545,24 +545,28 @@ app.post("/api/webhooks/interviews/confirm", async (req, res) => {
 // POST https://seu-dominio.com/api/webhooks/agent/whatsapp
 // ─────────────────────────────────────────────────────────────────────
 app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
-  // ACK imediato — SEMPRE responde 200 antes de qualquer processamento
-  // Sem isso, returns antecipados causam timeout de 60s no Vercel
-  res.status(200).json({ received: true });
-
+  // ARQUITETURA: processar PRIMEIRO, responder DEPOIS.
+  // Vercel encerra o Lambda imediatamente após res.json(), mesmo com await.
+  // Processar antes garante que toda a lógica roda dentro do contexto ativo.
+  // O Evolution GO (Go-http-client) aguarda até ~30s pela resposta.
   try {
     const payload = req.body as Record<string, unknown>;
 
     const eventName     = String(payload.event || "").toLowerCase().replace(/_/g, ".");
     const instance      = String(payload.instanceName || payload.instance || "");
-    const instanceToken = String(payload.instanceToken || "");  // Evolution GO envia o token no payload
+    const instanceToken = String(payload.instanceToken || "");
     const data          = payload.data as Record<string, unknown> | undefined;
+
+    console.log(`[Webhook] Received event="${eventName}" instance="${instance}" hasData=${!!data}`);
 
     // Aceita "message" (Evolution GO) e "messages.upsert" (Evolution API v2)
     const isMessageEvent = eventName === "message" || eventName.includes("messages.upsert");
-    if (!isMessageEvent || !data) return;
+    if (!isMessageEvent || !data) {
+      res.status(200).json({ received: true });
+      return;
+    }
 
     // ── Normaliza payload: Evolution GO usa data.Info / data.Message (capitals)
-    //    Evolution API v2 usa data.key / data.message (lowercase)
     const isEvolutionGO = !!(data.Info);
 
     let remoteJid: string;
@@ -573,7 +577,6 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
     let msgKey: Record<string, unknown>;
 
     if (isEvolutionGO) {
-      // Evolution GO: PascalCase Info, proto-tagged camelCase Message
       const info = data.Info as Record<string, unknown>;
       remoteJid   = String(info.Chat || "");
       fromMe      = info.IsFromMe === true;
@@ -581,7 +584,6 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       const msg   = (data.Message as Record<string, unknown>) || {};
       msgKey      = { remoteJid, fromMe, id: info.ID };
 
-      // data.Message usa proto json tags (camelCase) — confirmed via source code
       if (data.IsDocumentWithCaption || msg.documentMessage) {
         messageType = "documentMessage";
         message     = msg;
@@ -590,13 +592,12 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
         message     = msg;
       } else if (msg.conversation !== undefined) {
         messageType = "conversation";
-        message     = msg;  // já tem { conversation: "..." }
+        message     = msg;
       } else {
         messageType = "unknown";
         message     = msg;
       }
     } else {
-      // Evolution API v2 — formato padrão
       const key = data.key as Record<string, unknown> | undefined;
       remoteJid   = String(key?.remoteJid || "");
       fromMe      = key?.fromMe === true;
@@ -606,11 +607,14 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       msgKey      = key || {};
     }
 
-    if (!remoteJid || fromMe || remoteJid.endsWith("@g.us")) return;
+    if (!remoteJid || fromMe || remoteJid.endsWith("@g.us")) {
+      console.log(`[Webhook] Skipped: remoteJid="${remoteJid}" fromMe=${fromMe}`);
+      res.status(200).json({ received: true });
+      return;
+    }
 
     const phone = cleanPhone(remoteJid);
 
-    // Extrai texto conforme tipo
     let textContent: string | null = null;
     if (messageType === "conversation") {
       textContent = String(message.conversation || "");
@@ -654,11 +658,8 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       };
     }
 
-    console.log(`[Webhook] OK instance="${instance}" phone="${phone}" type="${messageType}" go=${isEvolutionGO} token=${instanceToken ? 'yes' : 'no'}`);
+    console.log(`[Webhook] Processing instance="${instance}" phone="${phone}" type="${messageType}" go=${isEvolutionGO} token=${instanceToken ? 'yes' : 'no'}`);
 
-    // IMPORTANTE: usar await (não fire-and-forget) — Vercel encerra a função
-    // logo após res.json(), abortando qualquer Promise não aguardada.
-    // O cliente já recebeu o 200; o await apenas mantém a função viva.
     await processIncomingMessage(
       instance,
       phone,
@@ -669,10 +670,14 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       selectedRowId,
       supabaseAdmin,
       instanceToken || undefined,
-    ).catch(err => console.error("[Agent Webhook] processIncomingMessage error:", err));
+    );
+
+    console.log(`[Webhook] Done instance="${instance}" phone="${phone}"`);
+    res.status(200).json({ received: true });
 
   } catch (err) {
     console.error("[Agent Webhook] Error:", err);
+    res.status(200).json({ received: true });
   }
 });
 
