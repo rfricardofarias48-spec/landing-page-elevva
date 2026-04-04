@@ -598,7 +598,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}</span></td>
                                   <td className="p-6"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div></div><span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span></div></td>
                                   <td className="p-6">{user.status === 'BLOCKED' ? (<span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>) : (<span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>)}</td>
-                                  <td className="p-6 text-right"><button onClick={() => setSelectedUser(user)} className="text-zinc-400 hover:text-black font-bold text-xs underline">Detalhes</button></td>
+                                  <td className="p-6 text-right"><button onClick={() => { setSelectedUser(user); setTempInstancia(user.instancia_evolution || ''); setTempEvolutionToken(user.evolution_token || ''); setTempTelefoneAgente(user.telefone_agente || ''); setTempStatusAutomacao(user.status_automacao || false); setTempJobLimit(user.job_limit ?? 9999); setTempCalendarId(user.google_calendar_id || user.email || ''); setIsEditingEnterprise(true); }} className="text-zinc-400 hover:text-black font-bold text-xs underline">Detalhes</button></td>
                               </tr>
                           ))}
                       </tbody>
@@ -1251,31 +1251,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
                         {selectedUser.plan !== 'ADMIN' && (
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 relative group">
-                                <div className="flex justify-between items-start mb-4">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configurações do Agente</p>
-                                    <button 
-                                        onClick={() => {
-                                            if (isEditingEnterprise) {
-                                                setIsEditingEnterprise(false);
-                                            } else {
-                                                setTempInstancia(selectedUser.instancia_evolution || '');
-                                                setTempEvolutionToken(selectedUser.evolution_token || '');
-                                                setTempTelefoneAgente(selectedUser.telefone_agente || '');
-                                                setTempStatusAutomacao(selectedUser.status_automacao || false);
-                                                setTempJobLimit(selectedUser.job_limit ?? 9999);
-                                                setTempCalendarId(selectedUser.google_calendar_id || selectedUser.email || '');
-                                                setIsEditingEnterprise(true);
-                                            }
-                                        }} 
-                                        className="text-slate-400 hover:text-slate-900 transition-colors bg-white p-1 rounded-md border border-slate-200" 
-                                        title="Editar Configurações"
-                                    >
-                                        {isEditingEnterprise ? <X className="w-4 h-4"/> : <Edit3 className="w-4 h-4" />}
-                                    </button>
-                                </div>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Configurações do Agente</p>
 
-                                {isEditingEnterprise ? (
-                                    <div className="space-y-3 animate-fade-in">
+                                <div className="space-y-3">
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label className="text-xs font-bold text-slate-700 block mb-1">Instância Evolution</label>
@@ -1363,33 +1341,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 Salvar
                                             </button>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-3 gap-3">
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Instância</span>
-                                            <span className="text-sm font-bold text-slate-900">{selectedUser.instancia_evolution || <span className="text-slate-400 italic font-normal">Não configurada</span>}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Telefone</span>
-                                            <span className="text-sm font-bold text-slate-900">{selectedUser.telefone_agente || <span className="text-slate-400 italic font-normal">Não configurado</span>}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Limite de Vagas</span>
-                                            <span className="text-sm font-bold text-slate-900">{selectedUser.job_limit === 9999 ? 'Ilimitado' : selectedUser.job_limit ?? 'Ilimitado'}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Google Calendar</span>
-                                            <span className="text-sm font-bold text-slate-900 truncate block">{selectedUser.google_calendar_id || <span className="text-slate-400 italic font-normal">Padrão</span>}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest block mb-1">Status Bot</span>
-                                            <span className={`text-xs font-bold px-2 py-1 rounded-md inline-block ${selectedUser.status_automacao ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                                                {selectedUser.status_automacao ? 'Ativo' : 'Inativo'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
+                                </div>
                             </div>
                         )}
 

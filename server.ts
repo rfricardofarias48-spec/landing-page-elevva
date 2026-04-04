@@ -654,11 +654,12 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
       };
     }
 
-    console.log(`[Webhook] OK instance="${instance}" phone="${phone}" type="${messageType}" go=${isEvolutionGO}`);
+    console.log(`[Webhook] OK instance="${instance}" phone="${phone}" type="${messageType}" go=${isEvolutionGO} token=${instanceToken ? 'yes' : 'no'}`);
 
-    // Processa em background (fire & forget)
-    // instanceToken do payload tem prioridade (Evolution GO envia junto)
-    processIncomingMessage(
+    // IMPORTANTE: usar await (não fire-and-forget) — Vercel encerra a função
+    // logo após res.json(), abortando qualquer Promise não aguardada.
+    // O cliente já recebeu o 200; o await apenas mantém a função viva.
+    await processIncomingMessage(
       instance,
       phone,
       pushName,
