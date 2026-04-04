@@ -233,6 +233,7 @@ async function handleAguardandoCurriculo(
   } | null,
   supabase: SupabaseClient,
   send: SendFn,
+  instanceToken?: string,
 ): Promise<void> {
   const isPDF = ['documentMessage', 'documentWithCaptionMessage'].includes(messageType);
 
@@ -243,8 +244,6 @@ async function handleAguardandoCurriculo(
 
   // Lock state immediately to prevent duplicate processing if message fires twice
   await updateConversation(conv.id, { state: 'ANALISANDO' }, supabase);
-
-  await send(phone, '✅ Currículo recebido! Vamos analisar o seu perfil e entraremos em contato em breve com os próximos passos.');
 
   // Use embedded base64 from webhook (webhook_base64:true) — avoids a separate download call
   let media: { base64: string; mimetype: string } | null = null;
@@ -272,7 +271,7 @@ async function handleAguardandoCurriculo(
 
     // Fallback: download via Evolution API
     if (!media) {
-      media = await evo.downloadMediaBase64(instance, { key: mediaData.key, message: mediaData.message });
+      media = await evo.downloadMediaBase64(instance, { key: mediaData.key, message: mediaData.message }, instanceToken);
       console.log('[Agent] Downloaded base64 via API call, success:', !!media?.base64);
     }
   }
@@ -282,6 +281,9 @@ async function handleAguardandoCurriculo(
     await updateConversation(conv.id, { state: 'AGUARDANDO_CURRICULO' }, supabase);
     return;
   }
+
+  // Confirma recebimento somente após download bem-sucedido (evita dupla resposta)
+  await send(phone, '✅ Currículo recebido! Vamos analisar o seu perfil e entraremos em contato em breve com os próximos passos.');
 
   // Get job details
   const { data: job } = await supabase
@@ -583,13 +585,13 @@ export async function processIncomingMessage(
       break;
 
     case 'AGUARDANDO_CURRICULO':
-      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send);
+      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken);
       break;
 
     case 'ANALISANDO':
       // If a PDF arrives while stuck in ANALISANDO, the previous attempt failed — retry
       if (['documentMessage', 'documentWithCaptionMessage'].includes(messageType) && mediaData) {
-        await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send);
+        await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken);
       } else {
         await send(phone, 'Aguarde! Estamos analisando seu currículo... ⏳');
       }

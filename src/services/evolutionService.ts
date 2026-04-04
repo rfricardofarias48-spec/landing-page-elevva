@@ -101,15 +101,33 @@ function sanitizeMessageFileNames(obj: unknown): unknown {
 export async function downloadMediaBase64(
   instance: string,
   messageData: { key: Record<string, unknown>; message: Record<string, unknown> },
+  tokenOverride?: string,
 ): Promise<{ base64: string; mimetype: string } | null> {
   const sanitizedData = sanitizeMessageFileNames(messageData) as typeof messageData;
-  const key = getApiKey(instance);
+  const key = tokenOverride || getApiKey(instance);
 
-  const result = await post(`/message/downloadimage`, {
+  // Tenta endpoint Evolution GO / v2: /chat/getBase64FromMediaMessage/{instance}
+  let result = await post(`/chat/getBase64FromMediaMessage/${instance}`, {
     message: sanitizedData,
     convertToMp4: false,
   }, key) as { base64?: string; mimetype?: string } | null;
 
-  if (!result?.base64) return null;
-  return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
+  if (result?.base64) {
+    console.log('[Evolution] Media downloaded via /chat/getBase64FromMediaMessage');
+    return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
+  }
+
+  // Fallback: endpoint legado
+  result = await post(`/message/downloadimage`, {
+    message: sanitizedData,
+    convertToMp4: false,
+  }, key) as { base64?: string; mimetype?: string } | null;
+
+  if (result?.base64) {
+    console.log('[Evolution] Media downloaded via /message/downloadimage');
+    return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
+  }
+
+  console.error('[Evolution] All media download attempts failed for instance:', instance);
+  return null;
 }
