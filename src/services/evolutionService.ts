@@ -112,32 +112,39 @@ export async function downloadMediaBase64(
   const key = tokenOverride || getApiKey(instance);
 
   // ── Estratégia 1: URL direta do documento (proxy do Evolution GO) ──
+  // Evolution GO usa PascalCase (Go structs): URL, DirectPath, MediaUrl
   const msg = messageData.message || {};
   const docMsg = (msg.documentMessage || msg.DocumentMessage || msg.documentWithCaptionMessage) as Record<string, unknown> | undefined;
-  const mediaUrl = String(docMsg?.mediaUrl || docMsg?.url || docMsg?.directPath || '');
+  // Busca URL em todas as variações de case
+  const mediaUrl = String(docMsg?.URL || docMsg?.mediaUrl || docMsg?.MediaUrl || docMsg?.url || '');
+  const mimetype = String(docMsg?.mimetype || docMsg?.Mimetype || 'application/pdf');
 
   if (mediaUrl && mediaUrl.startsWith('http')) {
     try {
-      console.log(`[Evolution] Trying direct URL download: ${mediaUrl.substring(0, 80)}...`);
+      console.log(`[Evolution] Trying direct URL download: ${mediaUrl.substring(0, 120)}...`);
       const res = await fetch(mediaUrl, { headers: { apikey: key } });
       if (res.ok) {
         const buffer = Buffer.from(await res.arrayBuffer());
         const b64 = buffer.toString('base64');
         if (b64.length > 100) {
           console.log(`[Evolution] Media downloaded via direct URL, size: ${b64.length}`);
-          return { base64: b64, mimetype: String(docMsg?.mimetype || 'application/pdf') };
+          return { base64: b64, mimetype };
         }
+      } else {
+        console.log(`[Evolution] Direct URL → HTTP ${res.status}`);
       }
     } catch (err) {
       console.log('[Evolution] Direct URL download failed:', err);
     }
   }
 
-  // ── Estratégia 2 e 3: Endpoints da API ──
+  // ── Estratégia 2: Endpoints da API (com e sem instance no path) ──
   const sanitizedData = sanitizeMessageFileNames(messageData) as typeof messageData;
   const endpoints = [
     `/chat/getBase64FromMediaMessage/${instance}`,
+    `/chat/getBase64FromMediaMessage`,
     `/message/getBase64FromMediaMessage/${instance}`,
+    `/message/getBase64FromMediaMessage`,
   ];
 
   for (const endpoint of endpoints) {
@@ -175,7 +182,7 @@ export async function configureWebhookBase64(
   };
 
   // Tenta PUT e POST em endpoints comuns do Evolution GO / v2
-  const paths = [`/webhook/set/${instance}`, `/webhook/instance/${instance}`];
+  const paths = [`/webhook/set/${instance}`, `/webhook/${instance}`, `/webhook/set`, `/instance/webhook/${instance}`];
   const methods = ['PUT', 'POST'];
 
   for (const method of methods) {
