@@ -70,6 +70,19 @@ export const AdminDashboard: React.FC = () => {
     fetchData();
   }, []);
 
+  // Sempre que o usuário selecionado muda, reinicia os campos do agente com os dados DESSE usuário
+  useEffect(() => {
+    if (selectedUser) {
+      setTempInstancia(selectedUser.instancia_evolution || '');
+      setTempEvolutionToken(selectedUser.evolution_token || '');
+      setTempTelefoneAgente(selectedUser.telefone_agente || '');
+      setTempStatusAutomacao(selectedUser.status_automacao || false);
+      setTempJobLimit(selectedUser.job_limit ?? 9999);
+      setTempCalendarId(selectedUser.google_calendar_id || selectedUser.email || '');
+      setIsEditingEnterprise(true);
+    }
+  }, [selectedUser?.id]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -116,7 +129,8 @@ export const AdminDashboard: React.FC = () => {
             instancia_evolution: u.instancia_evolution,
             evolution_token: u.evolution_token,
             telefone_agente: u.telefone_agente,
-            status_automacao: u.status_automacao
+            status_automacao: u.status_automacao,
+            google_calendar_id: u.google_calendar_id,
           };
       });
 
@@ -598,7 +612,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}</span></td>
                                   <td className="p-6"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div></div><span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span></div></td>
                                   <td className="p-6">{user.status === 'BLOCKED' ? (<span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>) : (<span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>)}</td>
-                                  <td className="p-6 text-right"><button onClick={() => { setSelectedUser(user); setTempInstancia(user.instancia_evolution || ''); setTempEvolutionToken(user.evolution_token || ''); setTempTelefoneAgente(user.telefone_agente || ''); setTempStatusAutomacao(user.status_automacao || false); setTempJobLimit(user.job_limit ?? 9999); setTempCalendarId(user.google_calendar_id || user.email || ''); setIsEditingEnterprise(true); }} className="text-zinc-400 hover:text-black font-bold text-xs underline">Detalhes</button></td>
+                                  <td className="p-6 text-right"><button onClick={() => setSelectedUser(user)} className="text-zinc-400 hover:text-black font-bold text-xs underline">Detalhes</button></td>
                               </tr>
                           ))}
                       </tbody>
