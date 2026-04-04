@@ -1320,12 +1320,29 @@ app.get("/api/cron/interview-reminders", async (req, res) => {
         await sendText(
           instance,
           phone,
-          `⏰ *Lembrete de Entrevista*\n\nOlá, *${firstName}*! Sua entrevista está chegando:\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${meetLink}\n\nPrepare-se e boa sorte! 🍀`,
+          `⏰ *Lembrete de Entrevista*\n\nOlá, *${firstName}*! Sua entrevista é hoje:\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${meetLink}\n\nVocê confirma sua presença?\nResponda:\n✅ *SIM* — confirmo presença\n🔄 *REAGENDAR* — preciso de outro horário\n❌ *CANCELAR* — não irei participar`,
           evoToken,
         );
 
-        // Mark as reminded
+        // Mark as reminded + mudar estado da conversa para aguardar resposta
         await supabaseAdmin.from('interviews').update({ lembrete_enviado: true }).eq('id', interview.id);
+
+        // Buscar conversa do candidato e mudar para AGUARDANDO_CONFIRMACAO_LEMBRETE
+        const { data: convData } = await supabaseAdmin.from('agent_conversations')
+          .select('id, context')
+          .eq('phone', phone)
+          .eq('user_id', job.user_id)
+          .maybeSingle();
+
+        if (convData) {
+          const ctx = (convData.context || {}) as Record<string, unknown>;
+          await supabaseAdmin.from('agent_conversations').update({
+            state: 'AGUARDANDO_CONFIRMACAO_LEMBRETE',
+            context: { ...ctx, reminder_interview_id: interview.id },
+            updated_at: new Date().toISOString(),
+          }).eq('id', convData.id);
+        }
+
         sent++;
         console.log(`[Reminder Cron] Sent reminder for interview ${interview.id} to ${phone}`);
       } catch (err) {

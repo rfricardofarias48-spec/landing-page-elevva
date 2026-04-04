@@ -356,6 +356,51 @@ async function handleAguardandoCurriculo(
 }
 
 
+async function handleConfirmacaoLembrete(
+  conv: Conversation,
+  instance: string,
+  phone: string,
+  text: string,
+  supabase: SupabaseClient,
+  send: SendFn,
+): Promise<void> {
+  const interviewId = conv.context.reminder_interview_id;
+
+  const confirmKw = ['sim', 'confirmo', 'vou', 'estarei', 'ok', 'yes', 'pode ser', 'claro', 'com certeza'];
+  const cancelKw = ['cancelar', 'cancela', 'não vou', 'nao vou', 'não irei', 'nao irei',
+    'desistir', 'desisto', 'não quero', 'nao quero', 'não posso ir', 'nao posso ir', 'não vai dar', 'nao vai dar'];
+  const rescheduleKw = ['reagendar', 'remarcar', 'mudar', 'trocar', 'outro horário', 'outro horario'];
+
+  if (confirmKw.some(k => text.includes(k))) {
+    await send(phone, '✅ Presença confirmada! Nos vemos em breve. Boa sorte! 🍀');
+    await updateConversation(conv.id, { state: 'ENTREVISTA_CONFIRMADA' }, supabase);
+
+  } else if (rescheduleKw.some(k => text.includes(k))) {
+    await handleReschedule(conv, instance, phone, supabase, send);
+
+  } else if (cancelKw.some(k => text.includes(k))) {
+    if (interviewId) {
+      const { data: interview } = await supabase.from('interviews')
+        .select('id, slot_id, google_event_id')
+        .eq('id', interviewId).single();
+
+      if (interview) {
+        if (interview.slot_id) {
+          await supabase.from('interview_slots')
+            .update({ is_booked: false }).eq('id', interview.slot_id);
+        }
+        await supabase.from('interviews')
+          .update({ status: 'CANCELADA' }).eq('id', interview.id);
+      }
+    }
+    await send(phone, 'Entendido. Sua entrevista foi cancelada.\n\nCaso mude de ideia, entre em contato conosco. Desejamos sucesso! 🙏');
+    await updateConversation(conv.id, { state: 'CANCELADA' }, supabase);
+
+  } else {
+    await send(phone, 'Por favor, responda com:\n\n✅ *SIM* — confirmo presença\n🔄 *REAGENDAR* — preciso de outro horário\n❌ *CANCELAR* — não irei participar');
+  }
+}
+
 async function handleReschedule(
   conv: Conversation,
   instance: string,
@@ -576,8 +621,16 @@ export async function processIncomingMessage(
     case 'NOVO':
     case 'REPROVADO':
     case 'EM_ANALISE':
-    case 'ENTREVISTA_CONFIRMADA':
+    case 'CANCELADA':
       await handleNovo(conv, instance, phone, pushName, supabase, send);
+      break;
+
+    case 'ENTREVISTA_CONFIRMADA':
+      await send(phone, 'Sua entrevista já está confirmada! Se precisar reagendar, basta digitar *reagendar*. 😊');
+      break;
+
+    case 'AGUARDANDO_CONFIRMACAO_LEMBRETE':
+      await handleConfirmacaoLembrete(conv, instance, phone, text, supabase, send);
       break;
 
     case 'SELECIONANDO_VAGA':
@@ -589,7 +642,6 @@ export async function processIncomingMessage(
       break;
 
     case 'ANALISANDO':
-      // If a PDF arrives while stuck in ANALISANDO, the previous attempt failed — retry
       if (['documentMessage', 'documentWithCaptionMessage'].includes(messageType) && mediaData) {
         await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken);
       } else {
@@ -606,7 +658,7 @@ export async function processIncomingMessage(
       break;
 
     default:
-      await handleNovo(conv, instance, phone, pushName, supabase);
+      await handleNovo(conv, instance, phone, pushName, supabase, send);
   }
 }
 
