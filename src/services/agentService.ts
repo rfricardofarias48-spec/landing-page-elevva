@@ -98,12 +98,15 @@ async function updateConversation(
 
 // ─────────────────────────── State handlers ───────────────────────────
 
+type SendFn = (jid: string, text: string) => Promise<void>;
+
 async function handleNovo(
   conv: Conversation,
   instance: string,
   phone: string,
   pushName: string,
   supabase: SupabaseClient,
+  send: SendFn,
 ): Promise<void> {
   const { data: jobs } = await supabase
     .from('jobs')
@@ -135,6 +138,7 @@ async function handleSelecionandoVaga(
   text: string,
   selectedRowId: string | null,
   supabase: SupabaseClient,
+  send: SendFn,
 ): Promise<void> {
   const jobs = conv.context.jobs || [];
   let selectedJob: { id: string; title: string } | undefined;
@@ -228,6 +232,7 @@ async function handleAguardandoCurriculo(
     embeddedMimetype?: string;
   } | null,
   supabase: SupabaseClient,
+  send: SendFn,
 ): Promise<void> {
   const isPDF = ['documentMessage', 'documentWithCaptionMessage'].includes(messageType);
 
@@ -354,6 +359,7 @@ async function handleReschedule(
   instance: string,
   phone: string,
   supabase: SupabaseClient,
+  send: SendFn,
 ): Promise<void> {
   // Resolve candidate_id: from context or by phone lookup
   let candidateId = conv.context.candidate_id;
@@ -471,7 +477,7 @@ async function handleReschedule(
   const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
   const link = `${baseUrl}/agendar/${token}`;
 
-  await evo.sendText(instance, phone, `Sem problemas, *${conv.context.candidate_name || 'candidato'}*! Vamos reagendar.\n\nEscolha um novo horário no link abaixo:\n\n${link}\n\n_Clique no link para selecionar seu novo horário._`);
+  await send(phone, `Sem problemas, *${conv.context.candidate_name || 'candidato'}*! Vamos reagendar.\n\nEscolha um novo horário no link abaixo:\n\n${link}\n\n_Clique no link para selecionar seu novo horário._`);
 }
 
 async function handleAguardandoEscolhaSlot(
@@ -481,6 +487,7 @@ async function handleAguardandoEscolhaSlot(
   _text: string,
   _selectedRowId: string | null,
   supabase: SupabaseClient,
+  send: SendFn,
 ): Promise<void> {
   // With the new link-based scheduling, if candidate sends any WhatsApp message
   // while waiting, resend the link
@@ -489,9 +496,9 @@ async function handleAguardandoEscolhaSlot(
     const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
 
     const link = `${baseUrl}/agendar/${token}`;
-    await evo.sendText(instance, phone, `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`);
+    await send(phone, `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`);
   } else {
-    await evo.sendText(instance, phone, 'Sua entrevista está sendo agendada. Em breve você receberá o link para escolher o horário.');
+    await send(phone, 'Sua entrevista está sendo agendada. Em breve você receberá o link para escolher o horário.');
   }
 }
 
@@ -558,7 +565,7 @@ export async function processIncomingMessage(
   const isRescheduleIntent = rescheduleKeywords.some(k => text.includes(k));
 
   if (isRescheduleIntent && (conv.state === 'ENTREVISTA_CONFIRMADA' || conv.state === 'AGUARDANDO_ESCOLHA_SLOT')) {
-    await handleReschedule(conv, instance, phone, supabase);
+    await handleReschedule(conv, instance, phone, supabase, send);
     return;
   }
 
@@ -568,21 +575,21 @@ export async function processIncomingMessage(
     case 'REPROVADO':
     case 'EM_ANALISE':
     case 'ENTREVISTA_CONFIRMADA':
-      await handleNovo(conv, instance, phone, pushName, supabase);
+      await handleNovo(conv, instance, phone, pushName, supabase, send);
       break;
 
     case 'SELECIONANDO_VAGA':
-      await handleSelecionandoVaga(conv, instance, phone, text, selectedRowId, supabase);
+      await handleSelecionandoVaga(conv, instance, phone, text, selectedRowId, supabase, send);
       break;
 
     case 'AGUARDANDO_CURRICULO':
-      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase);
+      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send);
       break;
 
     case 'ANALISANDO':
       // If a PDF arrives while stuck in ANALISANDO, the previous attempt failed — retry
       if (['documentMessage', 'documentWithCaptionMessage'].includes(messageType) && mediaData) {
-        await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase);
+        await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send);
       } else {
         await send(phone, 'Aguarde! Estamos analisando seu currículo... ⏳');
       }
@@ -593,7 +600,7 @@ export async function processIncomingMessage(
       break;
 
     case 'AGUARDANDO_ESCOLHA_SLOT':
-      await handleAguardandoEscolhaSlot(conv, instance, phone, text, selectedRowId, supabase);
+      await handleAguardandoEscolhaSlot(conv, instance, phone, text, selectedRowId, supabase, send);
       break;
 
     default:
@@ -616,7 +623,7 @@ export async function triggerSchedulingForCandidates(
   // Get recruiter's Evolution instance
   const { data: profile } = await supabase
     .from('profiles')
-    .select('instancia_evolution')
+    .select('instancia_evolution, evolution_token')
     .eq('id', userId)
     .single();
 
@@ -625,6 +632,7 @@ export async function triggerSchedulingForCandidates(
   }
 
   const instance = profile.instancia_evolution;
+  const instanceToken: string | undefined = profile.evolution_token || undefined;
 
   // Get job title
   const { data: job } = await supabase
@@ -719,7 +727,7 @@ export async function triggerSchedulingForCandidates(
         ? '\n💻 *Formato:* Online'
         : '\n🏢 *Formato:* Presencial';
 
-      await evo.sendText(instance, phone, `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`);
+      await evo.sendText(instance, phone, `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`, instanceToken);
 
       sent++;
     } catch (err) {
