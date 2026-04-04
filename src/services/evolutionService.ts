@@ -97,38 +97,62 @@ function sanitizeMessageFileNames(obj: unknown): unknown {
   return result;
 }
 
-/** Download a media file and return its base64 content */
+/**
+ * Download a media file and return its base64 content.
+ * Tenta 3 estratégias:
+ *   1. URL direta do mediaUrl/url no documentMessage (proxy do Evolution GO)
+ *   2. POST /chat/getBase64FromMediaMessage/{instance} (Evolution GO / v2)
+ *   3. POST /message/getBase64FromMediaMessage/{instance}
+ */
 export async function downloadMediaBase64(
   instance: string,
   messageData: { key: Record<string, unknown>; message: Record<string, unknown> },
   tokenOverride?: string,
 ): Promise<{ base64: string; mimetype: string } | null> {
-  const sanitizedData = sanitizeMessageFileNames(messageData) as typeof messageData;
   const key = tokenOverride || getApiKey(instance);
 
-  // Tenta endpoint Evolution GO / v2: /chat/getBase64FromMediaMessage/{instance}
-  let result = await post(`/chat/getBase64FromMediaMessage/${instance}`, {
-    message: sanitizedData,
-    convertToMp4: false,
-  }, key) as { base64?: string; mimetype?: string } | null;
+  // ── Estratégia 1: URL direta do documento (proxy do Evolution GO) ──
+  const msg = messageData.message || {};
+  const docMsg = (msg.documentMessage || msg.DocumentMessage || msg.documentWithCaptionMessage) as Record<string, unknown> | undefined;
+  const mediaUrl = String(docMsg?.mediaUrl || docMsg?.url || docMsg?.directPath || '');
 
-  if (result?.base64) {
-    console.log('[Evolution] Media downloaded via /chat/getBase64FromMediaMessage');
-    return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
+  if (mediaUrl && mediaUrl.startsWith('http')) {
+    try {
+      console.log(`[Evolution] Trying direct URL download: ${mediaUrl.substring(0, 80)}...`);
+      const res = await fetch(mediaUrl, { headers: { apikey: key } });
+      if (res.ok) {
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const b64 = buffer.toString('base64');
+        if (b64.length > 100) {
+          console.log(`[Evolution] Media downloaded via direct URL, size: ${b64.length}`);
+          return { base64: b64, mimetype: String(docMsg?.mimetype || 'application/pdf') };
+        }
+      }
+    } catch (err) {
+      console.log('[Evolution] Direct URL download failed:', err);
+    }
   }
 
-  // Fallback: endpoint legado
-  result = await post(`/message/downloadimage`, {
-    message: sanitizedData,
-    convertToMp4: false,
-  }, key) as { base64?: string; mimetype?: string } | null;
+  // ── Estratégia 2 e 3: Endpoints da API ──
+  const sanitizedData = sanitizeMessageFileNames(messageData) as typeof messageData;
+  const endpoints = [
+    `/chat/getBase64FromMediaMessage/${instance}`,
+    `/message/getBase64FromMediaMessage/${instance}`,
+  ];
 
-  if (result?.base64) {
-    console.log('[Evolution] Media downloaded via /message/downloadimage');
-    return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
+  for (const endpoint of endpoints) {
+    const result = await post(endpoint, {
+      message: sanitizedData,
+      convertToMp4: false,
+    }, key) as { base64?: string; mimetype?: string } | null;
+
+    if (result?.base64) {
+      console.log(`[Evolution] Media downloaded via ${endpoint}`);
+      return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
+    }
   }
 
-  console.error('[Evolution] All media download attempts failed for instance:', instance);
+  console.error(`[Evolution] All media download attempts failed for instance: ${instance}. docMsg keys: ${docMsg ? Object.keys(docMsg).join(',') : 'none'}`);
   return null;
 }
 
