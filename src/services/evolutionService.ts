@@ -131,3 +131,49 @@ export async function downloadMediaBase64(
   console.error('[Evolution] All media download attempts failed for instance:', instance);
   return null;
 }
+
+/**
+ * Configura o webhook da instância Evolution GO para incluir base64 em media messages.
+ * Sem isso, documentos enviados pelo WhatsApp não chegam com conteúdo no payload.
+ */
+export async function configureWebhookBase64(
+  instance: string,
+  webhookUrl: string,
+  tokenOverride?: string,
+): Promise<boolean> {
+  const key = tokenOverride || getApiKey(instance);
+  const body = {
+    enabled: true,
+    url: webhookUrl,
+    webhook_base64: true,
+    webhook_by_events: false,
+    events: ['MESSAGE', 'CONNECTION'],
+  };
+
+  // Tenta PUT e POST em endpoints comuns do Evolution GO / v2
+  const paths = [`/webhook/set/${instance}`, `/webhook/instance/${instance}`];
+  const methods = ['PUT', 'POST'];
+
+  for (const method of methods) {
+    for (const path of paths) {
+      try {
+        const res = await fetch(`${BASE_URL}${path}`, {
+          method,
+          headers: { 'Content-Type': 'application/json', apikey: key },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          console.log(`[Evolution] webhook_base64 enabled via ${method} ${path}`);
+          return true;
+        }
+        const text = await res.text();
+        console.log(`[Evolution] ${method} ${path} → ${res.status}: ${text.substring(0, 200)}`);
+      } catch (err) {
+        console.log(`[Evolution] ${method} ${path} failed:`, err);
+      }
+    }
+  }
+
+  console.error(`[Evolution] Failed to enable webhook_base64 for instance: ${instance}`);
+  return false;
+}

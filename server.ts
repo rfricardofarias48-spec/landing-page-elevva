@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { analyzeResume } from "./src/services/openaiService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
-import { cleanPhone, sendText } from "./src/services/evolutionService.js";
+import { cleanPhone, sendText, configureWebhookBase64 } from "./src/services/evolutionService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
@@ -540,6 +540,25 @@ app.post("/api/webhooks/interviews/confirm", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN: Configurar webhook_base64 na instância Evolution GO
+// Chamado pelo Admin ao salvar configurações do agente
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/admin/configure-evolution-webhook", async (req, res) => {
+  try {
+    const { instance, token } = req.body as { instance: string; token: string };
+    if (!instance || !token) {
+      return res.status(400).json({ error: "instance e token são obrigatórios" });
+    }
+    const webhookUrl = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/agent/whatsapp`;
+    const ok = await configureWebhookBase64(instance, webhookUrl, token);
+    return res.json({ success: ok, webhookUrl });
+  } catch (err) {
+    console.error("[Admin] configure-evolution-webhook error:", err);
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // AGENT: Evolution API webhook  (replaces n8n)
 // Configure este URL no painel da Evolution API como webhook de entrada
 // POST https://seu-dominio.com/api/webhooks/agent/whatsapp
@@ -650,6 +669,15 @@ app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
         const innerMsg = wrapper.message as Record<string, unknown> | undefined;
         docMsg = (innerMsg?.documentMessage as Record<string, unknown> | undefined) ?? wrapper;
       }
+
+      // Log para debug: ver quais campos o Evolution GO envia no documento
+      if (docMsg) {
+        const docKeys = Object.keys(docMsg);
+        console.log(`[Webhook] Document fields: ${docKeys.join(', ')}, hasBase64: ${!!docMsg.base64}, size: ${docMsg.base64 ? String(docMsg.base64).length : 0}`);
+      } else {
+        console.log(`[Webhook] No docMsg found. Message keys: ${Object.keys(message).join(', ')}`);
+      }
+
       mediaData = {
         key: msgKey,
         message,

@@ -278,6 +278,19 @@ export const AdminDashboard: React.FC = () => {
 
           if (error) throw error;
 
+          // Configura webhook_base64 automaticamente na instância Evolution GO
+          if (tempInstancia && tempEvolutionToken) {
+            try {
+              await fetch('/api/admin/configure-evolution-webhook', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ instance: tempInstancia, token: tempEvolutionToken }),
+              });
+            } catch (e) {
+              console.warn('Falha ao configurar webhook_base64:', e);
+            }
+          }
+
           const updatedUser = {
               ...selectedUser,
               instancia_evolution: tempInstancia,
@@ -289,7 +302,6 @@ export const AdminDashboard: React.FC = () => {
           };
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
-          setIsEditingEnterprise(false);
       } catch (err: unknown) {
           alert("Erro ao atualizar dados Enterprise: " + (err instanceof Error ? err.message : String(err)));
       } finally {
