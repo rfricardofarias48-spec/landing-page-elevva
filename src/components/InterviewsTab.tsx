@@ -32,6 +32,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
   const [confirmReject, setConfirmReject] = useState<Interview | null>(null);
 
   const isCandidateApproved = (interview: Interview) => {
+    if (interview.status === 'APROVADO') return true;
     return interview.candidate_id ? approvedCandidateIds.has(interview.candidate_id) : false;
   };
 
@@ -44,6 +45,14 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         .update({ status: 'APROVADO' })
         .eq('id', interview.candidate_id);
       if (error) throw error;
+
+      // Atualiza status da entrevista para APROVADO
+      const { error: interviewError } = await supabase
+        .from('interviews')
+        .update({ status: 'APROVADO' })
+        .eq('id', interview.id);
+      if (interviewError) throw interviewError;
+
       onRefresh?.();
     } catch (err) {
       console.error('Erro ao aprovar:', err);
@@ -62,6 +71,14 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         .update({ status: 'COMPLETED' })
         .eq('id', interview.candidate_id);
       if (error) throw error;
+
+      // Reverte status da entrevista para CONFIRMADA
+      const { error: interviewError } = await supabase
+        .from('interviews')
+        .update({ status: 'CONFIRMADA' })
+        .eq('id', interview.id);
+      if (interviewError) throw interviewError;
+
       onRefresh?.();
     } catch (err) {
       console.error('Erro ao cancelar aprovação:', err);
@@ -146,6 +163,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'AGUARDANDO_RESPOSTA': return <AlertCircle className="w-3.5 h-3.5" />;
       case 'AGENDADA': return <Calendar className="w-3.5 h-3.5" />;
       case 'CONFIRMADA': return <CheckCircle2 className="w-3.5 h-3.5" />;
+      case 'APROVADO': return <ThumbsUp className="w-3.5 h-3.5" />;
       case 'REMARCADA': return <Clock className="w-3.5 h-3.5" />;
       case 'COMPLETED':
       case 'REALIZADA': return <CheckCircle2 className="w-3.5 h-3.5" />;
@@ -159,6 +177,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'AGUARDANDO_RESPOSTA': return 'Aguardando Candidato';
       case 'AGENDADA': return 'Agendada';
       case 'CONFIRMADA': return 'Confirmada';
+      case 'APROVADO': return 'Aprovado';
       case 'REMARCADA': return 'Remarcada';
       case 'COMPLETED':
       case 'REALIZADA': return 'Concluída';
@@ -172,6 +191,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'AGUARDANDO_RESPOSTA': return 'bg-amber-500 text-white shadow-[0_4px_14px_0_rgba(245,158,11,0.4)] border-transparent';
       case 'AGENDADA': return 'bg-blue-500 text-white shadow-[0_4px_14px_0_rgba(59,130,246,0.4)] border-transparent';
       case 'CONFIRMADA': return 'bg-emerald-500 text-white shadow-[0_4px_14px_0_rgba(16,185,129,0.4)] border-transparent';
+      case 'APROVADO': return 'bg-[#65a30d] text-white shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] border-transparent';
       case 'REMARCADA': return 'bg-purple-500 text-white shadow-[0_4px_14px_0_rgba(168,85,247,0.4)] border-transparent';
       case 'COMPLETED':
       case 'REALIZADA': return 'bg-[#65a30d] text-white shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] border-transparent';
@@ -376,7 +396,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             <div className="py-12 text-center text-slate-500 font-medium">Nenhuma entrevista encontrada com os filtros atuais.</div>
           ) : (
             filteredInterviews.map((interview) => {
-              const isActive = interview.status === 'AGENDADA' || interview.status === 'CONFIRMADA' || interview.status === 'REMARCADA' || interview.status === 'COMPLETED' || interview.status === 'REALIZADA';
+              const isActive = interview.status === 'AGENDADA' || interview.status === 'CONFIRMADA' || interview.status === 'REMARCADA' || interview.status === 'COMPLETED' || interview.status === 'REALIZADA' || interview.status === 'APROVADO';
               const rowClasses = isActive
                 ? 'bg-[#65a30d]/5 border-transparent'
                 : 'bg-white border-b border-slate-50 hover:bg-slate-50/50';
@@ -459,8 +479,8 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
 
                   {/* Ações */}
                   <div className="flex justify-center gap-1.5">
-                    {/* Aprovar/Reprovar - só para CONFIRMADA e REALIZADA */}
-                    {['CONFIRMADA', 'REALIZADA'].includes(interview.status) && (
+                    {/* Aprovar/Reprovar - para CONFIRMADA, REALIZADA e APROVADO */}
+                    {['CONFIRMADA', 'REALIZADA', 'APROVADO'].includes(interview.status) && (
                       <>
                         {isCandidateApproved(interview) ? (
                           <button
@@ -500,18 +520,6 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                           </>
                         )}
                       </>
-                    )}
-                    {onOpenChat && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenChat(interview.id, interview.candidate_name || 'Candidato');
-                        }}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-emerald-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all"
-                        title="Abrir Chat"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                      </button>
                     )}
                     <button
                       onClick={(e) => handleOpenPdf(e, interview.candidate_file_path)}
@@ -635,18 +643,6 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             </div>
 
             <div className="mt-8 flex justify-end gap-3">
-              {onOpenChat && (
-                <button
-                  onClick={() => {
-                    onOpenChat(selectedInterview.id, selectedInterview.candidate_name || 'Candidato');
-                    setSelectedInterview(null);
-                  }}
-                  className="flex items-center gap-2 px-6 py-3 bg-emerald-50 border-2 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm transition-all shadow-sm"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                  Chat
-                </button>
-              )}
               <button
                 onClick={(e) => handleOpenPdf(e, selectedInterview.candidate_file_path)}
                 className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm transition-all"
