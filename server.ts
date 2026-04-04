@@ -1043,12 +1043,13 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       if (job?.user_id) {
         const { data: profile, error: profErr } = await supabaseAdmin
           .from('profiles')
-          .select('instancia_evolution')
+          .select('instancia_evolution, evolution_token')
           .eq('id', job.user_id)
           .single();
 
         console.log('[Book Slot] Profile lookup:', { success: !!profile, error: profErr?.message });
         const instance = profile?.instancia_evolution;
+        const evoToken = profile?.evolution_token || undefined;
 
         if (instance) {
           const [year, month, day] = booked.slot_date.split('-').map(Number);
@@ -1064,6 +1065,7 @@ app.post("/api/agendar/:token/book", async (req, res) => {
             instance,
             phone,
             `✅ *Entrevista Confirmada!*\n\nOlá, *${firstName}*! Seu horário foi reservado com sucesso.\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${location}${meetLinkText}\n\nQualquer dúvida, entre em contato. Boa sorte! 🍀`,
+            evoToken,
           );
         } else {
           console.warn('[Book Slot] No Evolution instance found');
@@ -1133,13 +1135,15 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
     console.log(`[Cancel] Job lookup:`, { found: !!job, user_id: job?.user_id, error: jobErr?.message });
 
     let instance: string | null = null;
+    let cancelToken: string | undefined;
     if (job?.user_id) {
       const { data: profile, error: profErr } = await supabaseAdmin
         .from('profiles')
-        .select('instancia_evolution')
+        .select('instancia_evolution, evolution_token')
         .eq('id', job.user_id)
         .single();
       instance = profile?.instancia_evolution || null;
+      cancelToken = profile?.evolution_token || undefined;
       console.log(`[Cancel] Evolution instance:`, instance || 'NOT FOUND', profErr?.message || '');
     }
 
@@ -1188,6 +1192,7 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
         instance,
         phone,
         `Olá, *${firstName}*.\n\nInformamos que, infelizmente, sua entrevista foi cancelada.${dateInfo}\n\nPedimos desculpas pelo inconveniente.\n\nAtenciosamente,\nEquipe de Recrutamento`,
+        cancelToken,
       );
       whatsappSent = true;
       console.log(`[Cancel] ✓ WhatsApp sent successfully to ${phone}`);
@@ -1294,11 +1299,12 @@ app.get("/api/cron/interview-reminders", async (req, res) => {
 
         const { data: profile } = await supabaseAdmin
           .from('profiles')
-          .select('instancia_evolution')
+          .select('instancia_evolution, evolution_token')
           .eq('id', job.user_id)
           .single();
 
         const instance = profile?.instancia_evolution;
+        const evoToken = profile?.evolution_token || undefined;
         if (!instance) {
           console.warn(`[Reminder Cron] No Evolution instance for user ${job.user_id}`);
           continue;
@@ -1315,6 +1321,7 @@ app.get("/api/cron/interview-reminders", async (req, res) => {
           instance,
           phone,
           `⏰ *Lembrete de Entrevista*\n\nOlá, *${firstName}*! Sua entrevista está chegando:\n\n📅 *Data:* ${dateLabel}\n⏰ *Horário:* ${timeLabel}${interviewer}${meetLink}\n\nPrepare-se e boa sorte! 🍀`,
+          evoToken,
         );
 
         // Mark as reminded
@@ -1444,11 +1451,12 @@ app.post("/api/admissions", async (req, res) => {
     // Get user's Evolution instance
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('instancia_evolution')
+      .select('instancia_evolution, evolution_token')
       .eq('id', userId)
       .single();
 
     const instance = profile?.instancia_evolution;
+    const evoToken = profile?.evolution_token || undefined;
 
     if (instance) {
       const firstName = (candidate_name || 'Candidato').split(' ')[0];
@@ -1465,7 +1473,7 @@ app.post("/api/admissions", async (req, res) => {
       const phone = candidate_phone.replace(/\D/g, '');
       const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
 
-      await sendText(instance, jid, message);
+      await sendText(instance, jid, message, evoToken);
       console.log(`[Admissions] WhatsApp sent to ${phone} with token ${admissionToken}`);
     } else {
       console.warn(`[Admissions] No Evolution instance for user ${userId}. WhatsApp not sent.`);
@@ -2049,7 +2057,7 @@ app.get("/api/cron/admission-cleanup", async (req, res) => {
       // Get recruiter's Evolution instance
       const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('instancia_evolution, phone')
+        .select('instancia_evolution, evolution_token, phone')
         .eq('id', admission.user_id)
         .single();
 
@@ -2079,7 +2087,7 @@ app.get("/api/cron/admission-cleanup", async (req, res) => {
 
         const phone = profile.phone.replace(/\D/g, '');
         const jid = `${phone}@s.whatsapp.net`;
-        await sendText(profile.instancia_evolution, jid, message);
+        await sendText(profile.instancia_evolution, jid, message, profile.evolution_token || undefined);
 
         // Mark as notified
         await supabaseAdmin
