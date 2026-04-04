@@ -1224,9 +1224,9 @@ app.get("/api/cron/interview-reminders", async (req, res) => {
   }
 
   try {
-    // Calculate window: from now to +2.5h (to catch interviews with 15-min cron granularity)
+    // Calculate window: from now to +2h05min
     const now = new Date();
-    const windowEnd = new Date(now.getTime() + 2.5 * 60 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + (2 * 60 + 5) * 60 * 1000);
 
     // Format as YYYY-MM-DD and HH:MM:SS for comparison
     const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); // YYYY-MM-DD
