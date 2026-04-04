@@ -7,6 +7,8 @@
  *   EVOLUTION_INSTANCE_TOKENS=InstanceA:token1,InstanceB:token2
  */
 
+import crypto from 'crypto';
+
 const BASE_URL = (process.env.EVOLUTION_API_URL || 'https://api.elevva.net.br').replace(/\/$/, '');
 const API_KEY  = process.env.EVOLUTION_API_KEY || '';
 
@@ -97,12 +99,56 @@ function sanitizeMessageFileNames(obj: unknown): unknown {
   return result;
 }
 
+// ── WhatsApp media decryption (AES-256-CBC + HKDF-SHA256) ──
+// O WhatsApp CDN armazena mídia criptografada. O webhook envia URL + mediaKey.
+// Precisamos: 1) baixar bytes criptografados, 2) derivar chaves via HKDF, 3) decriptar.
+const MEDIA_HKDF_INFO: Record<string, string> = {
+  document: 'WhatsApp Document Keys',
+  image: 'WhatsApp Image Keys',
+  video: 'WhatsApp Video Keys',
+  audio: 'WhatsApp Audio Keys',
+  sticker: 'WhatsApp Image Keys',
+};
+
+function hkdfExpand(prk: Buffer, info: Buffer, length: number): Buffer {
+  let result = Buffer.alloc(0);
+  let t = Buffer.alloc(0);
+  for (let i = 1; result.length < length; i++) {
+    t = crypto.createHmac('sha256', prk)
+      .update(Buffer.concat([t, info, Buffer.from([i])]))
+      .digest();
+    result = Buffer.concat([result, t]);
+  }
+  return result.subarray(0, length);
+}
+
+function decryptWhatsAppMedia(encrypted: Buffer, mediaKeyB64: string, mediaType: string): Buffer {
+  const mediaKey = Buffer.from(mediaKeyB64, 'base64');
+  const infoStr = MEDIA_HKDF_INFO[mediaType] || MEDIA_HKDF_INFO.document;
+
+  // HKDF-Extract (salt = 32 zero bytes)
+  const salt = Buffer.alloc(32);
+  const prk = crypto.createHmac('sha256', salt).update(mediaKey).digest();
+
+  // HKDF-Expand → 112 bytes: [iv:16][cipherKey:32][macKey:32][refKey:32]
+  const expanded = hkdfExpand(prk, Buffer.from(infoStr), 112);
+  const iv = expanded.subarray(0, 16);
+  const cipherKey = expanded.subarray(16, 48);
+
+  // Remove MAC (últimos 10 bytes)
+  const fileData = encrypted.subarray(0, encrypted.length - 10);
+
+  // Decriptar AES-256-CBC
+  const decipher = crypto.createDecipheriv('aes-256-cbc', cipherKey, iv);
+  return Buffer.concat([decipher.update(fileData), decipher.final()]);
+}
+
 /**
  * Download a media file and return its base64 content.
- * Tenta 3 estratégias:
- *   1. URL direta do mediaUrl/url no documentMessage (proxy do Evolution GO)
- *   2. POST /chat/getBase64FromMediaMessage/{instance} (Evolution GO / v2)
- *   3. POST /message/getBase64FromMediaMessage/{instance}
+ * Estratégias em ordem:
+ *   1. Base64 embutido no webhook (webhook_base64=true)
+ *   2. Download do CDN + descriptografia com mediaKey
+ *   3. API endpoints do Evolution (fallback)
  */
 export async function downloadMediaBase64(
   instance: string,
@@ -110,41 +156,39 @@ export async function downloadMediaBase64(
   tokenOverride?: string,
 ): Promise<{ base64: string; mimetype: string } | null> {
   const key = tokenOverride || getApiKey(instance);
-
-  // ── Estratégia 1: URL direta do documento (proxy do Evolution GO) ──
-  // Evolution GO usa PascalCase (Go structs): URL, DirectPath, MediaUrl
   const msg = messageData.message || {};
   const docMsg = (msg.documentMessage || msg.DocumentMessage || msg.documentWithCaptionMessage) as Record<string, unknown> | undefined;
-  // Busca URL em todas as variações de case
-  const mediaUrl = String(docMsg?.URL || docMsg?.mediaUrl || docMsg?.MediaUrl || docMsg?.url || '');
   const mimetype = String(docMsg?.mimetype || docMsg?.Mimetype || 'application/pdf');
 
-  if (mediaUrl && mediaUrl.startsWith('http')) {
+  // ── Estratégia 1: Download do WhatsApp CDN + descriptografia ──
+  const mediaUrl = String(docMsg?.URL || docMsg?.mediaUrl || docMsg?.url || '');
+  const mediaKeyB64 = String(docMsg?.mediaKey || docMsg?.MediaKey || '');
+
+  if (mediaUrl && mediaUrl.startsWith('http') && mediaKeyB64) {
     try {
-      console.log(`[Evolution] Trying direct URL download: ${mediaUrl.substring(0, 120)}...`);
-      const res = await fetch(mediaUrl, { headers: { apikey: key } });
+      console.log(`[Evolution] Downloading from WhatsApp CDN: ${mediaUrl.substring(0, 80)}...`);
+      const res = await fetch(mediaUrl);
       if (res.ok) {
-        const buffer = Buffer.from(await res.arrayBuffer());
-        const b64 = buffer.toString('base64');
-        if (b64.length > 100) {
-          console.log(`[Evolution] Media downloaded via direct URL, size: ${b64.length}`);
-          return { base64: b64, mimetype };
-        }
+        const encryptedBuffer = Buffer.from(await res.arrayBuffer());
+        console.log(`[Evolution] CDN download OK, encrypted size: ${encryptedBuffer.length}`);
+
+        const decrypted = decryptWhatsAppMedia(encryptedBuffer, mediaKeyB64, 'document');
+        const b64 = decrypted.toString('base64');
+        console.log(`[Evolution] Decrypted successfully, PDF size: ${decrypted.length}`);
+        return { base64: b64, mimetype };
       } else {
-        console.log(`[Evolution] Direct URL → HTTP ${res.status}`);
+        console.log(`[Evolution] CDN download failed: HTTP ${res.status}`);
       }
     } catch (err) {
-      console.log('[Evolution] Direct URL download failed:', err);
+      console.error('[Evolution] CDN download/decrypt error:', err);
     }
   }
 
-  // ── Estratégia 2: Endpoints da API (com e sem instance no path) ──
+  // ── Estratégia 2: API endpoints do Evolution (fallback) ──
   const sanitizedData = sanitizeMessageFileNames(messageData) as typeof messageData;
   const endpoints = [
     `/chat/getBase64FromMediaMessage/${instance}`,
     `/chat/getBase64FromMediaMessage`,
-    `/message/getBase64FromMediaMessage/${instance}`,
-    `/message/getBase64FromMediaMessage`,
   ];
 
   for (const endpoint of endpoints) {
