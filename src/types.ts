@@ -93,6 +93,7 @@ export interface User {
   telefone_agente?: string;
   status_automacao?: boolean;
   google_calendar_id?: string;
+  chatwoot_account_id?: number;
 }
 
 // Interface para o Dashboard do Admin
@@ -117,6 +118,10 @@ export interface AdminUserProfile {
   telefone_agente?: string;
   status_automacao?: boolean;
   google_calendar_id?: string;
+  plan_price?: number;
+  chatwoot_account_id?: number;
+  chatwoot_token?: string;
+  chatwoot_inbox_id?: number;
 }
 
 export interface Interview {
@@ -127,7 +132,7 @@ export interface Interview {
   slot_date?: string;
   slot_time?: string;
   meeting_link?: string;
-  status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'CONFIRMADA' | 'REMARCADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA' | 'APROVADO';
+  status: 'AGUARDANDO_RESPOSTA' | 'AGENDADA' | 'CONFIRMADA' | 'REMARCADA' | 'COMPLETED' | 'CANCELADA' | 'REALIZADA' | 'APROVADO' | 'AGUARDANDO_NOVOS_HORARIOS';
   lembrete_enviado?: boolean;
   created_at: string;
   // Relational data for UI

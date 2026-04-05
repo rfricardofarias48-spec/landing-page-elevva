@@ -23,6 +23,8 @@ import {
   Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck
 } from 'lucide-react';
 
+const CHATWOOT_BASE_URL = (import.meta.env.VITE_CHATWOOT_URL || 'https://bot-chatwoot.5mljrq.easypanel.host').replace(/\/$/, '');
+
 // Chama o backend para analisar o currículo — mantém código Node.js fora do bundle do browser
 async function analyzeResume(base64: string, jobTitle: string, criteria: string): Promise<AnalysisResult> {
   const res = await fetch('/api/analyze-resume', {
@@ -1979,14 +1981,18 @@ const App: React.FC = () => {
                   </div>
                   
                   <div className="relative z-10 mt-6">
-                      <a 
-                          href="https://bot-chatwoot.5mljrq.easypanel.host/app/accounts/1/conversations" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-4 py-3 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0"
-                      >
-                          <span className="text-lg">💬</span> Acompanhar
-                      </a>
+                      {user?.chatwoot_account_id ? (
+                        <a
+                            href={`${CHATWOOT_BASE_URL}/app/accounts/${user.chatwoot_account_id}/conversations`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-4 py-3 rounded-xl font-black text-sm transition-all shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0"
+                        >
+                            <span className="text-lg">💬</span> Acompanhar
+                        </a>
+                      ) : (
+                        <p className="text-xs text-slate-400 text-center font-medium">Configure o Chatwoot nas configurações do agente para acompanhar conversas.</p>
+                      )}
                   </div>
                   <div className="absolute right-0 bottom-0 w-48 h-48 bg-emerald-50 rounded-full blur-[60px] opacity-60 -mr-10 -mb-10 pointer-events-none"></div>
               </div>
@@ -2570,7 +2576,7 @@ const App: React.FC = () => {
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
-               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} />}
+               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} />}
                {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} />}
                {currentTab === 'JOBS' && (
                    <>

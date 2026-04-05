@@ -3,9 +3,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { analyzeResume } from "./src/services/openaiService.js";
-import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
+import { processIncomingMessage, triggerSchedulingForCandidates, notifyPendingReschedules } from "./src/services/agentService.js";
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
 import { cleanPhone, sendText, configureWebhookBase64 } from "./src/services/evolutionService.js";
+import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chatwootService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
@@ -559,6 +560,146 @@ app.post("/api/admin/configure-evolution-webhook", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN: Configura integração Chatwoot na instância Evolution GO
+// POST /api/admin/configure-chatwoot
+// Body: { instance, evolutionToken, chatwootAccountId, chatwootToken, chatwootInboxId }
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/admin/configure-chatwoot", async (req, res) => {
+  try {
+    const { instance, evolutionToken, chatwootAccountId, chatwootToken, chatwootInboxId } =
+      req.body as {
+        instance: string;
+        evolutionToken: string;
+        chatwootAccountId: number;
+        chatwootToken: string;
+        chatwootInboxId: number;
+      };
+
+    if (!instance || !evolutionToken || !chatwootAccountId || !chatwootToken || !chatwootInboxId) {
+      return res.status(400).json({ error: "Todos os campos são obrigatórios" });
+    }
+
+    const ok = await configureChatwootOnEvolution(
+      instance,
+      evolutionToken,
+      chatwootAccountId,
+      chatwootToken,
+      chatwootInboxId,
+    );
+    return res.json({ ok });
+  } catch (err) {
+    console.error("[Admin] configure-chatwoot error:", err);
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// CHATWOOT: Webhook de eventos (mensagens humanas → WhatsApp)
+// Configure este URL no Chatwoot: Settings → Integrations → Webhooks
+// POST /api/webhooks/chatwoot
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/webhooks/chatwoot", async (req, res) => {
+  // Verificar segredo do webhook
+  const secret = process.env.CHATWOOT_WEBHOOK_SECRET;
+  if (secret) {
+    const incoming = req.headers['x-chatwoot-signature'] as string | undefined;
+    if (incoming !== secret) {
+      console.warn('[Chatwoot Webhook] Segredo inválido — requisição rejeitada');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
+  try {
+    const payload = req.body as {
+      event?: string;
+      message_type?: string;
+      content?: string;
+      sender?: { type?: string; name?: string };
+      conversation?: {
+        id?: number;
+        status?: string;
+        inbox_id?: number;
+        meta?: { sender?: { phone_number?: string } };
+        account_id?: number;
+      };
+    };
+
+    const { event, message_type, content, sender, conversation } = payload;
+
+    console.log(`[Chatwoot Webhook] event=${event}, message_type=${message_type}, sender_type=${sender?.type}`);
+
+    // ── Detectar quando humano assume (conversation_status_changed ou message de agente) ──
+    const isHumanMessage =
+      event === 'message_created' &&
+      message_type === 'outgoing' &&
+      sender?.type === 'user'; // 'user' = human agent, 'agent_bot' = bot
+
+    const isConversationResolved =
+      event === 'conversation_status_changed' &&
+      conversation?.status === 'resolved';
+
+    const accountId = conversation?.account_id;
+    const conversationId = conversation?.id;
+    const phone = conversation?.meta?.sender?.phone_number?.replace(/^\+/, '');
+
+    if (!phone && !isConversationResolved) {
+      return res.json({ ok: true, skipped: 'no phone' });
+    }
+
+    // Busca o perfil do recrutador pelo inbox_id + account_id
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id, instancia_evolution, evolution_token, chatwoot_account_id')
+      .eq('chatwoot_account_id', accountId)
+      .maybeSingle();
+
+    if (!profile) {
+      console.warn(`[Chatwoot Webhook] No profile found for account_id=${accountId}`);
+      return res.json({ ok: true, skipped: 'no profile' });
+    }
+
+    // ── Humano assumiu: ativa flag e envia para WhatsApp ──
+    if (isHumanMessage && content && phone) {
+      // Marca human_takeover na conversa do agente
+      await supabaseAdmin
+        .from('agent_conversations')
+        .update({ human_takeover: true, updated_at: new Date().toISOString() })
+        .eq('phone', phone)
+        .eq('user_id', profile.id);
+
+      console.log(`[Chatwoot Webhook] Human takeover ON for phone=${phone}`);
+
+      // Envia a resposta humana para o candidato via WhatsApp
+      if (profile.instancia_evolution) {
+        await sendText(
+          profile.instancia_evolution,
+          phone,
+          content,
+          profile.evolution_token || undefined,
+        );
+        console.log(`[Chatwoot Webhook] Human reply sent to WhatsApp: ${phone}`);
+      }
+    }
+
+    // ── Conversa resolvida: desativa flag, Bento volta a responder ──
+    if (isConversationResolved && phone) {
+      await supabaseAdmin
+        .from('agent_conversations')
+        .update({ human_takeover: false, updated_at: new Date().toISOString() })
+        .eq('phone', phone)
+        .eq('user_id', profile.id);
+
+      console.log(`[Chatwoot Webhook] Human takeover OFF (resolved) for phone=${phone}`);
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[Chatwoot Webhook] Error:", err);
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // AGENT: Evolution API webhook  (replaces n8n)
 // Configure este URL no painel da Evolution API como webhook de entrada
 // POST https://seu-dominio.com/api/webhooks/agent/whatsapp
@@ -735,6 +876,34 @@ app.post("/api/agent/start-scheduling", async (req, res) => {
     });
   } catch (err: unknown) {
     console.error("[Start Scheduling] Error:", err);
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : "Erro interno do servidor.",
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Notifica candidatos com reagendamento pendente quando novos slots são adicionados
+// POST /api/agent/notify-pending-reschedules
+// Body: { user_id: string, job_id: string }
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
+  try {
+    const { user_id, job_id } = req.body as { user_id: string; job_id: string };
+
+    if (!user_id || !job_id) {
+      return res.status(400).json({ error: "Campos obrigatórios: user_id, job_id" });
+    }
+
+    const result = await notifyPendingReschedules(user_id, job_id, supabaseAdmin);
+
+    return res.status(200).json({
+      ok: true,
+      message: `${result.sent} candidato(s) notificado(s).`,
+      ...result,
+    });
+  } catch (err: unknown) {
+    console.error("[Notify Pending Reschedules] Error:", err);
     return res.status(500).json({
       error: err instanceof Error ? err.message : "Erro interno do servidor.",
     });

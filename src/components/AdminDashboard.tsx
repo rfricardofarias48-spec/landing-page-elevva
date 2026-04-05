@@ -31,7 +31,8 @@ export const AdminDashboard: React.FC = () => {
   // State para o Modal de Detalhes de Usuário
   const [selectedUser, setSelectedUser] = useState<AdminUserProfile | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [isEditingPlan, setIsEditingPlan] = useState(false); 
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [tempPlanPrice, setTempPlanPrice] = useState('');
   const [isEditingSalesperson, setIsEditingSalesperson] = useState(false);
   const [tempSalesperson, setTempSalesperson] = useState(''); 
 
@@ -43,6 +44,9 @@ export const AdminDashboard: React.FC = () => {
   const [tempStatusAutomacao, setTempStatusAutomacao] = useState(false);
   const [tempJobLimit, setTempJobLimit] = useState<number>(9999);
   const [tempCalendarId, setTempCalendarId] = useState('');
+  const [tempChatwootAccountId, setTempChatwootAccountId] = useState('');
+  const [tempChatwootToken, setTempChatwootToken] = useState('');
+  const [tempChatwootInboxId, setTempChatwootInboxId] = useState('');
 
   // States para Prompt System (recrutador)
   const [recruiterPrompt, setRecruiterPrompt] = useState('');
@@ -79,6 +83,9 @@ export const AdminDashboard: React.FC = () => {
       setTempStatusAutomacao(selectedUser.status_automacao || false);
       setTempJobLimit(selectedUser.job_limit ?? 9999);
       setTempCalendarId(selectedUser.google_calendar_id || selectedUser.email || '');
+      setTempChatwootAccountId(selectedUser.chatwoot_account_id != null ? String(selectedUser.chatwoot_account_id) : '');
+      setTempChatwootToken(selectedUser.chatwoot_token || '');
+      setTempChatwootInboxId(selectedUser.chatwoot_inbox_id != null ? String(selectedUser.chatwoot_inbox_id) : '');
       setIsEditingEnterprise(true);
     }
   }, [selectedUser?.id]);
@@ -131,6 +138,10 @@ export const AdminDashboard: React.FC = () => {
             telefone_agente: u.telefone_agente,
             status_automacao: u.status_automacao,
             google_calendar_id: u.google_calendar_id,
+            plan_price: u.plan_price != null ? Number(u.plan_price) : undefined,
+            chatwoot_account_id: u.chatwoot_account_id != null ? Number(u.chatwoot_account_id) : undefined,
+            chatwoot_token: u.chatwoot_token as string | undefined,
+            chatwoot_inbox_id: u.chatwoot_inbox_id != null ? Number(u.chatwoot_inbox_id) : undefined,
           };
       });
 
@@ -191,7 +202,7 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
-  const handleUpdatePlan = async (newPlan: string) => {
+  const handleUpdatePlan = async (newPlan: string, customPrice?: number) => {
       if (!selectedUser) return;
       setActionLoading(true);
 
@@ -204,30 +215,34 @@ export const AdminDashboard: React.FC = () => {
           newJobLimit = 9999;
       }
 
+      const priceToSave = customPrice != null ? customPrice : (newPlan === 'ESSENCIAL' ? 499.90 : newPlan === 'PRO' ? 799.90 : 0);
+
       try {
           const { error } = await supabase
             .from('profiles')
-            .update({ 
+            .update({
                 plan: newPlan,
                 job_limit: newJobLimit,
                 resume_limit: newResumeLimit,
-                subscription_status: 'active'
+                subscription_status: 'active',
+                plan_price: priceToSave,
             })
             .eq('id', selectedUser.id);
 
           if (error) throw error;
 
-          const updatedUser = { 
-              ...selectedUser, 
+          const updatedUser = {
+              ...selectedUser,
               plan: newPlan,
               job_limit: newJobLimit,
               resume_limit: newResumeLimit,
-              subscription_status: 'active' as const
+              subscription_status: 'active' as const,
+              plan_price: priceToSave,
           };
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
           setIsEditingPlan(false);
-          alert(`✅ Sucesso! Plano alterado para ${newPlan}.`);
+          alert(`Plano alterado para ${newPlan} — R$ ${priceToSave.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês`);
 
       } catch (err: unknown) {
           console.error("Erro ao atualizar plano:", err);
@@ -273,6 +288,9 @@ export const AdminDashboard: React.FC = () => {
                 status_automacao: tempStatusAutomacao,
                 job_limit: jobLimitValue,
                 google_calendar_id: tempCalendarId || null,
+                chatwoot_account_id: tempChatwootAccountId ? parseInt(tempChatwootAccountId) : null,
+                chatwoot_token: tempChatwootToken || null,
+                chatwoot_inbox_id: tempChatwootInboxId ? parseInt(tempChatwootInboxId) : null,
             })
             .eq('id', selectedUser.id);
 
@@ -289,6 +307,25 @@ export const AdminDashboard: React.FC = () => {
             } catch (e) {
               console.warn('Falha ao configurar webhook_base64:', e);
             }
+
+            // Configura integração Chatwoot na instância Evolution GO (se preenchido)
+            if (tempChatwootAccountId && tempChatwootToken && tempChatwootInboxId) {
+              try {
+                await fetch('/api/admin/configure-chatwoot', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    instance: tempInstancia,
+                    evolutionToken: tempEvolutionToken,
+                    chatwootAccountId: parseInt(tempChatwootAccountId),
+                    chatwootToken: tempChatwootToken,
+                    chatwootInboxId: parseInt(tempChatwootInboxId),
+                  }),
+                });
+              } catch (e) {
+                console.warn('Falha ao configurar Chatwoot:', e);
+              }
+            }
           }
 
           const updatedUser = {
@@ -299,6 +336,9 @@ export const AdminDashboard: React.FC = () => {
               status_automacao: tempStatusAutomacao,
               job_limit: jobLimitValue,
               google_calendar_id: tempCalendarId || undefined,
+              chatwoot_account_id: tempChatwootAccountId ? parseInt(tempChatwootAccountId) : undefined,
+              chatwoot_token: tempChatwootToken || undefined,
+              chatwoot_inbox_id: tempChatwootInboxId ? parseInt(tempChatwootInboxId) : undefined,
           };
           setSelectedUser(updatedUser);
           setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
@@ -463,16 +503,17 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       };
 
       historicalUsers.forEach(u => {
-          if (u.plan in stats) {
-              // @ts-expect-error: stats index signature
-              stats[u.plan].count++;
-              // @ts-expect-error: stats index signature
-              stats[u.plan].revenue += stats[u.plan].price;
+          const defaultPrice = u.plan === 'ESSENCIAL' ? 499.90 : u.plan === 'PRO' ? 799.90 : 0;
+          const userPrice = u.plan_price != null ? u.plan_price : defaultPrice;
 
-              // Calculate MRR
-              if (u.plan === 'ESSENCIAL') stats.mrr += stats.ESSENCIAL.price;
-              if (u.plan === 'PRO') stats.mrr += stats.PRO.price;
-              if (u.plan === 'ENTERPRISE') stats.mrr += stats.ENTERPRISE.price;
+          if (u.plan in stats) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (stats as any)[u.plan].count++;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (stats as any)[u.plan].revenue += userPrice;
+
+              // Calculate MRR using per-user price
+              stats.mrr += userPrice;
           }
           stats.totalResumeUsage += (u.resume_usage || 0);
       });
@@ -499,20 +540,11 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             <button onClick={() => setCurrentView('USERS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'USERS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Users className="w-5 h-5" /> Usuários
             </button>
-            <button onClick={() => setCurrentView('ADS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'ADS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <Megaphone className="w-5 h-5" /> Anúncios
-            </button>
             <button onClick={() => setCurrentView('FINANCE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'FINANCE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <DollarSign className="w-5 h-5" /> Faturamento
             </button>
-            <button onClick={() => setCurrentView('COMMISSIONS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'COMMISSIONS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <Banknote className="w-5 h-5" /> Comissões
-            </button>
             <button onClick={() => { setCurrentView('PROMPTS'); fetchRecruiterPrompt(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'PROMPTS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Bot className="w-5 h-5" /> Prompt System
-            </button>
-            <button onClick={() => setCurrentView('DATABASE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'DATABASE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <Database className="w-5 h-5" /> Banco de Dados
             </button>
         </nav>
 
@@ -1237,25 +1269,37 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                         <div className="bg-zinc-50 p-5 rounded-2xl border border-zinc-100 relative group">
                             <div className="flex justify-between items-start mb-2">
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Plano Atual (Manual)</p>
-                                <button onClick={() => setIsEditingPlan(!isEditingPlan)} className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" title="Trocar Plano">
+                                <button onClick={() => { setIsEditingPlan(!isEditingPlan); if (!isEditingPlan && selectedUser) { const defPrice = selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 499.90 : selectedUser.plan === 'PRO' ? 799.90 : 0); setTempPlanPrice(String(defPrice)); } }} className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" title="Trocar Plano">
                                     {isEditingPlan ? <X className="w-4 h-4"/> : <Edit3 className="w-4 h-4" />}
                                 </button>
                             </div>
                             
                             {isEditingPlan ? (
-                                <div className="space-y-2 animate-fade-in">
-                                    <p className="text-xs text-zinc-500 font-medium mb-2">Selecione o novo plano. Os limites serão atualizados automaticamente.</p>
+                                <div className="space-y-3 animate-fade-in">
+                                    <p className="text-xs text-zinc-500 font-medium">Selecione o plano e defina o valor mensal.</p>
+                                    <div>
+                                        <label className="text-xs font-bold text-zinc-600 block mb-1">Valor Mensal (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={tempPlanPrice}
+                                            onChange={(e) => setTempPlanPrice(e.target.value)}
+                                            placeholder="Ex: 499.90"
+                                            className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                        />
+                                    </div>
                                     <div className="grid grid-cols-1 gap-2">
-                                        <button onClick={() => handleUpdatePlan('ESSENCIAL')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
+                                        <button onClick={() => handleUpdatePlan('ESSENCIAL', tempPlanPrice ? parseFloat(tempPlanPrice) : 499.90)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
                                             <span>ESSENCIAL</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas / CVs Ilimitados</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('PRO')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
+                                        <button onClick={() => handleUpdatePlan('PRO', tempPlanPrice ? parseFloat(tempPlanPrice) : 799.90)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
                                             <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas / CVs Ilimitados</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('ENTERPRISE')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
+                                        <button onClick={() => handleUpdatePlan('ENTERPRISE', tempPlanPrice ? parseFloat(tempPlanPrice) : 0)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
                                             <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + API</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('ADMIN')} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
+                                        <button onClick={() => handleUpdatePlan('ADMIN', 0)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
                                             <span>ADMIN</span> <span className="text-[10px] text-zinc-400 font-normal">Acesso Total</span>
                                         </button>
                                     </div>
@@ -1263,6 +1307,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                             ) : (
                                 <div>
                                     <p className="text-3xl font-black text-zinc-900">{selectedUser.plan}</p>
+                                    <p className="text-sm font-bold text-[#65a30d] mt-1">
+                                        R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 499.90 : selectedUser.plan === 'PRO' ? 799.90 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês
+                                    </p>
                                     <p className="text-xs text-zinc-400 font-bold mt-1">
                                         {selectedUser.plan === 'ESSENCIAL' ? 'Limites: 3 Vagas / CVs Ilimitados' : selectedUser.plan === 'PRO' ? 'Limites: 10 Vagas / CVs Ilimitados' : selectedUser.plan === 'ENTERPRISE' ? `Limites: ${selectedUser.job_limit === 9999 ? 'Ilimitado' : (selectedUser.job_limit ?? 'Ilimitado')} Vagas / CVs Ilimitados` : 'Limites: ILIMITADO'}
                                     </p>
@@ -1345,6 +1392,44 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 </div>
                                             </div>
                                         </div>
+                                        {/* Chatwoot */}
+                                        <div className="pt-2 border-t border-slate-200">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Chatwoot</p>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-700 block mb-1">Account ID</label>
+                                                    <input
+                                                        type="number"
+                                                        value={tempChatwootAccountId}
+                                                        onChange={(e) => setTempChatwootAccountId(e.target.value)}
+                                                        placeholder="Ex: 1"
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-700 block mb-1">Inbox ID</label>
+                                                    <input
+                                                        type="number"
+                                                        value={tempChatwootInboxId}
+                                                        onChange={(e) => setTempChatwootInboxId(e.target.value)}
+                                                        placeholder="Ex: 3"
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold text-slate-700 block mb-1">Token de Acesso</label>
+                                                    <input
+                                                        type="password"
+                                                        value={tempChatwootToken}
+                                                        onChange={(e) => setTempChatwootToken(e.target.value)}
+                                                        placeholder="User Access Token"
+                                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-1">Chatwoot → Configurações → Integrações → API de Acesso</p>
+                                        </div>
+
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
                                             <div className="flex items-center gap-2">
                                                 <input

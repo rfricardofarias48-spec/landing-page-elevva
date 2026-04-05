@@ -15,6 +15,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { analyzeResume } from './openaiService.js';
 import * as evo from './evolutionService.js';
+import { mirrorMessage } from './chatwootService.js';
 import { deleteCalendarEvent } from './googleCalendarService.js';
 import crypto from 'crypto';
 
@@ -42,9 +43,11 @@ interface ConversationContext {
   candidate_name?: string;
   candidate_id?: string;
   job_title?: string;
+  job_id?: string;
   jobs?: Array<{ id: string; title: string }>;
   interview_id?: string;
   scheduling_token?: string;
+  reminder_interview_id?: string;
 }
 
 interface Conversation {
@@ -54,6 +57,8 @@ interface Conversation {
   job_id: string | null;
   state: string;
   context: ConversationContext;
+  human_takeover?: boolean;
+  chatwoot_conversation_id?: number;
 }
 
 // ─────────────────────────── Helpers ───────────────────────────
@@ -458,17 +463,25 @@ async function handleReschedule(
     .eq('is_booked', false);
 
   if (!slots || slots.length === 0) {
-    // Notify recruiter
-    const { data: recruiterProfile } = await supabase
-      .from('profiles')
-      .select('instancia_evolution, id')
-      .eq('id', conv.user_id)
-      .single();
-
     const candidateName = conv.context.candidate_name || 'Um candidato';
     const jobTitle = conv.context.job_title || 'uma vaga';
 
-    console.log(`[Agent] No slots available for reschedule. Candidate: ${candidateName}, Job: ${jobTitle}. Recruiter: ${recruiterProfile?.id}`);
+    console.log(`[Agent] No slots available for reschedule. Candidate: ${candidateName}, Job: ${jobTitle}. Setting AGUARDANDO_NOVOS_HORARIOS.`);
+
+    // Mark interview as waiting for new slots
+    await supabase.from('interviews')
+      .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
+      .eq('id', interview.id);
+
+    // Update conversation state
+    await updateConversation(conv.id, {
+      state: 'AGUARDANDO_NOVOS_HORARIOS',
+      context: {
+        ...conv.context,
+        interview_id: interview.id,
+        job_id: interview.job_id,
+      },
+    }, supabase);
 
     await send(phone, `Entendi que você precisa reagendar, *${conv.context.candidate_name || 'candidato'}*.\n\nInfelizmente, não há outros horários disponíveis no momento. Já notificamos o recrutador para liberar novas datas.\n\nAssim que houver novos horários, enviaremos o link para você escolher. 😊`);
     return;
@@ -575,7 +588,7 @@ export async function processIncomingMessage(
   // Identify recruiter from Evolution instance name
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, status_automacao, evolution_token')
+    .select('id, status_automacao, evolution_token, chatwoot_account_id, chatwoot_token, chatwoot_inbox_id')
     .eq('instancia_evolution', instance)
     .eq('status_automacao', true)
     .maybeSingle();
@@ -594,10 +607,68 @@ export async function processIncomingMessage(
   // Prioridade: token do payload (Evolution GO) > token do DB > env var
   const instanceToken: string | undefined = webhookToken || profile.evolution_token || undefined;
 
-  // Helper bound — não precisa passar instance/token em cada chamada
-  const send = (jid: string, text: string) => evo.sendText(instance, jid, text, instanceToken);
+  // Helper bound — envia via WhatsApp E espelha no Chatwoot como mensagem de saída
+  const send = async (jid: string, text: string) => {
+    await evo.sendText(instance, jid, text, instanceToken);
+    if (chatwootConfig) {
+      const cwConvId = conv.chatwoot_conversation_id;
+      const mirroredId = await mirrorMessage(
+        chatwootConfig.accountId,
+        chatwootConfig.token,
+        chatwootConfig.inboxId,
+        evo.cleanPhone(jid),
+        text,
+        'outgoing',
+        undefined,
+        cwConvId,
+      );
+      if (mirroredId && mirroredId !== conv.chatwoot_conversation_id) {
+        conv.chatwoot_conversation_id = mirroredId;
+        await supabase
+          .from('agent_conversations')
+          .update({ chatwoot_conversation_id: mirroredId })
+          .eq('id', conv.id);
+      }
+    }
+  };
 
   const conv = await getOrCreateConversation(phone, profile.id, supabase);
+
+  // ── Chatwoot: mirror candidate message (incoming) ──
+  const chatwootConfig = profile.chatwoot_account_id && profile.chatwoot_token && profile.chatwoot_inbox_id
+    ? {
+        accountId: profile.chatwoot_account_id as number,
+        token: profile.chatwoot_token as string,
+        inboxId: profile.chatwoot_inbox_id as number,
+      }
+    : null;
+
+  if (chatwootConfig && textContent) {
+    const chatwootConvId = await mirrorMessage(
+      chatwootConfig.accountId,
+      chatwootConfig.token,
+      chatwootConfig.inboxId,
+      phone,
+      textContent,
+      'incoming',
+      conv.context.candidate_name || pushName || undefined,
+      conv.chatwoot_conversation_id,
+    );
+    // Store chatwoot_conversation_id in agent_conversations for future messages
+    if (chatwootConvId && chatwootConvId !== conv.chatwoot_conversation_id) {
+      await supabase
+        .from('agent_conversations')
+        .update({ chatwoot_conversation_id: chatwootConvId })
+        .eq('id', conv.id);
+      conv.chatwoot_conversation_id = chatwootConvId;
+    }
+  }
+
+  // ── Human takeover: se humano assumiu no Chatwoot, Bento não responde ──
+  if (conv.human_takeover) {
+    console.log(`[Agent] Human takeover active for ${phone} — Bento skipping`);
+    return;
+  }
 
   // Store WhatsApp display name on first contact
   if (pushName && !conv.context.candidate_name) {
@@ -631,6 +702,10 @@ export async function processIncomingMessage(
 
     case 'AGUARDANDO_CONFIRMACAO_LEMBRETE':
       await handleConfirmacaoLembrete(conv, instance, phone, text, supabase, send);
+      break;
+
+    case 'AGUARDANDO_NOVOS_HORARIOS':
+      await send(phone, 'Ainda estamos aguardando o recrutador liberar novos horários. Assim que houver disponibilidade, enviaremos o link para você escolher. 😊');
       break;
 
     case 'SELECIONANDO_VAGA':
@@ -790,5 +865,121 @@ export async function triggerSchedulingForCandidates(
     }
   }
 
+  return { sent, errors };
+}
+
+/**
+ * Re-send scheduling links to candidates whose interviews are AGUARDANDO_NOVOS_HORARIOS.
+ * Called after recruiter adds new slots for a job.
+ */
+export async function notifyPendingReschedules(
+  userId: string,
+  jobId: string,
+  supabase: SupabaseClient,
+): Promise<{ sent: number; errors: number }> {
+  // Find interviews waiting for new slots
+  const { data: pendingInterviews } = await supabase
+    .from('interviews')
+    .select('id, candidate_id, scheduling_token, job_id')
+    .eq('job_id', jobId)
+    .eq('status', 'AGUARDANDO_NOVOS_HORARIOS');
+
+  if (!pendingInterviews || pendingInterviews.length === 0) {
+    return { sent: 0, errors: 0 };
+  }
+
+  // Check there are now available slots
+  const { data: slots } = await supabase
+    .from('interview_slots')
+    .select('id')
+    .eq('job_id', jobId)
+    .eq('is_booked', false)
+    .limit(1);
+
+  if (!slots || slots.length === 0) {
+    return { sent: 0, errors: 0 };
+  }
+
+  // Get recruiter's Evolution instance
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('instancia_evolution, evolution_token')
+    .eq('id', userId)
+    .single();
+
+  if (!profile?.instancia_evolution) {
+    throw new Error('Instância Evolution não configurada.');
+  }
+
+  const instance = profile.instancia_evolution;
+  const instanceToken: string | undefined = profile.evolution_token || undefined;
+  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
+
+  // Get job title
+  const { data: job } = await supabase
+    .from('jobs')
+    .select('title')
+    .eq('id', jobId)
+    .single();
+
+  let sent = 0;
+  let errors = 0;
+
+  for (const iv of pendingInterviews) {
+    try {
+      const { data: candidate } = await supabase
+        .from('candidates')
+        .select('"WhatsApp com DDD", "Nome Completo"')
+        .eq('id', iv.candidate_id)
+        .single();
+
+      const phone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
+      if (!phone) { errors++; continue; }
+
+      const candidateName = candidate?.['Nome Completo' as keyof typeof candidate] as string | undefined;
+      const firstName = candidateName?.split(' ')[0] || 'Candidato';
+
+      // Ensure scheduling token
+      let token = iv.scheduling_token;
+      if (!token) {
+        token = crypto.randomBytes(16).toString('hex');
+        await supabase.from('interviews')
+          .update({ scheduling_token: token })
+          .eq('id', iv.id);
+      }
+
+      const link = `${baseUrl}/agendar/${token}`;
+
+      // Update interview status back to REMARCADA
+      await supabase.from('interviews')
+        .update({ status: 'REMARCADA' })
+        .eq('id', iv.id);
+
+      // Update conversation state
+      await supabase.from('agent_conversations')
+        .update({
+          state: 'AGUARDANDO_ESCOLHA_SLOT',
+          context: {
+            job_title: job?.title || 'a vaga',
+            candidate_name: candidateName,
+            interview_id: iv.id,
+            scheduling_token: token,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('phone', phone)
+        .eq('user_id', userId);
+
+      // Send WhatsApp message
+      await evo.sendText(instance, phone, `Ótima notícia, *${firstName}*! 🎉\n\nNovos horários foram liberados para sua entrevista na vaga de *${job?.title || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`, instanceToken);
+
+      sent++;
+    } catch (err) {
+      console.error(`[Agent] notifyPendingReschedules error for interview ${iv.id}:`, err);
+      errors++;
+    }
+  }
+
+  console.log(`[Agent] notifyPendingReschedules: ${sent} sent, ${errors} errors for job ${jobId}`);
   return { sent, errors };
 }

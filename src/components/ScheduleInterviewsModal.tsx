@@ -134,11 +134,16 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         if (!agentRes.ok) {
           const body = await agentRes.json().catch(() => ({})) as { error?: string };
           console.warn('Aviso do agente:', body.error);
-          // Não bloqueia o sucesso — entrevistas já foram criadas
         }
+
+        // Also notify candidates waiting for reschedule slots
+        await fetch('/api/agent/notify-pending-reschedules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, job_id: job.id }),
+        }).catch(() => {});
       } catch (agentError) {
         console.error('Erro ao disparar agente:', agentError);
-        // Não bloqueia o sucesso — entrevistas já foram criadas no Supabase
       }
 
       onSuccess();

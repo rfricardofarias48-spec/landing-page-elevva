@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText, ThumbsUp, ThumbsDown, Loader2 } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText, ThumbsUp, ThumbsDown, Loader2, Bell, Plus } from 'lucide-react';
 import { Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
 import jsPDF from 'jspdf';
@@ -12,9 +12,10 @@ interface Props {
   onOpenChat?: (interviewId: string, candidateName: string) => void;
   onRefresh?: () => void;
   approvedCandidateIds?: Set<string>;
+  userId?: string;
 }
 
-export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh, approvedCandidateIds = new Set() }) => {
+export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh, approvedCandidateIds = new Set(), userId }) => {
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -114,6 +115,89 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     }
   };
 
+  // Pending reschedules (candidates waiting for new slots)
+  const pendingReschedules = useMemo(() =>
+    interviews.filter(i => i.status === 'AGUARDANDO_NOVOS_HORARIOS'),
+    [interviews]
+  );
+
+  // Group by job_id for notification cards
+  const pendingByJob = useMemo(() => {
+    const map = new Map<string, { jobTitle: string; jobId: string; candidates: Interview[] }>();
+    pendingReschedules.forEach(i => {
+      const key = i.job_id;
+      if (!map.has(key)) {
+        map.set(key, { jobTitle: i.job_title || 'Vaga', jobId: key, candidates: [] });
+      }
+      map.get(key)!.candidates.push(i);
+    });
+    return Array.from(map.values());
+  }, [pendingReschedules]);
+
+  // Add slots modal state
+  const [addSlotsForJob, setAddSlotsForJob] = useState<{ jobId: string; jobTitle: string } | null>(null);
+  const [newSlotDays, setNewSlotDays] = useState<{ date: string; times: string[] }[]>([{ date: '', times: [''] }]);
+  const [newSlotInterviewer, setNewSlotInterviewer] = useState('');
+  const [isAddingSlots, setIsAddingSlots] = useState(false);
+
+  const handleAddSlotDay = useCallback(() => {
+    setNewSlotDays(prev => [...prev, { date: '', times: [''] }]);
+  }, []);
+
+  const handleAddSlotTime = useCallback((dayIdx: number) => {
+    setNewSlotDays(prev => prev.map((d, i) => i === dayIdx ? { ...d, times: [...d.times, ''] } : d));
+  }, []);
+
+  const handleSlotDateChange = useCallback((dayIdx: number, value: string) => {
+    setNewSlotDays(prev => prev.map((d, i) => i === dayIdx ? { ...d, date: value } : d));
+  }, []);
+
+  const handleSlotTimeChange = useCallback((dayIdx: number, timeIdx: number, value: string) => {
+    setNewSlotDays(prev => prev.map((d, i) => i === dayIdx ? { ...d, times: d.times.map((t, j) => j === timeIdx ? value : t) } : d));
+  }, []);
+
+  const handleSaveNewSlots = useCallback(async () => {
+    if (!addSlotsForJob || !userId) return;
+    const slotsToInsert = newSlotDays
+      .filter(d => d.date)
+      .flatMap(d => d.times.filter(t => t).map(t => ({
+        job_id: addSlotsForJob.jobId,
+        slot_date: d.date,
+        slot_time: t,
+        is_booked: false,
+        interviewer_name: newSlotInterviewer.trim() || null,
+      })));
+
+    if (slotsToInsert.length === 0) return;
+
+    setIsAddingSlots(true);
+    try {
+      const { error } = await supabase.from('interview_slots').insert(slotsToInsert);
+      if (error) throw error;
+
+      // Notify pending candidates
+      const res = await fetch('/api/agent/notify-pending-reschedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, job_id: addSlotsForJob.jobId }),
+      });
+      const data = await res.json();
+      if (data.sent > 0) {
+        alert(`${data.sent} candidato(s) notificado(s) com novos horários!`);
+      }
+
+      setAddSlotsForJob(null);
+      setNewSlotDays([{ date: '', times: [''] }]);
+      setNewSlotInterviewer('');
+      onRefresh?.();
+    } catch (err) {
+      console.error('Erro ao adicionar horários:', err);
+      alert('Erro ao adicionar horários. Tente novamente.');
+    } finally {
+      setIsAddingSlots(false);
+    }
+  }, [addSlotsForJob, userId, newSlotDays, newSlotInterviewer, onRefresh]);
+
   // Filter states
   const [dateStart, setDateStart] = useState<string>('');
   const [dateEnd, setDateEnd] = useState<string>('');
@@ -168,6 +252,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'COMPLETED':
       case 'REALIZADA': return <CheckCircle2 className="w-3.5 h-3.5" />;
       case 'CANCELADA': return <XCircle className="w-3.5 h-3.5" />;
+      case 'AGUARDANDO_NOVOS_HORARIOS': return <Bell className="w-3.5 h-3.5" />;
       default: return <Clock className="w-3.5 h-3.5" />;
     }
   };
@@ -182,6 +267,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'COMPLETED':
       case 'REALIZADA': return 'Concluída';
       case 'CANCELADA': return 'Cancelada';
+      case 'AGUARDANDO_NOVOS_HORARIOS': return 'Aguardando Horários';
       default: return status;
     }
   };
@@ -196,6 +282,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'COMPLETED':
       case 'REALIZADA': return 'bg-[#65a30d] text-white shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] border-transparent';
       case 'CANCELADA': return 'bg-red-500 text-white shadow-[0_4px_14px_0_rgba(239,68,68,0.4)] border-transparent';
+      case 'AGUARDANDO_NOVOS_HORARIOS': return 'bg-orange-500 text-white shadow-[0_4px_14px_0_rgba(249,115,22,0.4)] border-transparent';
       default: return 'bg-slate-800 text-white shadow-[0_4px_14px_0_rgba(30,41,59,0.4)] border-transparent';
     }
   };
@@ -307,6 +394,42 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           </a>
         </div>
       </div>
+
+      {/* Notification: Candidates waiting for new slots */}
+      {pendingByJob.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {pendingByJob.map(group => (
+            <div key={group.jobId} className="flex flex-col md:flex-row md:items-center gap-4 p-5 bg-orange-50 border border-orange-200 rounded-2xl">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
+                  <Bell className="w-5 h-5 text-orange-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-orange-900 truncate">
+                    {group.candidates.length} candidato{group.candidates.length > 1 ? 's' : ''} aguardando novos horários
+                  </p>
+                  <p className="text-xs text-orange-700 truncate">
+                    <strong>{group.jobTitle}</strong> — {group.candidates.map(c => formatName(c.candidate_name)).join(', ')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setAddSlotsForJob({ jobId: group.jobId, jobTitle: group.jobTitle });
+                    setNewSlotDays([{ date: '', times: [''] }]);
+                    setNewSlotInterviewer('');
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-sm transition-all shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Adicionar Horários
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-4 mb-8 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
@@ -733,6 +856,115 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                   </>
                 ) : (
                   'Sim, reprovar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ADICIONAR HORÁRIOS (para reagendamento pendente) */}
+      {addSlotsForJob && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setAddSlotsForJob(null)}>
+          <div
+            className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative animate-slide-up border border-slate-200 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setAddSlotsForJob(null)}
+              className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-14 h-14 bg-orange-100 rounded-2xl flex items-center justify-center border border-orange-200">
+                <Plus className="w-7 h-7 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tighter">Adicionar Novos Horários</h3>
+                <p className="text-sm text-slate-500 font-medium">{addSlotsForJob.jobTitle}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-orange-700 bg-orange-50 p-3 rounded-xl mb-6 border border-orange-200">
+              Ao salvar, os candidatos aguardando reagendamento receberão automaticamente o link para escolher um novo horário.
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-slate-500">Entrevistador (opcional)</label>
+                <input
+                  type="text"
+                  value={newSlotInterviewer}
+                  onChange={(e) => setNewSlotInterviewer(e.target.value)}
+                  placeholder="Nome do entrevistador"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent shadow-sm"
+                />
+              </div>
+
+              {newSlotDays.map((day, dayIdx) => (
+                <div key={dayIdx} className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500">Data</label>
+                    <input
+                      type="date"
+                      value={day.date}
+                      onChange={(e) => handleSlotDateChange(dayIdx, e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent shadow-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500">Horários</label>
+                    <div className="flex flex-wrap gap-2">
+                      {day.times.map((time, timeIdx) => (
+                        <input
+                          key={timeIdx}
+                          type="time"
+                          value={time}
+                          onChange={(e) => handleSlotTimeChange(dayIdx, timeIdx, e.target.value)}
+                          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent shadow-sm w-32"
+                        />
+                      ))}
+                      <button
+                        onClick={() => handleAddSlotTime(dayIdx)}
+                        className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-xl text-sm font-bold transition-colors"
+                      >
+                        + Horário
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                onClick={handleAddSlotDay}
+                className="w-full px-4 py-2.5 border-2 border-dashed border-slate-200 hover:border-orange-300 text-slate-500 hover:text-orange-600 rounded-xl font-bold text-sm transition-all"
+              >
+                + Adicionar outro dia
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAddSlotsForJob(null)}
+                disabled={isAddingSlots}
+                className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveNewSlots}
+                disabled={isAddingSlots || newSlotDays.every(d => !d.date || d.times.every(t => !t))}
+                className="flex-1 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isAddingSlots ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar e Notificar'
                 )}
               </button>
             </div>
