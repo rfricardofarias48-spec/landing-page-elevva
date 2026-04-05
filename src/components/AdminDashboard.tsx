@@ -202,6 +202,21 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
+  const handleDeleteUser = async (user: AdminUserProfile) => {
+      if (!confirm(`Tem certeza que deseja DELETAR a conta de ${user.name || user.email}? Esta ação é irreversível.`)) return;
+      setActionLoading(true);
+      try {
+          const { error } = await supabase.from('profiles').delete().eq('id', user.id);
+          if (error) throw error;
+          setUsers(prev => prev.filter(u => u.id !== user.id));
+          setSelectedUser(null);
+      } catch (err: unknown) {
+          alert("Erro ao deletar conta: " + (err instanceof Error ? err.message : String(err)));
+      } finally {
+          setActionLoading(false);
+      }
+  };
+
   const handleUpdatePlan = async (newPlan: string, customPrice?: number) => {
       if (!selectedUser) return;
       setActionLoading(true);
@@ -1212,7 +1227,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
         {/* USER DETAILS MODAL */}
         {selectedUser && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl relative">
+                <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[95vh] overflow-y-auto p-8 shadow-2xl relative">
                     <button onClick={() => { setSelectedUser(null); setIsEditingPlan(false); }} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors z-10"><X className="w-5 h-5"/></button>
 
                     <div className="flex items-center gap-4 mb-6">
@@ -1225,45 +1240,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                         </div>
                     </div>
 
-                    {/* SALESPERSON FIELD */}
-                    <div className="mb-4 bg-zinc-50 p-3 rounded-xl border border-zinc-100">
-                         <div className="flex justify-between items-center mb-2">
-                             <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Vendedor Responsável</p>
-                             <button 
-                                onClick={() => {
-                                    if (!isEditingSalesperson) setTempSalesperson(selectedUser.salesperson || '');
-                                    setIsEditingSalesperson(!isEditingSalesperson);
-                                }} 
-                                className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" 
-                                title="Editar Vendedor"
-                             >
-                                 {isEditingSalesperson ? <X className="w-3 h-3"/> : <Edit3 className="w-3 h-3" />}
-                             </button>
-                         </div>
-                         
-                         {isEditingSalesperson ? (
-                             <div className="flex gap-2">
-                                 <input 
-                                     type="text" 
-                                     value={tempSalesperson}
-                                     onChange={(e) => setTempSalesperson(e.target.value)}
-                                     placeholder="Nome do vendedor..."
-                                     className="flex-1 bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm font-bold focus:border-black focus:ring-0 outline-none"
-                                 />
-                                 <button 
-                                     onClick={handleUpdateSalesperson}
-                                     disabled={actionLoading}
-                                     className="bg-black text-white px-3 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
-                                 >
-                                     <Save className="w-4 h-4" />
-                                 </button>
-                             </div>
-                         ) : (
-                             <p className="text-sm font-bold text-zinc-900">
-                                 {selectedUser.salesperson || <span className="text-zinc-400 italic font-normal">Nenhum vendedor atribuído</span>}
-                             </p>
-                         )}
-                    </div>
 
                     <div className="space-y-6">
                         <div className="bg-zinc-50 p-5 rounded-2xl border border-zinc-100 relative group">
@@ -1468,13 +1444,21 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                         </div>
 
                         <div className="pt-4 border-t border-zinc-100 flex gap-3">
-                            <button 
+                            <button
                                 onClick={() => handleToggleBlock(selectedUser)}
                                 disabled={actionLoading}
                                 className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${selectedUser.status === 'BLOCKED' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}
                             >
                                 {actionLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (selectedUser.status === 'BLOCKED' ? <CheckCircle2 className="w-4 h-4"/> : <Ban className="w-4 h-4"/>)}
                                 {selectedUser.status === 'BLOCKED' ? 'Desbloquear Conta' : 'Bloquear Acesso'}
+                            </button>
+                            <button
+                                onClick={() => handleDeleteUser(selectedUser)}
+                                disabled={actionLoading}
+                                className="py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all bg-zinc-100 text-zinc-500 hover:bg-red-600 hover:text-white"
+                                title="Deletar conta permanentemente"
+                            >
+                                <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
