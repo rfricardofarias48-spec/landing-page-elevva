@@ -2,10 +2,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/interview-reminders",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/admission-cleanup",
       "schedule": "0 21 * * *"
     }
