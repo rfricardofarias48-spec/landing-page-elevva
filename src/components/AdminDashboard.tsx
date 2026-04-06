@@ -248,7 +248,7 @@ export const AdminDashboard: React.FC = () => {
           newJobLimit = 9999;
       }
 
-      const priceToSave = customPrice != null ? customPrice : (newPlan === 'ESSENCIAL' ? 499.90 : newPlan === 'PRO' ? 799.90 : 0);
+      const priceToSave = customPrice != null ? customPrice : (newPlan === 'ESSENCIAL' ? 649.90 : newPlan === 'PRO' ? 999.90 : 0);
 
       try {
           const { error } = await supabase
@@ -584,8 +584,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       });
 
       const stats = {
-          ESSENCIAL: { count: 0, price: 499.90, revenue: 0 },
-          PRO: { count: 0, price: 799.90, revenue: 0 },
+          ESSENCIAL: { count: 0, price: 649.90, revenue: 0 },
+          PRO: { count: 0, price: 999.90, revenue: 0 },
           ENTERPRISE: { count: 0, price: 0, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
@@ -595,7 +595,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       };
 
       historicalUsers.forEach(u => {
-          const defaultPrice = u.plan === 'ESSENCIAL' ? 499.90 : u.plan === 'PRO' ? 799.90 : 0;
+          const defaultPrice = u.plan === 'ESSENCIAL' ? 649.90 : u.plan === 'PRO' ? 999.90 : 0;
           const userPrice = u.plan_price != null ? u.plan_price : defaultPrice;
 
           if (u.plan in stats) {
@@ -1091,7 +1091,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               <div className="flex justify-between items-end mb-2">
                                   <div>
                                       <span className="text-sm font-bold text-zinc-900 block">Plano Essencial</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 499,90 / mês</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 649,90 / mês</span>
                                   </div>
                                   <div className="text-right">
                                       <span className="text-lg font-black text-zinc-900">{stats.ESSENCIAL.count}</span>
@@ -1108,7 +1108,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               <div className="flex justify-between items-end mb-2">
                                   <div>
                                       <span className="text-sm font-bold text-zinc-900 block">Plano Pro</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 799,90 / mês</span>
+                                      <span className="text-xs text-zinc-500 font-medium">R$ 999,90 / mês</span>
                                   </div>
                                   <div className="text-right">
                                       <span className="text-lg font-black text-zinc-900">{stats.PRO.count}</span>
@@ -1170,7 +1170,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           </div>
                                           <div className="text-right">
                                               <p className="text-sm font-black text-emerald-600">
-                                                  + R$ {user.plan === 'ENTERPRISE' ? 'A consultar' : user.plan === 'PRO' ? '799,90' : '499,90'}
+                                                  + R$ {user.plan === 'ENTERPRISE' ? 'A consultar' : user.plan === 'PRO' ? '999,90' : '649,90'}
                                               </p>
                                               <p className="text-[10px] text-zinc-400">
                                                   {new Date(user.created_at).toLocaleDateString('pt-BR')}
@@ -1415,7 +1415,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                         <div className="bg-zinc-50 p-5 rounded-2xl border border-zinc-100 relative group">
                             <div className="flex justify-between items-start mb-2">
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Plano Atual (Manual)</p>
-                                <button onClick={() => { setIsEditingPlan(!isEditingPlan); if (!isEditingPlan && selectedUser) { const defPrice = selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 499.90 : selectedUser.plan === 'PRO' ? 799.90 : 0); setTempPlanPrice(String(defPrice)); } }} className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" title="Trocar Plano">
+                                <button onClick={() => { setIsEditingPlan(!isEditingPlan); if (!isEditingPlan && selectedUser) { const defPrice = selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 649.90 : selectedUser.plan === 'PRO' ? 999.90 : 0); setTempPlanPrice(String(defPrice)); } }} className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" title="Trocar Plano">
                                     {isEditingPlan ? <X className="w-4 h-4"/> : <Edit3 className="w-4 h-4" />}
                                 </button>
                             </div>
@@ -1454,7 +1454,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                 <div>
                                     <p className="text-3xl font-black text-zinc-900">{selectedUser.plan}</p>
                                     <p className="text-sm font-bold text-[#65a30d] mt-1">
-                                        R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 499.90 : selectedUser.plan === 'PRO' ? 799.90 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês
+                                        R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 649.90 : selectedUser.plan === 'PRO' ? 999.90 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês
                                     </p>
                                     <p className="text-xs text-zinc-400 font-bold mt-1">
                                         {selectedUser.plan === 'ESSENCIAL' ? 'Limites: 3 Vagas / CVs Ilimitados' : selectedUser.plan === 'PRO' ? 'Limites: 10 Vagas / CVs Ilimitados' : selectedUser.plan === 'ENTERPRISE' ? `Limites: ${selectedUser.job_limit === 9999 ? 'Ilimitado' : (selectedUser.job_limit ?? 'Ilimitado')} Vagas / CVs Ilimitados` : 'Limites: ILIMITADO'}
