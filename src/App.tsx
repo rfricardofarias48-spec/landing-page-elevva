@@ -2649,7 +2649,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-3 mt-1 ml-1 flex-wrap">
-                      <p className="text-slate-600 text-xs font-bold whitespace-nowrap">{activeJob.candidates.length} Currículos</p>
+                      <p className="text-slate-600 text-xs font-bold whitespace-nowrap">{activeJob.candidates.filter(c => !(c.status === CandidateStatus.PENDING && c.whatsapp)).length} Currículos</p>
                       <div className="text-xs text-slate-500 flex items-center gap-1 border-l-2 border-slate-300 pl-3 font-medium whitespace-nowrap">
                           Uso: <span className={`${(user?.resume_usage || 0) >= (user?.resume_limit || 0) ? 'text-red-600 font-bold' : 'text-slate-700'}`}>{user?.resume_usage || 0} / {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
                       </div>
@@ -2723,7 +2723,7 @@ const App: React.FC = () => {
             )}
             
             <div className={`flex-1 overflow-y-auto custom-scrollbar transition-all duration-300 rounded-2xl p-2 ${isDragging ? 'bg-slate-50 border-4 border-dashed border-black ring-4 ring-slate-200' : 'border-2 border-transparent'}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-               {activeJob.candidates.length===0 ? (
+               {activeJob.candidates.filter(c => !(c.status === CandidateStatus.PENDING && c.whatsapp)).length===0 ? (
                  <div className="flex flex-col items-center justify-center h-full text-slate-400 animate-fade-in pointer-events-none">
                     <div className={`p-8 rounded-[2rem] bg-slate-50 mb-6 transition-transform duration-300 border-2 border-slate-200 ${isDragging ? 'scale-125 bg-slate-100 border-black' : ''}`}>
                         <CloudUpload className={`w-16 h-16 ${isDragging ? 'text-black' : 'text-slate-300'}`} />
@@ -2734,7 +2734,7 @@ const App: React.FC = () => {
                ) : (
                  <>
                     {isDragging && (<div className="mb-6 p-8 border-4 border-dashed border-black bg-[#65a30d]/10 rounded-2xl flex items-center justify-center text-black font-black uppercase tracking-widest animate-pulse"><CloudUpload className="w-8 h-8 mr-4" /> Solte para adicionar</div>)}
-                    {[...activeJob.candidates].sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>{
+                    {[...activeJob.candidates].filter(c => !(c.status === CandidateStatus.PENDING && c.whatsapp)).sort((a,b)=>(b.result?.matchScore||0)-(a.result?.matchScore||0)).map((c,i)=>{
                       const activeInterview = interviews.find(int => int.candidate_id === c.id && ['AGUARDANDO_RESPOSTA', 'AGENDADA', 'CONFIRMADA', 'REMARCADA'].includes(int.status));
                       return (
                         <AnalysisResultCard 
