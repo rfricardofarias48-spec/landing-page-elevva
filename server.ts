@@ -1706,7 +1706,7 @@ app.post("/api/admissions", async (req, res) => {
         `Você foi *aprovado(a)* no processo seletivo!\n\n` +
         `Para seguirmos com sua admissão, precisamos de *${docCount} documento${docCount > 1 ? 's' : ''}*.\n\n` +
         `📋 Acesse seu portal seguro para envio:\n${portalUrl}\n\n` +
-        `⏰ *Importante:* O link expira em *48 horas* após o envio dos documentos.\n\n` +
+        `⏰ *Importante:* O link expira em *5 dias* após o envio dos documentos.\n\n` +
         `Caso tenha dúvidas, entre em contato conosco.`;
 
       // Format phone for WhatsApp JID
@@ -1905,7 +1905,7 @@ app.post("/api/admissions/:token/submit", async (req, res) => {
     }
 
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000); // 48h
+    const expiresAt = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 dias
 
     await supabaseAdmin
       .from('admissions')
@@ -2022,7 +2022,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
     // Helper: draw page footer
     const drawPageFooter = (page: any, pageNum: number, totalHint?: string) => {
       page.drawLine({ start: { x: MARGIN, y: 38 }, end: { x: A4_WIDTH - MARGIN, y: 38 }, thickness: 0.5, color: C.line });
-      page.drawText('LGPD — Dados pessoais. Originais deletados automaticamente apos 48h.', { x: MARGIN, y: 24, size: 6.5, font, color: C.muted });
+      page.drawText('LGPD — Dados pessoais. Originais deletados automaticamente apos 5 dias.', { x: MARGIN, y: 24, size: 6.5, font, color: C.muted });
       const pageStr = totalHint ? `${pageNum} / ${totalHint}` : `${pageNum}`;
       const pageWidth = font.widthOfTextAtSize(pageStr, 7);
       page.drawText(pageStr, { x: A4_WIDTH - MARGIN - pageWidth, y: 24, size: 7, font, color: C.muted });
@@ -2225,7 +2225,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
   }
 });
 
-// GET /api/cron/admission-cleanup — Cron job para limpeza LGPD 48h
+// GET /api/cron/admission-cleanup — Cron job para limpeza LGPD 5 dias
 app.get("/api/cron/admission-cleanup", async (req, res) => {
   // Verify cron secret
   const secret = req.headers['authorization']?.replace('Bearer ', '') || req.query.secret;
@@ -2236,7 +2236,7 @@ app.get("/api/cron/admission-cleanup", async (req, res) => {
   try {
     const now = new Date().toISOString();
 
-    // 1. Find admissions that expired (submitted_at + 48h < now)
+    // 1. Find admissions that expired (submitted_at + 5 dias < now)
     const { data: expired, error } = await supabaseAdmin
       .from('admissions')
       .select('id, token, user_id, candidate_id')
