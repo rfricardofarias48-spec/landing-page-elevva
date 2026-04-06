@@ -1147,7 +1147,14 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       await supabaseAdmin.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
     }
     if (interview.google_event_id) {
-      const deleted = await deleteCalendarEvent(interview.google_event_id);
+      // Buscar calendarId do recrutador para deletar no calendário correto
+      const { data: jobForDelete } = await supabaseAdmin.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
+      let rescheduleCalendarId: string | undefined;
+      if (jobForDelete?.user_id) {
+        const { data: profForDelete } = await supabaseAdmin.from('profiles').select('google_calendar_id').eq('id', jobForDelete.user_id).maybeSingle();
+        rescheduleCalendarId = profForDelete?.google_calendar_id || undefined;
+      }
+      const deleted = await deleteCalendarEvent(interview.google_event_id, false, rescheduleCalendarId);
       console.log(`[Book Slot] Old Google Calendar event: ${deleted ? 'deleted' : 'failed to delete'}`);
     }
 
@@ -1346,20 +1353,23 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
 
     let instance: string | null = null;
     let cancelToken: string | undefined;
+    let recruiterCalendarId: string | undefined;
     if (job?.user_id) {
       const { data: profile, error: profErr } = await supabaseAdmin
         .from('profiles')
-        .select('instancia_evolution, evolution_token')
+        .select('instancia_evolution, evolution_token, google_calendar_id')
         .eq('id', job.user_id)
         .single();
       instance = profile?.instancia_evolution || null;
       cancelToken = profile?.evolution_token || undefined;
+      recruiterCalendarId = profile?.google_calendar_id || undefined;
       console.log(`[Cancel] Evolution instance:`, instance || 'NOT FOUND', profErr?.message || '');
+      console.log(`[Cancel] Recruiter calendar:`, recruiterCalendarId || 'NOT FOUND');
     }
 
     // 3. Delete from Google Calendar
     if (interview.google_event_id) {
-      const deleted = await deleteCalendarEvent(interview.google_event_id);
+      const deleted = await deleteCalendarEvent(interview.google_event_id, false, recruiterCalendarId);
       console.log(`[Cancel] Google Calendar event ${interview.google_event_id}: ${deleted ? 'DELETED' : 'FAILED'}`);
     } else {
       console.log(`[Cancel] No Google Calendar event to delete`);

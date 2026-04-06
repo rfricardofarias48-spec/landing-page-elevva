@@ -106,11 +106,10 @@ export async function createMeetingEvent(eventData: {
   }
 }
 
-export async function deleteCalendarEvent(eventId: string, useSdrCredentials?: boolean): Promise<boolean> {
+export async function deleteCalendarEvent(eventId: string, useSdrCredentials?: boolean, customCalendarId?: string): Promise<boolean> {
   const client = useSdrCredentials ? sdrCal : cal;
-  const targetCalendarId = useSdrCredentials
-    ? (process.env.SDR_GOOGLE_CALENDAR_ID || calendarId)
-    : calendarId;
+  const targetCalendarId = customCalendarId
+    || (useSdrCredentials ? (process.env.SDR_GOOGLE_CALENDAR_ID || calendarId) : calendarId);
 
   if (!client || !targetCalendarId) {
     console.warn('[Google Calendar] Serviço não configurado — não foi possível deletar evento');
@@ -119,9 +118,25 @@ export async function deleteCalendarEvent(eventId: string, useSdrCredentials?: b
 
   try {
     await client.events.delete({ calendarId: targetCalendarId, eventId, sendUpdates: 'none' });
-    console.log('[Google Calendar] Evento deletado:', eventId);
+    console.log('[Google Calendar] Evento deletado:', eventId, 'do calendário:', targetCalendarId);
     return true;
   } catch (err: any) {
+    // Evento já deletado ou não encontrado — não é erro crítico
+    if (err?.response?.status === 404 || err?.response?.status === 410) {
+      console.warn('[Google Calendar] Evento não encontrado (já deletado?):', eventId);
+      return true;
+    }
+    // Tentar no calendário padrão como fallback
+    if (customCalendarId && customCalendarId !== calendarId && calendarId) {
+      try {
+        console.warn('[Google Calendar] Tentando fallback no calendário padrão para:', eventId);
+        await client.events.delete({ calendarId, eventId, sendUpdates: 'none' });
+        console.log('[Google Calendar] Evento deletado via fallback:', eventId);
+        return true;
+      } catch {
+        // ignore fallback error
+      }
+    }
     console.error('[Google Calendar] Erro ao deletar evento:', err?.message || err);
     return false;
   }
