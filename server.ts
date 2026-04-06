@@ -602,10 +602,27 @@ app.delete("/api/admin/delete-user/:id", async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "id obrigatório" });
 
-    // Deleta do Auth (cascata para profiles via FK)
+    // 1. Busca vagas do usuário para deletar candidatos relacionados
+    const { data: jobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', id);
+    const jobIds = (jobs || []).map((j: { id: string }) => j.id);
+
+    if (jobIds.length > 0) {
+      await supabaseAdmin.from('candidates').delete().in('job_id', jobIds);
+      await supabaseAdmin.from('interview_slots').delete().in('job_id', jobIds);
+      await supabaseAdmin.from('interviews').delete().in('job_id', jobIds);
+      await supabaseAdmin.from('admissions').delete().in('job_id', jobIds);
+      await supabaseAdmin.from('jobs').delete().in('id', jobIds);
+    }
+
+    // 2. Deleta dados diretos do usuário
+    await supabaseAdmin.from('agent_conversations').delete().eq('user_id', id);
+    await supabaseAdmin.from('announcements').delete().eq('user_id', id);
+    await supabaseAdmin.from('profiles').delete().eq('id', id);
+
+    // 3. Deleta do Auth
     const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
     if (error) {
-      console.error(`[Admin] delete-user error: ${error.message}`);
+      console.error(`[Admin] delete-user auth error: ${error.message}`);
       return res.status(500).json({ error: error.message });
     }
 
