@@ -1779,7 +1779,7 @@ const App: React.FC = () => {
           return ad.targetPlans.includes(normalizedPlan);
       });
 
-      const totalResumesAnalyzed = user?.resume_usage || 0;
+      const totalResumesAnalyzed = jobs.reduce((sum, j) => sum + j.candidates.filter(c => c.result?.matchScore !== undefined).length, 0);
       const hoursSaved = Math.round((totalResumesAnalyzed * 10) / 60);
 
       const chartData = Array.from({ length: 15 }).map((_, i) => {
@@ -1854,7 +1854,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-baseline gap-1">
                       <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{totalResumesAnalyzed}</span>
-                      <span className="text-sm font-bold text-slate-400">/ {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
+                      <span className="text-sm font-bold text-slate-400">analisados</span>
                   </div>
               </div>
 
@@ -2650,9 +2650,6 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3 mt-1 ml-1 flex-wrap">
                       <p className="text-slate-600 text-xs font-bold whitespace-nowrap">{activeJob.candidates.filter(c => !(c.status === CandidateStatus.PENDING && c.whatsapp)).length} Currículos</p>
-                      <div className="text-xs text-slate-500 flex items-center gap-1 border-l-2 border-slate-300 pl-3 font-medium whitespace-nowrap">
-                          Uso: <span className={`${(user?.resume_usage || 0) >= (user?.resume_limit || 0) ? 'text-red-600 font-bold' : 'text-slate-700'}`}>{user?.resume_usage || 0} / {user?.resume_limit >= 9999 ? '∞' : user?.resume_limit}</span>
-                      </div>
                     </div>
                  </div>
                </div>
