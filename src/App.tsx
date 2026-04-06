@@ -2143,7 +2143,7 @@ const App: React.FC = () => {
                           <div className="space-y-4 mb-8 text-sm font-medium text-slate-600 flex-1">
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
-                                  <span>Até 5 vagas em simultâneo</span>
+                                  <span>Até 3 vagas em simultâneo</span>
                               </div>
                               <div className="flex items-center gap-3">
                                   <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
