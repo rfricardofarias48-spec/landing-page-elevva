@@ -594,6 +594,30 @@ app.post("/api/admin/configure-chatwoot", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN: Deletar usuário (profiles + Supabase Auth)
+// DELETE /api/admin/delete-user/:id
+// ─────────────────────────────────────────────────────────────────────
+app.delete("/api/admin/delete-user/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "id obrigatório" });
+
+    // Deleta do Auth (cascata para profiles via FK)
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (error) {
+      console.error(`[Admin] delete-user error: ${error.message}`);
+      return res.status(500).json({ error: error.message });
+    }
+
+    console.log(`[Admin] User deleted: ${id}`);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[Admin] delete-user error:", err);
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // CHATWOOT: Webhook de eventos (mensagens humanas → WhatsApp)
 // Configure este URL no Chatwoot: Settings → Integrations → Webhooks
 // POST /api/webhooks/chatwoot

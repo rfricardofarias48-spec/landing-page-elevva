@@ -206,8 +206,9 @@ export const AdminDashboard: React.FC = () => {
       if (!confirm(`Tem certeza que deseja DELETAR a conta de ${user.name || user.email}? Esta ação é irreversível.`)) return;
       setActionLoading(true);
       try {
-          const { error } = await supabase.from('profiles').delete().eq('id', user.id);
-          if (error) throw error;
+          const res = await fetch(`/api/admin/delete-user/${user.id}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao deletar');
           setUsers(prev => prev.filter(u => u.id !== user.id));
           setSelectedUser(null);
       } catch (err: unknown) {
