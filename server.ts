@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
 import { analyzeResume } from "./src/services/openaiService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates, notifyPendingReschedules } from "./src/services/agentService.js";
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
@@ -44,6 +45,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Admin client with service role key for RLS-protected tables
 const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey);
+
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY || '' });
 
 // API routes FIRST
 app.get("/api/health", (req, res) => {
@@ -2864,9 +2867,11 @@ app.get("/api/sdr/leads/result/:runId", async (req, res) => {
 // PUT /api/system-prompt/:id — salva prompt (apenas admin/sdr autenticado)
 // ──────────────────────────────────────────────────────────────────────────────
 
+const VALID_PROMPT_IDS = ['recruiter', 'sdr', 'attendance'];
+
 app.get("/api/system-prompt/:id", async (req, res) => {
   const { id } = req.params;
-  if (!['recruiter', 'sdr'].includes(id)) return res.status(400).json({ error: 'ID inválido' });
+  if (!VALID_PROMPT_IDS.includes(id)) return res.status(400).json({ error: 'ID inválido' });
   const { data, error } = await supabaseAdmin
     .from('system_prompts')
     .select('prompt, updated_at')
@@ -2879,13 +2884,61 @@ app.get("/api/system-prompt/:id", async (req, res) => {
 app.put("/api/system-prompt/:id", async (req, res) => {
   const { id } = req.params;
   const { prompt } = req.body as { prompt?: string };
-  if (!['recruiter', 'sdr'].includes(id)) return res.status(400).json({ error: 'ID inválido' });
+  if (!VALID_PROMPT_IDS.includes(id)) return res.status(400).json({ error: 'ID inválido' });
   if (!prompt || typeof prompt !== 'string') return res.status(400).json({ error: 'Campo prompt obrigatório' });
   const { error } = await supabaseAdmin
     .from('system_prompts')
     .upsert({ id, prompt, updated_at: new Date().toISOString() }, { onConflict: 'id' });
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
+});
+
+// ── Training chat: simula conversa com o Bento via IA ────────────────────────
+// POST /api/admin/training-chat
+// Body: { message, history: [{role, content}], attendancePrompt }
+// ──────────────────────────────────────────────────────────────────────────────
+const DEFAULT_ATTENDANCE_PROMPT = `Você é Bento, um assistente virtual de recrutamento. Seu trabalho é atender candidatos pelo WhatsApp de forma simpática, objetiva e profissional.
+
+Fluxo de atendimento:
+1. Apresentar as vagas abertas ao candidato
+2. Registrar o interesse na vaga escolhida
+3. Solicitar o envio do currículo em PDF
+4. Informar que o currículo será analisado e que entrarão em contato
+5. Caso aprovado: enviar link para agendamento de entrevista
+6. Lembrar a entrevista 2h antes e pedir confirmação de presença
+
+Tom: amigável, profissional, objetivo. Use emojis com moderação.
+Responda sempre em português do Brasil.`;
+
+app.post("/api/admin/training-chat", async (req, res) => {
+  const { message, history, attendancePrompt } = req.body as {
+    message?: string;
+    history?: { role: 'user' | 'assistant'; content: string }[];
+    attendancePrompt?: string;
+  };
+  if (!message) return res.status(400).json({ error: 'message obrigatório' });
+
+  try {
+    const systemPrompt = attendancePrompt || DEFAULT_ATTENDANCE_PROMPT;
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...(history || []).map(m => ({ role: m.role, content: m.content } as OpenAI.Chat.ChatCompletionMessageParam)),
+      { role: 'user', content: message },
+    ];
+
+    const completion = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+
+    const response = completion.choices[0]?.message?.content || '...';
+    return res.json({ response });
+  } catch (err) {
+    console.error('[Training Chat] Error:', err);
+    return res.status(500).json({ error: 'Erro ao processar mensagem' });
+  }
 });
 
 async function startServer() {

@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
-import { 
+import {
   Users, Calendar, CreditCard, Search, Activity,
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -48,13 +48,30 @@ export const AdminDashboard: React.FC = () => {
   const [tempChatwootToken, setTempChatwootToken] = useState('');
   const [tempChatwootInboxId, setTempChatwootInboxId] = useState('');
 
-  // States para Prompt System (recrutador)
+  // States para Controle Agente
+  const [agentSubTab, setAgentSubTab] = useState<'trabalho' | 'atendimento' | 'treinamento'>('trabalho');
+
+  // Prompt Trabalho (análise de currículo)
   const [recruiterPrompt, setRecruiterPrompt] = useState('');
   const [recruiterPromptDraft, setRecruiterPromptDraft] = useState('');
   const [promptUpdatedAt, setPromptUpdatedAt] = useState<string | null>(null);
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptSaving, setPromptSaving] = useState(false);
+
+  // Prompt Atendimento (personalidade do agente)
+  const [attendancePrompt, setAttendancePrompt] = useState('');
+  const [attendancePromptDraft, setAttendancePromptDraft] = useState('');
+  const [attendanceUpdatedAt, setAttendanceUpdatedAt] = useState<string | null>(null);
+  const [isEditingAttendance, setIsEditingAttendance] = useState(false);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+
+  // Treinamento
+  const [trainingMessages, setTrainingMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [trainingInput, setTrainingInput] = useState('');
+  const [trainingSending, setTrainingSending] = useState(false);
+  const trainingChatRef = useRef<HTMLDivElement>(null);
 
   // States para Criação de Anúncio
   const [newAdTitle, setNewAdTitle] = useState('');
@@ -431,6 +448,65 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       }
   };
 
+  const fetchAttendancePrompt = async () => {
+      setAttendanceLoading(true);
+      try {
+          const res = await fetch('/api/system-prompt/attendance');
+          const data = await res.json() as { prompt?: string; updated_at?: string };
+          const text = data.prompt || '';
+          setAttendancePrompt(text);
+          setAttendancePromptDraft(text);
+          setAttendanceUpdatedAt(data.updated_at || null);
+      } catch (err) {
+          console.error('Erro ao buscar prompt de atendimento:', err);
+      } finally {
+          setAttendanceLoading(false);
+      }
+  };
+
+  const saveAttendancePrompt = async () => {
+      setAttendanceSaving(true);
+      try {
+          const res = await fetch('/api/system-prompt/attendance', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: attendancePromptDraft }),
+          });
+          if (!res.ok) throw new Error('Erro ao salvar');
+          setAttendancePrompt(attendancePromptDraft);
+          setAttendanceUpdatedAt(new Date().toISOString());
+          setIsEditingAttendance(false);
+      } catch (err) {
+          alert('Erro ao salvar: ' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+          setAttendanceSaving(false);
+      }
+  };
+
+  const sendTrainingMessage = async () => {
+      if (!trainingInput.trim() || trainingSending) return;
+      const userMsg = trainingInput.trim();
+      setTrainingInput('');
+      const newHistory = [...trainingMessages, { role: 'user' as const, content: userMsg }];
+      setTrainingMessages(newHistory);
+      setTrainingSending(true);
+      try {
+          const res = await fetch('/api/admin/training-chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: userMsg, history: trainingMessages, attendancePrompt }),
+          });
+          const data = await res.json() as { response?: string; error?: string };
+          if (data.response) {
+              setTrainingMessages([...newHistory, { role: 'assistant', content: data.response }]);
+          }
+      } catch (err) {
+          setTrainingMessages([...newHistory, { role: 'assistant', content: '⚠️ Erro ao processar mensagem.' }]);
+      } finally {
+          setTrainingSending(false);
+      }
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
@@ -559,8 +635,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             <button onClick={() => setCurrentView('FINANCE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'FINANCE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <DollarSign className="w-5 h-5" /> Faturamento
             </button>
-            <button onClick={() => { setCurrentView('PROMPTS'); fetchRecruiterPrompt(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'PROMPTS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <Bot className="w-5 h-5" /> Prompt System
+            <button onClick={() => { setCurrentView('PROMPTS'); fetchRecruiterPrompt(); fetchAttendancePrompt(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'PROMPTS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <Sliders className="w-5 h-5" /> Controle Agente
             </button>
         </nav>
 
@@ -1142,77 +1218,170 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             {currentView === 'FINANCE' && renderFinance()} 
             {currentView === 'COMMISSIONS' && renderCommissions()}
             {currentView === 'PROMPTS' && (
-                <div className="max-w-3xl">
+                <div className="flex flex-col h-full">
+                    {/* Header + Sub-tabs */}
                     <div className="mb-6">
-                        <h1 className="text-2xl font-black text-zinc-900">Prompt System</h1>
-                        <p className="text-sm text-zinc-500 mt-1">Instruções enviadas para a IA ao analisar currículos. Use <code className="bg-zinc-100 px-1 rounded text-xs">{'{jobTitle}'}</code> e <code className="bg-zinc-100 px-1 rounded text-xs">{'{criteria}'}</code> como variáveis dinâmicas.</p>
+                        <h1 className="text-2xl font-black text-zinc-900 mb-4">Controle Agente</h1>
+                        <div className="flex gap-1 bg-zinc-100 p-1 rounded-xl w-fit">
+                            {([
+                                { key: 'trabalho', label: 'Prompt Trabalho', icon: <FileText className="w-4 h-4" /> },
+                                { key: 'atendimento', label: 'Prompt Atendimento', icon: <MessageSquare className="w-4 h-4" /> },
+                                { key: 'treinamento', label: 'Treinamento', icon: <GraduationCap className="w-4 h-4" /> },
+                            ] as const).map(tab => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setAgentSubTab(tab.key)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${agentSubTab === tab.key ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
-                        {/* Header do card */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center">
-                                    <Bot className="w-5 h-5 text-white" />
+                    {/* ── Tab 1: Prompt Trabalho ── */}
+                    {agentSubTab === 'trabalho' && (
+                        <div className="max-w-3xl">
+                            <p className="text-sm text-zinc-500 mb-4">Instruções enviadas para a IA ao analisar currículos. Use <code className="bg-zinc-100 px-1 rounded text-xs">{'{jobTitle}'}</code> e <code className="bg-zinc-100 px-1 rounded text-xs">{'{criteria}'}</code> como variáveis dinâmicas.</p>
+                            <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
+                                <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center">
+                                            <Bot className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-zinc-900">Análise de Currículos</p>
+                                            <p className="text-xs text-zinc-400">{promptUpdatedAt ? `Atualizado em ${new Date(promptUpdatedAt).toLocaleString('pt-BR')}` : 'Usando prompt padrão'}</p>
+                                        </div>
+                                    </div>
+                                    {!isEditingPrompt && (
+                                        <button onClick={() => { setRecruiterPromptDraft(recruiterPrompt || DEFAULT_RECRUITER_PROMPT); setIsEditingPrompt(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-700 hover:bg-zinc-50 transition-colors">
+                                            <Edit3 className="w-4 h-4" /> Editar
+                                        </button>
+                                    )}
                                 </div>
-                                <div>
-                                    <p className="text-sm font-bold text-zinc-900">Agente Recrutador</p>
-                                    <p className="text-xs text-zinc-400">
-                                        {promptUpdatedAt
-                                            ? `Atualizado em ${new Date(promptUpdatedAt).toLocaleString('pt-BR')}`
-                                            : 'Nunca editado — usando prompt padrão'}
-                                    </p>
+                                <div className="p-6">
+                                    {promptLoading ? (
+                                        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-zinc-300" /></div>
+                                    ) : isEditingPrompt ? (
+                                        <div className="space-y-4">
+                                            <textarea value={recruiterPromptDraft} onChange={e => setRecruiterPromptDraft(e.target.value)} rows={26} className="w-full text-sm bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-zinc-400 resize-none" />
+                                            <div className="flex gap-3 justify-end">
+                                                <button onClick={() => setIsEditingPrompt(false)} className="px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-500 hover:bg-zinc-50 transition-colors">Cancelar</button>
+                                                <button onClick={saveRecruiterPrompt} disabled={promptSaving} className="flex items-center gap-2 px-5 py-2 bg-black text-white rounded-xl text-sm font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50">
+                                                    {promptSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <pre className="whitespace-pre-wrap text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">{recruiterPrompt || DEFAULT_RECRUITER_PROMPT}</pre>
+                                    )}
                                 </div>
                             </div>
-                            {!isEditingPrompt && (
-                                <button
-                                    onClick={() => { setRecruiterPromptDraft(recruiterPrompt || DEFAULT_RECRUITER_PROMPT); setIsEditingPrompt(true); }}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-700 hover:bg-zinc-50 transition-colors"
-                                >
-                                    <Edit3 className="w-4 h-4" /> Editar
-                                </button>
-                            )}
                         </div>
+                    )}
 
-                        {/* Corpo */}
-                        <div className="p-6">
-                            {promptLoading ? (
-                                <div className="flex items-center justify-center py-16">
-                                    <Loader2 className="w-6 h-6 animate-spin text-zinc-300" />
-                                </div>
-                            ) : isEditingPrompt ? (
-                                <div className="space-y-4">
-                                    <textarea
-                                        value={recruiterPromptDraft}
-                                        onChange={e => setRecruiterPromptDraft(e.target.value)}
-                                        rows={26}
-                                        className="w-full text-sm bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-zinc-400 resize-none"
-                                        placeholder="Digite o prompt do agente recrutador..."
-                                    />
-                                    <div className="flex gap-3 justify-end">
-                                        <button
-                                            onClick={() => setIsEditingPrompt(false)}
-                                            className="px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-500 hover:bg-zinc-50 transition-colors"
-                                        >
-                                            Cancelar
-                                        </button>
-                                        <button
-                                            onClick={saveRecruiterPrompt}
-                                            disabled={promptSaving}
-                                            className="flex items-center gap-2 px-5 py-2 bg-black text-white rounded-xl text-sm font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50"
-                                        >
-                                            {promptSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                            Salvar
-                                        </button>
+                    {/* ── Tab 2: Prompt Atendimento ── */}
+                    {agentSubTab === 'atendimento' && (
+                        <div className="max-w-3xl">
+                            <p className="text-sm text-zinc-500 mb-4">Define a personalidade, tom de voz e comportamento do Bento nas conversas com candidatos. Alterações aqui afetam imediatamente o treinamento.</p>
+                            <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
+                                <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center">
+                                            <MessageSquare className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-zinc-900">Personalidade do Bento</p>
+                                            <p className="text-xs text-zinc-400">{attendanceUpdatedAt ? `Atualizado em ${new Date(attendanceUpdatedAt).toLocaleString('pt-BR')}` : 'Usando prompt padrão'}</p>
+                                        </div>
                                     </div>
+                                    {!isEditingAttendance && (
+                                        <button onClick={() => { setAttendancePromptDraft(attendancePrompt); setIsEditingAttendance(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-700 hover:bg-zinc-50 transition-colors">
+                                            <Edit3 className="w-4 h-4" /> Editar
+                                        </button>
+                                    )}
                                 </div>
-                            ) : (
-                                <pre className="whitespace-pre-wrap text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">
-                                    {recruiterPrompt || DEFAULT_RECRUITER_PROMPT}
-                                </pre>
-                            )}
+                                <div className="p-6">
+                                    {attendanceLoading ? (
+                                        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-zinc-300" /></div>
+                                    ) : isEditingAttendance ? (
+                                        <div className="space-y-4">
+                                            <textarea value={attendancePromptDraft} onChange={e => setAttendancePromptDraft(e.target.value)} rows={20} className="w-full text-sm bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-zinc-400 resize-none" placeholder="Descreva como o Bento deve se comportar, que tom usar, como responder situações específicas..." />
+                                            <div className="flex gap-3 justify-end">
+                                                <button onClick={() => setIsEditingAttendance(false)} className="px-4 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-500 hover:bg-zinc-50 transition-colors">Cancelar</button>
+                                                <button onClick={saveAttendancePrompt} disabled={attendanceSaving} className="flex items-center gap-2 px-5 py-2 bg-black text-white rounded-xl text-sm font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50">
+                                                    {attendanceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <pre className="whitespace-pre-wrap text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">{attendancePrompt || '(Usando prompt padrão do sistema)'}</pre>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* ── Tab 3: Treinamento ── */}
+                    {agentSubTab === 'treinamento' && (
+                        <div className="flex flex-col h-[calc(100vh-240px)] max-w-2xl">
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-sm text-zinc-500">Converse com o Bento para testar o Prompt Atendimento. Altere o prompt e volte aqui para ver a diferença.</p>
+                                <button
+                                    onClick={() => setTrainingMessages([])}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-200 text-sm font-bold text-zinc-500 hover:bg-zinc-50 transition-colors"
+                                >
+                                    <RefreshCw className="w-4 h-4" /> Reset
+                                </button>
+                            </div>
+
+                            {/* Chat area */}
+                            <div ref={trainingChatRef} className="flex-1 bg-white rounded-2xl border border-zinc-200 p-4 overflow-y-auto space-y-3 mb-3">
+                                {trainingMessages.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-center">
+                                        <div className="w-14 h-14 bg-zinc-100 rounded-2xl flex items-center justify-center mb-3">
+                                            <GraduationCap className="w-7 h-7 text-zinc-400" />
+                                        </div>
+                                        <p className="text-sm font-bold text-zinc-400">Nenhuma mensagem ainda</p>
+                                        <p className="text-xs text-zinc-300 mt-1">Digite uma mensagem para iniciar o treinamento</p>
+                                    </div>
+                                ) : trainingMessages.map((msg, i) => (
+                                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${msg.role === 'user' ? 'bg-black text-white rounded-br-sm' : 'bg-zinc-100 text-zinc-900 rounded-bl-sm'}`}>
+                                            {msg.content}
+                                        </div>
+                                    </div>
+                                ))}
+                                {trainingSending && (
+                                    <div className="flex justify-start">
+                                        <div className="bg-zinc-100 px-4 py-3 rounded-2xl rounded-bl-sm">
+                                            <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Input */}
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={trainingInput}
+                                    onChange={e => setTrainingInput(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTrainingMessage(); } }}
+                                    placeholder="Digite uma mensagem para o Bento..."
+                                    className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-zinc-400"
+                                />
+                                <button
+                                    onClick={sendTrainingMessage}
+                                    disabled={trainingSending || !trainingInput.trim()}
+                                    className="bg-black text-white px-4 py-3 rounded-xl hover:bg-zinc-800 transition-colors disabled:opacity-40"
+                                >
+                                    <Send className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
             {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
