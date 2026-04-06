@@ -1284,7 +1284,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                     {/* ── Tab 2: Prompt Atendimento ── */}
                     {agentSubTab === 'atendimento' && (
                         <div className="max-w-3xl">
-                            <p className="text-sm text-zinc-500 mb-4">Define a personalidade, tom de voz e comportamento do Bento nas conversas com candidatos. Alterações aqui afetam imediatamente o treinamento.</p>
+                            <p className="text-sm text-zinc-500 mb-4">Este é o prompt exato que guia o agente Bento nas conversas com candidatos. O chat de Treinamento usa este mesmo prompt para simular o atendimento.</p>
                             <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
                                 <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
                                     <div className="flex items-center gap-3">
@@ -1293,7 +1293,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                         </div>
                                         <div>
                                             <p className="text-sm font-bold text-zinc-900">Personalidade do Bento</p>
-                                            <p className="text-xs text-zinc-400">{attendanceUpdatedAt ? `Atualizado em ${new Date(attendanceUpdatedAt).toLocaleString('pt-BR')}` : 'Usando prompt padrão'}</p>
+                                            <p className="text-xs text-zinc-400">{attendanceUpdatedAt ? `Atualizado em ${new Date(attendanceUpdatedAt).toLocaleString('pt-BR')}` : 'Prompt padrão do sistema'}</p>
                                         </div>
                                     </div>
                                     {!isEditingAttendance && (
@@ -1316,7 +1316,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                             </div>
                                         </div>
                                     ) : (
-                                        <pre className="whitespace-pre-wrap text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">{attendancePrompt || '(Usando prompt padrão do sistema)'}</pre>
+                                        <pre className="whitespace-pre-wrap text-sm text-zinc-700 bg-zinc-50 rounded-xl px-4 py-3 min-h-[200px]">{attendancePrompt}</pre>
                                     )}
                                 </div>
                             </div>
