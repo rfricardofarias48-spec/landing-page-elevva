@@ -1842,7 +1842,6 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-baseline gap-1">
                       <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{jobs.length}</span>
-                      <span className="text-sm font-bold text-slate-400">/ {user?.job_limit >= 9999 ? '∞' : user?.job_limit}</span>
                   </div>
               </div>
 
@@ -1854,7 +1853,6 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-baseline gap-1">
                       <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{totalResumesAnalyzed}</span>
-                      <span className="text-sm font-bold text-slate-400">analisados</span>
                   </div>
               </div>
 
@@ -1866,7 +1864,6 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-baseline gap-1">
                       <span className="text-5xl font-black text-[#0f172a] tracking-tighter leading-none">{interviews.length}</span>
-                      <span className="text-sm font-bold text-slate-400">agendadas</span>
                   </div>
               </div>
 
