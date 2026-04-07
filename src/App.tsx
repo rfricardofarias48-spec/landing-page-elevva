@@ -2574,7 +2574,7 @@ const App: React.FC = () => {
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
                {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} />}
-               {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} />}
+               {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} interviews={interviews} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} />}
                {currentTab === 'JOBS' && (
                    <>
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">

@@ -1,16 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { UserCheck, FileText, Clock, CheckCircle2, Download, AlertTriangle, Search, Briefcase, Send, Eye, Loader2, Trash2, ShieldCheck } from 'lucide-react';
-import { Admission, Job, Candidate, CandidateStatus } from '../types';
+import { Admission, Job, Candidate, CandidateStatus, Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { AdmissionDocsModal } from './AdmissionDocsModal';
 
 interface Props {
   admissions: Admission[];
   jobs: Job[];
+  interviews: Interview[];
   onRefresh: () => void;
 }
 
-export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) => {
+export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, interviews, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [jobFilter, setJobFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -19,13 +20,18 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
   const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Get all approved candidates from jobs
+  // Apenas candidatos com entrevista aprovada pelo recrutador (interviews.status === 'APROVADO')
   const approvedCandidates = useMemo(() => {
+    // IDs de candidatos que têm pelo menos uma entrevista com status APROVADO
+    const approvedInterviewCandidateIds = new Set(
+      interviews.filter(i => i.status === 'APROVADO').map(i => i.candidate_id).filter(Boolean)
+    );
+
     const candidates: { id: string; name: string; phone: string; jobId: string; jobTitle: string; score: number; status: string }[] = [];
 
     jobs.forEach(job => {
       job.candidates
-        .filter(c => c.status === CandidateStatus.APROVADO)
+        .filter(c => approvedInterviewCandidateIds.has(c.id))
         .forEach(c => {
           const admission = admissions.find(a => a.candidate_id === c.id);
           candidates.push({
@@ -41,7 +47,7 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
     });
 
     return candidates;
-  }, [jobs, admissions]);
+  }, [jobs, admissions, interviews]);
 
   // Filter
   const filteredCandidates = useMemo(() => {
@@ -225,7 +231,7 @@ export const AprovadosTab: React.FC<Props> = ({ admissions, jobs, onRefresh }) =
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
         <ShieldCheck className="w-5 h-5 text-slate-400 flex-shrink-0" />
         <p className="text-xs text-slate-500 font-medium">
-          Os documentos são automaticamente deletados <span className="font-bold text-slate-700">48 horas</span> após o envio. Baixe o PDF antes do prazo.
+          Os documentos são automaticamente deletados <span className="font-bold text-slate-700">5 dias</span> após o envio. Baixe o PDF antes do prazo.
         </p>
       </div>
 
