@@ -2099,13 +2099,13 @@ const App: React.FC = () => {
                   <h3 className="text-base font-black text-slate-900 tracking-tighter flex items-center gap-2">
                       <ArrowUpRight className="w-4 h-4" /> Planos Disponíveis
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                       <span className={`text-xs font-bold ${!isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Mensal</span>
                       <button
                           onClick={() => setIsAnnual(!isAnnual)}
-                          className={`relative w-10 h-5 rounded-full transition-colors duration-300 flex-shrink-0 ${isAnnual ? 'bg-[#65a30d]' : 'bg-slate-200'}`}
+                          className={`relative w-11 h-6 rounded-full transition-colors duration-300 flex-shrink-0 overflow-hidden ${isAnnual ? 'bg-[#65a30d]' : 'bg-slate-200'}`}
                       >
-                          <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-300 ${isAnnual ? 'translate-x-5' : 'translate-x-0'}`} />
+                          <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-300 ${isAnnual ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>
                       <span className={`text-xs font-bold ${isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Anual</span>
                       <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${isAnnual ? 'text-[#65a30d] bg-[#65a30d]/10' : 'text-slate-300 bg-slate-100'}`}>20% off</span>
