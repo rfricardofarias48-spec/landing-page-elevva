@@ -2047,21 +2047,19 @@ const App: React.FC = () => {
   };
 
   const renderBilling = () => (
-      <div className="space-y-4 animate-fade-in max-w-[1400px] mx-auto font-sans">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
-                      <CreditCard className="w-5 h-5 text-[#65a30d]" />
-                  </div>
-                  <div>
-                      <h2 className="text-xl font-black text-slate-900 tracking-tighter">Minha Assinatura</h2>
-                      <p className="text-slate-500 font-medium text-xs">Gerencie seu plano e limites de uso.</p>
-                  </div>
+      <div className="flex flex-col h-full gap-4 animate-fade-in font-sans">
+          <div className="flex items-center gap-3 shrink-0">
+              <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
+                  <CreditCard className="w-5 h-5 text-[#65a30d]" />
+              </div>
+              <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tighter">Minha Assinatura</h2>
+                  <p className="text-slate-500 font-medium text-xs">Gerencie seu plano e limites de uso.</p>
               </div>
           </div>
 
           {/* Current Plan Card - Black */}
-          <div className="bg-[#0a0a0a] rounded-2xl p-4 relative overflow-hidden text-white shadow-xl">
+          <div className="bg-[#0a0a0a] rounded-2xl p-4 relative overflow-hidden text-white shadow-xl shrink-0">
               <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-3">
                       <span className="text-[#65a30d] font-black text-[10px] uppercase tracking-widest">Plano Ativo</span>
@@ -2096,27 +2094,27 @@ const App: React.FC = () => {
           </div>
 
           {/* Upgrade Options */}
-          <div>
-              <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col flex-1 min-h-0">
+              <div className="flex items-center justify-between mb-3 shrink-0">
                   <h3 className="text-base font-black text-slate-900 tracking-tighter flex items-center gap-2">
                       <ArrowUpRight className="w-4 h-4" /> Planos Disponíveis
                   </h3>
-                  <div className="flex items-center gap-2 whitespace-nowrap">
-                      <span className={`text-xs font-bold transition-colors ${!isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Mensal</span>
+                  <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold ${!isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Mensal</span>
                       <button
                           onClick={() => setIsAnnual(!isAnnual)}
                           className={`relative w-10 h-5 rounded-full transition-colors duration-300 flex-shrink-0 ${isAnnual ? 'bg-[#65a30d]' : 'bg-slate-200'}`}
                       >
                           <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-300 ${isAnnual ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>
-                      <span className={`text-xs font-bold transition-colors ${isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Anual</span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider transition-all ${isAnnual ? 'text-[#65a30d] bg-[#65a30d]/10' : 'text-slate-300 bg-slate-100'}`}>20% off</span>
+                      <span className={`text-xs font-bold ${isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Anual</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${isAnnual ? 'text-[#65a30d] bg-[#65a30d]/10' : 'text-slate-300 bg-slate-100'}`}>20% off</span>
                   </div>
               </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0">
                       {/* Plano Essencial */}
-                      <div className="bg-white rounded-2xl p-5 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
+                      <div className="bg-white rounded-2xl p-6 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 h-full">
                           <h4 className="text-lg font-black text-slate-900 mb-1 tracking-tighter">Essencial</h4>
                           <p className="text-xs text-slate-500 font-medium mb-3">Para equipes enxutas e recrutamento ágil.</p>
 
@@ -2153,7 +2151,7 @@ const App: React.FC = () => {
                       </div>
 
                       {/* Plano Pro */}
-                      <div className="bg-[#0a0a0a] rounded-2xl p-5 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800">
+                      <div className="bg-[#0a0a0a] rounded-2xl p-6 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800 h-full">
                           <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
                               <Star className="w-2.5 h-2.5 fill-black" /> Mais Popular
                           </div>
@@ -2194,7 +2192,7 @@ const App: React.FC = () => {
                       </div>
 
                       {/* Enterprise */}
-                      <div className="bg-white rounded-2xl p-5 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100">
+                      <div className="bg-white rounded-2xl p-6 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 h-full">
                           <h4 className="text-lg font-black text-slate-900 mb-1 tracking-tighter">Enterprise</h4>
                           <p className="text-xs text-slate-500 font-medium mb-3">Solução sob medida para grandes operações.</p>
 
@@ -2495,7 +2493,7 @@ const App: React.FC = () => {
         
         {/* VIEW: DASHBOARD (Includes TABS) */}
         {view === 'DASHBOARD' && (
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
+            <div className={`flex-1 p-4 md:p-6 ${currentTab === 'BILLING' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
