@@ -2683,10 +2683,6 @@ const App: React.FC = () => {
                  
                  <button onClick={()=>fileInputRef.current?.click()} className="flex-none justify-center bg-slate-900 hover:bg-black text-white px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(0,0,0,0.4)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap"><Upload className="w-5 h-5 text-[#65a30d]"/> Upload</button>
                  
-                 {normalizedPlan !== 'ENTERPRISE' && activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length > 0 && (
-                   <button onClick={runAnalysis} className="flex-none justify-center bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-5 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap animate-pulse"><Play className="w-5 h-5 fill-current"/> ANALISAR ({activeJob.candidates.filter(c => c.status === CandidateStatus.PENDING).length})</button>
-                 )}
-                 
                  {activeJob.candidates.length > 0 && (
                     !confirmClearAll ? (
                        <button onClick={() => setConfirmClearAll(true)} className="flex-none justify-center bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 px-4 py-3 rounded-2xl flex items-center shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] hover:shadow-[0_6px_20px_rgba(239,68,68,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all border border-slate-200 hover:border-red-200 group relative" title="Limpar todos os currículos"><Trash2 className="w-5 h-5"/></button>
