@@ -63,11 +63,11 @@ interface FunnelData {
 }
 
 // ── Cores do funil ────────────────────────────────────────────────────────────
-const FUNNEL_COLORS = ['#6366f1','#8b5cf6','#a855f7','#d946ef','#84cc16','#22c55e'];
+const FUNNEL_COLORS = ['#06b6d4','#0ea5e9','#3b82f6','#14b8a6','#84cc16','#22c55e'];
 const PIE_COLORS: Record<string, string> = {
-  NOVO: '#6366f1',
+  NOVO: '#06b6d4',
   QUALIFICANDO: '#f59e0b',
-  QUALIFICADO: '#8b5cf6',
+  QUALIFICADO: '#0ea5e9',
   DEMO_OFERECIDA: '#3b82f6',
   DEMO_AGENDADA: '#84cc16',
   CONVERTIDO: '#22c55e',
@@ -92,6 +92,23 @@ export const SdrDashboard: React.FC = () => {
   const [newSlotTime, setNewSlotTime] = useState('');
   const [slotCreating, setSlotCreating] = useState(false);
 
+  // ─────── Agenda sub-views ────────────────────────────────────────────────────
+  type AgendaView = 'MENU' | 'HORARIOS' | 'AGENDAMENTOS';
+  const [agendaView, setAgendaView] = useState<AgendaView>('MENU');
+  const [bookedDemos, setBookedDemos] = useState<SdrDemoSlot[]>([]);
+  const [demosLoading, setDemosLoading] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualSlotId, setManualSlotId] = useState('');
+  const [manualSlotDate, setManualSlotDate] = useState('');
+  const [manualSlotTime, setManualSlotTime] = useState('');
+  const [manualName, setManualName] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
+  const [manualCompany, setManualCompany] = useState('');
+  const [manualNotes, setManualNotes] = useState('');
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualSuccess, setManualSuccess] = useState<string | null>(null);
+
   // ─────── Prompt SDR ──────────────────────────────────────────────────────────
   const [sdrFields, setSdrFields] = useState<Record<string, string>>(SDR_DEFAULTS);
   const [draftFields, setDraftFields] = useState<Record<string, string>>(SDR_DEFAULTS);
@@ -103,6 +120,11 @@ export const SdrDashboard: React.FC = () => {
   const [isEditingSdrPrompt, setIsEditingSdrPrompt] = useState(false);
   const [sdrPromptLoading, setSdrPromptLoading] = useState(false);
   const [sdrPromptSaving, setSdrPromptSaving] = useState(false);
+
+  // ─────── Filtro mensal ───────────────────────────────────────────────────────
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
   // ─────── Gerador de Leads ────────────────────────────────────────────────────
   const [gNicho, setGNicho] = useState('');
@@ -285,13 +307,86 @@ export const SdrDashboard: React.FC = () => {
     }
   };
 
+  const fetchBookedDemos = async () => {
+    setDemosLoading(true);
+    try {
+      const res = await fetch('/api/sdr/demos');
+      const data = await res.json();
+      setBookedDemos(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching demos:', err);
+    } finally {
+      setDemosLoading(false);
+    }
+  };
+
+  // Next 10 days (today included) as selectable dates
+  const futureAvailableDates = useMemo(() => {
+    const dates: string[] = [];
+    for (let i = 0; i <= 10; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+  }, []);
+
+  // All 30-min slots 08:00–20:00, minus past times (if today) and already booked slots
+  const timesForSelectedDate = useMemo(() => {
+    if (!manualSlotDate) return [];
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const nowTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    const bookedTimes = new Set(
+      slots.filter(s => s.slot_date === manualSlotDate && s.is_booked).map(s => s.slot_time.substring(0, 5))
+    );
+    const times: string[] = [];
+    for (let h = 8; h < 20; h++) {
+      for (const m of ['00', '30']) {
+        const t = `${String(h).padStart(2, '0')}:${m}`;
+        if (manualSlotDate === todayStr && t <= nowTime) continue;
+        if (bookedTimes.has(t)) continue;
+        times.push(t);
+      }
+    }
+    return times;
+  }, [manualSlotDate, slots]);
+
+  const saveManualDemo = async () => {
+    if (!manualSlotDate || !manualSlotTime || !manualName) return;
+    setManualSaving(true);
+    setManualSuccess(null);
+    try {
+      const res = await fetch('/api/sdr/demos/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot_date: manualSlotDate, slot_time: manualSlotTime, name: manualName, phone: manualPhone, email: manualEmail, company: manualCompany, notes: manualNotes }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setManualSuccess(data.meeting_link ? `Demo agendada! Meet: ${data.meeting_link}` : 'Demo agendada com sucesso!');
+        setManualSlotId(''); setManualSlotDate(''); setManualSlotTime('');
+        setManualName(''); setManualPhone(''); setManualEmail(''); setManualCompany(''); setManualNotes('');
+        setShowManualForm(false);
+        await fetchSlots();
+        await fetchBookedDemos();
+      } else {
+        setManualSuccess(`Erro: ${data.error}`);
+      }
+    } catch (err) {
+      setManualSuccess('Erro ao agendar demo.');
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
   // ─────── Helpers ─────────────────────────────────────────────────────────────
 
   const statusColor = (status: string) => {
     const colors: Record<string, string> = {
-      NOVO: 'bg-indigo-500/15 text-indigo-300',
+      NOVO: 'bg-cyan-500/15 text-cyan-300',
       QUALIFICANDO: 'bg-amber-500/15 text-amber-300',
-      QUALIFICADO: 'bg-purple-500/15 text-purple-300',
+      QUALIFICADO: 'bg-sky-500/15 text-sky-300',
       DEMO_OFERECIDA: 'bg-blue-500/15 text-blue-300',
       DEMO_AGENDADA: 'bg-lime-500/15 text-lime-300',
       CONVERTIDO: 'bg-green-500/15 text-green-300',
@@ -303,11 +398,11 @@ export const SdrDashboard: React.FC = () => {
   const avatarColor = (name: string) => {
     const code = (name || '?').charCodeAt(0) % 6;
     const colors = [
-      'bg-violet-500/20 text-violet-300',
-      'bg-blue-500/20 text-blue-300',
       'bg-cyan-500/20 text-cyan-300',
+      'bg-blue-500/20 text-blue-300',
+      'bg-teal-500/20 text-teal-300',
       'bg-amber-500/20 text-amber-300',
-      'bg-rose-500/20 text-rose-300',
+      'bg-slate-500/20 text-slate-300',
       'bg-lime-500/20 text-lime-300',
     ];
     return colors[code];
@@ -315,7 +410,7 @@ export const SdrDashboard: React.FC = () => {
 
   const statusDot = (status: string) => {
     const dots: Record<string, string> = {
-      NOVO: 'bg-indigo-400', QUALIFICANDO: 'bg-amber-400', QUALIFICADO: 'bg-purple-400',
+      NOVO: 'bg-cyan-400', QUALIFICANDO: 'bg-amber-400', QUALIFICADO: 'bg-sky-400',
       DEMO_OFERECIDA: 'bg-blue-400', DEMO_AGENDADA: 'bg-lime-400', CONVERTIDO: 'bg-green-400', PERDIDO: 'bg-red-400',
     };
     return dots[status] || 'bg-slate-400';
@@ -364,32 +459,39 @@ export const SdrDashboard: React.FC = () => {
     window.location.reload();
   };
 
-  // ─────── Chart Data (derivado de leads) ─────────────────────────────────────
+  // ─────── Chart Data (derivado de leads, filtrado por mês/ano) ───────────────
+
+  const monthLeads = useMemo(() => {
+    return leads.filter(l => {
+      const d = new Date(l.created_at);
+      return d.getFullYear() === selectedYear && d.getMonth() + 1 === selectedMonth;
+    });
+  }, [leads, selectedMonth, selectedYear]);
 
   const leadsPerDay = useMemo(() => {
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
     const days: Record<string, number> = {};
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      days[d.toISOString().split('T')[0]] = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${selectedYear}-${String(selectedMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      days[key] = 0;
     }
-    leads.forEach(l => {
+    monthLeads.forEach(l => {
       const day = (l.created_at || '').split('T')[0];
       if (days[day] !== undefined) days[day]++;
     });
     return Object.entries(days).map(([date, count]) => ({
-      dia: new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      dia: new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit' }),
       leads: count,
     }));
-  }, [leads]);
+  }, [monthLeads, selectedMonth, selectedYear]);
 
   const statusDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
-    leads.forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
+    monthLeads.forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
     return Object.entries(counts)
       .map(([status, value]) => ({ name: statusLabel(status), value, status }))
       .sort((a, b) => b.value - a.value);
-  }, [leads]);
+  }, [monthLeads]);
 
   const upcomingDemos = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -399,15 +501,29 @@ export const SdrDashboard: React.FC = () => {
       .slice(0, 6);
   }, [slots]);
 
+  // KPIs calculados a partir dos leads do mês filtrado
+  const monthFunnel = useMemo(() => {
+    const byStatus = (st: string) => monthLeads.filter(l => l.status === st).length;
+    const novos = monthLeads.length;
+    const qualificando = monthLeads.filter(l => ['QUALIFICANDO','QUALIFICADO','DEMO_OFERECIDA','DEMO_AGENDADA','CONVERTIDO'].includes(l.status)).length;
+    const qualificados = monthLeads.filter(l => ['QUALIFICADO','DEMO_OFERECIDA','DEMO_AGENDADA','CONVERTIDO'].includes(l.status)).length;
+    const demos = monthLeads.filter(l => ['DEMO_OFERECIDA','DEMO_AGENDADA','CONVERTIDO'].includes(l.status)).length;
+    const demos_agendadas = byStatus('DEMO_AGENDADA') + byStatus('CONVERTIDO');
+    const convertidos = byStatus('CONVERTIDO');
+    const perdidos = byStatus('PERDIDO');
+    const taxa = novos > 0 ? Math.round((demos_agendadas / novos) * 100) : 0;
+    return { novos, qualificando, qualificados, demos, demos_agendadas, convertidos, perdidos, total: novos, taxa_agendamento_pct: taxa };
+  }, [monthLeads]);
+
   const funnelStages = useMemo(() => {
-    if (!funnel) return [];
+    const f = monthFunnel;
     const stages = [
-      { label: 'Novos', value: funnel.novos, color: '#6366f1' },
-      { label: 'Qualificando', value: funnel.qualificando, color: '#8b5cf6' },
-      { label: 'Qualificados', value: funnel.qualificados, color: '#a855f7' },
-      { label: 'Demo Oferecida', value: funnel.demos, color: '#d946ef' },
-      { label: 'Demo Agendada', value: funnel.demos_agendadas, color: '#84cc16' },
-      { label: 'Convertidos', value: funnel.convertidos, color: '#22c55e' },
+      { label: 'Novos', value: f.novos, color: '#06b6d4' },
+      { label: 'Qualificando', value: f.qualificando, color: '#0ea5e9' },
+      { label: 'Qualificados', value: f.qualificados, color: '#3b82f6' },
+      { label: 'Demo Oferecida', value: f.demos, color: '#14b8a6' },
+      { label: 'Demo Agendada', value: f.demos_agendadas, color: '#84cc16' },
+      { label: 'Convertidos', value: f.convertidos, color: '#22c55e' },
     ];
     const max = stages[0]?.value || 1;
     return stages.map((s, i) => ({
@@ -417,18 +533,18 @@ export const SdrDashboard: React.FC = () => {
         ? Math.round(((stages[i - 1].value - s.value) / stages[i - 1].value) * 100)
         : 0,
     }));
-  }, [funnel]);
+  }, [monthFunnel]);
 
   const todayLeads = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    return leads.filter(l => (l.created_at || '').startsWith(today)).length;
-  }, [leads]);
+    return monthLeads.filter(l => (l.created_at || '').startsWith(today)).length;
+  }, [monthLeads]);
 
   const weekLeads = useMemo(() => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 7);
-    return leads.filter(l => new Date(l.created_at) >= cutoff).length;
-  }, [leads]);
+    return monthLeads.filter(l => new Date(l.created_at) >= cutoff).length;
+  }, [monthLeads]);
 
   // ─────── Loading ──────────────────────────────────────────────────────────────
 
@@ -484,7 +600,7 @@ export const SdrDashboard: React.FC = () => {
           ] as const).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              onClick={() => { setCurrentView(key); if (key === 'PROMPTS') fetchSdrPrompt(); }}
+              onClick={() => { setCurrentView(key); setAgendaView('MENU'); if (key === 'PROMPTS') fetchSdrPrompt(); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all
                 ${currentView === key
                   ? 'border-l-2 border-lime-500 bg-lime-500/[0.08] text-lime-400 rounded-l-none'
@@ -513,37 +629,60 @@ export const SdrDashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto p-6">
 
           {/* ══════ OVERVIEW ══════════════════════════════════════════════════════ */}
-          {currentView === 'OVERVIEW' && funnel && (
+          {currentView === 'OVERVIEW' && (
             <>
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
                 <div>
                   <h1 className="text-3xl font-black tracking-tight text-white">Dashboard SDR</h1>
                   <p className="text-slate-500 text-sm mt-0.5">
-                    {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    {new Date(selectedYear, selectedMonth - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                    {' — '}{monthFunnel.total} leads no período
                   </p>
                 </div>
-                <button
-                  onClick={() => { fetchFunnel(); fetchLeads(); fetchSlots(); }}
-                  className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
-                >
-                  <RefreshCcw className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Month selector */}
+                  <select
+                    value={selectedMonth}
+                    onChange={e => setSelectedMonth(Number(e.target.value))}
+                    className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
+                  >
+                    {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, i) => (
+                      <option key={i+1} value={i+1}>{m}</option>
+                    ))}
+                  </select>
+                  {/* Year selector */}
+                  <select
+                    value={selectedYear}
+                    onChange={e => setSelectedYear(Number(e.target.value))}
+                    className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
+                  >
+                    {[2024, 2025, 2026, 2027].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => { fetchFunnel(); fetchLeads(); fetchSlots(); }}
+                    className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
+                  >
+                    <RefreshCcw className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* ── KPI Row ──────────────────────────────────────────────────── */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {/* Total Leads */}
-                <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 border-t-2 border-t-indigo-500 shadow-lg shadow-indigo-900/20">
+                <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 border-t-2 border-t-cyan-500 shadow-lg shadow-cyan-900/20">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="w-9 h-9 bg-indigo-500/20 rounded-xl flex items-center justify-center">
-                      <Users className="w-4 h-4 text-indigo-400" />
+                    <div className="w-9 h-9 bg-cyan-500/20 rounded-xl flex items-center justify-center">
+                      <Users className="w-4 h-4 text-cyan-400" />
                     </div>
-                    <span className="text-indigo-300 text-xs font-semibold bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                    <span className="text-cyan-300 text-xs font-semibold bg-cyan-500/10 px-2 py-0.5 rounded-full">
                       +{todayLeads} hoje
                     </span>
                   </div>
-                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.total}</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{monthFunnel.total}</p>
                   <p className="text-slate-500 text-xs font-semibold mt-1">Total de Leads</p>
                 </div>
 
@@ -557,7 +696,7 @@ export const SdrDashboard: React.FC = () => {
                       {upcomingDemos.length} próximas
                     </span>
                   </div>
-                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.demos_agendadas}</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{monthFunnel.demos_agendadas}</p>
                   <p className="text-slate-500 text-xs font-semibold mt-1">Demos Agendadas</p>
                 </div>
 
@@ -569,10 +708,10 @@ export const SdrDashboard: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-1 text-green-400 text-xs font-semibold">
                       <TrendingUp className="w-3 h-3" />
-                      {funnel.taxa_agendamento_pct || 0}%
+                      {monthFunnel.taxa_agendamento_pct || 0}%
                     </div>
                   </div>
-                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.convertidos}</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{monthFunnel.convertidos}</p>
                   <p className="text-slate-500 text-xs font-semibold mt-1">Convertidos</p>
                 </div>
 
@@ -584,7 +723,7 @@ export const SdrDashboard: React.FC = () => {
                     </div>
                     <span className="text-slate-500 text-xs font-semibold">esta semana: {weekLeads}</span>
                   </div>
-                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{funnel.perdidos}</p>
+                  <p className="text-5xl font-mono font-bold text-white tabular-nums">{monthFunnel.perdidos}</p>
                   <p className="text-slate-500 text-xs font-semibold mt-1">Perdidos</p>
                 </div>
               </div>
@@ -597,7 +736,7 @@ export const SdrDashboard: React.FC = () => {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-white font-bold text-sm">Leads por dia</p>
-                      <p className="text-slate-500 text-xs">Últimos 14 dias</p>
+                      <p className="text-slate-500 text-xs">{new Date(selectedYear, selectedMonth - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-lime-500"></div>
@@ -681,7 +820,7 @@ export const SdrDashboard: React.FC = () => {
                   <div className="flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
                     <Target className="w-3.5 h-3.5 text-lime-400" />
                     <span className="text-lime-400 text-xs font-bold">
-                      {funnel.taxa_agendamento_pct || 0}% taxa de agendamento
+                      {monthFunnel.taxa_agendamento_pct || 0}% taxa de agendamento
                     </span>
                   </div>
                 </div>
@@ -771,7 +910,7 @@ export const SdrDashboard: React.FC = () => {
                 {/* Leads Recentes */}
                 <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
                   <div className="px-5 py-4 border-b border-slate-800 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-indigo-400" />
+                    <Activity className="w-4 h-4 text-cyan-400" />
                     <p className="text-white font-bold text-sm">Leads Recentes</p>
                     <button
                       onClick={() => setCurrentView('LEADS')}
@@ -915,90 +1054,258 @@ export const SdrDashboard: React.FC = () => {
           {/* ══════ SLOTS VIEW ════════════════════════════════════════════════════ */}
           {currentView === 'SLOTS' && (
             <>
+              {/* Header with back button when in sub-view */}
               <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-black tracking-tight text-white">Agenda de Demos</h1>
-                  <p className="text-slate-500 text-sm mt-0.5">Gerencie os horários disponíveis (8h–20h)</p>
+                <div className="flex items-center gap-3">
+                  {agendaView !== 'MENU' && (
+                    <button onClick={() => setAgendaView('MENU')} className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all">
+                      <ChevronRight className="w-4 h-4 rotate-180" />
+                    </button>
+                  )}
+                  <div>
+                    <h1 className="text-3xl font-black tracking-tight text-white">Agenda de Demos</h1>
+                    <p className="text-slate-500 text-sm mt-0.5">
+                      {agendaView === 'MENU' && 'Gerencie horários e agendamentos de demonstração'}
+                      {agendaView === 'HORARIOS' && 'Horários disponíveis para demonstrações'}
+                      {agendaView === 'AGENDAMENTOS' && 'Demos agendadas e agendamento manual'}
+                    </p>
+                  </div>
                 </div>
+                {agendaView === 'AGENDAMENTOS' && (
+                  <button onClick={() => { setShowManualForm(true); setManualSuccess(null); }} className="px-4 py-2 bg-lime-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-lime-400 flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Agendar Demo
+                  </button>
+                )}
               </div>
 
-              <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 mb-6">
-                <h3 className="text-sm font-bold text-white mb-3">Adicionar Horários</h3>
-                <div className="flex gap-3 items-end flex-wrap">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-400 block mb-1">Data</label>
-                    <input
-                      type="date"
-                      value={newSlotDate}
-                      onChange={e => setNewSlotDate(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-400 block mb-1">Horário</label>
-                    <input
-                      type="time"
-                      value={newSlotTime}
-                      onChange={e => setNewSlotTime(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
-                    />
-                  </div>
+              {/* ── MENU ── */}
+              {agendaView === 'MENU' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
                   <button
-                    onClick={createSlot}
-                    disabled={!newSlotDate || !newSlotTime || slotCreating}
-                    className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                    onClick={() => setAgendaView('HORARIOS')}
+                    className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-left hover:border-lime-500/40 hover:bg-slate-800/60 transition-all group"
                   >
-                    {slotCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    Adicionar
-                  </button>
-                  <button
-                    onClick={createBulkSlots}
-                    disabled={!newSlotDate || slotCreating}
-                    className="px-4 py-2 bg-lime-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-lime-400 active:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {slotCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
-                    Preencher dia inteiro (8h–20h)
-                  </button>
-                </div>
-              </div>
-
-              {Object.keys(slotsByDate).length === 0 ? (
-                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-10 text-center">
-                  <Calendar className="w-10 h-10 mx-auto mb-2 text-slate-700" />
-                  <p className="font-semibold text-slate-400">Nenhum horário cadastrado</p>
-                  <p className="text-sm text-slate-600 mt-1">Selecione uma data acima e clique em "Preencher dia inteiro".</p>
-                </div>
-              ) : (
-                Object.entries(slotsByDate).map(([date, dateSlots]) => (
-                  <div key={date} className="bg-slate-900 rounded-2xl border border-slate-800 mb-4 overflow-hidden">
-                    <div className="px-5 py-3 border-b border-slate-800 bg-slate-900/60">
-                      <p className="text-sm font-bold text-slate-200">{formatDateFull(date)}</p>
+                    <div className="w-12 h-12 bg-slate-800 group-hover:bg-lime-500/10 rounded-xl flex items-center justify-center mb-4 transition-colors border border-slate-700 group-hover:border-lime-500/30">
+                      <Clock className="w-6 h-6 text-slate-400 group-hover:text-lime-400 transition-colors" />
                     </div>
-                    <div className="p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                      {dateSlots.map(slot => (
-                        <div
-                          key={slot.id}
-                          className={`relative group rounded-xl px-3 py-2 text-center text-sm font-bold transition-all ${
-                            slot.is_booked
-                              ? 'bg-lime-500/10 border border-lime-500/40 text-lime-300'
-                              : 'bg-slate-800 border border-slate-700 text-slate-300 hover:border-lime-500/50 hover:text-white'
-                          }`}
-                        >
-                          <span>{formatTime(slot.slot_time)}</span>
-                          {slot.is_booked && <span className="block text-[10px] font-semibold text-lime-400 mt-0.5">Reservado</span>}
-                          {!slot.is_booked && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); deleteSlot(slot.id); }}
-                              className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
+                    <h3 className="text-lg font-black text-white mb-1 tracking-tight">Horários Disponíveis</h3>
+                    <p className="text-sm text-slate-500">Adicione e visualize os horários abertos para demos. Preencha dias inteiros ou slots individuais.</p>
+                    <div className="mt-4 flex items-center gap-1 text-xs font-bold text-lime-400">
+                      {slots.filter(s => !s.is_booked).length} horários disponíveis <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => { setAgendaView('AGENDAMENTOS'); fetchBookedDemos(); }}
+                    className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-left hover:border-lime-500/40 hover:bg-slate-800/60 transition-all group"
+                  >
+                    <div className="w-12 h-12 bg-slate-800 group-hover:bg-lime-500/10 rounded-xl flex items-center justify-center mb-4 transition-colors border border-slate-700 group-hover:border-lime-500/30">
+                      <Calendar className="w-6 h-6 text-slate-400 group-hover:text-lime-400 transition-colors" />
+                    </div>
+                    <h3 className="text-lg font-black text-white mb-1 tracking-tight">Gerenciar Agendamentos</h3>
+                    <p className="text-sm text-slate-500">Visualize demos marcadas e agende demonstrações manualmente para prospects.</p>
+                    <div className="mt-4 flex items-center gap-1 text-xs font-bold text-lime-400">
+                      {slots.filter(s => s.is_booked).length} demos agendadas <ChevronRight className="w-3.5 h-3.5" />
+                    </div>
+                  </button>
+                </div>
+              )}
+
+              {/* ── HORÁRIOS ── */}
+              {agendaView === 'HORARIOS' && (
+                <>
+                  <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 mb-6">
+                    <h3 className="text-sm font-bold text-white mb-3">Adicionar Horários</h3>
+                    <div className="flex gap-3 items-end flex-wrap">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-400 block mb-1">Data</label>
+                        <input type="date" value={newSlotDate} onChange={e => setNewSlotDate(e.target.value)} className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-400 block mb-1">Horário</label>
+                        <input type="time" value={newSlotTime} onChange={e => setNewSlotTime(e.target.value)} className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30" />
+                      </div>
+                      <button onClick={createSlot} disabled={!newSlotDate || !newSlotTime || slotCreating} className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                        {slotCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Adicionar
+                      </button>
+                      <button onClick={createBulkSlots} disabled={!newSlotDate || slotCreating} className="px-4 py-2 bg-lime-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-lime-400 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                        {slotCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />} Preencher dia inteiro (8h–20h)
+                      </button>
+                    </div>
+                  </div>
+
+                  {Object.keys(slotsByDate).length === 0 ? (
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-10 text-center">
+                      <Calendar className="w-10 h-10 mx-auto mb-2 text-slate-700" />
+                      <p className="font-semibold text-slate-400">Nenhum horário cadastrado</p>
+                      <p className="text-sm text-slate-600 mt-1">Selecione uma data acima e clique em "Preencher dia inteiro".</p>
+                    </div>
+                  ) : (
+                    Object.entries(slotsByDate).map(([date, dateSlots]) => (
+                      <div key={date} className="bg-slate-900 rounded-2xl border border-slate-800 mb-4 overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-800 bg-slate-900/60">
+                          <p className="text-sm font-bold text-slate-200">{formatDateFull(date)}</p>
+                        </div>
+                        <div className="p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                          {dateSlots.map(slot => (
+                            <div key={slot.id} className={`relative group rounded-xl px-3 py-2 text-center text-sm font-bold transition-all ${slot.is_booked ? 'bg-lime-500/10 border border-lime-500/40 text-lime-300' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:border-lime-500/50 hover:text-white'}`}>
+                              <span>{formatTime(slot.slot_time)}</span>
+                              {slot.is_booked && <span className="block text-[10px] font-semibold text-lime-400 mt-0.5">Reservado</span>}
+                              {!slot.is_booked && (
+                                <button onClick={(e) => { e.stopPropagation(); deleteSlot(slot.id); }} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              )}
+
+              {/* ── AGENDAMENTOS ── */}
+              {agendaView === 'AGENDAMENTOS' && (
+                <>
+                  {manualSuccess && (
+                    <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-semibold ${manualSuccess.startsWith('Erro') ? 'bg-red-500/10 border border-red-500/30 text-red-300' : 'bg-lime-500/10 border border-lime-500/30 text-lime-300'}`}>
+                      {manualSuccess}
+                    </div>
+                  )}
+
+                  {demosLoading ? (
+                    <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-slate-600" /></div>
+                  ) : bookedDemos.length === 0 ? (
+                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-10 text-center">
+                      <Calendar className="w-10 h-10 mx-auto mb-2 text-slate-700" />
+                      <p className="font-semibold text-slate-400">Nenhuma demo agendada</p>
+                      <p className="text-sm text-slate-600 mt-1">Clique em "Agendar Demo" para marcar uma demonstração manualmente.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {bookedDemos.map(demo => (
+                        <div key={demo.id} className="bg-slate-900 rounded-2xl border border-slate-800 px-5 py-4 flex items-center gap-4">
+                          <div className="w-10 h-10 bg-lime-500/10 border border-lime-500/20 rounded-xl flex items-center justify-center shrink-0">
+                            <Calendar className="w-5 h-5 text-lime-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white">{formatDateFull(demo.slot_date)} às {formatTime(demo.slot_time)}</p>
+                            <p className="text-xs text-slate-500 mt-0.5 truncate">
+                              {demo.booked_by?.startsWith('manual:') ? `📋 ${demo.booked_by.replace('manual:', '')}` : demo.booked_by ? `Lead ID: ${demo.booked_by}` : 'Agendado pelo sistema'}
+                            </p>
+                          </div>
+                          {demo.meeting_link && (
+                            <a href={demo.meeting_link} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-700 hover:text-white transition-all flex items-center gap-1.5 shrink-0">
+                              <ArrowUpRight className="w-3 h-3" /> Meet
+                            </a>
                           )}
+                          <span className="px-2 py-1 bg-lime-500/10 border border-lime-500/20 text-lime-300 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0">Agendado</span>
                         </div>
                       ))}
                     </div>
+                  )}
+                </>
+              )}
+
+              {/* ── MODAL: Agendar Demo Manualmente ── */}
+              {showManualForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                  <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl">
+                    <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-lg font-black text-white tracking-tight">Agendar Demo Manual</h2>
+                        <p className="text-xs text-slate-500 mt-0.5">Selecione um horário e preencha os dados do prospect</p>
+                      </div>
+                      <button onClick={() => setShowManualForm(false)} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="px-6 py-5 space-y-4">
+                      {/* Date + Time selectors */}
+                      {futureAvailableDates.length === 0 ? (
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                          <p className="text-sm text-amber-300 font-semibold">Nenhum horário futuro disponível.</p>
+                          <p className="text-xs text-amber-400/70 mt-0.5">Adicione horários primeiro em "Horários Disponíveis".</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Dia *</label>
+                            <select
+                              value={manualSlotDate}
+                              onChange={e => { setManualSlotDate(e.target.value); setManualSlotTime(''); }}
+                              className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30"
+                            >
+                              <option value="">Selecione o dia...</option>
+                              {futureAvailableDates.map(date => (
+                                <option key={date} value={date}>{formatDateFull(date)}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Horário *</label>
+                            <select
+                              value={manualSlotTime}
+                              onChange={e => setManualSlotTime(e.target.value)}
+                              disabled={!manualSlotDate}
+                              className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-500/30 disabled:opacity-40"
+                            >
+                              <option value="">Selecione o horário...</option>
+                              {timesForSelectedDate.map(t => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Name */}
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Nome *</label>
+                        <input type="text" value={manualName} onChange={e => setManualName(e.target.value)} placeholder="Nome do prospect" className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30" />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Phone */}
+                        <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1.5">WhatsApp</label>
+                          <input type="tel" value={manualPhone} onChange={e => setManualPhone(e.target.value)} placeholder="5551999999999" className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30" />
+                        </div>
+                        {/* Email */}
+                        <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1.5">E-mail</label>
+                          <input type="email" value={manualEmail} onChange={e => setManualEmail(e.target.value)} placeholder="email@empresa.com" className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30" />
+                        </div>
+                      </div>
+
+                      {/* Company */}
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Empresa</label>
+                        <input type="text" value={manualCompany} onChange={e => setManualCompany(e.target.value)} placeholder="Nome da empresa" className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30" />
+                      </div>
+
+                      {/* Notes */}
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Observações</label>
+                        <textarea value={manualNotes} onChange={e => setManualNotes(e.target.value)} placeholder="Contexto do prospect, como chegou até você, etc." rows={2} className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-lime-500/30 resize-none" />
+                      </div>
+                    </div>
+
+                    <div className="px-6 py-4 border-t border-slate-800 flex gap-3">
+                      <button onClick={() => setShowManualForm(false)} className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-700 transition-all">Cancelar</button>
+                      <button
+                        onClick={saveManualDemo}
+                        disabled={!manualSlotDate || !manualSlotTime || !manualName || manualSaving}
+                        className="flex-1 px-4 py-2.5 bg-lime-500 text-slate-950 rounded-xl text-sm font-bold hover:bg-lime-400 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
+                      >
+                        {manualSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                        Confirmar Agendamento
+                      </button>
+                    </div>
                   </div>
-                ))
+                </div>
               )}
             </>
           )}

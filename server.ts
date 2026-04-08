@@ -1305,6 +1305,46 @@ app.post("/api/agendar/:token/book", async (req, res) => {
   }
 });
 
+// ── Delete interview silently (Google Calendar deletion, no WhatsApp) ──
+app.delete("/api/interviews/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Fetch interview with job info to get calendar_id
+    const { data: interview } = await supabaseAdmin
+      .from('interviews')
+      .select('id, google_event_id, slot_id, job_id, jobs(user_id)')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!interview) return res.status(404).json({ ok: false, error: 'Entrevista não encontrada' });
+
+    // Delete from Google Calendar
+    if (interview.google_event_id) {
+      let calendarId: string | undefined;
+      const jobUserId = (interview.jobs as any)?.user_id;
+      if (jobUserId) {
+        const { data: prof } = await supabaseAdmin.from('profiles').select('google_calendar_id').eq('id', jobUserId).maybeSingle();
+        calendarId = prof?.google_calendar_id || undefined;
+      }
+      const deleted = await deleteCalendarEvent(interview.google_event_id, false, calendarId);
+      console.log(`[Delete Interview] Calendar event ${interview.google_event_id}: ${deleted ? 'DELETED' : 'FAILED'}`);
+    }
+
+    // Free the slot
+    if (interview.slot_id) {
+      await supabaseAdmin.from('interview_slots').update({ is_booked: false, booked_by: null }).eq('id', interview.slot_id);
+    }
+
+    // Delete the interview record
+    await supabaseAdmin.from('interviews').delete().eq('id', id);
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[Delete Interview] Error:', err);
+    return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
 // ── Cancel interview (WhatsApp notification + Google Calendar deletion) ──
 app.post("/api/interviews/:id/cancel", async (req, res) => {
   const { id } = req.params;
@@ -2372,7 +2412,14 @@ app.get("/admissao/:token", async (req, res) => {
 // SDR Webhook — Evolution API webhook for SDR chip
 // Configure this URL in Evolution API panel for the SDR instance
 // POST https://seu-dominio.com/api/webhooks/sdr/whatsapp
+// PAUSADO — aguardando novo número de WhatsApp para o SDR
+const SDR_PAUSED = true;
+
 app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
+  if (SDR_PAUSED) {
+    console.log("[SDR Webhook] Agente SDR pausado — mensagem ignorada");
+    return res.status(200).json({ received: true, paused: true });
+  }
   try {
     const payload = req.body as Record<string, unknown>;
     console.log("[SDR Webhook] RAW payload:", JSON.stringify(payload).substring(0, 2000));
@@ -2709,6 +2756,127 @@ app.delete("/api/sdr/slots/:id", async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
     return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// SDR — Manual demo booking by recruiter
+app.post("/api/sdr/demos/manual", async (req, res) => {
+  try {
+    const { slot_id, slot_date, slot_time, name, phone, email, company, notes } = req.body as {
+      slot_id?: string; slot_date?: string; slot_time?: string;
+      name: string; phone?: string; email?: string; company?: string; notes?: string;
+    };
+    if (!name) return res.status(400).json({ ok: false, error: 'name é obrigatório' });
+    if (!slot_id && (!slot_date || !slot_time)) return res.status(400).json({ ok: false, error: 'Informe slot_id ou slot_date+slot_time' });
+
+    let slotId = slot_id;
+
+    if (!slotId) {
+      // Find or create the slot by date+time
+      const { data: found } = await supabaseAdmin
+        .from('sdr_demo_slots')
+        .select('id, is_booked')
+        .eq('slot_date', slot_date!)
+        .eq('slot_time', slot_time!)
+        .maybeSingle();
+
+      if (found) {
+        if (found.is_booked) return res.status(409).json({ ok: false, error: 'Horário já reservado. Escolha outro.' });
+        slotId = found.id;
+      } else {
+        // Create new slot
+        const { data: created } = await supabaseAdmin
+          .from('sdr_demo_slots')
+          .insert({ slot_date: slot_date!, slot_time: slot_time!, duration_minutes: 30 })
+          .select('id')
+          .maybeSingle();
+        if (!created) return res.status(500).json({ ok: false, error: 'Erro ao criar horário.' });
+        slotId = created.id;
+      }
+    } else {
+      // Validate existing slot
+      const { data: existingSlot } = await supabaseAdmin
+        .from('sdr_demo_slots')
+        .select('id, is_booked')
+        .eq('id', slotId)
+        .maybeSingle();
+      if (!existingSlot) return res.status(404).json({ ok: false, error: 'Horário não encontrado.' });
+      if (existingSlot.is_booked) return res.status(409).json({ ok: false, error: 'Horário já reservado. Escolha outro.' });
+    }
+
+    // Book the slot
+    await supabaseAdmin
+      .from('sdr_demo_slots')
+      .update({ is_booked: true, booked_by: `manual:${name}` })
+      .eq('id', slotId);
+
+    const { data: booked } = await supabaseAdmin
+      .from('sdr_demo_slots')
+      .select('*')
+      .eq('id', slotId)
+      .maybeSingle();
+
+    // Create Google Calendar + Meet event
+    let meetLink = '';
+    let eventId = '';
+    try {
+      const googleEvent = await createMeetingEvent({
+        candidateName: name,
+        jobTitle: 'Demonstração Elevva',
+        slotDate: booked.slot_date,
+        slotTime: booked.slot_time,
+        candidatePhone: phone || '',
+        recruiterEmail: process.env.SDR_EMAIL,
+        calendarId: process.env.SDR_GOOGLE_CALENDAR_ID || process.env.GOOGLE_CALENDAR_ID,
+        useSdrCredentials: true,
+      });
+      if (googleEvent?.meetLink) {
+        meetLink = googleEvent.meetLink;
+        eventId = googleEvent.eventId;
+        await supabaseAdmin.from('sdr_demo_slots').update({ google_event_id: eventId, meeting_link: meetLink }).eq('id', slotId);
+      }
+    } catch (_) { /* calendar optional */ }
+
+    // Upsert lead record
+    let leadId: string | null = null;
+    if (phone) {
+      const { data: existingLead } = await supabaseAdmin.from('sdr_leads').select('id').eq('phone', phone).maybeSingle();
+      if (existingLead) {
+        leadId = existingLead.id;
+        await supabaseAdmin.from('sdr_leads').update({ status: 'DEMO_AGENDADA', name, company, updated_at: new Date().toISOString() }).eq('id', leadId);
+      } else {
+        const { data: newLead } = await supabaseAdmin.from('sdr_leads').insert({ phone, name, email, company, source: 'MANUAL', status: 'DEMO_AGENDADA' }).select('id').maybeSingle();
+        leadId = newLead?.id || null;
+      }
+      if (leadId) await supabaseAdmin.from('sdr_demo_slots').update({ booked_by: leadId }).eq('id', slotId);
+    }
+
+    // Save notes if provided
+    if (notes && leadId) {
+      await supabaseAdmin.from('sdr_messages').insert({ lead_id: leadId, direction: 'OUT', content: `[Nota manual] ${notes}`, message_type: 'note' });
+    }
+
+    return res.json({ ok: true, slot: booked, meeting_link: meetLink });
+  } catch (err) {
+    console.error('[SDR Manual Demo] Error:', err);
+    return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
+// SDR — List booked demos
+app.get("/api/sdr/demos", async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sdr_demo_slots')
+      .select('*')
+      .eq('is_booked', true)
+      .gte('slot_date', new Date().toISOString().split('T')[0])
+      .order('slot_date', { ascending: true })
+      .order('slot_time', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data || []);
   } catch (err) {
     return res.status(500).json({ error: 'Erro interno' });
   }

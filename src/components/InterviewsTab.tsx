@@ -93,17 +93,15 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     if (!interview.candidate_id) return;
     setActionLoadingId(interview.id + '_reject');
     try {
+      // Delete interview + Google Calendar event via API
+      await fetch(`/api/interviews/${interview.id}`, { method: 'DELETE' });
+
+      // Delete candidate record
       const { error } = await supabase
         .from('candidates')
         .delete()
         .eq('id', interview.candidate_id);
       if (error) throw error;
-
-      // Also delete the interview record
-      await supabase
-        .from('interviews')
-        .delete()
-        .eq('id', interview.id);
 
       setConfirmReject(null);
       onRefresh?.();
