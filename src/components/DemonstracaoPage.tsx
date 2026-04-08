@@ -1,151 +1,359 @@
-import React from 'react';
-import { Bot, Users, Calendar, FileText, BarChart2, Zap, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bot, Users, Calendar, FileText, BarChart2, Zap, MessageSquare, Check, ArrowRight, Star, ChevronRight } from 'lucide-react';
 
 const features = [
   {
     icon: Bot,
-    title: 'Agente de IA para Recrutamento',
-    description: 'Um agente inteligente conduz triagens via WhatsApp, qualifica candidatos automaticamente e agenda entrevistas — tudo sem intervenção humana.',
-  },
-  {
-    icon: Users,
-    title: 'Gestão Completa de Candidatos',
-    description: 'Visualize, filtre e gerencie todos os candidatos em um único painel. Acompanhe cada etapa do funil com clareza.',
-  },
-  {
-    icon: Calendar,
-    title: 'Agendamento Inteligente de Entrevistas',
-    description: 'Integração com Google Calendar e slots configuráveis. O candidato escolhe o horário e o evento é criado automaticamente.',
+    tag: 'IA Conversacional',
+    title: 'Agente que recruta por você',
+    description: 'Triagem via WhatsApp 24/7. O agente qualifica candidatos, coleta currículos e agenda entrevistas automaticamente — sem intervenção da sua equipe.',
+    stat: '80%',
+    statLabel: 'menos tempo no processo',
   },
   {
     icon: FileText,
-    title: 'Análise Automática de Currículos',
-    description: 'Claude AI lê e pontua cada currículo com base nos critérios da vaga, gerando um ranking objetivo em segundos.',
+    tag: 'Análise Inteligente',
+    title: 'Currículos avaliados em segundos',
+    description: 'Claude AI lê cada currículo com base nos critérios da vaga e gera um ranking objetivo com pontuação, pontos fortes e pontos de atenção.',
+    stat: '10x',
+    statLabel: 'mais rápido que análise manual',
+  },
+  {
+    icon: Calendar,
+    tag: 'Agendamento Automático',
+    title: 'Entrevistas no calendário sem esforço',
+    description: 'Integração com Google Calendar. O candidato escolhe o horário disponível e o evento com Google Meet é criado automaticamente.',
+    stat: '0',
+    statLabel: 'conflitos de agenda',
   },
   {
     icon: BarChart2,
-    title: 'Dashboard SDR com Métricas Reais',
-    description: 'Acompanhe contatos feitos, demos agendadas e conversões mensais. Dados em tempo real para decisões mais rápidas.',
+    tag: 'Visibilidade Total',
+    title: 'Dashboard com métricas em tempo real',
+    description: 'Acompanhe cada etapa do funil: candidatos recebidos, analisados, entrevistados e aprovados. Decisões baseadas em dados, não em achismos.',
+    stat: '100%',
+    statLabel: 'visibilidade do processo',
+  },
+];
+
+const testimonials = [
+  {
+    name: 'Ana Beatriz',
+    role: 'Diretora de RH · Grupo Meridian',
+    text: 'Contratamos 3 pessoas em 2 semanas usando o Elevva. Antes levávamos 2 meses. A diferença é absurda.',
+    initials: 'AB',
   },
   {
-    icon: Zap,
-    title: 'Automação de Ponta a Ponta',
-    description: 'Da divulgação da vaga à contratação, cada etapa é automatizada. Reduza custos operacionais e aumente a velocidade do processo.',
+    name: 'Thiago Nunes',
+    role: 'Head de Pessoas · Nexora Tech',
+    text: 'O agente de WhatsApp realmente funciona. Candidatos respondem muito mais do que no e-mail tradicional.',
+    initials: 'TN',
+  },
+  {
+    name: 'Carla Mendes',
+    role: 'Recrutadora Sênior · VitalCare',
+    text: 'A análise de currículos é impressionante. O sistema pontua com critérios que eu mesmo defino para cada vaga.',
+    initials: 'CM',
   },
 ];
 
 export function DemonstracaoPage() {
-  const whatsappUrl = 'https://wa.me/5511999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
+  const [visible, setVisible] = useState(false);
+  const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
+
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 80);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 border-b border-zinc-800">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-lime-500 flex items-center justify-center">
-            <Zap className="w-4 h-4 text-black" strokeWidth={2.5} />
-          </div>
-          <span className="text-xl font-bold tracking-tight">elevva</span>
+    <div
+      className="min-h-screen bg-white text-slate-900 font-sans selection:bg-[#65a30d] selection:text-white"
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      {/* ── HEADER ── */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <img
+            src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
+            alt="Elevva"
+            className="h-9 w-auto object-contain"
+          />
+          <a
+            href={whatsapp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-black hover:bg-slate-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-200 shadow-sm"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Falar com Especialista
+          </a>
         </div>
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 bg-lime-500 hover:bg-lime-400 text-black font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
-        >
-          <MessageSquare className="w-4 h-4" />
-          Falar com Especialista
-        </a>
       </header>
 
-      {/* Hero */}
-      <section className="flex flex-col items-center text-center px-6 pt-16 pb-10">
-        <span className="text-xs font-semibold tracking-widest text-lime-400 uppercase mb-4">
-          Plataforma de Recrutamento com IA
-        </span>
-        <h1 className="text-5xl md:text-6xl font-extrabold leading-tight max-w-3xl">
-          Recrutamento mais rápido,{' '}
-          <span className="text-lime-400">inteligente</span> e escalável
-        </h1>
-        <p className="mt-5 text-zinc-400 text-lg max-w-xl">
-          Veja como o Elevva automatiza todo o processo seletivo — do primeiro contato à contratação — usando inteligência artificial.
-        </p>
-      </section>
-
-      {/* Screen / Demo Area */}
-      <section className="px-6 md:px-16 pb-10">
-        <div className="relative max-w-5xl mx-auto rounded-2xl overflow-hidden border border-zinc-700 shadow-2xl shadow-black/60">
-          {/* Browser chrome */}
-          <div className="flex items-center gap-2 bg-zinc-800 px-4 py-3 border-b border-zinc-700">
-            <span className="w-3 h-3 rounded-full bg-zinc-600" />
-            <span className="w-3 h-3 rounded-full bg-zinc-600" />
-            <span className="w-3 h-3 rounded-full bg-zinc-600" />
-            <div className="ml-3 flex-1 bg-zinc-700 rounded-md px-3 py-1 text-xs text-zinc-400">
-              app.elevva.net
-            </div>
+      {/* ── HERO ── */}
+      <section className="max-w-6xl mx-auto px-6 pt-20 pb-16">
+        <div
+          className="transition-all duration-700"
+          style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)' }}
+        >
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 bg-[#65a30d]/10 text-[#65a30d] border border-[#65a30d]/20 rounded-full px-4 py-1.5 text-xs font-bold tracking-wider uppercase mb-8">
+            <Zap className="w-3 h-3" />
+            Recrutamento com Inteligência Artificial
           </div>
-          {/* Screen content placeholder */}
-          <div className="bg-zinc-900 flex flex-col items-center justify-center min-h-[400px] md:min-h-[520px] gap-6 p-10">
-            <div className="w-20 h-20 rounded-2xl bg-zinc-800 border border-zinc-700 flex items-center justify-center">
-              <Bot className="w-10 h-10 text-lime-400" />
-            </div>
-            <p className="text-zinc-500 text-sm text-center max-w-sm">
-              Demonstração interativa em breve. Entre em contato para ver o sistema ao vivo com um especialista.
+
+          <div className="max-w-3xl">
+            <h1 className="text-5xl md:text-6xl font-black tracking-tighter leading-[1.05] text-slate-900 mb-6">
+              Contrate mais rápido.<br />
+              <span className="text-[#65a30d]">Sem retrabalho.</span>
+            </h1>
+            <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-xl mb-10">
+              O Elevva automatiza todo o processo seletivo — da triagem à entrevista — usando um agente de IA que trabalha pelo seu time no WhatsApp.
             </p>
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-lime-500 hover:bg-lime-400 text-black font-semibold text-sm px-6 py-3 rounded-xl transition-colors"
-            >
-              Agendar demonstração ao vivo
-            </a>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <a
+                href={whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 bg-black hover:bg-slate-800 text-white font-bold px-7 py-4 rounded-2xl transition-all duration-200 shadow-md shadow-black/10 text-sm group"
+              >
+                Ver demonstração ao vivo
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </a>
+              <a
+                href={whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold px-7 py-4 rounded-2xl transition-all duration-200 border border-slate-200 text-sm"
+              >
+                <MessageSquare className="w-4 h-4 text-slate-400" />
+                Falar com especialista
+              </a>
+            </div>
+
+            {/* Social proof pills */}
+            <div className="flex flex-wrap items-center gap-4 mt-8">
+              {['Triagem automática via WhatsApp', 'Análise de currículos por IA', 'Google Calendar integrado'].map(item => (
+                <div key={item} className="flex items-center gap-1.5 text-sm text-slate-500 font-medium">
+                  <Check className="w-4 h-4 text-[#65a30d]" />
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="px-6 md:px-16 py-12 max-w-6xl mx-auto w-full">
-        <h2 className="text-center text-2xl font-bold mb-10 text-white">
-          Tudo que você precisa para contratar melhor
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-          {features.map(({ icon: Icon, title, description }) => (
-            <div
-              key={title}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-3 hover:border-zinc-600 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-xl bg-lime-500/10 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-lime-400" />
+      {/* ── SCREEN MOCKUP ── */}
+      <section
+        className="max-w-6xl mx-auto px-6 pb-20 transition-all duration-700 delay-200"
+        style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(24px)' }}
+      >
+        {/* Browser frame */}
+        <div className="rounded-[2rem] border border-slate-200 shadow-[0px_32px_80px_rgba(0,0,0,0.10)] overflow-hidden">
+          {/* Browser chrome */}
+          <div className="bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex items-center gap-3">
+            <div className="flex gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-slate-300" />
+              <span className="w-3 h-3 rounded-full bg-slate-300" />
+              <span className="w-3 h-3 rounded-full bg-slate-300" />
+            </div>
+            <div className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-400 font-medium flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#65a30d]" />
+              app.elevva.net.br
+            </div>
+          </div>
+
+          {/* App mockup interior */}
+          <div className="bg-white flex min-h-[480px]">
+            {/* Sidebar mockup */}
+            <div className="w-56 border-r border-slate-100 bg-white flex flex-col shrink-0 hidden md:flex">
+              <div className="h-16 flex items-center justify-center border-b border-slate-100 px-4">
+                <img
+                  src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
+                  alt="Elevva"
+                  className="h-7 w-auto object-contain"
+                />
               </div>
-              <h3 className="font-semibold text-white text-sm">{title}</h3>
-              <p className="text-zinc-400 text-sm leading-relaxed">{description}</p>
+              <nav className="p-3 space-y-1 flex-1">
+                {[
+                  { label: 'Visão Geral', active: true },
+                  { label: 'Minhas Vagas', active: false },
+                  { label: 'Entrevistas', active: false },
+                  { label: 'Aprovados', active: false },
+                  { label: 'Assinatura', active: false },
+                ].map(({ label, active }) => (
+                  <div
+                    key={label}
+                    className={`w-full flex items-center px-3 py-2 rounded-xl text-xs font-bold transition-all ${active ? 'bg-black text-white' : 'text-slate-400'}`}
+                  >
+                    <div className={`w-3 h-3 rounded-full mr-2.5 shrink-0 ${active ? 'bg-[#65a30d]' : 'bg-slate-200'}`} />
+                    {label}
+                  </div>
+                ))}
+              </nav>
+            </div>
+
+            {/* Content mockup */}
+            <div className="flex-1 bg-slate-50/50 p-5 flex flex-col gap-4">
+              {/* Top stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: 'Vagas Ativas', value: '4' },
+                  { label: 'Currículos Analisados', value: '127' },
+                  { label: 'Entrevistas', value: '23' },
+                  { label: 'Aprovados', value: '8' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                    <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Candidate list mockup */}
+              <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex-1">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Candidatos Recentes</p>
+                <div className="space-y-2">
+                  {[
+                    { name: 'Mariana Costa', score: 94, status: 'Aprovado' },
+                    { name: 'Rafael Almeida', score: 87, status: 'Em análise' },
+                    { name: 'Juliana Pires', score: 79, status: 'Entrevista' },
+                    { name: 'Bruno Souza', score: 71, status: 'Analisando' },
+                  ].map(({ name, score, status }) => (
+                    <div key={name} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-600">
+                          {name.charAt(0)}
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">{name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-400">{status}</span>
+                        <div className="flex items-center gap-1 bg-[#65a30d]/10 rounded-full px-2 py-0.5">
+                          <Star className="w-2.5 h-2.5 text-[#65a30d]" />
+                          <span className="text-[10px] font-black text-[#65a30d]">{score}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section className="bg-slate-50 py-24">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="max-w-xl mb-14">
+            <p className="text-xs font-black text-[#65a30d] uppercase tracking-widest mb-3">Funcionalidades</p>
+            <h2 className="text-4xl font-black tracking-tighter text-slate-900 leading-tight">
+              Tudo que seu time precisa para contratar melhor
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {features.map(({ icon: Icon, tag, title, description, stat, statLabel }) => (
+              <div
+                key={title}
+                className="bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0px_8px_32px_rgba(0,0,0,0.06)] transition-all duration-300 group"
+              >
+                <div className="flex items-start justify-between mb-5">
+                  <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:bg-[#65a30d]/10 group-hover:border-[#65a30d]/20 transition-all">
+                    <Icon className="w-5 h-5 text-slate-400 group-hover:text-[#65a30d] transition-colors" />
+                  </div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border border-slate-100 rounded-full px-3 py-1">
+                    {tag}
+                  </span>
+                </div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight mb-2">{title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed mb-6">{description}</p>
+                <div className="pt-5 border-t border-slate-50 flex items-baseline gap-2">
+                  <span className="text-4xl font-black text-slate-900 tracking-tighter">{stat}</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">{statLabel}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section className="py-24 max-w-6xl mx-auto px-6">
+        <div className="max-w-xl mb-14">
+          <p className="text-xs font-black text-[#65a30d] uppercase tracking-widest mb-3">Depoimentos</p>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900 leading-tight">
+            Quem já usa o Elevva
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {testimonials.map(({ name, role, text, initials }) => (
+            <div
+              key={name}
+              className="bg-white rounded-[2rem] border border-slate-100 p-7 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col gap-5"
+            >
+              <p className="text-sm text-slate-600 leading-relaxed font-medium flex-1">"{text}"</p>
+              <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
+                <div className="w-9 h-9 rounded-full bg-black text-white flex items-center justify-center text-xs font-black shrink-0">
+                  {initials}
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900">{name}</p>
+                  <p className="text-xs text-slate-400 font-medium">{role}</p>
+                </div>
+              </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="flex flex-col items-center text-center px-6 py-16">
-        <h2 className="text-3xl font-bold mb-3">Pronto para transformar seu recrutamento?</h2>
-        <p className="text-zinc-400 mb-8 max-w-md">
-          Fale com um especialista e descubra como o Elevva pode ser adaptado para o seu negócio.
-        </p>
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 bg-lime-500 hover:bg-lime-400 text-black font-bold text-base px-8 py-4 rounded-2xl transition-colors shadow-lg shadow-lime-500/20"
-        >
-          <MessageSquare className="w-5 h-5" />
-          Falar com Especialista
-        </a>
+      {/* ── CTA FINAL ── */}
+      <section className="bg-black mx-4 md:mx-6 mb-8 rounded-[2rem] py-16 px-8 text-center overflow-hidden relative">
+        {/* Subtle green glow */}
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(101,163,13,0.15) 0%, transparent 70%)' }}
+        />
+        <div className="relative">
+          <img
+            src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
+            alt="Elevva"
+            className="h-10 w-auto object-contain mx-auto mb-8 brightness-0 invert"
+          />
+          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-3 leading-tight">
+            Pronto para transformar<br />seu recrutamento?
+          </h2>
+          <p className="text-slate-400 font-medium mb-8 max-w-md mx-auto text-sm">
+            Fale com um especialista e veja o Elevva em ação com um processo real da sua empresa.
+          </p>
+          <a
+            href={whatsapp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2.5 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold px-8 py-4 rounded-2xl transition-all duration-200 text-sm shadow-lg shadow-[#65a30d]/20 group"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Falar com Especialista
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </a>
+        </div>
       </section>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-zinc-800 px-8 py-5 flex items-center justify-between text-zinc-600 text-xs">
-        <span>© {new Date().getFullYear()} Elevva. Todos os direitos reservados.</span>
-        <span>app.elevva.net</span>
+      {/* ── FOOTER ── */}
+      <footer className="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3">
+        <img
+          src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
+          alt="Elevva"
+          className="h-6 w-auto object-contain opacity-40"
+        />
+        <p className="text-xs text-slate-400 font-medium">
+          © {new Date().getFullYear()} Elevva. Todos os direitos reservados.
+        </p>
       </footer>
     </div>
   );
