@@ -5,7 +5,7 @@ const demoButtons = [
   { id: 1, label: 'Triagem via WhatsApp', icon: MessageSquare, videoUrl: '' },
   { id: 2, label: 'Análise de Currículos', icon: FileText, videoUrl: '' },
   { id: 3, label: 'Agendamento de Entrevistas', icon: Calendar, videoUrl: '' },
-  { id: 4, label: 'Dashboard & Métricas', icon: BarChart2, videoUrl: '' },
+  { id: 4, label: 'Coleta de Documentos', icon: BarChart2, videoUrl: '' },
 ];
 
 const features = [
