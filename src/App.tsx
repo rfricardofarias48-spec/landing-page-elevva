@@ -11,6 +11,7 @@ import { PublicUploadScreen } from './components/PublicUploadScreen';
 import { PublicSchedulingScreen } from './components/PublicSchedulingScreen';
 import { PublicAdmissionScreen } from './components/PublicAdmissionScreen';
 import { DemonstracaoPage } from './components/DemonstracaoPage';
+import { VendedorDashboard } from './components/VendedorDashboard';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
@@ -2328,6 +2329,11 @@ const App: React.FC = () => {
   // Demonstration Page — public, no auth required
   if (decodeURIComponent(window.location.pathname).match(/^\/demon?stra[cç][aã]o\/?$/i)) {
     return <DemonstracaoPage />;
+  }
+
+  // Vendedor Dashboard — public, has own auth
+  if (window.location.pathname.match(/^\/vendedor\/?$/i)) {
+    return <VendedorDashboard />;
   }
 
   // Public Scheduling View — check path synchronously to bypass auth state entirely

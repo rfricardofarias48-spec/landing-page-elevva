@@ -4,7 +4,7 @@ import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import {
   Users, Calendar, CreditCard, Search, Activity,
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap, Plus
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -893,94 +893,188 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       </div>
   );
 
+  // ── State para o novo sistema de comissões ──────────────────────────────────
+  const [spList, setSpList] = useState<any[]>([]);
+  const [spLoading, setSpLoading] = useState(false);
+  const [showAddSp, setShowAddSp] = useState(false);
+  const [spForm, setSpForm] = useState({ name: '', email: '', phone: '', cpfCnpj: '', commissionPct: 15 });
+  const [spSaving, setSpSaving] = useState(false);
+  const [spError, setSpError] = useState('');
+
+  const fetchSalespeople = async () => {
+      setSpLoading(true);
+      try {
+          const res = await fetch('/api/salespeople');
+          if (res.ok) setSpList(await res.json());
+      } finally {
+          setSpLoading(false);
+      }
+  };
+
+  const handleAddSalesperson = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setSpSaving(true);
+      setSpError('');
+      try {
+          const res = await fetch('/api/salespeople', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(spForm),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar');
+          setShowAddSp(false);
+          setSpForm({ name: '', email: '', phone: '', cpfCnpj: '', commissionPct: 15 });
+          fetchSalespeople();
+      } catch (err: any) {
+          setSpError(err.message);
+      } finally {
+          setSpSaving(false);
+      }
+  };
+
   const renderCommissions = () => {
-      const salesStats: Record<string, { name: string, clients: number, essencial: number, pro: number, enterprise: number, commission: number }> = {};
+      // Buscar dados ao abrir a view (se ainda não carregou)
+      if (spList.length === 0 && !spLoading) fetchSalespeople();
 
-      users.forEach(user => {
-          if (user.salesperson && user.plan !== 'ADMIN') {
-              const key = user.salesperson.trim().toLowerCase();
-              const name = user.salesperson.trim();
-              
-              if (!salesStats[key]) {
-                  salesStats[key] = { name, clients: 0, essencial: 0, pro: 0, enterprise: 0, commission: 0 };
-              }
-
-              salesStats[key].clients++;
-
-              if (user.plan === 'ESSENCIAL') {
-                  salesStats[key].essencial++;
-                  salesStats[key].commission += 100;
-              } else if (user.plan === 'PRO') {
-                   salesStats[key].pro++;
-                   salesStats[key].commission += 200;
-              } else if (user.plan === 'ENTERPRISE') {
-                  salesStats[key].enterprise++;
-                  salesStats[key].commission += 300;
-              }
-          }
-      });
-
-      const sortedSalespeople = Object.values(salesStats).sort((a, b) => b.commission - a.commission);
-      const totalCommission = sortedSalespeople.reduce((acc, curr) => acc + curr.commission, 0);
+      const totalCommission = spList.reduce((acc, sp) => acc + (sp.total_commission || 0), 0);
+      const totalPending = spList.reduce((acc, sp) => acc + (sp.pending_commission || 0), 0);
+      const totalSales = spList.reduce((acc, sp) => acc + (sp.paid_sales || 0), 0);
 
       return (
           <div className="space-y-8 animate-fade-in">
-              <div>
-                  <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Comissões</h2>
-                  <p className="text-zinc-500 font-medium">Gestão de vendedores e pagamentos.</p>
+              <div className="flex items-start justify-between">
+                  <div>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Comissões</h2>
+                      <p className="text-zinc-500 font-medium">Gestão de vendedores e pagamentos via Asaas.</p>
+                  </div>
+                  <button
+                      onClick={() => setShowAddSp(true)}
+                      className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors"
+                  >
+                      <Plus className="w-4 h-4" /> Cadastrar Vendedor
+                  </button>
               </div>
 
+              {/* Modal cadastro */}
+              {showAddSp && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+                          <div className="flex items-center justify-between mb-6">
+                              <h3 className="text-xl font-black text-zinc-900">Novo Vendedor</h3>
+                              <button onClick={() => setShowAddSp(false)} className="text-zinc-400 hover:text-zinc-700">
+                                  <X className="w-5 h-5" />
+                              </button>
+                          </div>
+                          <form onSubmit={handleAddSalesperson} className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome completo</label>
+                                      <input value={spForm.name} onChange={e => setSpForm(f => ({...f, name: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="João Silva" required />
+                                  </div>
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">E-mail</label>
+                                      <input type="email" value={spForm.email} onChange={e => setSpForm(f => ({...f, email: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="joao@email.com" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">CPF / CNPJ</label>
+                                      <input value={spForm.cpfCnpj} onChange={e => setSpForm(f => ({...f, cpfCnpj: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="000.000.000-00" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Comissão (%)</label>
+                                      <input type="number" min="1" max="50" step="0.5" value={spForm.commissionPct}
+                                          onChange={e => setSpForm(f => ({...f, commissionPct: parseFloat(e.target.value)}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          required />
+                                  </div>
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">WhatsApp (opcional)</label>
+                                      <input value={spForm.phone} onChange={e => setSpForm(f => ({...f, phone: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="(11) 99999-9999" />
+                                  </div>
+                              </div>
+                              {spError && <p className="text-red-500 text-xs font-medium">{spError}</p>}
+                              <button type="submit" disabled={spSaving}
+                                  className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                  {spSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar e criar subconta Asaas'}
+                              </button>
+                          </form>
+                      </div>
+                  </div>
+              )}
+
+              {/* Cards resumo */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-black text-white p-6 rounded-[2rem] border border-zinc-900 shadow-xl">
-                      <div className="flex justify-between items-start mb-4">
-                          <div className="p-3 bg-zinc-900 rounded-2xl"><Banknote className="w-6 h-6 text-[#84cc16]"/></div>
-                      </div>
+                      <div className="p-3 bg-zinc-900 rounded-2xl w-fit mb-4"><Banknote className="w-6 h-6 text-[#84cc16]"/></div>
                       <h3 className="text-4xl font-black text-white">R$ {totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Total em Comissões</p>
+                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Comissões Pagas</p>
                   </div>
                   <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
-                      <div className="flex justify-between items-start mb-4">
-                          <div className="p-3 bg-zinc-100 rounded-2xl"><Users className="w-6 h-6 text-zinc-900"/></div>
-                      </div>
-                      <h3 className="text-4xl font-black text-zinc-900">{sortedSalespeople.length}</h3>
-                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Vendedores Ativos</p>
+                      <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><TrendingUp className="w-6 h-6 text-zinc-900"/></div>
+                      <h3 className="text-4xl font-black text-zinc-900">R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">A Confirmar</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
+                      <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><Users className="w-6 h-6 text-zinc-900"/></div>
+                      <h3 className="text-4xl font-black text-zinc-900">{spList.filter(s => s.status === 'active').length}</h3>
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Vendedores Ativos · {totalSales} vendas</p>
                   </div>
               </div>
 
+              {/* Tabela */}
               <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
                   <table className="w-full text-left border-collapse">
                       <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
                           <tr>
                               <th className="p-6">Vendedor</th>
-                              <th className="p-6">Clientes Ativos</th>
-                              <th className="p-6">Vendas (Essencial/Pro/Ent)</th>
-                              <th className="p-6 text-right">Comissão Total (Est.)</th>
+                              <th className="p-6">Comissão</th>
+                              <th className="p-6">Vendas (E/P/Ent)</th>
+                              <th className="p-6 text-right">Confirmado</th>
+                              <th className="p-6 text-right">Pendente</th>
+                              <th className="p-6 text-center">Asaas</th>
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-50 text-sm">
-                          {sortedSalespeople.map((stat, idx) => (
-                              <tr key={idx} className="hover:bg-zinc-50/50 transition-colors">
-                                  <td className="p-6 font-bold text-zinc-900">{stat.name}</td>
-                                  <td className="p-6 font-bold text-zinc-600">{stat.clients}</td>
+                          {spLoading ? (
+                              <tr><td colSpan={6} className="p-12 text-center text-zinc-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                          ) : spList.length === 0 ? (
+                              <tr><td colSpan={6} className="p-12 text-center text-zinc-400 font-medium">Nenhum vendedor cadastrado.</td></tr>
+                          ) : spList.map((sp) => (
+                              <tr key={sp.id} className="hover:bg-zinc-50/50 transition-colors">
+                                  <td className="p-6">
+                                      <p className="font-bold text-zinc-900">{sp.name}</p>
+                                      <p className="text-xs text-zinc-400">{sp.email}</p>
+                                  </td>
+                                  <td className="p-6 font-black text-[#65a30d] text-lg">{sp.commission_pct}%</td>
                                   <td className="p-6">
                                       <div className="flex gap-2">
-                                          <span className="bg-zinc-100 text-zinc-500 px-2 py-1 rounded text-[10px] font-bold">{stat.essencial} Essencial</span>
-                                          <span className="bg-[#65a30d] text-black px-2 py-1 rounded text-[10px] font-bold">{stat.pro} Pro</span>
-                                          <span className="bg-purple-600 text-white px-2 py-1 rounded text-[10px] font-bold">{stat.enterprise} Ent</span>
+                                          <span className="bg-zinc-100 text-zinc-500 px-2 py-1 rounded text-[10px] font-bold">{sp.essencial_count || 0} E</span>
+                                          <span className="bg-[#65a30d] text-black px-2 py-1 rounded text-[10px] font-bold">{sp.pro_count || 0} P</span>
+                                          <span className="bg-purple-600 text-white px-2 py-1 rounded text-[10px] font-bold">{sp.enterprise_count || 0} Ent</span>
                                       </div>
                                   </td>
-                                  <td className="p-6 text-right font-black text-emerald-600 text-lg">
-                                      R$ {stat.commission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  <td className="p-6 text-right font-black text-emerald-600">
+                                      R$ {(sp.total_commission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="p-6 text-right font-bold text-amber-600">
+                                      R$ {(sp.pending_commission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="p-6 text-center">
+                                      {sp.asaas_wallet_id
+                                          ? <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Conectado</span>
+                                          : <span className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-1 rounded-full">Pendente</span>
+                                      }
                                   </td>
                               </tr>
                           ))}
-                          {sortedSalespeople.length === 0 && (
-                              <tr>
-                                  <td colSpan={4} className="p-12 text-center text-zinc-400 font-medium">
-                                      Nenhum vendedor com vendas registradas.
-                                  </td>
-                              </tr>
-                          )}
                       </tbody>
                   </table>
               </div>

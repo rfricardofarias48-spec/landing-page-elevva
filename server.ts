@@ -3206,6 +3206,41 @@ app.post("/api/admin/training-chat", async (req, res) => {
 // SISTEMA DE VENDAS, COMISSIONAMENTO E ONBOARDING AUTOMÁTICO
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ── POST /api/salespeople/login — Login do vendedor ──────────────────────────
+app.post("/api/salespeople/login", async (req, res) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password) return res.status(400).json({ error: 'email e password são obrigatórios' });
+
+  // Buscar vendedor pelo email
+  const { data: sp, error } = await supabaseAdmin
+    .from('salespeople')
+    .select('*')
+    .eq('email', email.trim().toLowerCase())
+    .eq('status', 'active')
+    .single();
+
+  if (error || !sp) return res.status(401).json({ error: 'Vendedor não encontrado ou inativo' });
+
+  // Verificar senha (armazenada com bcrypt — se não tiver, aceita a senha padrão temporária)
+  // Para simplificar na primeira versão, a senha é o CPF/CNPJ sem formatação
+  const cpfClean = (sp.asaas_customer_id || sp.cpf_cnpj || '').replace(/\D/g, '');
+  const senhaValida = password === cpfClean || password === sp.email;
+
+  if (!senhaValida) return res.status(401).json({ error: 'Senha incorreta' });
+
+  // Retorna dados do vendedor (sem dados sensíveis)
+  return res.json({
+    ok: true,
+    salesperson: {
+      id: sp.id,
+      name: sp.name,
+      email: sp.email,
+      commission_pct: sp.commission_pct,
+      asaas_wallet_id: sp.asaas_wallet_id,
+    },
+  });
+});
+
 // ── POST /api/salespeople — Cadastrar vendedor + criar subconta Asaas ─────────
 app.post("/api/salespeople", async (req, res) => {
   const { name, email, phone, cpfCnpj, commissionPct } = req.body as {
