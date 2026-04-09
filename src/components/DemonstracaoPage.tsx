@@ -221,12 +221,12 @@ export function DemonstracaoPage() {
     >
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <header className="w-full border-b border-slate-100 bg-white">
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+      <header className="w-full bg-white" style={{ borderBottom: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 1px 0 rgba(15,23,42,0.04)' }}>
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <img
             src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
             alt="Elevva"
-            className="h-9 w-auto object-contain"
+            className="h-12 w-auto object-contain"
           />
           <a
             href={whatsapp} target="_blank" rel="noopener noreferrer"
