@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Users, Calendar, FileText, BarChart2, Zap, MessageSquare, Check, ArrowRight, Star, ChevronRight } from 'lucide-react';
+import { Bot, Users, Calendar, FileText, BarChart2, Zap, MessageSquare, Check, ArrowRight, Star, ChevronRight, Play } from 'lucide-react';
+
+const demoButtons = [
+  { id: 1, label: 'Triagem via WhatsApp', icon: MessageSquare, videoUrl: '' },
+  { id: 2, label: 'Análise de Currículos', icon: FileText, videoUrl: '' },
+  { id: 3, label: 'Agendamento de Entrevistas', icon: Calendar, videoUrl: '' },
+  { id: 4, label: 'Dashboard & Métricas', icon: BarChart2, videoUrl: '' },
+  { id: 5, label: 'Admissão Digital', icon: Bot, videoUrl: '' },
+];
 
 const features = [
   {
@@ -59,6 +67,7 @@ const testimonials = [
 
 export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
+  const [activeDemo, setActiveDemo] = useState(1);
   const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
 
   useEffect(() => {
@@ -108,37 +117,24 @@ export function DemonstracaoPage() {
             <span className="text-[#65a30d]">Sem retrabalho.</span>
           </h1>
           <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-2xl mx-auto mb-10">
-            O Elevva automatiza todo o processo seletivo — da triagem à entrevista — usando um agente de IA que trabalha pelo seu time no WhatsApp.
+            O Elevva automatiza todo o processo seletivo — da triagem à admissão — veja na demonstração abaixo como nossa IA trabalha.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 bg-black hover:bg-slate-800 text-white font-bold px-7 py-4 rounded-2xl transition-all duration-200 shadow-md shadow-black/10 text-sm group"
-            >
-              Ver demonstração ao vivo
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </a>
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold px-7 py-4 rounded-2xl transition-all duration-200 border border-slate-200 text-sm"
-            >
-              <MessageSquare className="w-4 h-4 text-slate-400" />
-              Falar com especialista
-            </a>
-          </div>
-
-          {/* Social proof pills */}
-          <div className="flex flex-wrap items-center justify-center gap-5 mt-8">
-            {['Triagem automática via WhatsApp', 'Análise de currículos por IA', 'Google Calendar integrado'].map(item => (
-              <div key={item} className="flex items-center gap-1.5 text-sm text-slate-500 font-medium">
-                <Check className="w-4 h-4 text-[#65a30d]" />
-                {item}
-              </div>
+          {/* Demo navigation buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {demoButtons.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveDemo(id)}
+                className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-200 ${
+                  activeDemo === id
+                    ? 'bg-black text-white shadow-md shadow-black/10'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${activeDemo === id ? 'text-[#65a30d]' : 'text-slate-400'}`} />
+                {label}
+              </button>
             ))}
           </div>
         </div>
@@ -165,7 +161,24 @@ export function DemonstracaoPage() {
           </div>
 
           {/* App mockup interior */}
-          <div className="bg-white flex" style={{ minHeight: '680px' }}>
+          {(() => {
+            const current = demoButtons.find(b => b.id === activeDemo);
+            if (current?.videoUrl) {
+              return (
+                <div className="bg-black flex items-center justify-center" style={{ minHeight: '680px' }}>
+                  <iframe
+                    src={current.videoUrl}
+                    className="w-full"
+                    style={{ height: '680px' }}
+                    allow="autoplay; fullscreen"
+                    allowFullScreen
+                  />
+                </div>
+              );
+            }
+            return null;
+          })()}
+          <div className={`bg-white flex ${demoButtons.find(b => b.id === activeDemo)?.videoUrl ? 'hidden' : ''}`} style={{ minHeight: '680px' }}>
             {/* Sidebar mockup */}
             <div className="w-64 border-r border-slate-100 bg-white flex flex-col shrink-0 hidden md:flex">
               <div className="h-20 flex items-center justify-center border-b border-slate-100 px-5">
