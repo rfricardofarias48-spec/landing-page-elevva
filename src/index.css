@@ -41,3 +41,13 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Border Beam animation */
+@keyframes border-beam {
+  100% {
+    offset-distance: 100%;
+  }
+}
+.animate-border-beam {
+  animation: border-beam calc(var(--duration) * 1s) infinite linear;
+}
