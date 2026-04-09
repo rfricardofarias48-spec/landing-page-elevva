@@ -204,6 +204,7 @@ function DashboardMockup() {
 
 export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [activeTab, setActiveTab] = useState('whatsapp');
   const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
   const currentTab = demoTabs.find(t => t.id === activeTab);
@@ -213,6 +214,12 @@ export function DemonstracaoPage() {
     return () => clearTimeout(t);
   }, []);
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <div
       className="min-h-screen bg-white text-slate-900 selection:bg-[#65a30d] selection:text-white overflow-x-hidden"
@@ -220,21 +227,68 @@ export function DemonstracaoPage() {
     >
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-white/75 backdrop-blur-xl border-b border-slate-100/80">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <header
+        className="fixed top-0 left-0 right-0 z-50 transition-all duration-500"
+        style={{
+          background: scrolled
+            ? 'rgba(255,255,255,0.92)'
+            : 'rgba(255,255,255,0)',
+          backdropFilter: scrolled ? 'blur(20px)' : 'blur(0px)',
+          borderBottom: scrolled ? '1px solid rgba(226,232,240,0.8)' : '1px solid transparent',
+          boxShadow: scrolled ? '0 1px 32px rgba(0,0,0,0.06)' : 'none',
+        }}
+      >
+        {/* Linha verde lima fina no topo — sempre visível */}
+        <div
+          className="absolute top-0 left-0 right-0 h-[2.5px] transition-opacity duration-500"
+          style={{
+            background: 'linear-gradient(90deg, transparent 0%, #65a30d 30%, #a3e635 70%, transparent 100%)',
+            opacity: scrolled ? 1 : 0,
+          }}
+        />
+
+        <div
+          className="max-w-7xl mx-auto px-6 flex items-center justify-between transition-all duration-500"
+          style={{ height: scrolled ? '64px' : '80px' }}
+        >
+          {/* Logo — entra com fade+slide ao carregar */}
           <img
             src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
-            alt="Elevva" className="h-9 w-auto object-contain"
+            alt="Elevva"
+            style={{
+              height: scrolled ? '40px' : '52px',
+              width: 'auto',
+              objectFit: 'contain',
+              transition: 'height 0.4s ease, opacity 0.6s ease, transform 0.6s ease',
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'translateY(0)' : 'translateY(-8px)',
+            }}
           />
+
+          {/* Botão — entra com fade+slide */}
           <a
             href={whatsapp} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-black hover:bg-slate-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-200"
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: visible ? 'translateY(0)' : 'translateY(-8px)',
+              transition: 'opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s, background 0.2s, box-shadow 0.2s',
+            }}
+            className={`
+              flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-xl
+              transition-colors duration-200
+              ${scrolled
+                ? 'bg-black text-white hover:bg-slate-800 shadow-sm'
+                : 'bg-black/90 text-white hover:bg-black shadow-md'}
+            `}
           >
             <MessageSquare className="w-4 h-4" />
             Falar com Especialista
           </a>
         </div>
       </header>
+
+      {/* Espaçador para compensar o header fixed */}
+      <div style={{ height: '80px' }} />
 
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
       <section className="relative py-20 px-4 md:py-28 overflow-hidden">
