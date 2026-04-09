@@ -906,9 +906,11 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [spList, setSpList] = useState<any[]>([]);
   const [spLoading, setSpLoading] = useState(false);
   const [showAddSp, setShowAddSp] = useState(false);
-  const [spForm, setSpForm] = useState({ name: '', email: '', phone: '', cpfCnpj: '', commissionPct: 15 });
+  const [spForm, setSpForm] = useState({ name: '', email: '', phone: '', commissionPct: 15, asaasWalletId: '' });
   const [spSaving, setSpSaving] = useState(false);
   const [spError, setSpError] = useState('');
+  const [walletValidating, setWalletValidating] = useState(false);
+  const [walletInfo, setWalletInfo] = useState<{ valid: boolean; name?: string } | null>(null);
 
   // ── State para dados Asaas em tempo real ─────────────────────────────────────
   const [asaasFinance, setAsaasFinance] = useState<any>(null);
@@ -1026,6 +1028,23 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       }
   };
 
+  const handleValidateWallet = async () => {
+      if (!spForm.asaasWalletId.trim()) return;
+      setWalletValidating(true);
+      setWalletInfo(null);
+      try {
+          const res = await fetch('/api/salespeople/validate-wallet', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ walletId: spForm.asaasWalletId.trim() }),
+          });
+          const data = await res.json();
+          setWalletInfo(data);
+      } finally {
+          setWalletValidating(false);
+      }
+  };
+
   const handleAddSalesperson = async (e: React.FormEvent) => {
       e.preventDefault();
       setSpSaving(true);
@@ -1039,7 +1058,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar');
           setShowAddSp(false);
-          setSpForm({ name: '', email: '', phone: '', cpfCnpj: '', commissionPct: 15 });
+          setSpForm({ name: '', email: '', phone: '', commissionPct: 15, asaasWalletId: '' });
+          setWalletInfo(null);
           fetchSalespeople();
       } catch (err: any) {
           setSpError(err.message);
@@ -1158,26 +1178,41 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="joao@email.com" required />
                                   </div>
                                   <div>
-                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">CPF / CNPJ</label>
-                                      <input value={spForm.cpfCnpj} onChange={e => setSpForm(f => ({...f, cpfCnpj: e.target.value}))}
-                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="000.000.000-00" required />
-                                  </div>
-                                  <div>
                                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Comissão (%)</label>
                                       <input type="number" min="1" max="50" step="0.5" value={spForm.commissionPct}
                                           onChange={e => setSpForm(f => ({...f, commissionPct: parseFloat(e.target.value)}))}
                                           className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" required />
                                   </div>
-                                  <div className="col-span-2">
+                                  <div>
                                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">WhatsApp (opcional)</label>
                                       <input value={spForm.phone} onChange={e => setSpForm(f => ({...f, phone: e.target.value}))}
                                           className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="(11) 99999-9999" />
+                                  </div>
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">
+                                          Wallet ID Asaas <span className="text-zinc-400 normal-case font-medium">(opcional agora — obrigatório para split)</span>
+                                      </label>
+                                      <div className="flex gap-2">
+                                          <input value={spForm.asaasWalletId} onChange={e => { setSpForm(f => ({...f, asaasWalletId: e.target.value})); setWalletInfo(null); }}
+                                              className="flex-1 border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                              placeholder="ex: f0e1d2c3-a4b5-..." />
+                                          <button type="button" onClick={handleValidateWallet} disabled={walletValidating || !spForm.asaasWalletId}
+                                              className="px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-sm rounded-xl transition-colors disabled:opacity-40 whitespace-nowrap">
+                                              {walletValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validar'}
+                                          </button>
+                                      </div>
+                                      {walletInfo && (
+                                          <p className={`mt-1.5 text-xs font-medium ${walletInfo.valid ? 'text-green-600' : 'text-red-500'}`}>
+                                              {walletInfo.valid ? `✓ Conta verificada: ${walletInfo.name}` : '✗ Wallet ID não encontrado no Asaas'}
+                                          </p>
+                                      )}
+                                      <p className="mt-1 text-[11px] text-zinc-400">O vendedor encontra o Wallet ID em: Asaas → Configurações → Dados da Conta</p>
                                   </div>
                               </div>
                               {spError && <p className="text-red-500 text-xs font-medium">{spError}</p>}
                               <button type="submit" disabled={spSaving}
                                   className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                                  {spSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar + criar subconta Asaas'}
+                                  {spSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar Vendedor'}
                               </button>
                           </form>
                       </div>
@@ -1514,29 +1549,43 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           placeholder="joao@email.com" required />
                                   </div>
                                   <div>
-                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">CPF / CNPJ</label>
-                                      <input value={spForm.cpfCnpj} onChange={e => setSpForm(f => ({...f, cpfCnpj: e.target.value}))}
-                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                                          placeholder="000.000.000-00" required />
-                                  </div>
-                                  <div>
                                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Comissão (%)</label>
                                       <input type="number" min="1" max="50" step="0.5" value={spForm.commissionPct}
                                           onChange={e => setSpForm(f => ({...f, commissionPct: parseFloat(e.target.value)}))}
                                           className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
                                           required />
                                   </div>
-                                  <div className="col-span-2">
+                                  <div>
                                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">WhatsApp (opcional)</label>
                                       <input value={spForm.phone} onChange={e => setSpForm(f => ({...f, phone: e.target.value}))}
                                           className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
                                           placeholder="(11) 99999-9999" />
                                   </div>
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">
+                                          Wallet ID Asaas <span className="text-zinc-400 normal-case font-medium">(opcional agora — obrigatório para split)</span>
+                                      </label>
+                                      <div className="flex gap-2">
+                                          <input value={spForm.asaasWalletId} onChange={e => { setSpForm(f => ({...f, asaasWalletId: e.target.value})); setWalletInfo(null); }}
+                                              className="flex-1 border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                              placeholder="ex: f0e1d2c3-a4b5-..." />
+                                          <button type="button" onClick={handleValidateWallet} disabled={walletValidating || !spForm.asaasWalletId}
+                                              className="px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-sm rounded-xl transition-colors disabled:opacity-40 whitespace-nowrap">
+                                              {walletValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validar'}
+                                          </button>
+                                      </div>
+                                      {walletInfo && (
+                                          <p className={`mt-1.5 text-xs font-medium ${walletInfo.valid ? 'text-green-600' : 'text-red-500'}`}>
+                                              {walletInfo.valid ? `✓ Conta verificada: ${walletInfo.name}` : '✗ Wallet ID não encontrado no Asaas'}
+                                          </p>
+                                      )}
+                                      <p className="mt-1 text-[11px] text-zinc-400">O vendedor encontra o Wallet ID em: Asaas → Configurações → Dados da Conta</p>
+                                  </div>
                               </div>
                               {spError && <p className="text-red-500 text-xs font-medium">{spError}</p>}
                               <button type="submit" disabled={spSaving}
                                   className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                                  {spSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar e criar subconta Asaas'}
+                                  {spSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar Vendedor'}
                               </button>
                           </form>
                       </div>
