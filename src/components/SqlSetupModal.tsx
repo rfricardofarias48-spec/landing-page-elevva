@@ -7,7 +7,170 @@ interface Props {
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
   // Define FIX_ADMIN (V43) como padrão para resolver o erro atual
-  const [activeTab, setActiveTab] = useState<'FIX_ADMIN' | 'FIX_ACCESS' | 'CRON' | 'V51' | 'V52' | 'V53'>('FIX_ADMIN');
+  const [activeTab, setActiveTab] = useState<'FIX_ADMIN' | 'FIX_ACCESS' | 'CRON' | 'V51' | 'V52' | 'V53' | 'V54'>('FIX_ADMIN');
+
+  // SCRIPT V54: SISTEMA DE VENDAS E ONBOARDING AUTOMÁTICO
+  const v54Sql = `
+-- --- SCRIPT V54: SISTEMA DE VENDAS, COMISSIONAMENTO E ONBOARDING ---
+-- Cria tabelas: salespeople, sales, chips_pool
+-- Adiciona colunas em profiles para rastrear provisionamento automático
+-- Cria views: salesperson_commission_summary, chips_pool_summary
+
+BEGIN;
+
+-- 1. Função update_updated_at (cria se não existir)
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Tabela de vendedores
+CREATE TABLE IF NOT EXISTS public.salespeople (
+  id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name               TEXT        NOT NULL,
+  email              TEXT        NOT NULL UNIQUE,
+  phone              TEXT,
+  commission_pct     NUMERIC(5,2) NOT NULL DEFAULT 15.00,
+  asaas_wallet_id    TEXT,
+  asaas_customer_id  TEXT,
+  status             TEXT        NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'inactive')),
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS salespeople_email_idx ON public.salespeople(email);
+
+DROP TRIGGER IF EXISTS salespeople_updated_at ON public.salespeople;
+CREATE TRIGGER salespeople_updated_at
+  BEFORE UPDATE ON public.salespeople
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+ALTER TABLE public.salespeople ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Somente service role acessa salespeople" ON public.salespeople;
+CREATE POLICY "Somente service role acessa salespeople"
+  ON public.salespeople FOR ALL USING (true) WITH CHECK (true);
+
+GRANT ALL ON public.salespeople TO authenticated, anon;
+
+-- 3. Tabela de vendas
+CREATE TABLE IF NOT EXISTS public.sales (
+  id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  salesperson_id       UUID        REFERENCES public.salespeople(id) ON DELETE SET NULL,
+  client_name          TEXT        NOT NULL,
+  client_email         TEXT        NOT NULL,
+  client_phone         TEXT        NOT NULL,
+  plan                 TEXT        NOT NULL CHECK (plan IN ('ESSENCIAL', 'PRO', 'ENTERPRISE')),
+  amount               NUMERIC(10,2) NOT NULL,
+  commission_amount    NUMERIC(10,2) NOT NULL,
+  asaas_payment_id     TEXT,
+  asaas_link_url       TEXT,
+  status               TEXT        NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded')),
+  paid_at              TIMESTAMPTZ,
+  onboarding_status    TEXT        NOT NULL DEFAULT 'aguardando'
+    CHECK (onboarding_status IN ('aguardando','em_progresso','concluido','erro')),
+  onboarding_step      INT         DEFAULT 0,
+  onboarding_context   JSONB       DEFAULT '{}',
+  client_user_id       UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS sales_salesperson_idx  ON public.sales(salesperson_id);
+CREATE INDEX IF NOT EXISTS sales_status_idx        ON public.sales(status);
+CREATE INDEX IF NOT EXISTS sales_asaas_payment_idx ON public.sales(asaas_payment_id);
+
+DROP TRIGGER IF EXISTS sales_updated_at ON public.sales;
+CREATE TRIGGER sales_updated_at
+  BEFORE UPDATE ON public.sales
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Somente service role acessa sales" ON public.sales;
+CREATE POLICY "Somente service role acessa sales"
+  ON public.sales FOR ALL USING (true) WITH CHECK (true);
+
+GRANT ALL ON public.sales TO authenticated, anon;
+
+-- 4. Pool de chips
+CREATE TABLE IF NOT EXISTS public.chips_pool (
+  id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone_number         TEXT        NOT NULL UNIQUE,
+  evolution_instance   TEXT        NOT NULL UNIQUE,
+  display_name         TEXT,
+  status               TEXT        NOT NULL DEFAULT 'disponivel'
+    CHECK (status IN ('disponivel', 'em_uso', 'manutencao', 'cancelado')),
+  assigned_to          UUID        REFERENCES auth.users(id) ON DELETE SET NULL,
+  assigned_at          TIMESTAMPTZ,
+  assigned_sale_id     UUID        REFERENCES public.sales(id) ON DELETE SET NULL,
+  notes                TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS chips_pool_status_idx ON public.chips_pool(status);
+
+DROP TRIGGER IF EXISTS chips_pool_updated_at ON public.chips_pool;
+CREATE TRIGGER chips_pool_updated_at
+  BEFORE UPDATE ON public.chips_pool
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+ALTER TABLE public.chips_pool ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Somente service role acessa chips_pool" ON public.chips_pool;
+CREATE POLICY "Somente service role acessa chips_pool"
+  ON public.chips_pool FOR ALL USING (true) WITH CHECK (true);
+
+GRANT ALL ON public.chips_pool TO authenticated, anon;
+
+-- 5. Colunas extras em profiles
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS chatwoot_account_id    INT,
+  ADD COLUMN IF NOT EXISTS chatwoot_inbox_id      INT,
+  ADD COLUMN IF NOT EXISTS chatwoot_user_id       INT,
+  ADD COLUMN IF NOT EXISTS chatwoot_user_token    TEXT,
+  ADD COLUMN IF NOT EXISTS evolution_instance     TEXT,
+  ADD COLUMN IF NOT EXISTS whatsapp_number        TEXT,
+  ADD COLUMN IF NOT EXISTS sale_id                UUID REFERENCES public.sales(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS onboarded_at           TIMESTAMPTZ;
+
+-- 6. View de comissões por vendedor
+CREATE OR REPLACE VIEW public.salesperson_commission_summary AS
+SELECT
+  sp.id, sp.name, sp.email, sp.commission_pct, sp.status,
+  sp.asaas_wallet_id,
+  COUNT(s.id)                                               AS total_sales,
+  COUNT(s.id) FILTER (WHERE s.status = 'paid')             AS paid_sales,
+  COUNT(s.id) FILTER (WHERE s.status = 'pending')          AS pending_sales,
+  COALESCE(SUM(s.amount) FILTER (WHERE s.status = 'paid'), 0)              AS total_revenue,
+  COALESCE(SUM(s.commission_amount) FILTER (WHERE s.status = 'paid'), 0)   AS total_commission,
+  COALESCE(SUM(s.commission_amount) FILTER (WHERE s.status = 'pending'), 0) AS pending_commission,
+  COUNT(s.id) FILTER (WHERE s.plan = 'ESSENCIAL' AND s.status = 'paid')    AS essencial_count,
+  COUNT(s.id) FILTER (WHERE s.plan = 'PRO'       AND s.status = 'paid')    AS pro_count,
+  COUNT(s.id) FILTER (WHERE s.plan = 'ENTERPRISE' AND s.status = 'paid')   AS enterprise_count
+FROM public.salespeople sp
+LEFT JOIN public.sales s ON s.salesperson_id = sp.id
+GROUP BY sp.id, sp.name, sp.email, sp.commission_pct, sp.status, sp.asaas_wallet_id;
+
+GRANT SELECT ON public.salesperson_commission_summary TO authenticated, anon;
+
+-- 7. View de resumo do pool de chips
+CREATE OR REPLACE VIEW public.chips_pool_summary AS
+SELECT
+  COUNT(*) FILTER (WHERE status = 'disponivel')  AS disponivel,
+  COUNT(*) FILTER (WHERE status = 'em_uso')      AS em_uso,
+  COUNT(*) FILTER (WHERE status = 'manutencao')  AS manutencao,
+  COUNT(*) FILTER (WHERE status = 'cancelado')   AS cancelado,
+  COUNT(*)                                        AS total
+FROM public.chips_pool;
+
+GRANT SELECT ON public.chips_pool_summary TO authenticated, anon;
+
+COMMIT;
+  `.trim();
 
   // SCRIPT V53: DATA DE RENOVAÇÃO
   const v53Sql = `
@@ -223,6 +386,7 @@ SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHE
           case 'V51': return v51Sql;
           case 'V52': return v52Sql;
           case 'V53': return v53Sql;
+          case 'V54': return v54Sql;
           default: return fixAdminSql;
       }
   };
@@ -281,11 +445,17 @@ SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHE
             >
               <ShieldCheck className="w-4 h-4" /> V52 (Afiliados)
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('V53')}
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'V53' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
               <Clock className="w-4 h-4" /> V53 (Data Renovação)
+            </button>
+            <button
+              onClick={() => setActiveTab('V54')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'V54' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <ShieldCheck className="w-4 h-4" /> V54 (Vendas + Onboarding)
             </button>
           </div>
         </div>
