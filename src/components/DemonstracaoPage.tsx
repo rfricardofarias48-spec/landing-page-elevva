@@ -35,9 +35,9 @@ const features = [
   },
   {
     icon: BarChart2,
-    tag: 'Visibilidade Total',
-    title: 'Dashboard com métricas em tempo real',
-    description: 'Acompanhe cada etapa do funil: candidatos recebidos, analisados, entrevistados e aprovados. Decisões baseadas em dados, não em achismos.',
+    tag: 'Custo de Ociosidade',
+    title: 'O Prejuízo Oculto da Vaga Aberta',
+    description: 'Quanto dinheiro a sua operação sangra a cada dia que uma equipe trabalha desfalcada? A lentidão da triagem manual não atrasa apenas o RH, ela paralisa a sua capacidade de entrega. A inteligência artificial assume o processo instantaneamente para garantir que a sua operação não perca faturamento por falta de mão de obra.',
     stat: '100%',
     statLabel: 'visibilidade do processo',
   },
