@@ -1,9 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "DM Mono", ui-monospace, monospace;
+
+  /* Brand verde Elevva */
+  --color-brand: hsl(82 84% 35%);
+  --color-brand-light: hsl(82 84% 45%);
+  --color-brand-foreground: hsl(82 70% 55%);
+
+  /* Animações hero */
+  --animate-appear: appear 0.6s ease-out forwards;
+  --animate-appear-zoom: appear-zoom 0.9s ease-out forwards;
+  --animate-border-beam: border-beam calc(var(--duration, 15) * 1s) infinite linear;
+}
+
+@keyframes appear {
+  0%   { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes appear-zoom {
+  0%   { opacity: 0; transform: scale(0.97); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 /* SDR Dashboard — Intelligence Terminal */
