@@ -331,9 +331,15 @@ export function DemonstracaoPage() {
 
               {/* Conteúdo: vídeo ou dashboard */}
               {currentTab?.videoUrl ? (
-                <div className="bg-black w-full">
-                  <VideoPlayer src={currentTab.videoUrl} />
-                </div>
+                <video
+                  key={currentTab.videoUrl}
+                  src={currentTab.videoUrl}
+                  className="w-full block"
+                  controls
+                  autoPlay
+                  playsInline
+                  style={{ maxHeight: '680px', background: '#000' }}
+                />
               ) : (
                 <DashboardMockup />
               )}
