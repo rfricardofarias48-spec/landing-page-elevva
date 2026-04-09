@@ -144,7 +144,7 @@ export async function generatePaymentLink(params: {
 }
 
 /**
- * Busca os dados de um pagamento pelo ID do link de pagamento ou pelo ID do pagamento.
+ * Busca os dados de um pagamento pelo ID.
  */
 export async function getPayment(paymentId: string): Promise<Record<string, unknown> | null> {
   const data = await asaasRequest('GET', `/payments/${paymentId}`) as any;
@@ -152,11 +152,93 @@ export async function getPayment(paymentId: string): Promise<Record<string, unkn
 }
 
 /**
+ * Busca pagamentos pelo externalReference (= saleId interno).
+ * Permite sincronizar o status real do Asaas com nossa tabela sales.
+ */
+export async function getPaymentsByExternalReference(saleId: string): Promise<any[]> {
+  const data = await asaasRequest('GET', `/payments?externalReference=${encodeURIComponent(saleId)}&limit=10`) as any;
+  return data?.data || [];
+}
+
+/**
+ * Busca o saldo real da carteira de um vendedor.
+ * Usa o access_token da subconta do vendedor (não o da conta principal).
+ * Como não armazenamos o token da subconta, buscamos via API de transferências.
+ */
+export async function getWalletBalance(walletId: string): Promise<number | null> {
+  // O Asaas não expõe saldo de subcontas diretamente via conta pai.
+  // Retorna null — o saldo é consultado via painel Asaas do vendedor.
+  // Deixamos aqui para futura expansão com token de subconta.
+  return null;
+}
+
+/**
+ * Lista todos os pagamentos da conta principal com filtros opcionais.
+ * Útil para sincronização em lote.
+ */
+export async function listPayments(params?: {
+  status?: string;   // PENDING | CONFIRMED | RECEIVED | OVERDUE | REFUNDED
+  dateCreatedStart?: string;  // YYYY-MM-DD
+  dateCreatedEnd?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ data: any[]; totalCount: number; hasMore: boolean }> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.dateCreatedStart) qs.set('dateCreatedStart', params.dateCreatedStart);
+  if (params?.dateCreatedEnd) qs.set('dateCreatedEnd', params.dateCreatedEnd);
+  qs.set('limit', String(params?.limit || 50));
+  qs.set('offset', String(params?.offset || 0));
+
+  const data = await asaasRequest('GET', `/payments?${qs.toString()}`) as any;
+  return {
+    data: data?.data || [],
+    totalCount: data?.totalCount || 0,
+    hasMore: data?.hasMore || false,
+  };
+}
+
+/**
+ * Busca dados de uma subconta (conta filha) pelo walletId.
+ * Retorna nome, email, status da conta no Asaas.
+ */
+export async function getSubaccountInfo(walletId: string): Promise<any | null> {
+  try {
+    const data = await asaasRequest('GET', `/accounts?walletId=${walletId}`) as any;
+    if (data?.data?.length > 0) return data.data[0];
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sincroniza o status de um pagamento do Asaas para nossa tabela sales.
+ * Retorna o status atualizado.
+ */
+export async function syncPaymentStatus(asaasPaymentId: string): Promise<{
+  asaasStatus: string;
+  confirmedAt: string | null;
+  netValue: number | null;
+} | null> {
+  const payment = await asaasRequest('GET', `/payments/${asaasPaymentId}`) as any;
+  if (!payment) return null;
+
+  const CONFIRMED_STATUSES = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'];
+  const isConfirmed = CONFIRMED_STATUSES.includes(payment.status);
+
+  return {
+    asaasStatus: payment.status,
+    confirmedAt: isConfirmed ? (payment.confirmedDate || payment.paymentDate || null) : null,
+    netValue: payment.netValue || null,
+  };
+}
+
+/**
  * Valida a assinatura do webhook do Asaas.
- * O Asaas envia o header 'asaas-access-token' com o token configurado.
  */
 export function validateWebhookToken(headerToken: string | undefined): boolean {
   const expected = process.env.ASAAS_WEBHOOK_TOKEN || '';
-  if (!expected) return true; // Se não configurado, aceita tudo (dev)
+  if (!expected) return true;
   return headerToken === expected;
 }

@@ -910,6 +910,34 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [spSaving, setSpSaving] = useState(false);
   const [spError, setSpError] = useState('');
 
+  // ── State para dados Asaas em tempo real ─────────────────────────────────────
+  const [asaasFinance, setAsaasFinance] = useState<any>(null);
+  const [asaasFinanceLoading, setAsaasFinanceLoading] = useState(false);
+  const [asaasSyncing, setAsaasSyncing] = useState(false);
+  const [asaasSyncResult, setAsaasSyncResult] = useState('');
+
+  const fetchAsaasFinance = async () => {
+      setAsaasFinanceLoading(true);
+      try {
+          const res = await fetch('/api/salespeople/finance');
+          if (res.ok) setAsaasFinance(await res.json());
+      } finally {
+          setAsaasFinanceLoading(false);
+      }
+  };
+
+  const handleAsaasSync = async () => {
+      setAsaasSyncing(true);
+      setAsaasSyncResult('');
+      try {
+          await fetch('/api/salespeople/sync', { method: 'POST' });
+          setAsaasSyncResult('Sincronização iniciada! Aguarde alguns segundos e atualize.');
+          setTimeout(() => { fetchSalespeople(); setAsaasSyncResult(''); }, 4000);
+      } finally {
+          setAsaasSyncing(false);
+      }
+  };
+
   // ── State para chips ─────────────────────────────────────────────────────────
   const [chips, setChips] = useState<any[]>([]);
   const [chipsSummary, setChipsSummary] = useState<any>({});
@@ -1023,6 +1051,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   // ── Render Vendedores ─────────────────────────────────────────────────────────
   const renderVendedores = () => {
       if (spList.length === 0 && !spLoading) fetchSalespeople();
+      if (!asaasFinance && !asaasFinanceLoading) fetchAsaasFinance();
 
       const totalCommission = spList.reduce((acc, sp) => acc + (sp.total_commission || 0), 0);
       const totalPending = spList.reduce((acc, sp) => acc + (sp.pending_commission || 0), 0);
@@ -1033,17 +1062,80 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
               <div className="flex items-start justify-between">
                   <div>
                       <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Vendedores</h2>
-                      <p className="text-zinc-500 font-medium">Gestão de afiliados e comissionamento via Asaas.</p>
+                      <p className="text-zinc-500 font-medium">Gestão de afiliados e comissionamento — dados sincronizados com Asaas.</p>
                   </div>
                   <div className="flex gap-3">
-                      <button onClick={fetchSalespeople} className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors">
-                          <RefreshCw className="w-4 h-4" /> Atualizar
+                      <button onClick={handleAsaasSync} disabled={asaasSyncing}
+                          className="flex items-center gap-2 border border-[#65a30d] text-[#65a30d] font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-[#65a30d]/5 transition-colors disabled:opacity-50">
+                          {asaasSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                          Sync Asaas
                       </button>
                       <button onClick={() => setShowAddSp(true)} className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors">
                           <Plus className="w-4 h-4" /> Novo Vendedor
                       </button>
                   </div>
               </div>
+
+              {asaasSyncResult && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3 text-sm font-medium text-emerald-700">{asaasSyncResult}</div>
+              )}
+
+              {/* Painel Asaas em tempo real */}
+              {asaasFinance && (
+                  <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 rounded-[2rem] p-6 text-white">
+                      <div className="flex items-center justify-between mb-5">
+                          <div>
+                              <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Asaas — Dados Reais do Mês</p>
+                              <p className="text-sm text-zinc-300 mt-0.5">{asaasFinance.month}</p>
+                          </div>
+                          <button onClick={fetchAsaasFinance} disabled={asaasFinanceLoading} className="text-zinc-400 hover:text-white transition-colors">
+                              {asaasFinanceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                          </button>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+                          <div className="bg-white/10 rounded-2xl p-4">
+                              <p className="text-2xl font-black text-emerald-400">
+                                  R$ {(asaasFinance.confirmed?.totalNet || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-zinc-400 mt-1 font-bold uppercase tracking-wider">Recebido Líquido</p>
+                              <p className="text-xs text-zinc-500 mt-0.5">{asaasFinance.confirmed?.count || 0} pagamentos</p>
+                          </div>
+                          <div className="bg-white/10 rounded-2xl p-4">
+                              <p className="text-2xl font-black text-amber-400">
+                                  R$ {(asaasFinance.pending?.totalGross || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-zinc-400 mt-1 font-bold uppercase tracking-wider">Pendente</p>
+                              <p className="text-xs text-zinc-500 mt-0.5">{asaasFinance.pending?.count || 0} aguardando</p>
+                          </div>
+                          <div className="bg-white/10 rounded-2xl p-4">
+                              <p className="text-2xl font-black text-white">
+                                  R$ {totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-zinc-400 mt-1 font-bold uppercase tracking-wider">Comissões (DB)</p>
+                              <p className="text-xs text-zinc-500 mt-0.5">{totalSales} vendas confirmadas</p>
+                          </div>
+                      </div>
+                      {/* Últimas transações do Asaas */}
+                      {asaasFinance.payments?.length > 0 && (
+                          <div>
+                              <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Últimas Transações Asaas</p>
+                              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                  {asaasFinance.payments.slice(0, 8).map((p: any) => (
+                                      <div key={p.id} className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2">
+                                          <div className="flex items-center gap-2">
+                                              <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">{p.billingType}</span>
+                                              <span className="text-xs text-zinc-400 font-mono">{p.id.substring(0, 12)}…</span>
+                                          </div>
+                                          <span className="text-sm font-black text-emerald-400">
+                                              R$ {(p.netValue || p.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                          </span>
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              )}
 
               {/* Modal cadastro */}
               {showAddSp && (

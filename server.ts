@@ -11,7 +11,7 @@ import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chat
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
-import { createSubaccount, generatePaymentLink, validateWebhookToken, PLAN_PRICES } from "./src/services/asaasService.js";
+import { createSubaccount, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference } from "./src/services/asaasService.js";
 import { provisionClient } from "./src/services/onboardingService.js";
 import crypto from "crypto";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
@@ -3523,6 +3523,127 @@ app.post("/api/webhooks/asaas", async (req, res) => {
       console.error('[Asaas Webhook] Erro inesperado:', err.message);
     }
   })();
+});
+
+// ── GET /api/salespeople/:id/asaas — Dados reais da subconta no Asaas ─────────
+app.get("/api/salespeople/:id/asaas", async (req, res) => {
+  const { id } = req.params;
+
+  const { data: sp } = await supabaseAdmin
+    .from('salespeople').select('asaas_wallet_id, asaas_customer_id, name').eq('id', id).single();
+
+  if (!sp?.asaas_wallet_id) return res.status(404).json({ error: 'Vendedor sem subconta Asaas' });
+
+  try {
+    const info = await getSubaccountInfo(sp.asaas_wallet_id);
+    return res.json({ ok: true, asaas: info });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/salespeople/sync — Sincronizar todas as vendas com Asaas ────────
+// Percorre todas as sales com status 'pending' e atualiza pelo Asaas real
+app.post("/api/salespeople/sync", async (req, res) => {
+  // Responde imediatamente, processa em background
+  res.json({ ok: true, message: 'Sincronização iniciada' });
+
+  (async () => {
+    try {
+      const { data: pendingSales } = await supabaseAdmin
+        .from('sales')
+        .select('id, asaas_payment_id, status')
+        .in('status', ['pending'])
+        .not('asaas_payment_id', 'is', null);
+
+      if (!pendingSales?.length) {
+        console.log('[Sync Asaas] Nenhuma venda pendente para sincronizar');
+        return;
+      }
+
+      console.log(`[Sync Asaas] Sincronizando ${pendingSales.length} vendas...`);
+      let updated = 0;
+
+      for (const sale of pendingSales) {
+        try {
+          const result = await syncPaymentStatus(sale.asaas_payment_id);
+          if (!result) continue;
+
+          const CONFIRMED = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'];
+          const CANCELLED = ['REFUNDED', 'REFUND_REQUESTED', 'CHARGEBACK_REQUESTED', 'CHARGEBACK_DISPUTE', 'AWAITING_CHARGEBACK_REVERSAL', 'DUNNING_REQUESTED', 'DUNNING_RECEIVED'];
+
+          if (CONFIRMED.includes(result.asaasStatus) && sale.status !== 'paid') {
+            await supabaseAdmin.from('sales').update({
+              status: 'paid',
+              paid_at: result.confirmedAt || new Date().toISOString(),
+            }).eq('id', sale.id);
+
+            // Disparar onboarding se ainda não foi feito
+            const { data: updatedSale } = await supabaseAdmin
+              .from('sales').select('onboarding_status').eq('id', sale.id).single();
+
+            if (updatedSale?.onboarding_status === 'aguardando') {
+              const { provisionClient } = await import('./src/services/onboardingService.js');
+              provisionClient(sale.id).catch(e => console.error('[Sync] Onboarding error:', e.message));
+            }
+            updated++;
+          } else if (CANCELLED.includes(result.asaasStatus) && sale.status !== 'cancelled') {
+            await supabaseAdmin.from('sales').update({ status: 'cancelled' }).eq('id', sale.id);
+            updated++;
+          }
+        } catch (err: any) {
+          console.error(`[Sync Asaas] Erro na venda ${sale.id}:`, err.message);
+        }
+      }
+
+      console.log(`[Sync Asaas] ✅ ${updated} vendas atualizadas`);
+    } catch (err: any) {
+      console.error('[Sync Asaas] Erro geral:', err.message);
+    }
+  })();
+});
+
+// ── GET /api/salespeople/finance — Dados financeiros reais do Asaas ────────────
+// Retorna resumo de pagamentos confirmados/pendentes direto do Asaas
+app.get("/api/salespeople/finance", async (_req, res) => {
+  try {
+    const today = new Date();
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Buscar pagamentos confirmados do mês no Asaas
+    const [confirmed, pending] = await Promise.all([
+      listPayments({ status: 'RECEIVED', dateCreatedStart: firstOfMonth, dateCreatedEnd: todayStr, limit: 100 }),
+      listPayments({ status: 'PENDING', dateCreatedStart: firstOfMonth, dateCreatedEnd: todayStr, limit: 100 }),
+    ]);
+
+    const totalConfirmed = confirmed.data.reduce((acc: number, p: any) => acc + (p.netValue || 0), 0);
+    const totalPending = pending.data.reduce((acc: number, p: any) => acc + (p.value || 0), 0);
+
+    return res.json({
+      ok: true,
+      month: firstOfMonth.substring(0, 7),
+      confirmed: {
+        count: confirmed.totalCount,
+        totalNet: parseFloat(totalConfirmed.toFixed(2)),
+      },
+      pending: {
+        count: pending.totalCount,
+        totalGross: parseFloat(totalPending.toFixed(2)),
+      },
+      payments: confirmed.data.slice(0, 20).map((p: any) => ({
+        id: p.id,
+        value: p.value,
+        netValue: p.netValue,
+        status: p.status,
+        externalReference: p.externalReference,
+        confirmedDate: p.confirmedDate || p.paymentDate,
+        billingType: p.billingType,
+      })),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── POST /api/sales/:id/retry — Reprocessar onboarding com falha ──────────────
