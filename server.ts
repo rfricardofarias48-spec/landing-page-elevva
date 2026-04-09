@@ -11,6 +11,8 @@ import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chat
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
+import { createSubaccount, generatePaymentLink, validateWebhookToken, PLAN_PRICES } from "./src/services/asaasService.js";
+import { provisionClient } from "./src/services/onboardingService.js";
 import crypto from "crypto";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
@@ -3199,6 +3201,320 @@ app.post("/api/admin/training-chat", async (req, res) => {
     return res.status(500).json({ error: 'Erro ao processar mensagem' });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SISTEMA DE VENDAS, COMISSIONAMENTO E ONBOARDING AUTOMÁTICO
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── POST /api/salespeople — Cadastrar vendedor + criar subconta Asaas ─────────
+app.post("/api/salespeople", async (req, res) => {
+  const { name, email, phone, cpfCnpj, commissionPct } = req.body as {
+    name?: string; email?: string; phone?: string;
+    cpfCnpj?: string; commissionPct?: number;
+  };
+
+  if (!name || !email || !cpfCnpj) {
+    return res.status(400).json({ error: 'name, email e cpfCnpj são obrigatórios' });
+  }
+
+  try {
+    // Criar subconta no Asaas
+    let asaasWalletId: string | null = null;
+    let asaasCustomerId: string | null = null;
+    try {
+      const subconta = await createSubaccount({ name, email, cpfCnpj, phone });
+      asaasWalletId = subconta.walletId;
+      asaasCustomerId = subconta.customerId;
+    } catch (asaasErr: any) {
+      console.warn('[Salespeople] Subconta Asaas não criada:', asaasErr.message);
+      // Continua mesmo sem Asaas — pode ser cadastrado manualmente depois
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('salespeople')
+      .insert({
+        name,
+        email,
+        phone: phone || null,
+        commission_pct: commissionPct ?? 15,
+        asaas_wallet_id: asaasWalletId,
+        asaas_customer_id: asaasCustomerId,
+        status: 'active',
+      })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, salesperson: data, asaasLinked: !!asaasWalletId });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/salespeople — Listar vendedores com resumo de comissões ──────────
+app.get("/api/salespeople", async (_req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('salesperson_commission_summary')
+      .select('*')
+      .order('total_revenue', { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data || []);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PUT /api/salespeople/:id — Atualizar vendedor ────────────────────────────
+app.put("/api/salespeople/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, phone, commissionPct, status, asaasWalletId } = req.body as {
+    name?: string; phone?: string; commissionPct?: number;
+    status?: string; asaasWalletId?: string;
+  };
+
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) updates.name = name;
+  if (phone !== undefined) updates.phone = phone;
+  if (commissionPct !== undefined) updates.commission_pct = commissionPct;
+  if (status !== undefined) updates.status = status;
+  if (asaasWalletId !== undefined) updates.asaas_wallet_id = asaasWalletId;
+
+  const { data, error } = await supabaseAdmin
+    .from('salespeople').update(updates).eq('id', id).select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true, salesperson: data });
+});
+
+// ── POST /api/salespeople/:id/link — Gerar link de pagamento com split ────────
+app.post("/api/salespeople/:id/link", async (req, res) => {
+  const { id } = req.params;
+  const { clientName, clientEmail, clientPhone, plan, customAmount } = req.body as {
+    clientName?: string; clientEmail?: string; clientPhone?: string;
+    plan?: string; customAmount?: number;
+  };
+
+  if (!clientName || !clientEmail || !clientPhone || !plan) {
+    return res.status(400).json({ error: 'clientName, clientEmail, clientPhone e plan são obrigatórios' });
+  }
+
+  if (!['ESSENCIAL', 'PRO', 'ENTERPRISE'].includes(plan)) {
+    return res.status(400).json({ error: 'plan deve ser ESSENCIAL, PRO ou ENTERPRISE' });
+  }
+
+  try {
+    const { data: sp, error: spErr } = await supabaseAdmin
+      .from('salespeople').select('*').eq('id', id).eq('status', 'active').single();
+
+    if (spErr || !sp) return res.status(404).json({ error: 'Vendedor não encontrado ou inativo' });
+    if (!sp.asaas_wallet_id) return res.status(400).json({ error: 'Vendedor sem subconta Asaas configurada' });
+
+    const amountReais = customAmount || (PLAN_PRICES[plan] / 100);
+    const commissionAmount = parseFloat((amountReais * sp.commission_pct / 100).toFixed(2));
+
+    // Criar registro da venda primeiro (para o externalReference do Asaas)
+    const { data: sale, error: saleErr } = await supabaseAdmin
+      .from('sales')
+      .insert({
+        salesperson_id: id,
+        client_name: clientName,
+        client_email: clientEmail,
+        client_phone: clientPhone,
+        plan,
+        amount: amountReais,
+        commission_amount: commissionAmount,
+        status: 'pending',
+        onboarding_status: 'aguardando',
+      })
+      .select()
+      .single();
+
+    if (saleErr || !sale) return res.status(500).json({ error: saleErr?.message || 'Erro ao criar venda' });
+
+    // Gerar link no Asaas com split
+    const link = await generatePaymentLink({
+      clientName,
+      clientEmail,
+      plan,
+      amount: amountReais,
+      commissionPct: sp.commission_pct,
+      walletId: sp.asaas_wallet_id,
+      salespersonName: sp.name,
+      saleId: sale.id,
+    });
+
+    // Salvar link na venda
+    await supabaseAdmin.from('sales').update({
+      asaas_payment_id: link.id,
+      asaas_link_url: link.url,
+    }).eq('id', sale.id);
+
+    return res.json({
+      ok: true,
+      saleId: sale.id,
+      paymentLink: link.url,
+      amount: amountReais,
+      commission: commissionAmount,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/salespeople/:id/sales — Histórico de vendas do vendedor ──────────
+app.get("/api/salespeople/:id/sales", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sales')
+      .select('*')
+      .eq('salesperson_id', id)
+      .order('created_at', { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data || []);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/chips-pool — Listar chips do pool ────────────────────────────────
+app.get("/api/chips-pool", async (_req, res) => {
+  try {
+    const { data: chips } = await supabaseAdmin
+      .from('chips_pool').select('*').order('created_at', { ascending: false });
+    const { data: summary } = await supabaseAdmin
+      .from('chips_pool_summary').select('*').single();
+    return res.json({ chips: chips || [], summary: summary || {} });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/chips-pool — Registrar novo chip no pool ───────────────────────
+app.post("/api/chips-pool", async (req, res) => {
+  const { phoneNumber, evolutionInstance, displayName, notes } = req.body as {
+    phoneNumber?: string; evolutionInstance?: string;
+    displayName?: string; notes?: string;
+  };
+
+  if (!phoneNumber || !evolutionInstance) {
+    return res.status(400).json({ error: 'phoneNumber e evolutionInstance são obrigatórios' });
+  }
+
+  const { data, error } = await supabaseAdmin.from('chips_pool').insert({
+    phone_number: phoneNumber.replace(/\D/g, ''),
+    evolution_instance: evolutionInstance,
+    display_name: displayName || null,
+    notes: notes || null,
+    status: 'disponivel',
+  }).select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true, chip: data });
+});
+
+// ── PUT /api/chips-pool/:id — Atualizar chip ─────────────────────────────────
+app.put("/api/chips-pool/:id", async (req, res) => {
+  const { id } = req.params;
+  const { status, displayName, notes } = req.body as {
+    status?: string; displayName?: string; notes?: string;
+  };
+
+  const updates: Record<string, unknown> = {};
+  if (status !== undefined) updates.status = status;
+  if (displayName !== undefined) updates.display_name = displayName;
+  if (notes !== undefined) updates.notes = notes;
+
+  const { data, error } = await supabaseAdmin
+    .from('chips_pool').update(updates).eq('id', id).select().single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true, chip: data });
+});
+
+// ── POST /api/webhooks/asaas — Webhook de pagamento Asaas ─────────────────────
+// Dispara o onboarding automático quando o cliente paga
+app.post("/api/webhooks/asaas", async (req, res) => {
+  // Validar token do webhook
+  const headerToken = req.headers['asaas-access-token'] as string | undefined;
+  if (!validateWebhookToken(headerToken)) {
+    console.warn('[Asaas Webhook] Token inválido');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { event, payment } = req.body as {
+    event?: string;
+    payment?: { id?: string; externalReference?: string; status?: string; value?: number };
+  };
+
+  console.log(`[Asaas Webhook] Evento: ${event}, Payment: ${payment?.id}`);
+
+  // Só processa confirmações de pagamento
+  if (!['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'].includes(event || '')) {
+    return res.json({ ok: true, ignored: true });
+  }
+
+  const saleId = payment?.externalReference;
+  if (!saleId) {
+    console.warn('[Asaas Webhook] externalReference ausente — não é uma venda Elevva');
+    return res.json({ ok: true, ignored: true });
+  }
+
+  // Responde imediatamente ao Asaas (evita timeout)
+  res.json({ ok: true, received: true });
+
+  // Processar onboarding em background
+  (async () => {
+    try {
+      // Atualizar venda como paga
+      await supabaseAdmin.from('sales').update({
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+        asaas_payment_id: payment?.id || null,
+      }).eq('id', saleId);
+
+      console.log(`[Asaas Webhook] Iniciando onboarding para venda ${saleId}`);
+      const result = await provisionClient(saleId);
+
+      if (result.success) {
+        console.log(`[Asaas Webhook] ✅ Onboarding concluído: ${result.clientEmail}`);
+      } else {
+        console.error(`[Asaas Webhook] ❌ Onboarding falhou: ${result.error}`);
+      }
+    } catch (err: any) {
+      console.error('[Asaas Webhook] Erro inesperado:', err.message);
+    }
+  })();
+});
+
+// ── POST /api/sales/:id/retry — Reprocessar onboarding com falha ──────────────
+app.post("/api/sales/:id/retry", async (req, res) => {
+  const { id } = req.params;
+
+  const { data: sale } = await supabaseAdmin
+    .from('sales').select('onboarding_status').eq('id', id).single();
+
+  if (!sale) return res.status(404).json({ error: 'Venda não encontrada' });
+  if (sale.onboarding_status === 'concluido') {
+    return res.status(400).json({ error: 'Onboarding já concluído' });
+  }
+
+  res.json({ ok: true, message: 'Retry iniciado em background' });
+
+  (async () => {
+    try {
+      const result = await provisionClient(id);
+      console.log(`[Retry] ${result.success ? '✅' : '❌'} ${id}: ${result.error || 'OK'}`);
+    } catch (err: any) {
+      console.error('[Retry] Erro:', err.message);
+    }
+  })();
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 
 async function startServer() {
   // Vite middleware for development
