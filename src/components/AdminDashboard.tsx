@@ -4,7 +4,7 @@ import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import {
   Users, Calendar, CreditCard, Search, Activity,
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap, Plus
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap, Plus, Link as LinkIcon
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -912,6 +912,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [walletValidating, setWalletValidating] = useState(false);
   const [walletInfo, setWalletInfo] = useState<{ valid: boolean; name?: string } | null>(null);
 
+  // ── State para venda direta (sócio) ──────────────────────────────────────────
+  const [showDirectLink, setShowDirectLink] = useState(false);
+  const [directLinkForm, setDirectLinkForm] = useState({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', customAmount: '' });
+  const [directLinkResult, setDirectLinkResult] = useState('');
+  const [directLinkSaving, setDirectLinkSaving] = useState(false);
+  const [directLinkError, setDirectLinkError] = useState('');
+  const [directLinkCopied, setDirectLinkCopied] = useState(false);
+
   // ── State para dados Asaas em tempo real ─────────────────────────────────────
   const [asaasFinance, setAsaasFinance] = useState<any>(null);
   const [asaasFinanceLoading, setAsaasFinanceLoading] = useState(false);
@@ -925,6 +933,29 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
           if (res.ok) setAsaasFinance(await res.json());
       } finally {
           setAsaasFinanceLoading(false);
+      }
+  };
+
+  const handleDirectLink = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setDirectLinkSaving(true);
+      setDirectLinkError('');
+      setDirectLinkResult('');
+      try {
+          const amount = directLinkForm.plan === 'ENTERPRISE' && directLinkForm.customAmount
+              ? { customAmount: parseFloat(directLinkForm.customAmount) } : {};
+          const res = await fetch('/api/sales/direct-link', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...directLinkForm, ...amount }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao gerar link');
+          setDirectLinkResult(data.paymentLink);
+      } catch (err: any) {
+          setDirectLinkError(err.message);
+      } finally {
+          setDirectLinkSaving(false);
       }
   };
 
@@ -1090,6 +1121,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           {asaasSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                           Sync Asaas
                       </button>
+                      <button onClick={() => { setShowDirectLink(true); setDirectLinkResult(''); setDirectLinkError(''); setDirectLinkCopied(false); }}
+                          className="flex items-center gap-2 border border-zinc-300 text-zinc-700 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors">
+                          <LinkIcon className="w-4 h-4" /> Venda Direta
+                      </button>
                       <button onClick={() => setShowAddSp(true)} className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors">
                           <Plus className="w-4 h-4" /> Novo Vendedor
                       </button>
@@ -1154,6 +1189,81 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               </div>
                           </div>
                       )}
+                  </div>
+              )}
+
+              {/* Modal Venda Direta (Sócio) */}
+              {showDirectLink && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+                          <div className="flex items-center justify-between mb-6">
+                              <div>
+                                  <h3 className="text-xl font-black text-zinc-900">Venda Direta</h3>
+                                  <p className="text-xs text-zinc-400 mt-0.5 font-medium">Sem comissão — 100% Elevva</p>
+                              </div>
+                              <button onClick={() => { setShowDirectLink(false); setDirectLinkResult(''); }} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+                          </div>
+                          {!directLinkResult ? (
+                              <form onSubmit={handleDirectLink} className="space-y-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                      <div className="col-span-2">
+                                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome do cliente</label>
+                                          <input value={directLinkForm.clientName} onChange={e => setDirectLinkForm(f => ({...f, clientName: e.target.value}))}
+                                              className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="João Silva" required />
+                                      </div>
+                                      <div className="col-span-2">
+                                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">E-mail Google do cliente</label>
+                                          <input type="email" value={directLinkForm.clientEmail} onChange={e => setDirectLinkForm(f => ({...f, clientEmail: e.target.value}))}
+                                              className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="joao@gmail.com" required />
+                                      </div>
+                                      <div>
+                                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">WhatsApp</label>
+                                          <input value={directLinkForm.clientPhone} onChange={e => setDirectLinkForm(f => ({...f, clientPhone: e.target.value}))}
+                                              className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="(11) 99999-9999" required />
+                                      </div>
+                                      <div>
+                                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Plano</label>
+                                          <select value={directLinkForm.plan} onChange={e => setDirectLinkForm(f => ({...f, plan: e.target.value}))}
+                                              className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white">
+                                              <option value="ESSENCIAL">Essencial — R$ 649,90</option>
+                                              <option value="PRO">Pro — R$ 999,90</option>
+                                              <option value="ENTERPRISE">Enterprise — personalizado</option>
+                                          </select>
+                                      </div>
+                                      {directLinkForm.plan === 'ENTERPRISE' && (
+                                          <div className="col-span-2">
+                                              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Valor personalizado (R$)</label>
+                                              <input type="number" step="0.01" min="1" value={directLinkForm.customAmount} onChange={e => setDirectLinkForm(f => ({...f, customAmount: e.target.value}))}
+                                                  className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="0,00" required />
+                                          </div>
+                                      )}
+                                  </div>
+                                  {directLinkError && <p className="text-red-500 text-xs font-medium">{directLinkError}</p>}
+                                  <button type="submit" disabled={directLinkSaving}
+                                      className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                      {directLinkSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><LinkIcon className="w-4 h-4" /> Gerar Link de Pagamento</>}
+                                  </button>
+                              </form>
+                          ) : (
+                              <div className="space-y-5">
+                                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+                                      <p className="text-emerald-700 font-bold text-sm mb-1">Link gerado com sucesso!</p>
+                                      <p className="text-emerald-600 text-xs">Envie ao cliente para realizar o pagamento</p>
+                                  </div>
+                                  <div className="bg-zinc-50 rounded-xl p-3 flex items-center gap-3">
+                                      <p className="flex-1 text-xs text-zinc-600 font-mono break-all">{directLinkResult}</p>
+                                      <button onClick={() => { navigator.clipboard.writeText(directLinkResult); setDirectLinkCopied(true); setTimeout(() => setDirectLinkCopied(false), 2000); }}
+                                          className="shrink-0 px-3 py-1.5 bg-black text-white text-xs font-bold rounded-lg hover:bg-zinc-800 transition-colors">
+                                          {directLinkCopied ? '✓ Copiado' : 'Copiar'}
+                                      </button>
+                                  </div>
+                                  <button onClick={() => { setShowDirectLink(false); setDirectLinkResult(''); setDirectLinkForm({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', customAmount: '' }); }}
+                                      className="w-full border border-zinc-200 text-zinc-600 font-bold py-2.5 rounded-xl text-sm hover:bg-zinc-50 transition-colors">
+                                      Fechar
+                                  </button>
+                              </div>
+                          )}
+                      </div>
                   </div>
               )}
 

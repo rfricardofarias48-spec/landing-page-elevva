@@ -61,76 +61,61 @@ async function asaasRequest(
 }
 
 /**
- * Cria uma subconta (conta filha) no Asaas para um vendedor.
- * O vendedor não precisa ter conta no Asaas — a subconta é criada programaticamente.
- * Retorna o walletId que será usado no split dos pagamentos.
+ * Valida se um Wallet ID existe no Asaas buscando a conta pelo walletId.
+ * Usado para verificar o Wallet ID informado pelo vendedor antes de salvar.
  */
-export async function createSubaccount(params: {
-  name: string;
-  email: string;
-  cpfCnpj: string;       // CPF ou CNPJ do vendedor (obrigatório pelo Asaas)
-  phone?: string;
-  mobilePhone?: string;
-  companyType?: string;  // MEI | LIMITED | INDIVIDUAL | ASSOCIATION
-}): Promise<AsaasSubaccount> {
-  const data = await asaasRequest('POST', '/accounts', {
-    name: params.name,
-    email: params.email,
-    cpfCnpj: params.cpfCnpj.replace(/\D/g, ''),
-    phone: params.phone,
-    mobilePhone: params.mobilePhone || params.phone,
-    companyType: params.companyType || 'MEI',
-  }) as any;
-
-  if (!data?.walletId) {
-    throw new Error(`Falha ao criar subconta Asaas: ${JSON.stringify(data)}`);
+export async function validateWalletId(walletId: string): Promise<{ valid: boolean; name?: string; email?: string }> {
+  try {
+    const data = await asaasRequest('GET', `/transfers/walletId/${walletId}`) as any;
+    if (data?.name) {
+      return { valid: true, name: data.name, email: data.email };
+    }
+    return { valid: false };
+  } catch {
+    return { valid: false };
   }
-
-  return {
-    walletId: data.walletId,
-    customerId: data.id,
-  };
 }
 
 /**
  * Gera um link de pagamento com split automático para o vendedor.
- * O Asaas divide o valor automaticamente:
- *   - Conta principal (Elevva): (100 - commissionPct)%
- *   - Carteira do vendedor: commissionPct%
+ *
+ * Modelo correto (conforme documentação Asaas):
+ *  - O vendedor tem conta própria no Asaas e fornece o Wallet ID da conta dele
+ *  - A Elevva absorve 100% das taxas operacionais (não divide com o vendedor)
+ *  - O split é feito por percentual: vendedor recebe commissionPct% do valor bruto
  */
 export async function generatePaymentLink(params: {
   clientName: string;
   clientEmail: string;
   plan: string;
   amount: number;           // em reais (ex: 649.90)
-  commissionPct: number;    // percentual (ex: 15)
-  walletId: string;         // ID da carteira do vendedor no Asaas
+  commissionPct: number;    // percentual (ex: 15) — 0 para venda direta
+  walletId: string;         // Wallet ID da conta Asaas do vendedor — '' para venda direta
   salespersonName: string;
   saleId: string;           // ID interno da venda para rastreamento
 }): Promise<AsaasPaymentLink> {
   const { clientName, plan, amount, commissionPct, walletId, salespersonName, saleId } = params;
 
-  // Calcular percentual da Elevva (o Asaas paga o split para o walletId especificado)
-  const elevvaPercent = parseFloat((100 - commissionPct).toFixed(2));
+  const hasSplit = !!walletId && commissionPct > 0;
 
-  const data = await asaasRequest('POST', '/paymentLinks', {
+  const body: Record<string, unknown> = {
     name: `Elevva ${plan} — ${clientName}`,
-    description: `Plano ${plan} Elevva — vendido por ${salespersonName}`,
+    description: `Plano ${plan} Elevva${salespersonName !== 'Elevva' ? ` — vendido por ${salespersonName}` : ''}`,
     value: amount,
-    billingType: 'UNDEFINED',   // Aceita PIX, cartão, boleto
-    chargeType: 'DETACHED',     // Cobrança avulsa (não recorrente)
+    billingType: 'UNDEFINED',       // Aceita PIX, cartão, boleto
+    chargeType: 'DETACHED',         // Cobrança avulsa (não recorrente)
     isAddNewPaymentEnabled: false,
     maxInstallmentCount: 1,
-    // Split: a Elevva fica com elevvaPercent%, o vendedor com commissionPct%
-    split: [
-      {
-        walletId: walletId,
-        percentualValue: commissionPct,
-      },
-    ],
-    // Metadata para rastreamento no webhook
     externalReference: saleId,
-  }) as any;
+  };
+
+  if (hasSplit) {
+    // Venda com vendedor: split automático + Elevva absorve 100% das taxas
+    body.split = [{ walletId, percentualValue: commissionPct, externalReference: `comissao_${saleId}` }];
+    body.feeCharged = true;
+  }
+
+  const data = await asaasRequest('POST', '/paymentLinks', body) as any;
 
   if (!data?.id || !data?.url) {
     throw new Error(`Falha ao gerar link Asaas: ${JSON.stringify(data)}`);

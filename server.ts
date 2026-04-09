@@ -11,7 +11,7 @@ import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chat
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
-import { createSubaccount, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference } from "./src/services/asaasService.js";
+import { validateWalletId, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference } from "./src/services/asaasService.js";
 import { provisionClient } from "./src/services/onboardingService.js";
 import crypto from "crypto";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
@@ -3241,28 +3241,39 @@ app.post("/api/salespeople/login", async (req, res) => {
   });
 });
 
-// ── POST /api/salespeople — Cadastrar vendedor + criar subconta Asaas ─────────
+// ── POST /api/salespeople/validate-wallet — Validar Wallet ID do vendedor ─────
+app.post("/api/salespeople/validate-wallet", async (req, res) => {
+  const { walletId } = req.body as { walletId?: string };
+  if (!walletId) return res.status(400).json({ error: 'walletId obrigatório' });
+
+  try {
+    const result = await validateWalletId(walletId.trim());
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/salespeople — Cadastrar vendedor ────────────────────────────────
+// O vendedor deve ter conta própria no Asaas e fornecer o Wallet ID dela.
+// Não criamos mais subconta — o split vai direto para a conta do vendedor.
 app.post("/api/salespeople", async (req, res) => {
-  const { name, email, phone, cpfCnpj, commissionPct } = req.body as {
+  const { name, email, phone, commissionPct, asaasWalletId } = req.body as {
     name?: string; email?: string; phone?: string;
-    cpfCnpj?: string; commissionPct?: number;
+    commissionPct?: number; asaasWalletId?: string;
   };
 
-  if (!name || !email || !cpfCnpj) {
-    return res.status(400).json({ error: 'name, email e cpfCnpj são obrigatórios' });
+  if (!name || !email) {
+    return res.status(400).json({ error: 'name e email são obrigatórios' });
   }
 
   try {
-    // Criar subconta no Asaas
-    let asaasWalletId: string | null = null;
-    let asaasCustomerId: string | null = null;
-    try {
-      const subconta = await createSubaccount({ name, email, cpfCnpj, phone });
-      asaasWalletId = subconta.walletId;
-      asaasCustomerId = subconta.customerId;
-    } catch (asaasErr: any) {
-      console.warn('[Salespeople] Subconta Asaas não criada:', asaasErr.message);
-      // Continua mesmo sem Asaas — pode ser cadastrado manualmente depois
+    // Se forneceu Wallet ID, valida no Asaas antes de salvar
+    if (asaasWalletId) {
+      const validation = await validateWalletId(asaasWalletId.trim());
+      if (!validation.valid) {
+        return res.status(400).json({ error: 'Wallet ID do Asaas inválido ou não encontrado. Verifique se o vendedor tem conta ativa no Asaas.' });
+      }
     }
 
     const { data, error } = await supabaseAdmin
@@ -3272,15 +3283,21 @@ app.post("/api/salespeople", async (req, res) => {
         email,
         phone: phone || null,
         commission_pct: commissionPct ?? 15,
-        asaas_wallet_id: asaasWalletId,
-        asaas_customer_id: asaasCustomerId,
+        asaas_wallet_id: asaasWalletId?.trim() || null,
         status: 'active',
       })
       .select()
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.json({ ok: true, salesperson: data, asaasLinked: !!asaasWalletId });
+    return res.json({
+      ok: true,
+      salesperson: data,
+      asaasLinked: !!asaasWalletId,
+      message: asaasWalletId
+        ? 'Vendedor cadastrado com Wallet ID validado. Split configurado.'
+        : 'Vendedor cadastrado sem Wallet ID. Adicione o Wallet ID Asaas para ativar o split.',
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -3323,6 +3340,65 @@ app.put("/api/salespeople/:id", async (req, res) => {
   return res.json({ ok: true, salesperson: data });
 });
 
+// ── POST /api/sales/direct-link — Venda direta pelo sócio (sem vendedor) ───────
+app.post("/api/sales/direct-link", async (req, res) => {
+  const { clientName, clientEmail, clientPhone, plan, customAmount } = req.body as {
+    clientName?: string; clientEmail?: string; clientPhone?: string;
+    plan?: string; customAmount?: number;
+  };
+
+  if (!clientName || !clientEmail || !clientPhone || !plan) {
+    return res.status(400).json({ error: 'clientName, clientEmail, clientPhone e plan são obrigatórios' });
+  }
+
+  if (!['ESSENCIAL', 'PRO', 'ENTERPRISE'].includes(plan)) {
+    return res.status(400).json({ error: 'plan deve ser ESSENCIAL, PRO ou ENTERPRISE' });
+  }
+
+  try {
+    const amountReais = customAmount || (PLAN_PRICES[plan] / 100);
+
+    const { data: sale, error: saleErr } = await supabaseAdmin
+      .from('sales')
+      .insert({
+        salesperson_id: null,
+        client_name: clientName,
+        client_email: clientEmail,
+        client_phone: clientPhone,
+        plan,
+        amount: amountReais,
+        commission_amount: 0,
+        status: 'pending',
+        onboarding_status: 'aguardando',
+      })
+      .select()
+      .single();
+
+    if (saleErr || !sale) return res.status(500).json({ error: saleErr?.message || 'Erro ao criar venda' });
+
+    // Sem split — 100% para a Elevva
+    const link = await generatePaymentLink({
+      clientName,
+      clientEmail,
+      plan,
+      amount: amountReais,
+      commissionPct: 0,
+      walletId: '',
+      salespersonName: 'Elevva',
+      saleId: sale.id,
+    });
+
+    await supabaseAdmin.from('sales').update({
+      asaas_payment_id: link.id,
+      asaas_link_url: link.url,
+    }).eq('id', sale.id);
+
+    return res.json({ ok: true, saleId: sale.id, paymentLink: link.url, amount: amountReais });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/salespeople/:id/link — Gerar link de pagamento com split ────────
 app.post("/api/salespeople/:id/link", async (req, res) => {
   const { id } = req.params;
@@ -3344,10 +3420,12 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
       .from('salespeople').select('*').eq('id', id).eq('status', 'active').single();
 
     if (spErr || !sp) return res.status(404).json({ error: 'Vendedor não encontrado ou inativo' });
-    if (!sp.asaas_wallet_id) return res.status(400).json({ error: 'Vendedor sem subconta Asaas configurada' });
 
     const amountReais = customAmount || (PLAN_PRICES[plan] / 100);
-    const commissionAmount = parseFloat((amountReais * sp.commission_pct / 100).toFixed(2));
+    const hasSplit = !!sp.asaas_wallet_id && sp.commission_pct > 0;
+    const commissionAmount = hasSplit
+      ? parseFloat((amountReais * sp.commission_pct / 100).toFixed(2))
+      : 0;
 
     // Criar registro da venda primeiro (para o externalReference do Asaas)
     const { data: sale, error: saleErr } = await supabaseAdmin
@@ -3368,14 +3446,14 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
 
     if (saleErr || !sale) return res.status(500).json({ error: saleErr?.message || 'Erro ao criar venda' });
 
-    // Gerar link no Asaas com split
+    // Gerar link no Asaas — com split se wallet ID configurado, sem split caso contrário
     const link = await generatePaymentLink({
       clientName,
       clientEmail,
       plan,
       amount: amountReais,
-      commissionPct: sp.commission_pct,
-      walletId: sp.asaas_wallet_id,
+      commissionPct: hasSplit ? sp.commission_pct : 0,
+      walletId: sp.asaas_wallet_id || '',
       salespersonName: sp.name,
       saleId: sale.id,
     });
