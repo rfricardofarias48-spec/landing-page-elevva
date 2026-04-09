@@ -109,7 +109,7 @@ export function DemonstracaoPage() {
             Contrate mais rápido.<br />
             <span className="text-[#65a30d]">Sem retrabalho.</span>
           </h1>
-          <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-2xl mx-auto mb-10">
+          <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-2xl mx-auto mb-16">
             O Elevva automatiza todo o processo seletivo — da triagem à admissão — veja na demonstração abaixo como nossa IA trabalha.
           </p>
 
