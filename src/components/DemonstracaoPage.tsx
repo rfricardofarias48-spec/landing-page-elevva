@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, Users, Calendar, FileText, BarChart2, Zap, MessageSquare, Check, ArrowRight, Star, ChevronRight, Play } from 'lucide-react';
+import VideoPlayer from './ui/video-player';
 
 const demoButtons = [
   { id: 1, label: 'Triagem via WhatsApp', icon: MessageSquare, videoUrl: '' },
@@ -153,19 +154,13 @@ export function DemonstracaoPage() {
             </div>
           </div>
 
-          {/* App mockup interior */}
+          {/* App mockup interior — vídeo ou dashboard estático */}
           {(() => {
             const current = demoButtons.find(b => b.id === activeDemo);
             if (current?.videoUrl) {
               return (
-                <div className="bg-black flex items-center justify-center" style={{ minHeight: '680px' }}>
-                  <iframe
-                    src={current.videoUrl}
-                    className="w-full"
-                    style={{ height: '680px' }}
-                    allow="autoplay; fullscreen"
-                    allowFullScreen
-                  />
+                <div className="bg-black" style={{ minHeight: '680px' }}>
+                  <VideoPlayer src={current.videoUrl} />
                 </div>
               );
             }
