@@ -3,7 +3,7 @@ import { cn } from "../../lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 
 const mockupVariants = cva(
-  "flex relative z-10 overflow-hidden shadow-2xl border border-slate-200/60 border-t-slate-200",
+  "flex flex-col relative z-10 overflow-hidden shadow-2xl border border-slate-200/60 border-t-slate-200",
   {
     variants: {
       type: {
