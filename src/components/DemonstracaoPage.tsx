@@ -6,7 +6,6 @@ const demoButtons = [
   { id: 2, label: 'Análise de Currículos', icon: FileText, videoUrl: '' },
   { id: 3, label: 'Agendamento de Entrevistas', icon: Calendar, videoUrl: '' },
   { id: 4, label: 'Dashboard & Métricas', icon: BarChart2, videoUrl: '' },
-  { id: 5, label: 'Admissão Digital', icon: Bot, videoUrl: '' },
 ];
 
 const features = [
@@ -101,17 +100,11 @@ export function DemonstracaoPage() {
       </header>
 
       {/* ── HERO ── */}
-      <section className="max-w-6xl mx-auto px-6 pt-20 pb-12 text-center">
+      <section className="max-w-6xl mx-auto px-6 pt-20 pb-6 text-center">
         <div
           className="transition-all duration-700"
           style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)' }}
         >
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 bg-[#65a30d]/10 text-[#65a30d] border border-[#65a30d]/20 rounded-full px-4 py-1.5 text-xs font-bold tracking-wider uppercase mb-8">
-            <Zap className="w-3 h-3" />
-            Recrutamento com Inteligência Artificial
-          </div>
-
           <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[1.03] text-slate-900 mb-6">
             Contrate mais rápido.<br />
             <span className="text-[#65a30d]">Sem retrabalho.</span>
@@ -142,7 +135,7 @@ export function DemonstracaoPage() {
 
       {/* ── SCREEN MOCKUP ── */}
       <section
-        className="px-4 md:px-8 pb-24 transition-all duration-700 delay-200"
+        className="px-4 md:px-8 pb-24 pt-4 transition-all duration-700 delay-200"
         style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(24px)' }}
       >
         {/* Browser frame */}
