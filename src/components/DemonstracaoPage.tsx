@@ -92,7 +92,7 @@ export function DemonstracaoPage() {
       </header>
 
       {/* ── HERO ── */}
-      <section className="max-w-6xl mx-auto px-6 pt-20 pb-16">
+      <section className="max-w-6xl mx-auto px-6 pt-20 pb-12 text-center">
         <div
           className="transition-all duration-700"
           style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)' }}
@@ -103,142 +103,207 @@ export function DemonstracaoPage() {
             Recrutamento com Inteligência Artificial
           </div>
 
-          <div className="max-w-3xl">
-            <h1 className="text-5xl md:text-6xl font-black tracking-tighter leading-[1.05] text-slate-900 mb-6">
-              Contrate mais rápido.<br />
-              <span className="text-[#65a30d]">Sem retrabalho.</span>
-            </h1>
-            <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-xl mb-10">
-              O Elevva automatiza todo o processo seletivo — da triagem à entrevista — usando um agente de IA que trabalha pelo seu time no WhatsApp.
-            </p>
+          <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[1.03] text-slate-900 mb-6">
+            Contrate mais rápido.<br />
+            <span className="text-[#65a30d]">Sem retrabalho.</span>
+          </h1>
+          <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-2xl mx-auto mb-10">
+            O Elevva automatiza todo o processo seletivo — da triagem à entrevista — usando um agente de IA que trabalha pelo seu time no WhatsApp.
+          </p>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <a
-                href={whatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-black hover:bg-slate-800 text-white font-bold px-7 py-4 rounded-2xl transition-all duration-200 shadow-md shadow-black/10 text-sm group"
-              >
-                Ver demonstração ao vivo
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </a>
-              <a
-                href={whatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold px-7 py-4 rounded-2xl transition-all duration-200 border border-slate-200 text-sm"
-              >
-                <MessageSquare className="w-4 h-4 text-slate-400" />
-                Falar com especialista
-              </a>
-            </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a
+              href={whatsapp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-black hover:bg-slate-800 text-white font-bold px-7 py-4 rounded-2xl transition-all duration-200 shadow-md shadow-black/10 text-sm group"
+            >
+              Ver demonstração ao vivo
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </a>
+            <a
+              href={whatsapp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold px-7 py-4 rounded-2xl transition-all duration-200 border border-slate-200 text-sm"
+            >
+              <MessageSquare className="w-4 h-4 text-slate-400" />
+              Falar com especialista
+            </a>
+          </div>
 
-            {/* Social proof pills */}
-            <div className="flex flex-wrap items-center gap-4 mt-8">
-              {['Triagem automática via WhatsApp', 'Análise de currículos por IA', 'Google Calendar integrado'].map(item => (
-                <div key={item} className="flex items-center gap-1.5 text-sm text-slate-500 font-medium">
-                  <Check className="w-4 h-4 text-[#65a30d]" />
-                  {item}
-                </div>
-              ))}
-            </div>
+          {/* Social proof pills */}
+          <div className="flex flex-wrap items-center justify-center gap-5 mt-8">
+            {['Triagem automática via WhatsApp', 'Análise de currículos por IA', 'Google Calendar integrado'].map(item => (
+              <div key={item} className="flex items-center gap-1.5 text-sm text-slate-500 font-medium">
+                <Check className="w-4 h-4 text-[#65a30d]" />
+                {item}
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ── SCREEN MOCKUP ── */}
       <section
-        className="max-w-6xl mx-auto px-6 pb-20 transition-all duration-700 delay-200"
+        className="px-4 md:px-8 pb-24 transition-all duration-700 delay-200"
         style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(24px)' }}
       >
         {/* Browser frame */}
-        <div className="rounded-[2rem] border border-slate-200 shadow-[0px_32px_80px_rgba(0,0,0,0.10)] overflow-hidden">
+        <div className="rounded-[2rem] border border-slate-200 shadow-[0px_40px_120px_rgba(0,0,0,0.12)] overflow-hidden max-w-[1400px] mx-auto">
           {/* Browser chrome */}
-          <div className="bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex items-center gap-3">
-            <div className="flex gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-slate-300" />
-              <span className="w-3 h-3 rounded-full bg-slate-300" />
-              <span className="w-3 h-3 rounded-full bg-slate-300" />
+          <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-3">
+            <div className="flex gap-2">
+              <span className="w-3.5 h-3.5 rounded-full bg-slate-300" />
+              <span className="w-3.5 h-3.5 rounded-full bg-slate-300" />
+              <span className="w-3.5 h-3.5 rounded-full bg-slate-300" />
             </div>
-            <div className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-400 font-medium flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#65a30d]" />
+            <div className="flex-1 bg-white border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-400 font-medium flex items-center gap-2 max-w-sm mx-auto">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#65a30d]" />
               app.elevva.net.br
             </div>
           </div>
 
           {/* App mockup interior */}
-          <div className="bg-white flex min-h-[480px]">
+          <div className="bg-white flex" style={{ minHeight: '680px' }}>
             {/* Sidebar mockup */}
-            <div className="w-56 border-r border-slate-100 bg-white flex flex-col shrink-0 hidden md:flex">
-              <div className="h-16 flex items-center justify-center border-b border-slate-100 px-4">
+            <div className="w-64 border-r border-slate-100 bg-white flex flex-col shrink-0 hidden md:flex">
+              <div className="h-20 flex items-center justify-center border-b border-slate-100 px-5">
                 <img
                   src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
                   alt="Elevva"
-                  className="h-7 w-auto object-contain"
+                  className="h-9 w-auto object-contain"
                 />
               </div>
-              <nav className="p-3 space-y-1 flex-1">
+              <nav className="p-4 space-y-1.5 flex-1">
                 {[
                   { label: 'Visão Geral', active: true },
                   { label: 'Minhas Vagas', active: false },
                   { label: 'Entrevistas', active: false },
                   { label: 'Aprovados', active: false },
-                  { label: 'Assinatura', active: false },
+                  { label: 'Minha Assinatura', active: false },
+                  { label: 'Configurações', active: false },
                 ].map(({ label, active }) => (
                   <div
                     key={label}
-                    className={`w-full flex items-center px-3 py-2 rounded-xl text-xs font-bold transition-all ${active ? 'bg-black text-white' : 'text-slate-400'}`}
+                    className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-bold transition-all ${active ? 'bg-black text-white' : 'text-slate-400'}`}
                   >
-                    <div className={`w-3 h-3 rounded-full mr-2.5 shrink-0 ${active ? 'bg-[#65a30d]' : 'bg-slate-200'}`} />
+                    <div className={`w-3 h-3 rounded-full mr-3 shrink-0 ${active ? 'bg-[#65a30d]' : 'bg-slate-200'}`} />
                     {label}
                   </div>
                 ))}
               </nav>
+              {/* User bottom */}
+              <div className="p-4 border-t border-slate-100">
+                <div className="flex items-center gap-3 px-2">
+                  <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-black text-slate-600">A</div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900">Ana Beatriz</p>
+                    <p className="text-xs text-slate-400">ana@empresa.com.br</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Content mockup */}
-            <div className="flex-1 bg-slate-50/50 p-5 flex flex-col gap-4">
+            <div className="flex-1 bg-slate-50/50 p-6 md:p-8 flex flex-col gap-5">
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-1">
+                <div className="relative shrink-0">
+                  <div className="absolute inset-0 bg-[#65a30d] rounded-xl translate-x-1 translate-y-1" />
+                  <div className="w-11 h-11 bg-black rounded-xl relative flex items-center justify-center text-white text-base font-black border-2 border-black z-10">A</div>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Olá, Ana</h2>
+                  <p className="text-xs text-slate-400 font-medium">Bem-vinda ao seu painel</p>
+                </div>
+              </div>
+
               {/* Top stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: 'Vagas Ativas', value: '4' },
                   { label: 'Currículos Analisados', value: '127' },
                   { label: 'Entrevistas', value: '23' },
                   { label: 'Aprovados', value: '8' },
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                    <p className="text-3xl font-black text-slate-900 tracking-tighter">{value}</p>
+                  <div key={label} className="bg-white rounded-[1.5rem] border border-slate-100 p-5 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{label}</p>
+                    <p className="text-5xl font-black text-slate-900 tracking-tighter leading-none">{value}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Candidate list mockup */}
-              <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Candidatos Recentes</p>
-                <div className="space-y-2">
-                  {[
-                    { name: 'Mariana Costa', score: 94, status: 'Aprovado' },
-                    { name: 'Rafael Almeida', score: 87, status: 'Em análise' },
-                    { name: 'Juliana Pires', score: 79, status: 'Entrevista' },
-                    { name: 'Bruno Souza', score: 71, status: 'Analisando' },
-                  ].map(({ name, score, status }) => (
-                    <div key={name} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-600">
-                          {name.charAt(0)}
+              {/* Bottom area */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+                {/* Candidate list */}
+                <div className="lg:col-span-2 bg-white rounded-[1.5rem] border border-slate-100 p-6 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Candidatos Recentes</p>
+                  <div className="space-y-1">
+                    {[
+                      { name: 'Mariana Costa', role: 'Desenvolvedora Front-end', score: 94, status: 'Aprovado', color: 'bg-emerald-50 text-emerald-700' },
+                      { name: 'Rafael Almeida', role: 'Designer UX/UI', score: 87, status: 'Em análise', color: 'bg-sky-50 text-sky-700' },
+                      { name: 'Juliana Pires', role: 'Product Manager', score: 79, status: 'Entrevista', color: 'bg-violet-50 text-violet-700' },
+                      { name: 'Bruno Souza', role: 'Backend Node.js', score: 71, status: 'Analisando', color: 'bg-amber-50 text-amber-700' },
+                      { name: 'Camila Rocha', role: 'Data Analyst', score: 68, status: 'Triagem', color: 'bg-slate-50 text-slate-600' },
+                    ].map(({ name, role, score, status, color }) => (
+                      <div key={name} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-black text-slate-600 shrink-0">
+                            {name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{name}</p>
+                            <p className="text-xs text-slate-400">{role}</p>
+                          </div>
                         </div>
-                        <span className="text-xs font-bold text-slate-700">{name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-slate-400">{status}</span>
-                        <div className="flex items-center gap-1 bg-[#65a30d]/10 rounded-full px-2 py-0.5">
-                          <Star className="w-2.5 h-2.5 text-[#65a30d]" />
-                          <span className="text-[10px] font-black text-[#65a30d]">{score}</span>
+                        <div className="flex items-center gap-2.5">
+                          <span className={`text-[10px] font-black rounded-full px-2.5 py-1 ${color}`}>{status}</span>
+                          <div className="flex items-center gap-1 bg-[#65a30d]/10 rounded-full px-2.5 py-1">
+                            <Star className="w-3 h-3 text-[#65a30d]" />
+                            <span className="text-xs font-black text-[#65a30d]">{score}</span>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right panel */}
+                <div className="flex flex-col gap-4">
+                  <div className="bg-white rounded-[1.5rem] border border-slate-100 p-5 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Próximas Entrevistas</p>
+                    {[
+                      { name: 'Mariana Costa', time: '14:00', day: 'Hoje' },
+                      { name: 'Rafael Almeida', time: '10:30', day: 'Amanhã' },
+                      { name: 'Juliana Pires', time: '15:00', day: 'Sex' },
+                    ].map(({ name, time, day }) => (
+                      <div key={name} className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-600">{name.charAt(0)}</div>
+                          <p className="text-xs font-bold text-slate-700">{name}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-black text-slate-900">{time}</p>
+                          <p className="text-[10px] text-slate-400">{day}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-black rounded-[1.5rem] p-5 flex-1 flex flex-col justify-between">
+                    <div className="w-8 h-8 rounded-xl bg-[#65a30d]/20 flex items-center justify-center mb-3">
+                      <Zap className="w-4 h-4 text-[#65a30d]" />
                     </div>
-                  ))}
+                    <div>
+                      <p className="text-white font-black text-sm mb-1">Agente ativo</p>
+                      <p className="text-slate-400 text-xs font-medium leading-relaxed">12 candidatos em triagem agora via WhatsApp</p>
+                    </div>
+                    <div className="mt-4 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#65a30d] animate-pulse" />
+                      <span className="text-[10px] font-bold text-[#65a30d]">Online</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
