@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
-type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS';
+type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS' | 'VENDEDORES' | 'CHIPS';
 
 interface AdminJob {
   id: string;
@@ -638,6 +638,15 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             <button onClick={() => { setCurrentView('PROMPTS'); fetchRecruiterPrompt(); fetchAttendancePrompt(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'PROMPTS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Sliders className="w-5 h-5" /> Controle Agente
             </button>
+            <div className="pt-2 pb-1 px-4">
+                <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">Comercial</p>
+            </div>
+            <button onClick={() => { setCurrentView('VENDEDORES'); fetchSalespeople(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'VENDEDORES' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <Briefcase className="w-5 h-5" /> Vendedores
+            </button>
+            <button onClick={() => { setCurrentView('CHIPS'); fetchChips(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CHIPS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <Bot className="w-5 h-5" /> Chips WhatsApp
+            </button>
         </nav>
 
         <div className="p-4 border-t border-zinc-100">
@@ -901,6 +910,84 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [spSaving, setSpSaving] = useState(false);
   const [spError, setSpError] = useState('');
 
+  // ── State para chips ─────────────────────────────────────────────────────────
+  const [chips, setChips] = useState<any[]>([]);
+  const [chipsSummary, setChipsSummary] = useState<any>({});
+  const [chipsLoading, setChipsLoading] = useState(false);
+  const [chipsChecking, setChipsChecking] = useState<Record<string, 'idle' | 'checking' | 'online' | 'offline'>>({});
+  const [showAddChip, setShowAddChip] = useState(false);
+  const [chipForm, setChipForm] = useState({ phoneNumber: '', evolutionInstance: '', displayName: '', notes: '' });
+  const [chipSaving, setChipSaving] = useState(false);
+  const [chipError, setChipError] = useState('');
+
+  const fetchChips = async () => {
+      setChipsLoading(true);
+      try {
+          const res = await fetch('/api/chips-pool');
+          if (res.ok) {
+              const data = await res.json();
+              setChips(data.chips || []);
+              setChipsSummary(data.summary || {});
+          }
+      } finally {
+          setChipsLoading(false);
+      }
+  };
+
+  const handleAddChip = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setChipSaving(true);
+      setChipError('');
+      try {
+          const res = await fetch('/api/chips-pool', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(chipForm),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar chip');
+          setShowAddChip(false);
+          setChipForm({ phoneNumber: '', evolutionInstance: '', displayName: '', notes: '' });
+          fetchChips();
+      } catch (err: any) {
+          setChipError(err.message);
+      } finally {
+          setChipSaving(false);
+      }
+  };
+
+  const handleChipStatus = async (chipId: string, newStatus: string) => {
+      await fetch(`/api/chips-pool/${chipId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+      });
+      fetchChips();
+  };
+
+  const checkChipOnline = async (chip: any) => {
+      setChipsChecking(prev => ({ ...prev, [chip.id]: 'checking' }));
+      try {
+          const evolutionUrl = (import.meta.env.VITE_EVOLUTION_API_URL || 'https://api.elevva.net.br').replace(/\/$/, '');
+          const evolutionKey = import.meta.env.VITE_EVOLUTION_API_KEY || '';
+          const res = await fetch(`${evolutionUrl}/instance/connectionState/${chip.evolution_instance}`, {
+              headers: { apikey: evolutionKey },
+          });
+          const data = await res.json() as any;
+          const state = data?.instance?.state || data?.state || '';
+          const online = state === 'open';
+          setChipsChecking(prev => ({ ...prev, [chip.id]: online ? 'online' : 'offline' }));
+      } catch {
+          setChipsChecking(prev => ({ ...prev, [chip.id]: 'offline' }));
+      }
+  };
+
+  const checkAllChips = async () => {
+      for (const chip of chips) {
+          if (chip.status !== 'cancelado') await checkChipOnline(chip);
+      }
+  };
+
   const fetchSalespeople = async () => {
       setSpLoading(true);
       try {
@@ -931,6 +1018,360 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       } finally {
           setSpSaving(false);
       }
+  };
+
+  // ── Render Vendedores ─────────────────────────────────────────────────────────
+  const renderVendedores = () => {
+      if (spList.length === 0 && !spLoading) fetchSalespeople();
+
+      const totalCommission = spList.reduce((acc, sp) => acc + (sp.total_commission || 0), 0);
+      const totalPending = spList.reduce((acc, sp) => acc + (sp.pending_commission || 0), 0);
+      const totalSales = spList.reduce((acc, sp) => acc + (sp.paid_sales || 0), 0);
+
+      return (
+          <div className="space-y-8 animate-fade-in">
+              <div className="flex items-start justify-between">
+                  <div>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Vendedores</h2>
+                      <p className="text-zinc-500 font-medium">Gestão de afiliados e comissionamento via Asaas.</p>
+                  </div>
+                  <div className="flex gap-3">
+                      <button onClick={fetchSalespeople} className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors">
+                          <RefreshCw className="w-4 h-4" /> Atualizar
+                      </button>
+                      <button onClick={() => setShowAddSp(true)} className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors">
+                          <Plus className="w-4 h-4" /> Novo Vendedor
+                      </button>
+                  </div>
+              </div>
+
+              {/* Modal cadastro */}
+              {showAddSp && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+                          <div className="flex items-center justify-between mb-6">
+                              <h3 className="text-xl font-black text-zinc-900">Novo Vendedor</h3>
+                              <button onClick={() => setShowAddSp(false)} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+                          </div>
+                          <form onSubmit={handleAddSalesperson} className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome completo</label>
+                                      <input value={spForm.name} onChange={e => setSpForm(f => ({...f, name: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="João Silva" required />
+                                  </div>
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">E-mail</label>
+                                      <input type="email" value={spForm.email} onChange={e => setSpForm(f => ({...f, email: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="joao@email.com" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">CPF / CNPJ</label>
+                                      <input value={spForm.cpfCnpj} onChange={e => setSpForm(f => ({...f, cpfCnpj: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="000.000.000-00" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Comissão (%)</label>
+                                      <input type="number" min="1" max="50" step="0.5" value={spForm.commissionPct}
+                                          onChange={e => setSpForm(f => ({...f, commissionPct: parseFloat(e.target.value)}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" required />
+                                  </div>
+                                  <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">WhatsApp (opcional)</label>
+                                      <input value={spForm.phone} onChange={e => setSpForm(f => ({...f, phone: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="(11) 99999-9999" />
+                                  </div>
+                              </div>
+                              {spError && <p className="text-red-500 text-xs font-medium">{spError}</p>}
+                              <button type="submit" disabled={spSaving}
+                                  className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                  {spSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar + criar subconta Asaas'}
+                              </button>
+                          </form>
+                      </div>
+                  </div>
+              )}
+
+              {/* Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-black text-white p-6 rounded-[2rem] shadow-xl">
+                      <div className="p-3 bg-zinc-900 rounded-2xl w-fit mb-4"><Banknote className="w-6 h-6 text-[#84cc16]"/></div>
+                      <h3 className="text-4xl font-black">R$ {totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Comissões Pagas</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
+                      <div className="p-3 bg-amber-50 rounded-2xl w-fit mb-4"><TrendingUp className="w-6 h-6 text-amber-500"/></div>
+                      <h3 className="text-4xl font-black text-zinc-900">R$ {totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">A Confirmar</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
+                      <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><Users className="w-6 h-6 text-zinc-900"/></div>
+                      <h3 className="text-4xl font-black text-zinc-900">{spList.filter(s => s.status === 'active').length}</h3>
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Ativos · {totalSales} vendas</p>
+                  </div>
+              </div>
+
+              {/* Tabela */}
+              <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                      <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
+                          <tr>
+                              <th className="p-5">Vendedor</th>
+                              <th className="p-5">Comissão</th>
+                              <th className="p-5">Vendas</th>
+                              <th className="p-5 text-right">Confirmado</th>
+                              <th className="p-5 text-right">Pendente</th>
+                              <th className="p-5 text-center">Asaas</th>
+                              <th className="p-5 text-center">Status</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-50 text-sm">
+                          {spLoading ? (
+                              <tr><td colSpan={7} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
+                          ) : spList.length === 0 ? (
+                              <tr><td colSpan={7} className="p-12 text-center text-zinc-400 font-medium">Nenhum vendedor cadastrado ainda.</td></tr>
+                          ) : spList.map((sp) => (
+                              <tr key={sp.id} className="hover:bg-zinc-50/50 transition-colors">
+                                  <td className="p-5">
+                                      <p className="font-bold text-zinc-900">{sp.name}</p>
+                                      <p className="text-xs text-zinc-400">{sp.email}</p>
+                                  </td>
+                                  <td className="p-5 font-black text-[#65a30d] text-lg">{sp.commission_pct}%</td>
+                                  <td className="p-5">
+                                      <div className="flex gap-1.5">
+                                          <span className="bg-zinc-100 text-zinc-500 px-2 py-1 rounded text-[10px] font-bold">{sp.essencial_count || 0} E</span>
+                                          <span className="bg-[#65a30d]/20 text-[#3d6b06] px-2 py-1 rounded text-[10px] font-bold">{sp.pro_count || 0} P</span>
+                                          <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-[10px] font-bold">{sp.enterprise_count || 0} Ent</span>
+                                      </div>
+                                  </td>
+                                  <td className="p-5 text-right font-black text-emerald-600">R$ {(sp.total_commission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                  <td className="p-5 text-right font-bold text-amber-600">R$ {(sp.pending_commission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                  <td className="p-5 text-center">
+                                      {sp.asaas_wallet_id
+                                          ? <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Conectado</span>
+                                          : <span className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-1 rounded-full">Pendente</span>}
+                                  </td>
+                                  <td className="p-5 text-center">
+                                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${sp.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-100 text-zinc-500'}`}>
+                                          {sp.status === 'active' ? 'Ativo' : 'Inativo'}
+                                      </span>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      );
+  };
+
+  // ── Render Chips ──────────────────────────────────────────────────────────────
+  const renderChips = () => {
+      if (chips.length === 0 && !chipsLoading) fetchChips();
+
+      const disponivel = chipsSummary.disponivel || 0;
+      const emUso = chipsSummary.em_uso || 0;
+      const manutencao = chipsSummary.manutencao || 0;
+      const total = chipsSummary.total || 0;
+
+      const statusColor: Record<string, string> = {
+          disponivel:  'bg-emerald-100 text-emerald-700',
+          em_uso:      'bg-blue-100 text-blue-700',
+          manutencao:  'bg-amber-100 text-amber-700',
+          cancelado:   'bg-zinc-100 text-zinc-400',
+      };
+      const statusLabel: Record<string, string> = {
+          disponivel: 'Disponível',
+          em_uso:     'Em uso',
+          manutencao: 'Manutenção',
+          cancelado:  'Cancelado',
+      };
+
+      return (
+          <div className="space-y-8 animate-fade-in">
+              <div className="flex items-start justify-between">
+                  <div>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Chips WhatsApp</h2>
+                      <p className="text-zinc-500 font-medium">Pool de números para onboarding automático de clientes.</p>
+                  </div>
+                  <div className="flex gap-3">
+                      <button onClick={checkAllChips} disabled={chipsLoading || chips.length === 0}
+                          className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors disabled:opacity-40">
+                          <Activity className="w-4 h-4" /> Verificar Todos
+                      </button>
+                      <button onClick={fetchChips} className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors">
+                          <RefreshCw className="w-4 h-4" /> Atualizar
+                      </button>
+                      <button onClick={() => setShowAddChip(true)} className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors">
+                          <Plus className="w-4 h-4" /> Adicionar Chip
+                      </button>
+                  </div>
+              </div>
+
+              {/* Modal cadastro chip */}
+              {showAddChip && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+                          <div className="flex items-center justify-between mb-6">
+                              <h3 className="text-xl font-black text-zinc-900">Novo Chip</h3>
+                              <button onClick={() => setShowAddChip(false)} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+                          </div>
+                          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
+                              <p className="text-xs font-bold text-amber-700">Antes de cadastrar, o chip precisa estar autenticado no Evolution API (QR Code escaneado). Só então cadastre aqui.</p>
+                          </div>
+                          <form onSubmit={handleAddChip} className="space-y-4">
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Número do WhatsApp</label>
+                                  <input value={chipForm.phoneNumber} onChange={e => setChipForm(f => ({...f, phoneNumber: e.target.value}))}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                      placeholder="5511999999999 (com DDI e DDD, sem espaços)" required />
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome da Instância (Evolution)</label>
+                                  <input value={chipForm.evolutionInstance} onChange={e => setChipForm(f => ({...f, evolutionInstance: e.target.value}))}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                      placeholder="ex: elevva-chip-01" required />
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Apelido (para identificação)</label>
+                                  <input value={chipForm.displayName} onChange={e => setChipForm(f => ({...f, displayName: e.target.value}))}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                      placeholder="ex: Chip Vivo 01" />
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Observações</label>
+                                  <textarea value={chipForm.notes} onChange={e => setChipForm(f => ({...f, notes: e.target.value}))}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 resize-none"
+                                      rows={2} placeholder="Observações internas (opcional)" />
+                              </div>
+                              {chipError && <p className="text-red-500 text-xs font-medium">{chipError}</p>}
+                              <button type="submit" disabled={chipSaving}
+                                  className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                  {chipSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar Chip'}
+                              </button>
+                          </form>
+                      </div>
+                  </div>
+              )}
+
+              {/* Alerta pool baixo */}
+              {disponivel <= 2 && total > 0 && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-center gap-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                      <div>
+                          <p className="font-bold text-amber-800 text-sm">Pool baixo — apenas {disponivel} chip{disponivel !== 1 ? 's' : ''} disponível{disponivel !== 1 ? 'is' : ''}</p>
+                          <p className="text-xs text-amber-600 mt-0.5">Adicione novos chips antes de realizar mais vendas.</p>
+                      </div>
+                  </div>
+              )}
+
+              {/* Cards resumo */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 text-center">
+                      <p className="text-4xl font-black text-emerald-700">{disponivel}</p>
+                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mt-1">Disponíveis</p>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-3xl p-5 text-center">
+                      <p className="text-4xl font-black text-blue-700">{emUso}</p>
+                      <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mt-1">Em Uso</p>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 text-center">
+                      <p className="text-4xl font-black text-amber-700">{manutencao}</p>
+                      <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mt-1">Manutenção</p>
+                  </div>
+                  <div className="bg-zinc-50 border border-zinc-200 rounded-3xl p-5 text-center">
+                      <p className="text-4xl font-black text-zinc-700">{total}</p>
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mt-1">Total</p>
+                  </div>
+              </div>
+
+              {/* Lista de chips */}
+              <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                      <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
+                          <tr>
+                              <th className="p-5">Chip</th>
+                              <th className="p-5">Instância Evolution</th>
+                              <th className="p-5 text-center">Status</th>
+                              <th className="p-5 text-center">Conexão</th>
+                              <th className="p-5">Atribuído a</th>
+                              <th className="p-5 text-center">Ações</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-50 text-sm">
+                          {chipsLoading ? (
+                              <tr><td colSpan={6} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
+                          ) : chips.length === 0 ? (
+                              <tr>
+                                  <td colSpan={6} className="p-12 text-center">
+                                      <Bot className="w-10 h-10 text-zinc-200 mx-auto mb-3" />
+                                      <p className="text-zinc-400 font-medium">Nenhum chip cadastrado.</p>
+                                      <p className="text-zinc-300 text-xs mt-1">Adicione chips autenticados no Evolution para começar o onboarding automático.</p>
+                                  </td>
+                              </tr>
+                          ) : chips.map((chip) => {
+                              const connState = chipsChecking[chip.id] || 'idle';
+                              return (
+                                  <tr key={chip.id} className="hover:bg-zinc-50/50 transition-colors">
+                                      <td className="p-5">
+                                          <p className="font-bold text-zinc-900">{chip.display_name || `+${chip.phone_number}`}</p>
+                                          <p className="text-xs text-zinc-400 font-mono">+{chip.phone_number}</p>
+                                          {chip.notes && <p className="text-xs text-zinc-300 mt-0.5">{chip.notes}</p>}
+                                      </td>
+                                      <td className="p-5">
+                                          <span className="font-mono text-xs bg-zinc-100 text-zinc-600 px-2 py-1 rounded">{chip.evolution_instance}</span>
+                                      </td>
+                                      <td className="p-5 text-center">
+                                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${statusColor[chip.status] || 'bg-zinc-100 text-zinc-500'}`}>
+                                              {statusLabel[chip.status] || chip.status}
+                                          </span>
+                                      </td>
+                                      <td className="p-5 text-center">
+                                          {connState === 'idle' && (
+                                              <button onClick={() => checkChipOnline(chip)}
+                                                  className="text-[10px] font-bold text-zinc-400 hover:text-zinc-700 border border-zinc-200 px-2 py-1 rounded-full transition-colors">
+                                                  Verificar
+                                              </button>
+                                          )}
+                                          {connState === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-zinc-400 mx-auto" />}
+                                          {connState === 'online' && (
+                                              <span className="flex items-center justify-center gap-1 text-emerald-600">
+                                                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                                  <span className="text-[10px] font-bold">Online</span>
+                                              </span>
+                                          )}
+                                          {connState === 'offline' && (
+                                              <span className="flex items-center justify-center gap-1 text-red-500">
+                                                  <span className="w-2 h-2 bg-red-500 rounded-full" />
+                                                  <span className="text-[10px] font-bold">Offline</span>
+                                              </span>
+                                          )}
+                                      </td>
+                                      <td className="p-5 text-xs text-zinc-400">
+                                          {chip.assigned_at
+                                              ? <span>{new Date(chip.assigned_at).toLocaleDateString('pt-BR')}</span>
+                                              : <span className="text-zinc-300">—</span>}
+                                      </td>
+                                      <td className="p-5 text-center">
+                                          <select
+                                              value={chip.status}
+                                              onChange={e => handleChipStatus(chip.id, e.target.value)}
+                                              className="text-[11px] font-bold border border-zinc-200 rounded-lg px-2 py-1.5 bg-white text-zinc-700 focus:outline-none cursor-pointer"
+                                          >
+                                              <option value="disponivel">Disponível</option>
+                                              <option value="em_uso">Em Uso</option>
+                                              <option value="manutencao">Manutenção</option>
+                                              <option value="cancelado">Cancelado</option>
+                                          </select>
+                                      </td>
+                                  </tr>
+                              );
+                          })}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      );
   };
 
   const renderCommissions = () => {
@@ -1479,6 +1920,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                 </div>
             )}
             {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
+            {currentView === 'VENDEDORES' && renderVendedores()}
+            {currentView === 'CHIPS' && renderChips()}
             {currentView === 'CANCELLATIONS' && (
                 <div className="text-center py-20">
                     <UserX className="w-16 h-16 text-zinc-300 mx-auto mb-4" />
