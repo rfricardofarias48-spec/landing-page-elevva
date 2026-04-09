@@ -251,19 +251,15 @@ export function DemonstracaoPage() {
 
             {/* Heading com gradiente preto → verde */}
             <h1
-              className="text-5xl md:text-7xl xl:text-8xl font-black tracking-tighter leading-[1.02]"
+              className="text-5xl md:text-7xl xl:text-8xl font-black tracking-tighter leading-[1.02] text-slate-900"
               style={{
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(14px)',
                 transition: 'opacity 0.6s ease, transform 0.6s ease',
-                background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 40%, #65a30d 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
               }}
             >
               Contrate mais rápido.<br />
-              Sem retrabalho.
+              <span className="text-[#65a30d]">Sem retrabalho.</span>
             </h1>
 
             {/* Descrição */}
@@ -383,15 +379,7 @@ export function DemonstracaoPage() {
                 <p className="text-sm text-slate-500 leading-relaxed mb-8">{description}</p>
 
                 <div className="pt-6 border-t border-slate-50 flex items-baseline gap-2">
-                  <span
-                    className="text-5xl font-black tracking-tighter"
-                    style={{
-                      background: 'linear-gradient(135deg, #0f172a 0%, #65a30d 100%)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text',
-                    }}
-                  >{stat}</span>
+                  <span className="text-5xl font-black tracking-tighter text-slate-900">{stat}</span>
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{statLabel}</span>
                 </div>
               </div>
@@ -405,13 +393,7 @@ export function DemonstracaoPage() {
         <div className="max-w-xl mb-16">
           <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Depoimentos</p>
           <h2
-            className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05]"
-            style={{
-              background: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
+            className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900"
           >
             Quem já usa o Elevva
           </h2>
@@ -454,15 +436,7 @@ export function DemonstracaoPage() {
             alt="Elevva"
             className="h-10 w-auto object-contain mx-auto mb-10 brightness-0 invert opacity-90"
           />
-          <h2
-            className="text-4xl md:text-5xl font-black tracking-tighter mb-4 leading-tight"
-            style={{
-              background: 'linear-gradient(160deg, #ffffff 30%, #a3e635 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
+          <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 leading-tight text-white">
             Pronto para transformar<br />seu recrutamento?
           </h2>
           <p className="text-slate-400 font-medium mb-10 max-w-md mx-auto">

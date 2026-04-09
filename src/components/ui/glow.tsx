@@ -28,10 +28,10 @@ const Glow = React.forwardRef<
       )}
       style={{
         background:
-          "radial-gradient(ellipse at center, rgba(101,163,13,0.30) 10%, rgba(101,163,13,0) 65%)",
+          "radial-gradient(ellipse at center, rgba(148,163,184,0.22) 10%, rgba(148,163,184,0) 65%)",
       }}
     />
-    {/* Inner glow — lima mais brilhante */}
+    {/* Inner glow — cinza mais suave */}
     <div
       className={cn(
         "absolute left-1/2 h-[128px] w-[40%] -translate-x-1/2 scale-[2] rounded-[50%] sm:h-[256px]",
@@ -39,7 +39,7 @@ const Glow = React.forwardRef<
       )}
       style={{
         background:
-          "radial-gradient(ellipse at center, rgba(163,230,53,0.20) 10%, rgba(101,163,13,0) 60%)",
+          "radial-gradient(ellipse at center, rgba(203,213,225,0.18) 10%, rgba(148,163,184,0) 60%)",
       }}
     />
   </div>
