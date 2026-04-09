@@ -12,10 +12,10 @@ import VideoPlayer from './ui/video-player';
 // ─── Dados ───────────────────────────────────────────────────────────────────
 
 const demoTabs = [
-  { id: 'whatsapp',    label: 'Triagem via WhatsApp',        icon: MessageSquare, videoUrl: 'https://ik.imagekit.io/xsbrdnr0y/Untitled%20design.mp4' },
-  { id: 'curriculos',  label: 'Análise de Currículos',        icon: FileText,      videoUrl: '' },
-  { id: 'entrevistas', label: 'Agendamento de Entrevistas',   icon: Calendar,      videoUrl: '' },
-  { id: 'documentos',  label: 'Coleta de Documentos',         icon: BarChart2,     videoUrl: '' },
+  { id: 'whatsapp',    label: 'Atendimento via WhatsApp',     icon: MessageSquare, videoUrl: 'https://ik.imagekit.io/xsbrdnr0y/Untitled%20design.mp4' },
+  { id: 'curriculos',  label: 'Triagem de Currículos',         icon: FileText,      videoUrl: '' },
+  { id: 'entrevistas', label: 'Agendamento de Entrevistas',    icon: Calendar,      videoUrl: '' },
+  { id: 'documentos',  label: 'Coleta de Documentos',          icon: BarChart2,     videoUrl: '' },
 ];
 
 const features = [
