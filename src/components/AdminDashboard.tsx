@@ -1199,6 +1199,54 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [spForm, setSpForm] = useState({ name: '', email: '', phone: '', commissionPct: 15, asaasWalletId: '', password: '' });
   const [spSaving, setSpSaving] = useState(false);
   const [spError, setSpError] = useState('');
+  const [editSp, setEditSp] = useState<any | null>(null);
+  const [editSpForm, setEditSpForm] = useState({ name: '', phone: '', commissionPct: 15, asaasWalletId: '', status: 'active' });
+  const [editSpSaving, setEditSpSaving] = useState(false);
+  const [editSpError, setEditSpError] = useState('');
+  const [confirmDeleteSpId, setConfirmDeleteSpId] = useState<string | null>(null);
+  const [deletingSpId, setDeletingSpId] = useState<string | null>(null);
+
+  const handleEditSp = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editSp) return;
+      setEditSpSaving(true); setEditSpError('');
+      try {
+          const res = await fetch(`/api/salespeople/${editSp.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  name: editSpForm.name,
+                  phone: editSpForm.phone,
+                  commissionPct: editSpForm.commissionPct,
+                  asaasWalletId: editSpForm.asaasWalletId || null,
+                  status: editSpForm.status,
+              }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao salvar');
+          setEditSp(null);
+          fetchSalespeople();
+      } catch (err: any) {
+          setEditSpError(err.message);
+      } finally {
+          setEditSpSaving(false);
+      }
+  };
+
+  const handleDeleteSp = async (id: string) => {
+      setDeletingSpId(id);
+      try {
+          const res = await fetch(`/api/salespeople/${id}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao deletar');
+          setConfirmDeleteSpId(null);
+          fetchSalespeople();
+      } catch (err: any) {
+          alert(err.message);
+      } finally {
+          setDeletingSpId(null);
+      }
+  };
   const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [resetPasswordSaving, setResetPasswordSaving] = useState(false);
@@ -1502,7 +1550,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               <p className="text-xs text-zinc-500 mt-0.5">{asaasFinance.pending?.count || 0} aguardando</p>
                           </div>
                           <div className="bg-white/10 rounded-2xl p-4">
-                              <p className="text-2xl font-black text-white">
+                              <p className="text-2xl font-black text-[#84cc16]">
                                   R$ {totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </p>
                               <p className="text-xs text-zinc-400 mt-1 font-bold uppercase tracking-wider">Comissões (DB)</p>
@@ -1772,16 +1820,86 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                       </span>
                                   </td>
                                   <td className="p-5 text-center">
-                                      <button onClick={() => { setResetPasswordId(sp.id); setResetPasswordValue(''); setResetPasswordError(''); }}
-                                          className="text-[10px] font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
-                                          Resetar Senha
-                                      </button>
+                                      <div className="flex items-center justify-center gap-1">
+                                          <button onClick={() => { setEditSp(sp); setEditSpForm({ name: sp.name, phone: sp.phone || '', commissionPct: sp.commission_pct, asaasWalletId: sp.asaas_wallet_id || '', status: sp.status }); setEditSpError(''); }}
+                                              className="text-[10px] font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition-colors">
+                                              Editar
+                                          </button>
+                                          <button onClick={() => { setResetPasswordId(sp.id); setResetPasswordValue(''); setResetPasswordError(''); }}
+                                              className="text-[10px] font-bold text-amber-600 hover:bg-amber-50 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                                              Senha
+                                          </button>
+                                          {confirmDeleteSpId === sp.id ? (
+                                              <div className="flex items-center gap-1">
+                                                  <button onClick={() => handleDeleteSp(sp.id)} disabled={deletingSpId === sp.id}
+                                                      className="text-[10px] font-black bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 disabled:opacity-50">
+                                                      {deletingSpId === sp.id ? '...' : 'Ok'}
+                                                  </button>
+                                                  <button onClick={() => setConfirmDeleteSpId(null)} className="text-[10px] text-zinc-400 hover:text-zinc-600 px-1.5 py-1">Não</button>
+                                              </div>
+                                          ) : (
+                                              <button onClick={() => setConfirmDeleteSpId(sp.id)}
+                                                  className="text-[10px] font-bold text-red-400 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors">
+                                                  Excluir
+                                              </button>
+                                          )}
+                                      </div>
                                   </td>
                               </tr>
                           ))}
                       </tbody>
                   </table>
               </div>
+
+              {/* Modal Editar Vendedor */}
+              {editSp && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+                          <div className="flex items-center justify-between mb-6">
+                              <h3 className="text-xl font-black text-zinc-900">Editar Vendedor</h3>
+                              <button onClick={() => setEditSp(null)} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+                          </div>
+                          <form onSubmit={handleEditSp} className="space-y-4">
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome</label>
+                                  <input value={editSpForm.name} onChange={e => setEditSpForm(f => ({...f, name: e.target.value}))}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" required />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">WhatsApp</label>
+                                      <input value={editSpForm.phone} onChange={e => setEditSpForm(f => ({...f, phone: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="(11) 99999-9999" />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Comissão (%)</label>
+                                      <input type="number" min="1" max="50" step="0.5" value={editSpForm.commissionPct}
+                                          onChange={e => setEditSpForm(f => ({...f, commissionPct: parseFloat(e.target.value)}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" required />
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Wallet ID Asaas</label>
+                                  <input value={editSpForm.asaasWalletId} onChange={e => setEditSpForm(f => ({...f, asaasWalletId: e.target.value}))}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" placeholder="Deixe em branco para remover" />
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Status</label>
+                                  <select value={editSpForm.status} onChange={e => setEditSpForm(f => ({...f, status: e.target.value}))}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white">
+                                      <option value="active">Ativo</option>
+                                      <option value="inactive">Inativo</option>
+                                  </select>
+                              </div>
+                              {editSpError && <p className="text-red-500 text-xs font-medium">{editSpError}</p>}
+                              <button type="submit" disabled={editSpSaving}
+                                  className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                  {editSpSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Alterações'}
+                              </button>
+                          </form>
+                      </div>
+                  </div>
+              )}
 
               {/* Modal Resetar Senha */}
               {resetPasswordId && (

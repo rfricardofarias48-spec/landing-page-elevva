@@ -3384,6 +3384,24 @@ app.put("/api/salespeople/:id", async (req, res) => {
   return res.json({ ok: true, salesperson: data });
 });
 
+// ── DELETE /api/salespeople/:id — Deletar vendedor (só sem vendas pagas) ──────
+app.delete("/api/salespeople/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { count } = await supabaseAdmin
+      .from('sales').select('id', { count: 'exact', head: true })
+      .eq('salesperson_id', id).eq('status', 'paid');
+    if ((count ?? 0) > 0) {
+      return res.status(400).json({ error: 'Não é possível excluir um vendedor com vendas confirmadas. Inative-o em vez disso.' });
+    }
+    const { error } = await supabaseAdmin.from('salespeople').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/sales — Todas as vendas (admin) ─────────────────────────────────
 app.get("/api/sales", async (_req, res) => {
   try {
