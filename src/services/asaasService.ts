@@ -109,6 +109,7 @@ export async function generatePaymentLink(params: {
     billingType: 'UNDEFINED',   // Aceita PIX, cartão, boleto
     chargeType: 'RECURRENT',    // Assinatura recorrente
     cycle,                      // MONTHLY ou YEARLY
+    dueDateLimitDays: 3,        // Dias úteis para vencimento da cobrança (obrigatório Asaas)
     isAddNewPaymentEnabled: false,
     externalReference: saleId,
   };
