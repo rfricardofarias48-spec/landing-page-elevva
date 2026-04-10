@@ -3364,7 +3364,7 @@ function decodeLinkMeta(ref: string): Record<string, unknown> | null {
 }
 
 // ── POST /api/sales/direct-link — Venda direta pelo sócio (sem vendedor) ───────
-// Nenhum registro criado no banco — o registro nasce só após pagamento confirmado
+// Cria registro pending no banco para usar UUID como externalReference (max 100 chars no Asaas)
 app.post("/api/sales/direct-link", async (req, res) => {
   const { clientName, clientEmail, clientPhone, plan, billing, customAmount } = req.body as {
     clientName?: string; clientEmail?: string; clientPhone?: string;
@@ -3382,18 +3382,28 @@ app.post("/api/sales/direct-link", async (req, res) => {
 
   try {
     const amountReais = customAmount || (PLAN_PRICES[plan] / 100);
-    // Nome amigável do plano para o link Asaas
     const planLabel = plan.replace('_ANUAL', ' Anual').replace('_', ' ');
+    const billingValue = (billing || 'mensal') as 'mensal' | 'anual';
 
-    const meta = encodeLinkMeta({
-      clientName, clientEmail, clientPhone,
-      plan,
-      billing: billing || 'mensal',
-      amount: amountReais,
-      salespersonId: null,
-      commissionPct: 0,
-      commissionAmount: 0,
-    });
+    // Cria registro pending — UUID vira externalReference (≤36 chars, dentro do limite Asaas)
+    const { data: saleRecord, error: saleErr } = await supabaseAdmin
+      .from('sales')
+      .insert({
+        client_name: clientName,
+        client_email: clientEmail,
+        client_phone: clientPhone,
+        plan,
+        amount: amountReais,
+        commission_amount: 0,
+        status: 'pending',
+        billing: billingValue,
+      })
+      .select('id')
+      .single();
+
+    if (saleErr || !saleRecord) {
+      throw new Error(`Erro ao criar registro de venda: ${saleErr?.message}`);
+    }
 
     const link = await generatePaymentLink({
       clientName, clientEmail,
@@ -3402,9 +3412,12 @@ app.post("/api/sales/direct-link", async (req, res) => {
       commissionPct: 0,
       walletId: '',
       salespersonName: 'Elevva',
-      saleId: meta,
-      billing: (billing || 'mensal') as 'mensal' | 'anual',
+      saleId: saleRecord.id,  // UUID de 36 chars — dentro do limite Asaas
+      billing: billingValue,
     });
+
+    // Salva o link gerado no registro
+    await supabaseAdmin.from('sales').update({ asaas_link_url: link.url }).eq('id', saleRecord.id);
 
     return res.json({ ok: true, paymentLink: link.url, amount: amountReais });
   } catch (err: any) {
@@ -3413,7 +3426,7 @@ app.post("/api/sales/direct-link", async (req, res) => {
 });
 
 // ── POST /api/salespeople/:id/link — Gerar link de pagamento com comissão ──────
-// Nenhum registro criado no banco — o registro nasce só após pagamento confirmado
+// Cria registro pending no banco para usar UUID como externalReference (max 100 chars no Asaas)
 app.post("/api/salespeople/:id/link", async (req, res) => {
   const { id } = req.params;
   const { clientName, clientEmail, clientPhone, plan, billing, customAmount } = req.body as {
@@ -3442,15 +3455,28 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
       ? parseFloat((amountReais * sp.commission_pct / 100).toFixed(2))
       : 0;
     const planLabel = plan.replace('_ANUAL', ' Anual').replace('_', ' ');
+    const billingValue = (billing || 'mensal') as 'mensal' | 'anual';
 
-    const meta = encodeLinkMeta({
-      clientName, clientEmail, clientPhone, plan,
-      billing: billing || 'mensal',
-      amount: amountReais,
-      salespersonId: id,
-      commissionPct: hasSplit ? sp.commission_pct : 0,
-      commissionAmount,
-    });
+    // Cria registro pending — UUID vira externalReference (≤36 chars, dentro do limite Asaas)
+    const { data: saleRecord, error: saleErr } = await supabaseAdmin
+      .from('sales')
+      .insert({
+        salesperson_id: id,
+        client_name: clientName,
+        client_email: clientEmail,
+        client_phone: clientPhone,
+        plan,
+        amount: amountReais,
+        commission_amount: commissionAmount,
+        status: 'pending',
+        billing: billingValue,
+      })
+      .select('id')
+      .single();
+
+    if (saleErr || !saleRecord) {
+      throw new Error(`Erro ao criar registro de venda: ${saleErr?.message}`);
+    }
 
     const link = await generatePaymentLink({
       clientName, clientEmail,
@@ -3459,9 +3485,12 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
       commissionPct: hasSplit ? sp.commission_pct : 0,
       walletId: sp.asaas_wallet_id || '',
       salespersonName: sp.name,
-      saleId: meta,
-      billing: (billing || 'mensal') as 'mensal' | 'anual',
+      saleId: saleRecord.id,  // UUID de 36 chars — dentro do limite Asaas
+      billing: billingValue,
     });
+
+    // Salva o link gerado no registro
+    await supabaseAdmin.from('sales').update({ asaas_link_url: link.url }).eq('id', saleRecord.id);
 
     return res.json({
       ok: true,
