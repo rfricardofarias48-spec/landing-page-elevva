@@ -1596,7 +1596,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                       <p className="text-emerald-600 text-xs">Envie ao cliente para realizar o pagamento</p>
                                   </div>
                                   <div className="bg-zinc-50 rounded-xl p-3 flex items-center gap-3">
-                                      <p className="flex-1 text-xs text-zinc-600 font-mono break-all">{directLinkResult}</p>
+                                      <p className="flex-1 text-xs text-zinc-600 font-mono truncate">{directLinkResult}</p>
                                       <button onClick={() => { navigator.clipboard.writeText(directLinkResult); setDirectLinkCopied(true); setTimeout(() => setDirectLinkCopied(false), 2000); }}
                                           className="shrink-0 px-3 py-1.5 bg-black text-white text-xs font-bold rounded-lg hover:bg-zinc-800 transition-colors">
                                           {directLinkCopied ? '✓ Copiado' : 'Copiar'}
@@ -2084,7 +2084,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                       <p className="text-emerald-600 text-xs">Envie ao cliente para realizar o pagamento</p>
                                   </div>
                                   <div className="bg-zinc-50 rounded-xl p-3 flex items-center gap-3">
-                                      <p className="flex-1 text-xs text-zinc-600 font-mono break-all">{directLinkResult}</p>
+                                      <p className="flex-1 text-xs text-zinc-600 font-mono truncate">{directLinkResult}</p>
                                       <button onClick={() => { navigator.clipboard.writeText(directLinkResult); setDirectLinkCopied(true); setTimeout(() => setDirectLinkCopied(false), 2000); }}
                                           className="shrink-0 px-3 py-1.5 bg-black text-white text-xs font-bold rounded-lg hover:bg-zinc-800 transition-colors">
                                           {directLinkCopied ? '✓ Copiado' : 'Copiar'}
