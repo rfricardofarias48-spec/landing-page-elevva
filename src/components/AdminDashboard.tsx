@@ -1192,6 +1192,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       </div>
   );
 
+  // ── Filtro de período global (Vendas / Vendedores / Faturamento) ─────────────
+  const [periodFilter, setPeriodFilter] = useState<'todos' | 'mensal' | 'anual'>('todos');
+
   // ── State para o novo sistema de comissões ──────────────────────────────────
   const [spList, setSpList] = useState<any[]>([]);
   const [spLoading, setSpLoading] = useState(false);
@@ -1491,9 +1494,26 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       if (spList.length === 0 && !spLoading) fetchSalespeople();
       if (!asaasFinance && !asaasFinanceLoading) fetchAsaasFinance();
 
-      const totalCommission = spList.reduce((acc, sp) => acc + (sp.total_commission || 0), 0);
-      const totalPending = spList.reduce((acc, sp) => acc + (sp.pending_commission || 0), 0);
-      const totalSales = spList.reduce((acc, sp) => acc + (sp.paid_sales || 0), 0);
+      // Filtra vendas dos vendedores por período (usa allSales para cruzar billing)
+      const salesByPeriod = periodFilter === 'todos' ? allSales : allSales.filter(s => s.billing === periodFilter && s.status === 'paid');
+      const spFiltered = spList.map(sp => {
+          if (periodFilter === 'todos') return sp;
+          const spSales = salesByPeriod.filter((s: any) => s.salesperson_id === sp.id);
+          return {
+              ...sp,
+              paid_sales: spSales.length,
+              total_commission: spSales.reduce((a: number, s: any) => a + (s.commission_amount || 0), 0),
+              total_revenue: spSales.reduce((a: number, s: any) => a + (s.amount || 0), 0),
+              pending_commission: 0,
+              essencial_count: spSales.filter((s: any) => s.plan === 'ESSENCIAL' || s.plan === 'ESSENCIAL_ANUAL').length,
+              pro_count: spSales.filter((s: any) => s.plan === 'PRO' || s.plan === 'PRO_ANUAL').length,
+              enterprise_count: spSales.filter((s: any) => s.plan === 'ENTERPRISE').length,
+          };
+      });
+
+      const totalCommission = spFiltered.reduce((acc, sp) => acc + (sp.total_commission || 0), 0);
+      const totalPending = spFiltered.reduce((acc, sp) => acc + (sp.pending_commission || 0), 0);
+      const totalSales = spFiltered.reduce((acc, sp) => acc + (sp.paid_sales || 0), 0);
 
       return (
           <div className="space-y-8 animate-fade-in">
@@ -1502,7 +1522,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                       <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Vendedores</h2>
                       <p className="text-zinc-500 font-medium">Gestão de afiliados e comissionamento — dados sincronizados com Asaas.</p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-3">
+                      <PeriodSelector />
                       <button onClick={handleAsaasSync} disabled={asaasSyncing}
                           className="flex items-center gap-2 border border-[#65a30d] text-[#65a30d] font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-[#65a30d]/5 transition-colors disabled:opacity-50">
                           {asaasSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -2157,8 +2178,20 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       }
   };
 
+  const PeriodSelector = () => (
+      <div className="flex items-center bg-zinc-100 rounded-xl p-1 gap-0.5">
+          {(['todos', 'mensal', 'anual'] as const).map(p => (
+              <button key={p} onClick={() => setPeriodFilter(p)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors capitalize ${periodFilter === p ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                  {p === 'todos' ? 'Todos' : p === 'mensal' ? 'Mensal' : 'Anual'}
+              </button>
+          ))}
+      </div>
+  );
+
   const renderVendas = () => {
-      const paid   = allSales.filter(s => s.status === 'paid');
+      const byPeriod = periodFilter === 'todos' ? allSales : allSales.filter(s => s.billing === periodFilter);
+      const paid   = byPeriod.filter(s => s.status === 'paid');
       const total  = paid.reduce((acc, s) => acc + (s.amount || 0), 0);
       const direct = paid.filter(s => !s.salesperson_id).length;
       const withSp = paid.filter(s => !!s.salesperson_id).length;
@@ -2183,7 +2216,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                       <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Vendas</h2>
                       <p className="text-zinc-500 font-medium">Todas as vendas confirmadas pelo Asaas — fonte da verdade.</p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-3">
+                      <PeriodSelector />
                       <button onClick={fetchAllSales} disabled={allSalesLoading}
                           className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors disabled:opacity-50">
                           {allSalesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Atualizar
@@ -2338,9 +2372,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                       <tbody className="divide-y divide-zinc-50 text-sm">
                           {allSalesLoading ? (
                               <tr><td colSpan={8} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
-                          ) : allSales.length === 0 ? (
-                              <tr><td colSpan={8} className="p-12 text-center text-zinc-400 font-medium">Nenhuma venda registrada ainda.</td></tr>
-                          ) : allSales.map((s) => (
+                          ) : byPeriod.length === 0 ? (
+                              <tr><td colSpan={8} className="p-12 text-center text-zinc-400 font-medium">{periodFilter !== 'todos' ? `Nenhuma venda ${periodFilter} registrada.` : 'Nenhuma venda registrada ainda.'}</td></tr>
+                          ) : byPeriod.map((s) => (
                               <tr key={s.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-5">
                                       <p className="font-bold text-zinc-900">{s.client_name}</p>
@@ -2567,9 +2601,13 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   };
 
   const renderFinance = () => {
+      const salesForPeriod = periodFilter === 'todos' ? allSales : allSales.filter(s => s.billing === periodFilter);
+      const paidSalesForPeriod = salesForPeriod.filter(s => s.status === 'paid');
+      const periodMrr = paidSalesForPeriod.reduce((acc, s) => acc + (s.amount || 0), 0);
+
       const stats = getFinancialData();
       const arpu = stats.payingUsers > 0 ? stats.mrr / stats.payingUsers : 0;
-      
+
       const recentTransactions = users
           .filter(u => u.plan !== 'ADMIN')
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -2582,11 +2620,20 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                       <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Faturamento</h2>
                       <p className="text-zinc-500 font-medium">Gestão financeira e métricas de receita.</p>
                   </div>
-                  <div className="bg-white px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-500 shadow-sm flex items-center gap-2">
-                      <Calendar className="w-4 h-4"/>
-                      {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  <div className="flex items-center gap-3">
+                      <PeriodSelector />
+                      <div className="bg-white px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-500 shadow-sm flex items-center gap-2">
+                          <Calendar className="w-4 h-4"/>
+                          {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                      </div>
                   </div>
               </div>
+              {periodFilter !== 'todos' && (
+                  <div className="bg-zinc-900 text-white rounded-2xl px-5 py-4 flex items-center justify-between">
+                      <p className="text-sm font-bold">Receita filtrada — planos <span className="text-[#84cc16]">{periodFilter}</span></p>
+                      <p className="text-2xl font-black">R$ {periodMrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </div>
+              )}
 
               {/* KPIS PRINCIPAIS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
