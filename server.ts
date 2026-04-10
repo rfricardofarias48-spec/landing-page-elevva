@@ -3340,7 +3340,17 @@ app.put("/api/salespeople/:id", async (req, res) => {
   return res.json({ ok: true, salesperson: data });
 });
 
+// ── Encode/decode metadata do link (viaja no externalReference do Asaas) ────────
+// O banco só recebe o registro após pagamento confirmado — Asaas é a fonte da verdade
+function encodeLinkMeta(meta: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(meta)).toString('base64');
+}
+function decodeLinkMeta(ref: string): Record<string, unknown> | null {
+  try { return JSON.parse(Buffer.from(ref, 'base64').toString('utf8')); } catch { return null; }
+}
+
 // ── POST /api/sales/direct-link — Venda direta pelo sócio (sem vendedor) ───────
+// Nenhum registro criado no banco — o registro nasce só após pagamento confirmado
 app.post("/api/sales/direct-link", async (req, res) => {
   const { clientName, clientEmail, clientPhone, plan, customAmount } = req.body as {
     clientName?: string; clientEmail?: string; clientPhone?: string;
@@ -3358,48 +3368,32 @@ app.post("/api/sales/direct-link", async (req, res) => {
   try {
     const amountReais = customAmount || (PLAN_PRICES[plan] / 100);
 
-    const { data: sale, error: saleErr } = await supabaseAdmin
-      .from('sales')
-      .insert({
-        salesperson_id: null,
-        client_name: clientName,
-        client_email: clientEmail,
-        client_phone: clientPhone,
-        plan,
-        amount: amountReais,
-        commission_amount: 0,
-        status: 'pending',
-        onboarding_status: 'aguardando',
-      })
-      .select()
-      .single();
+    // Metadata viaja dentro do externalReference do Asaas
+    const meta = encodeLinkMeta({
+      clientName, clientEmail, clientPhone, plan,
+      amount: amountReais,
+      salespersonId: null,
+      commissionPct: 0,
+      commissionAmount: 0,
+    });
 
-    if (saleErr || !sale) return res.status(500).json({ error: saleErr?.message || 'Erro ao criar venda' });
-
-    // Sem split — 100% para a Elevva
     const link = await generatePaymentLink({
-      clientName,
-      clientEmail,
-      plan,
+      clientName, clientEmail, plan,
       amount: amountReais,
       commissionPct: 0,
       walletId: '',
       salespersonName: 'Elevva',
-      saleId: sale.id,
+      saleId: meta,
     });
 
-    await supabaseAdmin.from('sales').update({
-      asaas_payment_id: link.id,
-      asaas_link_url: link.url,
-    }).eq('id', sale.id);
-
-    return res.json({ ok: true, saleId: sale.id, paymentLink: link.url, amount: amountReais });
+    return res.json({ ok: true, paymentLink: link.url, amount: amountReais });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-// ── POST /api/salespeople/:id/link — Gerar link de pagamento com split ────────
+// ── POST /api/salespeople/:id/link — Gerar link de pagamento com comissão ──────
+// Nenhum registro criado no banco — o registro nasce só após pagamento confirmado
 app.post("/api/salespeople/:id/link", async (req, res) => {
   const { id } = req.params;
   const { clientName, clientEmail, clientPhone, plan, customAmount } = req.body as {
@@ -3427,49 +3421,30 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
       ? parseFloat((amountReais * sp.commission_pct / 100).toFixed(2))
       : 0;
 
-    // Criar registro da venda primeiro (para o externalReference do Asaas)
-    const { data: sale, error: saleErr } = await supabaseAdmin
-      .from('sales')
-      .insert({
-        salesperson_id: id,
-        client_name: clientName,
-        client_email: clientEmail,
-        client_phone: clientPhone,
-        plan,
-        amount: amountReais,
-        commission_amount: commissionAmount,
-        status: 'pending',
-        onboarding_status: 'aguardando',
-      })
-      .select()
-      .single();
+    // Metadata viaja dentro do externalReference do Asaas
+    const meta = encodeLinkMeta({
+      clientName, clientEmail, clientPhone, plan,
+      amount: amountReais,
+      salespersonId: id,
+      commissionPct: hasSplit ? sp.commission_pct : 0,
+      commissionAmount,
+    });
 
-    if (saleErr || !sale) return res.status(500).json({ error: saleErr?.message || 'Erro ao criar venda' });
-
-    // Gerar link no Asaas — com split se wallet ID configurado, sem split caso contrário
     const link = await generatePaymentLink({
-      clientName,
-      clientEmail,
-      plan,
+      clientName, clientEmail, plan,
       amount: amountReais,
       commissionPct: hasSplit ? sp.commission_pct : 0,
       walletId: sp.asaas_wallet_id || '',
       salespersonName: sp.name,
-      saleId: sale.id,
+      saleId: meta,
     });
-
-    // Salvar link na venda
-    await supabaseAdmin.from('sales').update({
-      asaas_payment_id: link.id,
-      asaas_link_url: link.url,
-    }).eq('id', sale.id);
 
     return res.json({
       ok: true,
-      saleId: sale.id,
       paymentLink: link.url,
       amount: amountReais,
       commission: commissionAmount,
+      splitActive: hasSplit,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -3570,8 +3545,8 @@ app.post("/api/webhooks/asaas", async (req, res) => {
     return res.json({ ok: true, ignored: true });
   }
 
-  const saleId = payment?.externalReference;
-  if (!saleId) {
+  const externalRef = payment?.externalReference;
+  if (!externalRef) {
     console.warn('[Asaas Webhook] externalReference ausente — não é uma venda Elevva');
     return res.json({ ok: true, ignored: true });
   }
@@ -3582,12 +3557,58 @@ app.post("/api/webhooks/asaas", async (req, res) => {
   // Processar onboarding em background
   (async () => {
     try {
-      // Atualizar venda como paga
-      await supabaseAdmin.from('sales').update({
-        status: 'paid',
-        paid_at: new Date().toISOString(),
-        asaas_payment_id: payment?.id || null,
-      }).eq('id', saleId);
+      // Decodificar metadata do link (novo formato: base64 JSON)
+      const meta = decodeLinkMeta(externalRef) as any;
+
+      let saleId: string;
+
+      if (meta?.clientEmail) {
+        // ── Novo fluxo: criar registro no banco agora que pagamento foi confirmado
+        console.log(`[Asaas Webhook] Novo fluxo — criando venda para ${meta.clientEmail}`);
+
+        // Evitar duplicatas: verificar se já existe sale com esse asaas_payment_id
+        const { data: existing } = await supabaseAdmin
+          .from('sales').select('id').eq('asaas_payment_id', payment!.id!).maybeSingle();
+
+        if (existing) {
+          console.warn(`[Asaas Webhook] Pagamento ${payment!.id} já processado (sale ${existing.id}) — ignorando`);
+          return;
+        }
+
+        const { data: sale, error: saleErr } = await supabaseAdmin
+          .from('sales')
+          .insert({
+            salesperson_id: meta.salespersonId || null,
+            client_name: meta.clientName,
+            client_email: meta.clientEmail,
+            client_phone: meta.clientPhone,
+            plan: meta.plan,
+            amount: meta.amount,
+            commission_amount: meta.commissionAmount || 0,
+            asaas_payment_id: payment!.id,
+            asaas_link_url: null,
+            status: 'paid',
+            paid_at: new Date().toISOString(),
+            onboarding_status: 'aguardando',
+          })
+          .select()
+          .single();
+
+        if (saleErr || !sale) {
+          console.error('[Asaas Webhook] Erro ao criar venda:', saleErr?.message);
+          return;
+        }
+
+        saleId = sale.id;
+      } else {
+        // ── Legado: externalReference é um UUID de venda pendente existente
+        saleId = externalRef;
+        await supabaseAdmin.from('sales').update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          asaas_payment_id: payment?.id || null,
+        }).eq('id', saleId);
+      }
 
       console.log(`[Asaas Webhook] Iniciando onboarding para venda ${saleId}`);
       const result = await provisionClient(saleId);
