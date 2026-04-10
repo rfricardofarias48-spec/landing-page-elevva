@@ -95,24 +95,25 @@ export async function generatePaymentLink(params: {
   walletId: string;         // Wallet ID da conta Asaas do vendedor — '' para venda direta
   salespersonName: string;
   saleId: string;           // ID interno da venda para rastreamento
+  billing?: 'mensal' | 'anual'; // período de cobrança
 }): Promise<AsaasPaymentLink> {
-  const { clientName, plan, amount, commissionPct, walletId, salespersonName, saleId } = params;
+  const { clientName, plan, amount, commissionPct, walletId, salespersonName, saleId, billing } = params;
 
   const hasSplit = !!walletId && commissionPct > 0;
+  const cycle = billing === 'anual' ? 'YEARLY' : 'MONTHLY';
 
   const body: Record<string, unknown> = {
     name: `Elevva ${plan} — ${clientName}`,
     description: `Plano ${plan} Elevva${salespersonName !== 'Elevva' ? ` — vendido por ${salespersonName}` : ''}`,
     value: amount,
-    billingType: 'UNDEFINED',       // Aceita PIX, cartão, boleto
-    chargeType: 'DETACHED',         // Cobrança avulsa (não recorrente)
+    billingType: 'UNDEFINED',   // Aceita PIX, cartão, boleto
+    chargeType: 'RECURRENT',    // Assinatura recorrente
+    cycle,                      // MONTHLY ou YEARLY
     isAddNewPaymentEnabled: false,
-    maxInstallmentCount: 1,
     externalReference: saleId,
   };
 
   if (hasSplit) {
-    // Venda com vendedor: split automático + Elevva absorve 100% das taxas
     body.split = [{ walletId, percentualValue: commissionPct, externalReference: `comissao_${saleId}` }];
     body.feeCharged = true;
   }

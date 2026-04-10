@@ -3403,6 +3403,7 @@ app.post("/api/sales/direct-link", async (req, res) => {
       walletId: '',
       salespersonName: 'Elevva',
       saleId: meta,
+      billing: (billing || 'mensal') as 'mensal' | 'anual',
     });
 
     return res.json({ ok: true, paymentLink: link.url, amount: amountReais });
@@ -3415,17 +3416,18 @@ app.post("/api/sales/direct-link", async (req, res) => {
 // Nenhum registro criado no banco — o registro nasce só após pagamento confirmado
 app.post("/api/salespeople/:id/link", async (req, res) => {
   const { id } = req.params;
-  const { clientName, clientEmail, clientPhone, plan, customAmount } = req.body as {
+  const { clientName, clientEmail, clientPhone, plan, billing, customAmount } = req.body as {
     clientName?: string; clientEmail?: string; clientPhone?: string;
-    plan?: string; customAmount?: number;
+    plan?: string; billing?: string; customAmount?: number;
   };
 
   if (!clientName || !clientEmail || !clientPhone || !plan) {
     return res.status(400).json({ error: 'clientName, clientEmail, clientPhone e plan são obrigatórios' });
   }
 
-  if (!['ESSENCIAL', 'PRO', 'ENTERPRISE'].includes(plan)) {
-    return res.status(400).json({ error: 'plan deve ser ESSENCIAL, PRO ou ENTERPRISE' });
+  const VALID_PLANS_SP = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'ENTERPRISE'];
+  if (!VALID_PLANS_SP.includes(plan)) {
+    return res.status(400).json({ error: `plan inválido: ${plan}` });
   }
 
   try {
@@ -3439,10 +3441,11 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
     const commissionAmount = hasSplit
       ? parseFloat((amountReais * sp.commission_pct / 100).toFixed(2))
       : 0;
+    const planLabel = plan.replace('_ANUAL', ' Anual').replace('_', ' ');
 
-    // Metadata viaja dentro do externalReference do Asaas
     const meta = encodeLinkMeta({
       clientName, clientEmail, clientPhone, plan,
+      billing: billing || 'mensal',
       amount: amountReais,
       salespersonId: id,
       commissionPct: hasSplit ? sp.commission_pct : 0,
@@ -3450,12 +3453,14 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
     });
 
     const link = await generatePaymentLink({
-      clientName, clientEmail, plan,
+      clientName, clientEmail,
+      plan: planLabel,
       amount: amountReais,
       commissionPct: hasSplit ? sp.commission_pct : 0,
       walletId: sp.asaas_wallet_id || '',
       salespersonName: sp.name,
       saleId: meta,
+      billing: (billing || 'mensal') as 'mensal' | 'anual',
     });
 
     return res.json({

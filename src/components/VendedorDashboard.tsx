@@ -42,9 +42,11 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PLAN_PRICES: Record<string, number> = {
-  ESSENCIAL: 649.90,
-  PRO: 999.90,
-  ENTERPRISE: 0,
+  ESSENCIAL:       649.90,
+  ESSENCIAL_ANUAL: 6230.40,
+  PRO:             999.90,
+  PRO_ANUAL:       9599.04,
+  ENTERPRISE:      0,
 };
 
 const STATUS_CONFIG = {
@@ -72,6 +74,7 @@ export const VendedorDashboard: React.FC = () => {
   const [linkClientEmail, setLinkClientEmail] = useState('');
   const [linkClientPhone, setLinkClientPhone] = useState('');
   const [linkPlan, setLinkPlan] = useState('ESSENCIAL');
+  const [linkBilling, setLinkBilling] = useState<'mensal' | 'anual'>('mensal');
   const [linkLoading, setLinkLoading] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -164,6 +167,8 @@ export const VendedorDashboard: React.FC = () => {
     setGeneratedLink('');
 
     try {
+      const planKey = linkPlan !== 'ENTERPRISE' && linkBilling === 'anual'
+        ? `${linkPlan}_ANUAL` : linkPlan;
       const res = await fetch(`/api/salespeople/${salesperson.id}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,7 +176,8 @@ export const VendedorDashboard: React.FC = () => {
           clientName: linkClientName,
           clientEmail: linkClientEmail,
           clientPhone: linkClientPhone.replace(/\D/g, ''),
-          plan: linkPlan,
+          plan: planKey,
+          billing: linkBilling,
         }),
       });
 
@@ -184,6 +190,7 @@ export const VendedorDashboard: React.FC = () => {
       setLinkClientEmail('');
       setLinkClientPhone('');
       setLinkPlan('ESSENCIAL');
+      setLinkBilling('mensal');
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -379,22 +386,53 @@ export const VendedorDashboard: React.FC = () => {
                         onChange={e => setLinkPlan(e.target.value)}
                         className="w-full border border-zinc-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white"
                       >
-                        <option value="ESSENCIAL">Essencial — R$ 649,90/mês</option>
-                        <option value="PRO">Pro — R$ 999,90/mês</option>
-                        <option value="ENTERPRISE">Enterprise — valor a consultar</option>
+                        <option value="ESSENCIAL">Essencial</option>
+                        <option value="PRO">Pro</option>
+                        <option value="ENTERPRISE">Enterprise — personalizado</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Preview da comissão */}
+                  {/* Toggle Mensal / Anual */}
                   {linkPlan !== 'ENTERPRISE' && (
-                    <div className="bg-zinc-50 rounded-2xl p-4 flex justify-between items-center">
-                      <span className="text-sm text-zinc-500">Sua comissão nessa venda:</span>
-                      <span className="text-lg font-black text-[#65a30d]">
-                        R$ {((PLAN_PRICES[linkPlan] || 0) * salesperson.commission_pct / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
+                    <div>
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Período</label>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setLinkBilling('mensal')}
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${linkBilling === 'mensal' ? 'bg-black text-white border-black' : 'border-zinc-200 text-zinc-500 hover:border-zinc-400'}`}>
+                          Mensal
+                        </button>
+                        <button type="button" onClick={() => setLinkBilling('anual')}
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${linkBilling === 'anual' ? 'bg-black text-white border-black' : 'border-zinc-200 text-zinc-500 hover:border-zinc-400'}`}>
+                          Anual <span className="text-[10px] text-[#84cc16] font-black">20% OFF</span>
+                        </button>
+                      </div>
                     </div>
                   )}
+
+                  {/* Preview valor + comissão */}
+                  {linkPlan !== 'ENTERPRISE' && (() => {
+                    const planKey = linkBilling === 'anual' ? `${linkPlan}_ANUAL` : linkPlan;
+                    const valor = PLAN_PRICES[planKey] || 0;
+                    const comissao = valor * salesperson.commission_pct / 100;
+                    return (
+                      <div className="bg-zinc-50 rounded-2xl p-4 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-zinc-500">Valor do plano:</span>
+                          <span className="text-sm font-black text-zinc-900">
+                            R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            {linkBilling === 'mensal' ? '/mês' : '/ano'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-zinc-500">Sua comissão ({salesperson.commission_pct}%):</span>
+                          <span className="text-lg font-black text-[#65a30d]">
+                            R$ {comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <button
                     type="submit"
