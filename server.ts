@@ -3340,6 +3340,20 @@ app.put("/api/salespeople/:id", async (req, res) => {
   return res.json({ ok: true, salesperson: data });
 });
 
+// ── GET /api/sales — Todas as vendas (admin) ─────────────────────────────────
+app.get("/api/sales", async (_req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sales')
+      .select('*, salespeople(name, email)')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json(data || []);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Encode/decode metadata do link (viaja no externalReference do Asaas) ────────
 // O banco só recebe o registro após pagamento confirmado — Asaas é a fonte da verdade
 function encodeLinkMeta(meta: Record<string, unknown>): string {

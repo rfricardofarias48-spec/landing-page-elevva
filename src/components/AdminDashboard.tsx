@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
-type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS' | 'VENDEDORES' | 'CHIPS';
+type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS' | 'VENDEDORES' | 'CHIPS' | 'VENDAS';
 
 interface AdminJob {
   id: string;
@@ -641,6 +641,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             <div className="pt-2 pb-1 px-4">
                 <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">Comercial</p>
             </div>
+            <button onClick={() => { setCurrentView('VENDAS'); fetchAllSales(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'VENDAS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <CreditCard className="w-5 h-5" /> Vendas
+            </button>
             <button onClick={() => { setCurrentView('VENDEDORES'); fetchSalespeople(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'VENDEDORES' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Briefcase className="w-5 h-5" /> Vendedores
             </button>
@@ -911,6 +914,20 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [spError, setSpError] = useState('');
   const [walletValidating, setWalletValidating] = useState(false);
   const [walletInfo, setWalletInfo] = useState<{ valid: boolean; name?: string } | null>(null);
+
+  // ── State para todas as vendas ────────────────────────────────────────────────
+  const [allSales, setAllSales] = useState<any[]>([]);
+  const [allSalesLoading, setAllSalesLoading] = useState(false);
+
+  const fetchAllSales = async () => {
+      setAllSalesLoading(true);
+      try {
+          const res = await fetch('/api/sales');
+          if (res.ok) setAllSales(await res.json());
+      } finally {
+          setAllSalesLoading(false);
+      }
+  };
 
   // ── State para venda direta (sócio) ──────────────────────────────────────────
   const [showDirectLink, setShowDirectLink] = useState(false);
@@ -1611,6 +1628,111 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       );
   };
 
+  const renderVendas = () => {
+      const paid   = allSales.filter(s => s.status === 'paid');
+      const total  = paid.reduce((acc, s) => acc + (s.amount || 0), 0);
+      const direct = paid.filter(s => !s.salesperson_id).length;
+      const withSp = paid.filter(s => !!s.salesperson_id).length;
+
+      const statusBadge = (s: any) => {
+          if (s.status === 'paid') return <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">Pago</span>;
+          if (s.status === 'cancelled') return <span className="text-[10px] font-black bg-red-100 text-red-600 px-2.5 py-1 rounded-full">Cancelado</span>;
+          return <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">Pendente</span>;
+      };
+
+      const onboardBadge = (s: any) => {
+          if (s.onboarding_status === 'concluido') return <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ Provisionado</span>;
+          if (s.onboarding_status === 'erro') return <span className="text-[10px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Erro</span>;
+          if (s.onboarding_status === 'em_progresso') return <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Em andamento</span>;
+          return <span className="text-[10px] font-black bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full">Aguardando</span>;
+      };
+
+      return (
+          <div className="space-y-8 animate-fade-in">
+              <div className="flex items-start justify-between">
+                  <div>
+                      <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Vendas</h2>
+                      <p className="text-zinc-500 font-medium">Todas as vendas confirmadas pelo Asaas — fonte da verdade.</p>
+                  </div>
+                  <button onClick={fetchAllSales} disabled={allSalesLoading}
+                      className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors disabled:opacity-50">
+                      {allSalesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Atualizar
+                  </button>
+              </div>
+
+              {/* Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-black text-white p-6 rounded-[2rem] shadow-xl">
+                      <div className="p-3 bg-zinc-900 rounded-2xl w-fit mb-4"><Banknote className="w-6 h-6 text-[#84cc16]"/></div>
+                      <h3 className="text-4xl font-black">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Total Recebido</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
+                      <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><Briefcase className="w-6 h-6 text-zinc-900"/></div>
+                      <h3 className="text-4xl font-black text-zinc-900">{withSp}</h3>
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Via Vendedor</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
+                      <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><LinkIcon className="w-6 h-6 text-zinc-900"/></div>
+                      <h3 className="text-4xl font-black text-zinc-900">{direct}</h3>
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Venda Direta</p>
+                  </div>
+              </div>
+
+              {/* Tabela */}
+              <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                      <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
+                          <tr>
+                              <th className="p-5">Cliente</th>
+                              <th className="p-5">Plano</th>
+                              <th className="p-5">Vendedor</th>
+                              <th className="p-5 text-right">Valor</th>
+                              <th className="p-5 text-center">Pagamento</th>
+                              <th className="p-5 text-center">Onboarding</th>
+                              <th className="p-5 text-center">Data</th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-50 text-sm">
+                          {allSalesLoading ? (
+                              <tr><td colSpan={7} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
+                          ) : allSales.length === 0 ? (
+                              <tr><td colSpan={7} className="p-12 text-center text-zinc-400 font-medium">Nenhuma venda registrada ainda.</td></tr>
+                          ) : allSales.map((s) => (
+                              <tr key={s.id} className="hover:bg-zinc-50/50 transition-colors">
+                                  <td className="p-5">
+                                      <p className="font-bold text-zinc-900">{s.client_name}</p>
+                                      <p className="text-xs text-zinc-400">{s.client_email}</p>
+                                      <p className="text-xs text-zinc-400">{s.client_phone}</p>
+                                  </td>
+                                  <td className="p-5">
+                                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
+                                          s.plan === 'PRO' ? 'bg-[#65a30d] text-black' :
+                                          s.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' :
+                                          'bg-zinc-100 text-zinc-600'
+                                      }`}>{s.plan}</span>
+                                  </td>
+                                  <td className="p-5 text-xs text-zinc-500 font-medium">
+                                      {s.salespeople?.name || <span className="text-zinc-300 italic">Venda Direta</span>}
+                                      {s.commission_amount > 0 && <p className="text-[10px] text-amber-600 font-bold">R$ {s.commission_amount.toFixed(2)}</p>}
+                                  </td>
+                                  <td className="p-5 text-right font-black text-zinc-900">
+                                      R$ {(s.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="p-5 text-center">{statusBadge(s)}</td>
+                                  <td className="p-5 text-center">{onboardBadge(s)}</td>
+                                  <td className="p-5 text-center text-xs text-zinc-400 font-medium">
+                                      {s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : '—'}
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      );
+  };
+
   const renderCommissions = () => {
       // Buscar dados ao abrir a view (se ainda não carregou)
       if (spList.length === 0 && !spLoading) fetchSalespeople();
@@ -2171,6 +2293,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                 </div>
             )}
             {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
+            {currentView === 'VENDAS' && renderVendas()}
             {currentView === 'VENDEDORES' && renderVendedores()}
             {currentView === 'CHIPS' && renderChips()}
             {currentView === 'CANCELLATIONS' && (
