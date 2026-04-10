@@ -124,25 +124,40 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
   const ctx: Record<string, any> = sale.onboarding_context || {};
   const step = sale.onboarding_step || 0;
   const limits = PLAN_LIMITS[sale.plan] || PLAN_LIMITS.ESSENCIAL;
-  const tempPassword = ctx.tempPassword || generatePassword();
 
   console.log(`[Onboarding] Iniciando provisão para ${sale.client_email} (venda ${saleId}, etapa ${step})`);
 
   try {
-    // ── ETAPA 1: Criar usuário no Supabase Auth ────────────────────────────────
+    // ── ETAPA 1: Preparar perfil — Google Login (sem senha) ───────────────────
+    // O cliente fará login via Google OAuth — não criamos senha.
+    // Se já existe um usuário Supabase com esse email (login Google prévio), reutilizamos.
+    // Se não existe ainda, criamos o registro em profiles sem auth user —
+    // o Supabase Auth user será criado automaticamente no primeiro login Google.
     let userId = ctx.userId;
     if (!userId) {
-      console.log('[Onboarding] Etapa 1: criar usuário Supabase');
-      const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
-        email: sale.client_email,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: { name: sale.client_name },
-      });
-      if (authErr) throw new Error(`Etapa 1 falhou: ${authErr.message}`);
-      userId = authData.user.id;
+      console.log('[Onboarding] Etapa 1: verificar/preparar usuário Supabase');
+
+      // Tenta encontrar usuário existente pelo email
+      const { data: existingUsers } = await supabase.auth.admin.listUsers();
+      const existing = existingUsers?.users?.find((u: any) => u.email === sale.client_email);
+
+      if (existing) {
+        userId = existing.id;
+        console.log(`[Onboarding] Usuário Google já existente: ${userId}`);
+      } else {
+        // Cria registro de auth sem senha — o usuário será "upgradeado" para Google
+        // quando fizer o primeiro login OAuth
+        const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
+          email: sale.client_email,
+          email_confirm: true,
+          user_metadata: { name: sale.client_name },
+        });
+        if (authErr) throw new Error(`Etapa 1 falhou: ${authErr.message}`);
+        userId = authData.user.id;
+        console.log(`[Onboarding] Usuário criado (aguardando Google Login): ${userId}`);
+      }
+
       ctx.userId = userId;
-      ctx.tempPassword = tempPassword;
       await saveContext(saleId, 1, ctx);
     }
 
@@ -152,6 +167,7 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
       const { error: profileErr } = await supabase.from('profiles').upsert({
         id: userId,
         email: sale.client_email,
+        name: sale.client_name,
         plan: sale.plan,
         job_limit: limits.jobLimit,
         resume_limit: limits.resumeLimit,
@@ -159,7 +175,7 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
         salesperson: (sale as any).salespeople?.name || null,
         sale_id: saleId,
         created_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'id' });
       if (profileErr) throw new Error(`Etapa 2 falhou: ${profileErr.message}`);
       ctx.profileCreated = true;
       await saveContext(saleId, 2, ctx);
@@ -186,13 +202,16 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     let chatwootUserToken = ctx.chatwootUserToken;
     if (!chatwootUserId) {
       console.log('[Onboarding] Etapa 4: criar usuário Chatwoot');
+      // Chatwoot exige senha — geramos uma aleatória só para criação da conta.
+      // O cliente não usa essa senha; o acesso ao Chatwoot é pelo painel Elevva via iframe/link.
+      const chatwootPwd = generatePassword();
       const agent = await chatwootPost(
         `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/agents`,
         {
           name: sale.client_name,
           email: sale.client_email,
           role: 'agent',
-          password: tempPassword,
+          password: chatwootPwd,
         }
       );
       chatwootUserId = agent.id;
@@ -331,11 +350,9 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
         `🎉 *Bem-vindo à Elevva, ${sale.client_name.split(' ')[0]}!*\n\n` +
         `Seu plano *${sale.plan}* está ativo e tudo está configurado.\n\n` +
         `📱 *Número WhatsApp do seu agente:*\n+${chipPhone}\n\n` +
-        `🖥️ *Acesse seu painel:*\n${appUrl}\n\n` +
-        `👤 *Login:* ${sale.client_email}\n` +
-        `🔑 *Senha temporária:* ${tempPassword}\n\n` +
-        `💬 *Acompanhe seu agente em tempo real:*\n${chatwootLoginUrl}\n` +
-        `_(mesmo login e senha acima)_\n\n` +
+        `🖥️ *Acesse seu painel agora:*\n${appUrl}\n\n` +
+        `👉 Clique em *"Entrar com Google"* usando o e-mail:\n` +
+        `*${sale.client_email}*\n\n` +
         `Em caso de dúvidas, fale conosco. Sucesso! 🚀`;
 
       // Envia via Evolution usando o chip do pool (ou qualquer instância disponível)
