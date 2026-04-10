@@ -2278,7 +2278,7 @@ app.get("/api/cron/pending-sales-cleanup", async (req, res) => {
 
   try {
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 7); // 7 dias atrás
+    cutoff.setDate(cutoff.getDate() - 3); // 3 dias atrás
 
     const { data: expired, error } = await supabaseAdmin
       .from('sales')
