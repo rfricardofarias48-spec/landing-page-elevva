@@ -68,6 +68,37 @@ export const VendedorDashboard: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
+  // Trocar senha
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [cpCurrent, setCpCurrent] = useState('');
+  const [cpNew, setCpNew] = useState('');
+  const [cpConfirm, setCpConfirm] = useState('');
+  const [cpLoading, setCpLoading] = useState(false);
+  const [cpError, setCpError] = useState('');
+  const [cpSuccess, setCpSuccess] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cpNew !== cpConfirm) { setCpError('As senhas não coincidem'); return; }
+    if (cpNew.length < 6) { setCpError('A nova senha deve ter pelo menos 6 caracteres'); return; }
+    setCpLoading(true); setCpError('');
+    try {
+      const res = await fetch(`/api/salespeople/${salesperson!.id}/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: cpCurrent, newPassword: cpNew }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao trocar senha');
+      setCpSuccess(true);
+      setTimeout(() => { setShowChangePassword(false); setCpSuccess(false); setCpCurrent(''); setCpNew(''); setCpConfirm(''); }, 2000);
+    } catch (err: any) {
+      setCpError(err.message);
+    } finally {
+      setCpLoading(false);
+    }
+  };
+
   // Gerar link
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkClientName, setLinkClientName] = useState('');
@@ -272,11 +303,60 @@ export const VendedorDashboard: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm font-semibold text-zinc-700">{salesperson.name}</span>
+          <button onClick={() => { setShowChangePassword(true); setCpError(''); setCpSuccess(false); }}
+            className="text-xs font-bold text-zinc-400 hover:text-zinc-700 border border-zinc-200 hover:border-zinc-400 px-3 py-1.5 rounded-lg transition-colors">
+            Trocar Senha
+          </button>
           <button onClick={handleLogout} className="text-zinc-400 hover:text-zinc-700 transition-colors">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
       </header>
+
+      {/* Modal Trocar Senha */}
+      {showChangePassword && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black text-zinc-900">Trocar Senha</h3>
+              <button onClick={() => setShowChangePassword(false)} className="text-zinc-400 hover:text-zinc-700">
+                <span className="text-xl leading-none">&times;</span>
+              </button>
+            </div>
+            {cpSuccess ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+                <p className="text-emerald-700 font-bold">Senha alterada com sucesso!</p>
+              </div>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Senha atual</label>
+                  <input type="password" value={cpCurrent} onChange={e => setCpCurrent(e.target.value)}
+                    className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                    placeholder="Sua senha atual" required />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nova senha</label>
+                  <input type="password" value={cpNew} onChange={e => setCpNew(e.target.value)}
+                    className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                    placeholder="Mínimo 6 caracteres" required minLength={6} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Confirmar nova senha</label>
+                  <input type="password" value={cpConfirm} onChange={e => setCpConfirm(e.target.value)}
+                    className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                    placeholder="Repita a nova senha" required />
+                </div>
+                {cpError && <p className="text-red-500 text-xs font-medium">{cpError}</p>}
+                <button type="submit" disabled={cpLoading}
+                  className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                  {cpLoading ? <span className="animate-spin text-base">⏳</span> : 'Salvar nova senha'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
 

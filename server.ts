@@ -14,6 +14,7 @@ import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/s
 import { validateWalletId, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference } from "./src/services/asaasService.js";
 import { provisionClient } from "./src/services/onboardingService.js";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
 dotenv.config();
@@ -3211,7 +3212,6 @@ app.post("/api/salespeople/login", async (req, res) => {
   const { email, password } = req.body as { email?: string; password?: string };
   if (!email || !password) return res.status(400).json({ error: 'email e password são obrigatórios' });
 
-  // Buscar vendedor pelo email
   const { data: sp, error } = await supabaseAdmin
     .from('salespeople')
     .select('*')
@@ -3221,14 +3221,13 @@ app.post("/api/salespeople/login", async (req, res) => {
 
   if (error || !sp) return res.status(401).json({ error: 'Vendedor não encontrado ou inativo' });
 
-  // Verificar senha (armazenada com bcrypt — se não tiver, aceita a senha padrão temporária)
-  // Para simplificar na primeira versão, a senha é o CPF/CNPJ sem formatação
-  const cpfClean = (sp.asaas_customer_id || sp.cpf_cnpj || '').replace(/\D/g, '');
-  const senhaValida = password === cpfClean || password === sp.email;
+  if (!sp.password_hash) {
+    return res.status(401).json({ error: 'Senha não definida. Peça ao administrador para configurar sua senha.' });
+  }
 
+  const senhaValida = await bcrypt.compare(password, sp.password_hash);
   if (!senhaValida) return res.status(401).json({ error: 'Senha incorreta' });
 
-  // Retorna dados do vendedor (sem dados sensíveis)
   return res.json({
     ok: true,
     salesperson: {
@@ -3239,6 +3238,46 @@ app.post("/api/salespeople/login", async (req, res) => {
       asaas_wallet_id: sp.asaas_wallet_id,
     },
   });
+});
+
+// ── POST /api/salespeople/:id/change-password — Vendedor troca própria senha ──
+app.post("/api/salespeople/:id/change-password", async (req, res) => {
+  const { id } = req.params;
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'currentPassword e newPassword são obrigatórios' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres' });
+  }
+  try {
+    const { data: sp } = await supabaseAdmin.from('salespeople').select('password_hash').eq('id', id).single();
+    if (!sp?.password_hash) return res.status(404).json({ error: 'Vendedor não encontrado' });
+    const ok = await bcrypt.compare(currentPassword, sp.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Senha atual incorreta' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await supabaseAdmin.from('salespeople').update({ password_hash: hash }).eq('id', id);
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/salespeople/:id/reset-password — Admin reseta senha do vendedor ─
+app.post("/api/salespeople/:id/reset-password", async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body as { newPassword?: string };
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'newPassword deve ter pelo menos 6 caracteres' });
+  }
+  try {
+    const hash = await bcrypt.hash(newPassword, 10);
+    const { error } = await supabaseAdmin.from('salespeople').update({ password_hash: hash }).eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── POST /api/salespeople/validate-wallet — Validar Wallet ID do vendedor ─────
@@ -3258,23 +3297,27 @@ app.post("/api/salespeople/validate-wallet", async (req, res) => {
 // O vendedor deve ter conta própria no Asaas e fornecer o Wallet ID dela.
 // Não criamos mais subconta — o split vai direto para a conta do vendedor.
 app.post("/api/salespeople", async (req, res) => {
-  const { name, email, phone, commissionPct, asaasWalletId } = req.body as {
+  const { name, email, phone, commissionPct, asaasWalletId, password } = req.body as {
     name?: string; email?: string; phone?: string;
-    commissionPct?: number; asaasWalletId?: string;
+    commissionPct?: number; asaasWalletId?: string; password?: string;
   };
 
   if (!name || !email) {
     return res.status(400).json({ error: 'name e email são obrigatórios' });
   }
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'Defina uma senha de acesso com pelo menos 6 caracteres' });
+  }
 
   try {
-    // Se forneceu Wallet ID, valida no Asaas antes de salvar
     if (asaasWalletId) {
       const validation = await validateWalletId(asaasWalletId.trim());
       if (!validation.valid) {
-        return res.status(400).json({ error: 'Wallet ID do Asaas inválido ou não encontrado. Verifique se o vendedor tem conta ativa no Asaas.' });
+        return res.status(400).json({ error: 'Wallet ID do Asaas inválido ou não encontrado.' });
       }
     }
+
+    const password_hash = await bcrypt.hash(password, 10);
 
     const { data, error } = await supabaseAdmin
       .from('salespeople')
@@ -3284,6 +3327,7 @@ app.post("/api/salespeople", async (req, res) => {
         phone: phone || null,
         commission_pct: commissionPct ?? 15,
         asaas_wallet_id: asaasWalletId?.trim() || null,
+        password_hash,
         status: 'active',
       })
       .select()

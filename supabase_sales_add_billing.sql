@@ -15,3 +15,9 @@ ALTER TABLE public.sales DROP CONSTRAINT IF EXISTS sales_plan_check;
 ALTER TABLE public.sales
   ADD CONSTRAINT sales_plan_check
     CHECK (plan IN ('ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'ENTERPRISE'));
+
+-- ============================================================
+-- Migration: adicionar coluna password_hash na tabela salespeople
+-- ============================================================
+ALTER TABLE public.salespeople
+  ADD COLUMN IF NOT EXISTS password_hash TEXT;

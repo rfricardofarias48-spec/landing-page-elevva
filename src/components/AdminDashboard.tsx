@@ -1196,9 +1196,34 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [spList, setSpList] = useState<any[]>([]);
   const [spLoading, setSpLoading] = useState(false);
   const [showAddSp, setShowAddSp] = useState(false);
-  const [spForm, setSpForm] = useState({ name: '', email: '', phone: '', commissionPct: 15, asaasWalletId: '' });
+  const [spForm, setSpForm] = useState({ name: '', email: '', phone: '', commissionPct: 15, asaasWalletId: '', password: '' });
   const [spSaving, setSpSaving] = useState(false);
   const [spError, setSpError] = useState('');
+  const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetPasswordSaving, setResetPasswordSaving] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState('');
+
+  const handleResetPassword = async () => {
+      if (!resetPasswordId || resetPasswordValue.length < 6) return;
+      setResetPasswordSaving(true);
+      setResetPasswordError('');
+      try {
+          const res = await fetch(`/api/salespeople/${resetPasswordId}/reset-password`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ newPassword: resetPasswordValue }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao resetar');
+          setResetPasswordId(null);
+          setResetPasswordValue('');
+      } catch (err: any) {
+          setResetPasswordError(err.message);
+      } finally {
+          setResetPasswordSaving(false);
+      }
+  };
   const [walletValidating, setWalletValidating] = useState(false);
   const [walletInfo, setWalletInfo] = useState<{ valid: boolean; name?: string } | null>(null);
 
@@ -1662,7 +1687,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           </p>
                                       )}
                                       <p className="mt-1 text-[11px] text-zinc-400">O vendedor encontra o Wallet ID em: Asaas → Configurações → Dados da Conta</p>
+                                                                    <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Senha de acesso</label>
+                                      <input type="password" value={spForm.password} onChange={e => setSpForm(f => ({...f, password: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="Mínimo 6 caracteres" required minLength={6} />
+                                      <p className="mt-1 text-[11px] text-zinc-400">O vendedor poderá trocar a senha após o primeiro acesso.</p>
                                   </div>
+</div>
                               </div>
                               {spError && <p className="text-red-500 text-xs font-medium">{spError}</p>}
                               <button type="submit" disabled={spSaving}
@@ -1705,13 +1737,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               <th className="p-5 text-right">Pendente</th>
                               <th className="p-5 text-center">Asaas</th>
                               <th className="p-5 text-center">Status</th>
+                              <th className="p-5"></th>
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-50 text-sm">
                           {spLoading ? (
-                              <tr><td colSpan={7} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
+                              <tr><td colSpan={8} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
                           ) : spList.length === 0 ? (
-                              <tr><td colSpan={7} className="p-12 text-center text-zinc-400 font-medium">Nenhum vendedor cadastrado ainda.</td></tr>
+                              <tr><td colSpan={8} className="p-12 text-center text-zinc-400 font-medium">Nenhum vendedor cadastrado ainda.</td></tr>
                           ) : spList.map((sp) => (
                               <tr key={sp.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-5">
@@ -1738,11 +1771,43 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           {sp.status === 'active' ? 'Ativo' : 'Inativo'}
                                       </span>
                                   </td>
+                                  <td className="p-5 text-center">
+                                      <button onClick={() => { setResetPasswordId(sp.id); setResetPasswordValue(''); setResetPasswordError(''); }}
+                                          className="text-[10px] font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                                          Resetar Senha
+                                      </button>
+                                  </td>
                               </tr>
                           ))}
                       </tbody>
                   </table>
               </div>
+
+              {/* Modal Resetar Senha */}
+              {resetPasswordId && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+                          <div className="flex items-center justify-between mb-6">
+                              <h3 className="text-xl font-black text-zinc-900">Resetar Senha</h3>
+                              <button onClick={() => setResetPasswordId(null)} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+                          </div>
+                          <p className="text-sm text-zinc-500 mb-4">Defina uma nova senha para o vendedor. Informe-o diretamente após o reset.</p>
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nova senha</label>
+                                  <input type="password" value={resetPasswordValue} onChange={e => setResetPasswordValue(e.target.value)}
+                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                      placeholder="Mínimo 6 caracteres" minLength={6} />
+                              </div>
+                              {resetPasswordError && <p className="text-red-500 text-xs font-medium">{resetPasswordError}</p>}
+                              <button onClick={handleResetPassword} disabled={resetPasswordSaving || resetPasswordValue.length < 6}
+                                  className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                  {resetPasswordSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar Reset'}
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              )}
           </div>
       );
   };
@@ -2292,7 +2357,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           </p>
                                       )}
                                       <p className="mt-1 text-[11px] text-zinc-400">O vendedor encontra o Wallet ID em: Asaas → Configurações → Dados da Conta</p>
+                                                                    <div className="col-span-2">
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Senha de acesso</label>
+                                      <input type="password" value={spForm.password} onChange={e => setSpForm(f => ({...f, password: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="Mínimo 6 caracteres" required minLength={6} />
+                                      <p className="mt-1 text-[11px] text-zinc-400">O vendedor poderá trocar a senha após o primeiro acesso.</p>
                                   </div>
+</div>
                               </div>
                               {spError && <p className="text-red-500 text-xs font-medium">{spError}</p>}
                               <button type="submit" disabled={spSaving}
