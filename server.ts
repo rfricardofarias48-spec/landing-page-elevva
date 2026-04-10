@@ -3366,25 +3366,29 @@ function decodeLinkMeta(ref: string): Record<string, unknown> | null {
 // ── POST /api/sales/direct-link — Venda direta pelo sócio (sem vendedor) ───────
 // Nenhum registro criado no banco — o registro nasce só após pagamento confirmado
 app.post("/api/sales/direct-link", async (req, res) => {
-  const { clientName, clientEmail, clientPhone, plan, customAmount } = req.body as {
+  const { clientName, clientEmail, clientPhone, plan, billing, customAmount } = req.body as {
     clientName?: string; clientEmail?: string; clientPhone?: string;
-    plan?: string; customAmount?: number;
+    plan?: string; billing?: string; customAmount?: number;
   };
 
   if (!clientName || !clientEmail || !clientPhone || !plan) {
     return res.status(400).json({ error: 'clientName, clientEmail, clientPhone e plan são obrigatórios' });
   }
 
-  if (!['ESSENCIAL', 'PRO', 'ENTERPRISE'].includes(plan)) {
-    return res.status(400).json({ error: 'plan deve ser ESSENCIAL, PRO ou ENTERPRISE' });
+  const VALID_PLANS = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'ENTERPRISE'];
+  if (!VALID_PLANS.includes(plan)) {
+    return res.status(400).json({ error: `plan inválido: ${plan}` });
   }
 
   try {
     const amountReais = customAmount || (PLAN_PRICES[plan] / 100);
+    // Nome amigável do plano para o link Asaas
+    const planLabel = plan.replace('_ANUAL', ' Anual').replace('_', ' ');
 
-    // Metadata viaja dentro do externalReference do Asaas
     const meta = encodeLinkMeta({
-      clientName, clientEmail, clientPhone, plan,
+      clientName, clientEmail, clientPhone,
+      plan,
+      billing: billing || 'mensal',
       amount: amountReais,
       salespersonId: null,
       commissionPct: 0,
@@ -3392,7 +3396,8 @@ app.post("/api/sales/direct-link", async (req, res) => {
     });
 
     const link = await generatePaymentLink({
-      clientName, clientEmail, plan,
+      clientName, clientEmail,
+      plan: planLabel,
       amount: amountReais,
       commissionPct: 0,
       walletId: '',

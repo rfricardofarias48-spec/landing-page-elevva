@@ -11,9 +11,11 @@ const ASAAS_KEY = process.env.ASAAS_API_KEY || '';
 
 // Valores por plano em centavos (para referência interna)
 export const PLAN_PRICES: Record<string, number> = {
-  ESSENCIAL:  64990,  // R$ 649,90
-  PRO:        99990,  // R$ 999,90
-  ENTERPRISE: 0,      // A consultar — gerado manualmente
+  ESSENCIAL:         64990,   // R$ 649,90/mês
+  ESSENCIAL_ANUAL:   623040,  // R$ 6.230,40/ano (20% off)
+  PRO:               99990,   // R$ 999,90/mês
+  PRO_ANUAL:         959904,  // R$ 9.599,04/ano (20% off)
+  ENTERPRISE:        0,       // A consultar — gerado manualmente
 };
 
 export interface AsaasSubaccount {

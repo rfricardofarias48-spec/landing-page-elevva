@@ -931,7 +931,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
   // ── State para venda direta (sócio) ──────────────────────────────────────────
   const [showDirectLink, setShowDirectLink] = useState(false);
-  const [directLinkForm, setDirectLinkForm] = useState({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', customAmount: '' });
+  const [directLinkForm, setDirectLinkForm] = useState({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', billing: 'mensal', customAmount: '' });
   const [directLinkResult, setDirectLinkResult] = useState('');
   const [directLinkSaving, setDirectLinkSaving] = useState(false);
   const [directLinkError, setDirectLinkError] = useState('');
@@ -959,12 +959,22 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       setDirectLinkError('');
       setDirectLinkResult('');
       try {
-          const amount = directLinkForm.plan === 'ENTERPRISE' && directLinkForm.customAmount
-              ? { customAmount: parseFloat(directLinkForm.customAmount) } : {};
+          // Montar plan key incluindo billing (ex: ESSENCIAL ou ESSENCIAL_ANUAL)
+          const isEnterprise = directLinkForm.plan === 'ENTERPRISE';
+          const planKey = isEnterprise ? 'ENTERPRISE'
+              : directLinkForm.billing === 'anual' ? `${directLinkForm.plan}_ANUAL` : directLinkForm.plan;
+          const body: any = {
+              clientName: directLinkForm.clientName,
+              clientEmail: directLinkForm.clientEmail,
+              clientPhone: directLinkForm.clientPhone,
+              plan: planKey,
+              billing: directLinkForm.billing,
+          };
+          if (isEnterprise && directLinkForm.customAmount) body.customAmount = parseFloat(directLinkForm.customAmount);
           const res = await fetch('/api/sales/direct-link', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...directLinkForm, ...amount }),
+              body: JSON.stringify(body),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Erro ao gerar link');
@@ -1242,10 +1252,41 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Plano</label>
                                           <select value={directLinkForm.plan} onChange={e => setDirectLinkForm(f => ({...f, plan: e.target.value}))}
                                               className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white">
-                                              <option value="ESSENCIAL">Essencial — R$ 649,90</option>
-                                              <option value="PRO">Pro — R$ 999,90</option>
+                                              <option value="ESSENCIAL">Essencial</option>
+                                              <option value="PRO">Pro</option>
                                               <option value="ENTERPRISE">Enterprise — personalizado</option>
                                           </select>
+                                      </div>
+                                      {directLinkForm.plan !== 'ENTERPRISE' && (
+                                          <div>
+                                              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Período</label>
+                                              <div className="flex gap-2">
+                                                  <button type="button" onClick={() => setDirectLinkForm(f => ({...f, billing: 'mensal'}))}
+                                                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${directLinkForm.billing === 'mensal' ? 'bg-black text-white border-black' : 'border-zinc-200 text-zinc-500 hover:border-zinc-400'}`}>
+                                                      Mensal
+                                                  </button>
+                                                  <button type="button" onClick={() => setDirectLinkForm(f => ({...f, billing: 'anual'}))}
+                                                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors relative ${directLinkForm.billing === 'anual' ? 'bg-black text-white border-black' : 'border-zinc-200 text-zinc-500 hover:border-zinc-400'}`}>
+                                                      Anual <span className="text-[10px] text-[#84cc16] font-black">20% OFF</span>
+                                                  </button>
+                                              </div>
+                                          </div>
+                                      )}
+                                      <div className="col-span-2 bg-zinc-50 rounded-xl px-4 py-3 text-sm">
+                                          {directLinkForm.plan === 'ENTERPRISE' ? (
+                                              <span className="text-zinc-500 font-medium">Valor personalizado abaixo</span>
+                                          ) : directLinkForm.billing === 'anual' ? (
+                                              <span className="font-black text-zinc-900">
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 6.230,40/ano' : 'R$ 9.599,04/ano'}
+                                                  <span className="ml-2 text-xs text-zinc-400 font-medium line-through">
+                                                      {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 7.798,80' : 'R$ 11.998,80'}
+                                                  </span>
+                                              </span>
+                                          ) : (
+                                              <span className="font-black text-zinc-900">
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 649,90/mês' : 'R$ 999,90/mês'}
+                                              </span>
+                                          )}
                                       </div>
                                       {directLinkForm.plan === 'ENTERPRISE' && (
                                           <div className="col-span-2">
@@ -1274,7 +1315,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           {directLinkCopied ? '✓ Copiado' : 'Copiar'}
                                       </button>
                                   </div>
-                                  <button onClick={() => { setShowDirectLink(false); setDirectLinkResult(''); setDirectLinkForm({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', customAmount: '' }); }}
+                                  <button onClick={() => { setShowDirectLink(false); setDirectLinkResult(''); setDirectLinkForm({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', billing: 'mensal', customAmount: '' }); }}
                                       className="w-full border border-zinc-200 text-zinc-600 font-bold py-2.5 rounded-xl text-sm hover:bg-zinc-50 transition-colors">
                                       Fechar
                                   </button>
@@ -1699,10 +1740,41 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Plano</label>
                                           <select value={directLinkForm.plan} onChange={e => setDirectLinkForm(f => ({...f, plan: e.target.value}))}
                                               className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white">
-                                              <option value="ESSENCIAL">Essencial — R$ 649,90</option>
-                                              <option value="PRO">Pro — R$ 999,90</option>
+                                              <option value="ESSENCIAL">Essencial</option>
+                                              <option value="PRO">Pro</option>
                                               <option value="ENTERPRISE">Enterprise — personalizado</option>
                                           </select>
+                                      </div>
+                                      {directLinkForm.plan !== 'ENTERPRISE' && (
+                                          <div>
+                                              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Período</label>
+                                              <div className="flex gap-2">
+                                                  <button type="button" onClick={() => setDirectLinkForm(f => ({...f, billing: 'mensal'}))}
+                                                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${directLinkForm.billing === 'mensal' ? 'bg-black text-white border-black' : 'border-zinc-200 text-zinc-500 hover:border-zinc-400'}`}>
+                                                      Mensal
+                                                  </button>
+                                                  <button type="button" onClick={() => setDirectLinkForm(f => ({...f, billing: 'anual'}))}
+                                                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors relative ${directLinkForm.billing === 'anual' ? 'bg-black text-white border-black' : 'border-zinc-200 text-zinc-500 hover:border-zinc-400'}`}>
+                                                      Anual <span className="text-[10px] text-[#84cc16] font-black">20% OFF</span>
+                                                  </button>
+                                              </div>
+                                          </div>
+                                      )}
+                                      <div className="col-span-2 bg-zinc-50 rounded-xl px-4 py-3 text-sm">
+                                          {directLinkForm.plan === 'ENTERPRISE' ? (
+                                              <span className="text-zinc-500 font-medium">Valor personalizado abaixo</span>
+                                          ) : directLinkForm.billing === 'anual' ? (
+                                              <span className="font-black text-zinc-900">
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 6.230,40/ano' : 'R$ 9.599,04/ano'}
+                                                  <span className="ml-2 text-xs text-zinc-400 font-medium line-through">
+                                                      {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 7.798,80' : 'R$ 11.998,80'}
+                                                  </span>
+                                              </span>
+                                          ) : (
+                                              <span className="font-black text-zinc-900">
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 649,90/mês' : 'R$ 999,90/mês'}
+                                              </span>
+                                          )}
                                       </div>
                                       {directLinkForm.plan === 'ENTERPRISE' && (
                                           <div className="col-span-2">
@@ -1731,7 +1803,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           {directLinkCopied ? '✓ Copiado' : 'Copiar'}
                                       </button>
                                   </div>
-                                  <button onClick={() => { setShowDirectLink(false); setDirectLinkResult(''); setDirectLinkForm({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', customAmount: '' }); }}
+                                  <button onClick={() => { setShowDirectLink(false); setDirectLinkResult(''); setDirectLinkForm({ clientName: '', clientEmail: '', clientPhone: '', plan: 'ESSENCIAL', billing: 'mensal', customAmount: '' }); }}
                                       className="w-full border border-zinc-200 text-zinc-600 font-bold py-2.5 rounded-xl text-sm hover:bg-zinc-50 transition-colors">
                                       Fechar
                                   </button>
