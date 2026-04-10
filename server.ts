@@ -3384,6 +3384,73 @@ app.put("/api/salespeople/:id", async (req, res) => {
   return res.json({ ok: true, salesperson: data });
 });
 
+// ── POST /api/subscription/upgrade-link — Gerar link Asaas para upgrade ────────
+// Usuário logado clica em upgrade → backend gera link personalizado no Asaas
+app.post("/api/subscription/upgrade-link", async (req, res) => {
+  const { userId, plan, billing } = req.body as {
+    userId?: string; plan?: string; billing?: 'mensal' | 'anual';
+  };
+
+  const VALID = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL'];
+  if (!userId || !plan || !VALID.includes(plan)) {
+    return res.status(400).json({ error: 'userId e plan são obrigatórios' });
+  }
+
+  try {
+    // Busca dados do usuário no Supabase
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('name, email, whatsapp_number')
+      .eq('id', userId)
+      .single();
+
+    if (!profile) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const billingValue = billing || 'mensal';
+    const amountReais = (PLAN_PRICES[plan] || 0) / 100;
+    const planLabel = plan.replace('_ANUAL', ' Anual').replace('_', ' ');
+
+    // Cria registro pending de upgrade
+    const { data: saleRecord, error: saleErr } = await supabaseAdmin
+      .from('sales')
+      .insert({
+        client_name: profile.name || 'Cliente',
+        client_email: profile.email,
+        client_phone: profile.whatsapp_number || '',
+        plan,
+        amount: amountReais,
+        commission_amount: 0,
+        status: 'pending',
+        billing: billingValue,
+        client_user_id: userId,
+      })
+      .select('id')
+      .single();
+
+    if (saleErr || !saleRecord) {
+      throw new Error(`Erro ao criar registro: ${saleErr?.message}`);
+    }
+
+    const link = await generatePaymentLink({
+      clientName: profile.name || 'Cliente',
+      clientEmail: profile.email,
+      plan: planLabel,
+      amount: amountReais,
+      commissionPct: 0,
+      walletId: '',
+      salespersonName: 'Elevva',
+      saleId: saleRecord.id,
+      billing: billingValue,
+    });
+
+    await supabaseAdmin.from('sales').update({ asaas_link_url: link.url }).eq('id', saleRecord.id);
+
+    return res.json({ ok: true, paymentLink: link.url });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── DELETE /api/salespeople/:id — Deletar vendedor (só sem vendas pagas) ──────
 app.delete("/api/salespeople/:id", async (req, res) => {
   const { id } = req.params;

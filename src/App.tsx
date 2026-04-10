@@ -209,6 +209,30 @@ const App: React.FC = () => {
   
   // Billing Period
   const [isAnnual, setIsAnnual] = useState(false);
+  const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
+  const [upgradeError, setUpgradeError] = useState('');
+
+  const handleUpgradeLink = async (plan: string) => {
+    if (!user?.id) return;
+    setUpgradingPlan(plan);
+    setUpgradeError('');
+    try {
+      const billing = isAnnual ? 'anual' : 'mensal';
+      const planKey = isAnnual ? `${plan}_ANUAL` : plan;
+      const res = await fetch('/api/subscription/upgrade-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, plan: planKey, billing }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao gerar link');
+      window.open(data.paymentLink, '_blank');
+    } catch (err: any) {
+      setUpgradeError(err.message);
+    } finally {
+      setUpgradingPlan(null);
+    }
+  };
 
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -2140,9 +2164,11 @@ const App: React.FC = () => {
                           {normalizedPlan === 'ESSENCIAL' ? (
                               <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-xl text-sm text-center block cursor-not-allowed">Seu Plano Atual</button>
                           ) : (
-                              <a href={isAnnual ? 'https://invoice.infinitepay.io/plans/velorh/3csXVcCRLP' : 'https://invoice.infinitepay.io/plans/velorh/fIPbnJ9j'} target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-xl text-sm transition-colors hover:bg-slate-50 text-center block">
+                              <button onClick={() => handleUpgradeLink('ESSENCIAL')} disabled={upgradingPlan === 'ESSENCIAL'}
+                                  className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-xl text-sm transition-colors hover:bg-slate-50 text-center flex items-center justify-center gap-2 disabled:opacity-60">
+                                  {upgradingPlan === 'ESSENCIAL' ? <span className="animate-spin text-base">⏳</span> : null}
                                   {normalizedPlan === 'PRO' || normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial'}
-                              </a>
+                              </button>
                           )}
                       </div>
 
@@ -2181,9 +2207,11 @@ const App: React.FC = () => {
                           {normalizedPlan === 'PRO' ? (
                               <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-xl text-sm text-center block cursor-not-allowed">Seu Plano Atual</button>
                           ) : (
-                              <a href={isAnnual ? 'https://invoice.infinitepay.io/plans/velorh/1UyFNCHNaJ' : 'https://invoice.infinitepay.io/plans/velorh/T3K76HPHZ'} target="_blank" rel="noopener noreferrer" className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-xl text-sm transition-colors text-center block">
+                              <button onClick={() => handleUpgradeLink('PRO')} disabled={upgradingPlan === 'PRO'}
+                                  className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-xl text-sm transition-colors text-center flex items-center justify-center gap-2 disabled:opacity-60">
+                                  {upgradingPlan === 'PRO' ? <span className="animate-spin text-base">⏳</span> : null}
                                   {normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade'}
-                              </a>
+                              </button>
                           )}
                       </div>
 
@@ -2214,6 +2242,12 @@ const App: React.FC = () => {
                       </div>
                   </div>
               </div>
+              {upgradeError && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600 font-medium flex items-center justify-between">
+                      <span>{upgradeError}</span>
+                      <button onClick={() => setUpgradeError('')} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+                  </div>
+              )}
           </div>
   );
 
