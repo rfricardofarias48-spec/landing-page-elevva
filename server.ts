@@ -2268,6 +2268,42 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
   }
 });
 
+// GET /api/cron/pending-sales-cleanup — Remove vendas pending com mais de 7 dias ─
+// Roda todo dia às 03:00 UTC via Vercel Cron
+app.get("/api/cron/pending-sales-cleanup", async (req, res) => {
+  const secret = req.headers['authorization']?.replace('Bearer ', '') || req.query.secret;
+  if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7); // 7 dias atrás
+
+    const { data: expired, error } = await supabaseAdmin
+      .from('sales')
+      .select('id, client_name, client_email, plan, created_at')
+      .eq('status', 'pending')
+      .lt('created_at', cutoff.toISOString());
+
+    if (error) throw error;
+
+    if (!expired || expired.length === 0) {
+      return res.json({ ok: true, deleted: 0, message: 'Nenhuma venda pendente expirada.' });
+    }
+
+    const ids = expired.map((s: any) => s.id);
+    const { error: delErr } = await supabaseAdmin.from('sales').delete().in('id', ids);
+    if (delErr) throw delErr;
+
+    console.log(`[Cron] pending-sales-cleanup: ${ids.length} vendas expiradas removidas.`);
+    return res.json({ ok: true, deleted: ids.length, sales: expired.map((s: any) => ({ id: s.id, client: s.client_email, plan: s.plan, created_at: s.created_at })) });
+  } catch (err: any) {
+    console.error('[Cron] pending-sales-cleanup error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/cron/admission-cleanup — Cron job para limpeza LGPD 5 dias
 app.get("/api/cron/admission-cleanup", async (req, res) => {
   // Verify cron secret
