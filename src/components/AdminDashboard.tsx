@@ -1193,7 +1193,24 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   );
 
   // ── Filtro de período global (Vendas / Vendedores / Faturamento) ─────────────
-  const [periodFilter, setPeriodFilter] = useState<'todos' | 'mensal' | 'anual'>('todos');
+  const now = new Date();
+  const [periodMode, setPeriodMode] = useState<'mes' | 'ano'>('mes');
+  const [periodMonth, setPeriodMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`); // YYYY-MM
+  const [periodYear, setPeriodYear] = useState(String(now.getFullYear()));
+
+  const filterSalesByPeriod = (sales: any[]) => {
+      return sales.filter(s => {
+          const dateStr = s.paid_at || s.created_at;
+          if (!dateStr) return false;
+          const d = new Date(dateStr);
+          if (periodMode === 'mes') {
+              const [y, m] = periodMonth.split('-');
+              return d.getFullYear() === parseInt(y) && d.getMonth() + 1 === parseInt(m);
+          } else {
+              return d.getFullYear() === parseInt(periodYear);
+          }
+      });
+  };
 
   // ── State para o novo sistema de comissões ──────────────────────────────────
   const [spList, setSpList] = useState<any[]>([]);
@@ -1495,9 +1512,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       if (!asaasFinance && !asaasFinanceLoading) fetchAsaasFinance();
 
       // Filtra vendas dos vendedores por período (usa allSales para cruzar billing)
-      const salesByPeriod = periodFilter === 'todos' ? allSales : allSales.filter(s => s.billing === periodFilter && s.status === 'paid');
+      const salesByPeriod = filterSalesByPeriod(allSales).filter((s: any) => s.status === 'paid');
       const spFiltered = spList.map(sp => {
-          if (periodFilter === 'todos') return sp;
+          // always recalculate using filtered
           const spSales = salesByPeriod.filter((s: any) => s.salesperson_id === sp.id);
           return {
               ...sp,
@@ -2179,18 +2196,33 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   };
 
   const PeriodSelector = () => (
-      <div className="flex items-center bg-zinc-100 rounded-xl p-1 gap-0.5">
-          {(['todos', 'mensal', 'anual'] as const).map(p => (
-              <button key={p} onClick={() => setPeriodFilter(p)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors capitalize ${periodFilter === p ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}>
-                  {p === 'todos' ? 'Todos' : p === 'mensal' ? 'Mensal' : 'Anual'}
+      <div className="flex items-center gap-2 bg-zinc-100 rounded-xl p-1">
+          <div className="flex items-center bg-zinc-100 rounded-lg gap-0.5">
+              <button onClick={() => setPeriodMode('mes')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${periodMode === 'mes' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                  Mês
               </button>
-          ))}
+              <button onClick={() => setPeriodMode('ano')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${periodMode === 'ano' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                  Ano
+              </button>
+          </div>
+          {periodMode === 'mes' ? (
+              <input type="month" value={periodMonth} onChange={e => setPeriodMonth(e.target.value)}
+                  className="text-xs font-bold text-zinc-700 bg-white border border-zinc-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-black/10 cursor-pointer" />
+          ) : (
+              <select value={periodYear} onChange={e => setPeriodYear(e.target.value)}
+                  className="text-xs font-bold text-zinc-700 bg-white border border-zinc-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-black/10">
+                  {Array.from({ length: 5 }, (_, i) => now.getFullYear() - i).map(y => (
+                      <option key={y} value={String(y)}>{y}</option>
+                  ))}
+              </select>
+          )}
       </div>
   );
 
   const renderVendas = () => {
-      const byPeriod = periodFilter === 'todos' ? allSales : allSales.filter(s => s.billing === periodFilter);
+      const byPeriod = filterSalesByPeriod(allSales);
       const paid   = byPeriod.filter(s => s.status === 'paid');
       const total  = paid.reduce((acc, s) => acc + (s.amount || 0), 0);
       const direct = paid.filter(s => !s.salesperson_id).length;
@@ -2373,7 +2405,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           {allSalesLoading ? (
                               <tr><td colSpan={8} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
                           ) : byPeriod.length === 0 ? (
-                              <tr><td colSpan={8} className="p-12 text-center text-zinc-400 font-medium">{periodFilter !== 'todos' ? `Nenhuma venda ${periodFilter} registrada.` : 'Nenhuma venda registrada ainda.'}</td></tr>
+                              <tr><td colSpan={8} className="p-12 text-center text-zinc-400 font-medium">'Nenhuma venda encontrada para o período selecionado.'</td></tr>
                           ) : byPeriod.map((s) => (
                               <tr key={s.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-5">
@@ -2601,8 +2633,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   };
 
   const renderFinance = () => {
-      const salesForPeriod = periodFilter === 'todos' ? allSales : allSales.filter(s => s.billing === periodFilter);
-      const paidSalesForPeriod = salesForPeriod.filter(s => s.status === 'paid');
+      const salesForPeriod = filterSalesByPeriod(allSales);
+      const paidSalesForPeriod = salesForPeriod.filter((s: any) => s.status === 'paid');
       const periodMrr = paidSalesForPeriod.reduce((acc, s) => acc + (s.amount || 0), 0);
 
       const stats = getFinancialData();
@@ -2628,9 +2660,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                       </div>
                   </div>
               </div>
-              {periodFilter !== 'todos' && (
+              {true && (
                   <div className="bg-zinc-900 text-white rounded-2xl px-5 py-4 flex items-center justify-between">
-                      <p className="text-sm font-bold">Receita filtrada — planos <span className="text-[#84cc16]">{periodFilter}</span></p>
+                      <p className="text-sm font-bold">Receita — <span className="text-[#84cc16]">{periodMode === 'mes' ? periodMonth : periodYear}</span></p>
                       <p className="text-2xl font-black">R$ {periodMrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                   </div>
               )}
