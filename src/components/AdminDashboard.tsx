@@ -670,26 +670,31 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
     const enterpriseCount= users.filter(u => u.plan === 'ENTERPRISE').length;
     const arpu = fin.payingUsers > 0 ? fin.mrr / fin.payingUsers : 0;
     const arr  = fin.mrr * 12;
+    const now  = new Date();
 
-    // Gráfico: crescimento de usuários por mês (últimos 6 meses)
-    const now = new Date();
+    // ── 6 meses de dados ─────────────────────────────────────────────────────
     const months = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-      return { label: d.toLocaleDateString('pt-BR', { month: 'short' }), year: d.getFullYear(), month: d.getMonth() };
+      return { label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.',''), year: d.getFullYear(), month: d.getMonth() };
     });
-    const monthCounts = months.map(m =>
-      users.filter(u => {
-        const d = new Date(u.created_at);
-        return d.getFullYear() === m.year && d.getMonth() === m.month;
-      }).length
-    );
-    const maxCount = Math.max(...monthCounts, 1);
-    const chartH = 100;
-    const chartW = 300;
-    const barW = 32;
-    const gap = (chartW - barW * 6) / 7;
 
-    // Vendas confirmadas
+    // MRR acumulado até o fim de cada mês
+    const monthlyMRR = months.map(m => {
+      const endOfMonth = new Date(m.year, m.month + 1, 0, 23, 59, 59);
+      return users
+        .filter(u => new Date(u.created_at) <= endOfMonth && u.plan !== 'ADMIN')
+        .reduce((acc, u) => {
+          const defaultPrice = u.plan === 'PRO' ? 999.90 : u.plan === 'ENTERPRISE' ? 0 : 649.90;
+          return acc + (u.plan_price ?? defaultPrice);
+        }, 0);
+    });
+
+    // Novos clientes por mês (barras secundárias)
+    const monthNewUsers = months.map(m =>
+      users.filter(u => { const d = new Date(u.created_at); return d.getFullYear() === m.year && d.getMonth() === m.month && u.plan !== 'ADMIN'; }).length
+    );
+
+    // Vendas
     const paidSales = allSales.filter(s => s.status === 'paid');
     const salesThisMonth = paidSales.filter(s => {
       const d = new Date(s.paid_at || s.created_at);
@@ -697,153 +702,290 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
     });
     const revenueThisMonth = salesThisMonth.reduce((acc, s) => acc + (s.amount || 0), 0);
 
+    // ── SVG área chart ────────────────────────────────────────────────────────
+    const W = 560, H = 200;
+    const PAD = { top: 24, right: 24, bottom: 44, left: 72 };
+    const iW = W - PAD.left - PAD.right;
+    const iH = H - PAD.top - PAD.bottom;
+    const maxMRR = Math.max(...monthlyMRR, 1);
+    const maxNew = Math.max(...monthNewUsers, 1);
+
+    const mrrPts = monthlyMRR.map((v, i) => ({
+      x: PAD.left + (months.length === 1 ? iW / 2 : (i / (months.length - 1)) * iW),
+      y: PAD.top + iH - (v / maxMRR) * iH,
+      v,
+      label: months[i].label,
+      newUsers: monthNewUsers[i],
+    }));
+
+    // Smooth bezier path
+    const toPath = (pts: typeof mrrPts) =>
+      pts.reduce((path, pt, i) => {
+        if (i === 0) return `M ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+        const prev = pts[i - 1];
+        const cpX = ((prev.x + pt.x) / 2).toFixed(1);
+        return `${path} C ${cpX},${prev.y.toFixed(1)} ${cpX},${pt.y.toFixed(1)} ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+      }, '');
+
+    const linePath = toPath(mrrPts);
+    const areaPath = `${linePath} L ${mrrPts[mrrPts.length-1].x.toFixed(1)},${(PAD.top + iH).toFixed(1)} L ${mrrPts[0].x.toFixed(1)},${(PAD.top + iH).toFixed(1)} Z`;
+
+    // Grid Y lines (4 levels)
+    const yGridVals = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+      y: PAD.top + iH - f * iH,
+      label: `R$${((maxMRR * f) / 1000).toFixed(0)}k`,
+    }));
+
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
-    <div className="space-y-8 animate-fade-in pb-8">
+    <div className="space-y-6 animate-fade-in pb-8">
+
+      {/* Header */}
+      <div className="flex items-end justify-between">
         <div>
-            <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Visão Geral</h2>
-            <p className="text-zinc-500 font-medium">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Visão Geral</h2>
+          <p className="text-zinc-400 font-medium text-sm mt-0.5 capitalize">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* MRR — destaque */}
+        <div className="col-span-2 lg:col-span-1 relative overflow-hidden rounded-[1.75rem] bg-zinc-950 p-6 shadow-xl">
+          {/* Glow decorativo */}
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #84cc16 0%, transparent 70%)' }} />
+          <div className="relative">
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">MRR Estimado</p>
+            <p className="text-3xl font-black text-white leading-none">R$ {fin.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <div className="mt-3 pt-3 border-t border-zinc-800 flex items-center justify-between">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase">ARR</span>
+              <span className="text-sm font-black text-[#84cc16]">R$ {(arr / 1000).toFixed(1)}k</span>
+            </div>
+          </div>
         </div>
 
-        {/* KPIs principais */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="bg-black text-white p-6 rounded-[2rem] shadow-xl col-span-2 lg:col-span-1">
-                <div className="p-3 bg-zinc-900 rounded-2xl w-fit mb-4"><DollarSign className="w-6 h-6 text-[#84cc16]"/></div>
-                <h3 className="text-4xl font-black">R$ {fin.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">MRR Estimado</p>
-                <p className="text-xs text-zinc-400 mt-2">ARR: R$ {arr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
-                <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><Users className="w-6 h-6 text-zinc-900"/></div>
-                <h3 className="text-4xl font-black text-zinc-900">{activeUsers}</h3>
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Clientes Ativos</p>
-                {blockedUsers > 0 && <p className="text-xs text-red-400 mt-2">{blockedUsers} bloqueado{blockedUsers > 1 ? 's' : ''}</p>}
-            </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
-                <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><CreditCard className="w-6 h-6 text-zinc-900"/></div>
-                <h3 className="text-4xl font-black text-zinc-900">{salesThisMonth.length}</h3>
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Vendas este Mês</p>
-                <p className="text-xs text-emerald-600 font-bold mt-2">R$ {revenueThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
-                <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><FileText className="w-6 h-6 text-zinc-900"/></div>
-                <h3 className="text-4xl font-black text-zinc-900">{totalCandidates}</h3>
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Currículos Processados</p>
-                <p className="text-xs text-zinc-400 mt-2">{allJobs.length} vagas ativas</p>
-            </div>
+        <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
+          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Clientes Ativos</p>
+          <div>
+            <p className="text-4xl font-black text-zinc-900 mt-2">{activeUsers}</p>
+            {blockedUsers > 0
+              ? <p className="text-[11px] text-red-400 font-bold mt-1">{blockedUsers} bloqueado{blockedUsers > 1 ? 's' : ''}</p>
+              : <p className="text-[11px] text-zinc-300 font-bold mt-1">todos ativos</p>}
+          </div>
         </div>
 
-        {/* Gráfico + distribuição de planos */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* Gráfico de barras — novos clientes por mês */}
-            <div className="lg:col-span-2 bg-white border border-zinc-200 rounded-[2rem] p-7 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">Novos Clientes</p>
-                        <p className="text-sm font-bold text-zinc-500">Últimos 6 meses</p>
-                    </div>
-                    <span className="text-2xl font-black text-zinc-900">{users.length} total</span>
-                </div>
-                <svg viewBox={`0 0 ${chartW} ${chartH + 24}`} className="w-full" style={{ height: 160 }}>
-                    {monthCounts.map((count, i) => {
-                        const barH = maxCount > 0 ? (count / maxCount) * chartH : 0;
-                        const x = gap + i * (barW + gap);
-                        const y = chartH - barH;
-                        const m = months[i];
-                        return (
-                            <g key={i}>
-                                {/* Barra de fundo */}
-                                <rect x={x} y={0} width={barW} height={chartH} rx={8} fill="#f4f4f5" />
-                                {/* Barra de valor */}
-                                {count > 0 && <rect x={x} y={y} width={barW} height={barH} rx={8} fill="#000" />}
-                                {/* Label do mês */}
-                                <text x={x + barW / 2} y={chartH + 16} textAnchor="middle" fontSize={9} fontWeight="700" fill="#a1a1aa" style={{ textTransform: 'uppercase' }}>
-                                    {m.label}
-                                </text>
-                                {/* Valor */}
-                                {count > 0 && (
-                                    <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize={10} fontWeight="900" fill="#000">
-                                        {count}
-                                    </text>
-                                )}
-                            </g>
-                        );
-                    })}
-                </svg>
-            </div>
-
-            {/* Distribuição de planos */}
-            <div className="bg-white border border-zinc-200 rounded-[2rem] p-7 shadow-sm flex flex-col justify-between">
-                <div>
-                    <p className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-1">Mix de Planos</p>
-                    <p className="text-sm font-bold text-zinc-500 mb-6">Distribuição atual</p>
-                </div>
-                <div className="space-y-4">
-                    {[
-                        { label: 'Essencial', count: essencialCount, color: 'bg-zinc-200', textColor: 'text-zinc-600' },
-                        { label: 'Pro',       count: proCount,       color: 'bg-[#84cc16]', textColor: 'text-black' },
-                        { label: 'Enterprise',count: enterpriseCount,color: 'bg-purple-600', textColor: 'text-white' },
-                    ].map(({ label, count, color, textColor }) => {
-                        const pct = fin.payingUsers > 0 ? Math.round(count / fin.payingUsers * 100) : 0;
-                        return (
-                            <div key={label}>
-                                <div className="flex justify-between items-center mb-1.5">
-                                    <span className="text-xs font-bold text-zinc-500">{label}</span>
-                                    <span className="text-xs font-black text-zinc-900">{count} <span className="text-zinc-400 font-medium">({pct}%)</span></span>
-                                </div>
-                                <div className="w-full h-2.5 bg-zinc-100 rounded-full overflow-hidden">
-                                    <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-                <div className="mt-6 pt-5 border-t border-zinc-100 grid grid-cols-2 gap-3">
-                    <div className="bg-zinc-50 rounded-2xl p-3">
-                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">ARPU</p>
-                        <p className="text-lg font-black text-zinc-900 mt-0.5">R$ {arpu.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div className="bg-zinc-50 rounded-2xl p-3">
-                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Pagantes</p>
-                        <p className="text-lg font-black text-zinc-900 mt-0.5">{fin.payingUsers}</p>
-                    </div>
-                </div>
-            </div>
+        <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
+          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Vendas este Mês</p>
+          <div>
+            <p className="text-4xl font-black text-zinc-900 mt-2">{salesThisMonth.length}</p>
+            <p className="text-[11px] font-bold mt-1" style={{ color: revenueThisMonth > 0 ? '#65a30d' : '#a1a1aa' }}>
+              R$ {revenueThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
         </div>
 
-        {/* Vendas recentes */}
-        {paidSales.length > 0 && (
-            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
-                <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
-                    <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">Últimas Vendas Confirmadas</p>
-                    <button onClick={() => setCurrentView('VENDAS')} className="text-xs font-bold text-zinc-400 hover:text-black transition-colors">Ver todas →</button>
-                </div>
-                <div className="divide-y divide-zinc-50">
-                    {paidSales.slice(0, 5).map(s => (
-                        <div key={s.id} className="px-6 py-4 flex items-center justify-between hover:bg-zinc-50/50 transition-colors">
-                            <div className="flex items-center gap-4">
-                                <div className="w-9 h-9 rounded-2xl bg-zinc-100 flex items-center justify-center font-black text-zinc-600 text-sm">
-                                    {(s.client_name || '?')[0].toUpperCase()}
-                                </div>
-                                <div>
-                                    <p className="font-bold text-zinc-900 text-sm">{s.client_name}</p>
-                                    <p className="text-xs text-zinc-400">{s.client_email}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
-                                    s.plan?.includes('PRO') ? 'bg-[#84cc16] text-black' :
-                                    s.plan?.includes('ENTERPRISE') ? 'bg-purple-600 text-white' :
-                                    'bg-zinc-100 text-zinc-600'
-                                }`}>{s.plan}</span>
-                                <span className="font-black text-zinc-900">R$ {(s.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                <span className="text-xs text-zinc-400">{s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : '—'}</span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+        <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
+          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Currículos</p>
+          <div>
+            <p className="text-4xl font-black text-zinc-900 mt-2">{totalCandidates}</p>
+            <p className="text-[11px] text-zinc-300 font-bold mt-1">{allJobs.length} vagas ativas</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Gráfico principal + sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* ── Chart card dark ── */}
+        <div className="lg:col-span-2 rounded-[1.75rem] overflow-hidden" style={{ background: '#0c0c0c' }}>
+          <div className="px-7 pt-6 pb-3 flex items-start justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#84cc16' }}>Receita Recorrente</p>
+              <p className="text-white font-black text-xl mt-0.5">MRR · Últimos 6 meses</p>
             </div>
-        )}
+            <div className="text-right">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Atual</p>
+              <p className="text-white font-black text-lg">R$ {(fin.mrr / 1000).toFixed(1)}k</p>
+            </div>
+          </div>
+
+          {/* SVG */}
+          <div className="px-2 pb-5">
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 220 }}>
+              <defs>
+                {/* Gradiente da área */}
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#84cc16" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#84cc16" stopOpacity="0" />
+                </linearGradient>
+                {/* Glow do ponto */}
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+
+              {/* Grid lines horizontais */}
+              {yGridVals.map((g, i) => (
+                <g key={i}>
+                  <line x1={PAD.left} y1={g.y} x2={W - PAD.right} y2={g.y}
+                    stroke="#1f1f1f" strokeWidth="1" strokeDasharray={i === 0 ? 'none' : '4,4'} />
+                  <text x={PAD.left - 8} y={g.y + 4} textAnchor="end" fontSize={10} fontWeight="700" fill="#3f3f46">
+                    {g.label}
+                  </text>
+                </g>
+              ))}
+
+              {/* Grid lines verticais (meses) */}
+              {mrrPts.map((pt, i) => (
+                <line key={i} x1={pt.x} y1={PAD.top} x2={pt.x} y2={PAD.top + iH}
+                  stroke="#161616" strokeWidth="1" />
+              ))}
+
+              {/* Área preenchida */}
+              <path d={areaPath} fill="url(#areaGrad)" />
+
+              {/* Linha principal */}
+              <path d={linePath} fill="none" stroke="#84cc16" strokeWidth="2.5"
+                strokeLinecap="round" strokeLinejoin="round" />
+
+              {/* Barras de novos usuários (fundo, pequenas) */}
+              {mrrPts.map((pt, i) => {
+                const bH = monthNewUsers[i] > 0 ? (monthNewUsers[i] / maxNew) * 20 : 0;
+                const bW = 16;
+                return bH > 0 ? (
+                  <rect key={i} x={pt.x - bW / 2} y={PAD.top + iH - bH} width={bW} height={bH}
+                    rx={3} fill="#84cc16" opacity="0.15" />
+                ) : null;
+              })}
+
+              {/* Pontos da linha */}
+              {mrrPts.map((pt, i) => (
+                <g key={i}>
+                  {/* Halo */}
+                  <circle cx={pt.x} cy={pt.y} r={8} fill="#84cc16" opacity="0.12" />
+                  {/* Ponto */}
+                  <circle cx={pt.x} cy={pt.y} r={4} fill="#84cc16" filter="url(#glow)" />
+                  <circle cx={pt.x} cy={pt.y} r={2} fill="#fff" />
+                </g>
+              ))}
+
+              {/* Labels dos meses */}
+              {mrrPts.map((pt, i) => (
+                <text key={i} x={pt.x} y={H - 8} textAnchor="middle"
+                  fontSize={11} fontWeight="700" fill="#52525b" style={{ textTransform: 'uppercase' }}>
+                  {pt.label}
+                </text>
+              ))}
+
+              {/* Valores MRR acima dos pontos */}
+              {mrrPts.map((pt, i) => pt.v > 0 ? (
+                <text key={i} x={pt.x} y={pt.y - 13} textAnchor="middle"
+                  fontSize={10} fontWeight="900" fill="#84cc16">
+                  {pt.v >= 1000 ? `R$${(pt.v / 1000).toFixed(1)}k` : `R$${pt.v.toFixed(0)}`}
+                </text>
+              ) : null)}
+
+              {/* Novos usuários badge (pequeno, abaixo) */}
+              {mrrPts.map((pt, i) => monthNewUsers[i] > 0 ? (
+                <text key={i} x={pt.x} y={PAD.top + iH - 24}
+                  textAnchor="middle" fontSize={9} fontWeight="700" fill="#3f3f46">
+                  +{monthNewUsers[i]}
+                </text>
+              ) : null)}
+            </svg>
+          </div>
+
+          {/* Legenda */}
+          <div className="px-7 pb-5 flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-0.5 rounded-full" style={{ background: '#84cc16' }} />
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">MRR acumulado</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-sm opacity-40" style={{ background: '#84cc16' }} />
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Novos clientes/mês</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Sidebar métricas ── */}
+        <div className="flex flex-col gap-4">
+
+          {/* Mix de planos */}
+          <div className="flex-1 bg-white border border-zinc-100 rounded-[1.75rem] p-6 shadow-sm">
+            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-5">Mix de Planos</p>
+            <div className="space-y-4">
+              {[
+                { label: 'Essencial', count: essencialCount, hex: '#d4d4d8' },
+                { label: 'Pro',       count: proCount,       hex: '#84cc16' },
+                { label: 'Enterprise',count: enterpriseCount,hex: '#9333ea' },
+              ].map(({ label, count, hex }) => {
+                const pct = fin.payingUsers > 0 ? Math.round(count / fin.payingUsers * 100) : 0;
+                return (
+                  <div key={label}>
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ background: hex }} />
+                        <span className="text-xs font-bold text-zinc-600">{label}</span>
+                      </div>
+                      <span className="text-xs font-black text-zinc-900">{count} <span className="text-zinc-300">({pct}%)</span></span>
+                    </div>
+                    <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: hex }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ARPU + Pagantes */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-zinc-950 rounded-[1.25rem] p-4 flex flex-col gap-1">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">ARPU</p>
+              <p className="text-xl font-black text-white leading-none mt-1">R$ {arpu.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
+            </div>
+            <div className="bg-zinc-950 rounded-[1.25rem] p-4 flex flex-col gap-1">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Pagantes</p>
+              <p className="text-xl font-black text-white leading-none mt-1">{fin.payingUsers}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Últimas vendas */}
+      {paidSales.length > 0 && (
+        <div className="bg-white border border-zinc-100 rounded-[1.75rem] overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-zinc-50 flex items-center justify-between">
+            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Últimas Vendas Confirmadas</p>
+            <button onClick={() => setCurrentView('VENDAS')} className="text-xs font-bold text-zinc-400 hover:text-black transition-colors">Ver todas →</button>
+          </div>
+          <div className="divide-y divide-zinc-50">
+            {paidSales.slice(0, 5).map(s => (
+              <div key={s.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-zinc-50/60 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-100 flex items-center justify-center font-black text-zinc-600 text-xs">
+                    {(s.client_name || '?')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-bold text-zinc-900 text-sm leading-none">{s.client_name}</p>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{s.client_email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
+                    s.plan?.includes('PRO') ? 'bg-[#84cc16] text-black' :
+                    s.plan?.includes('ENTERPRISE') ? 'bg-purple-600 text-white' : 'bg-zinc-100 text-zinc-600'
+                  }`}>{s.plan}</span>
+                  <span className="font-black text-zinc-900 text-sm">R$ {(s.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[11px] text-zinc-400 w-20 text-right">{s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : '—'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
     );
   };
