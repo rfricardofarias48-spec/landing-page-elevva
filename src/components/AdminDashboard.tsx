@@ -2632,11 +2632,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       );
   };
 
-  const renderFinance = () => {
-      const salesForPeriod = filterSalesByPeriod(allSales);
-      const paidSalesForPeriod = salesForPeriod.filter((s: any) => s.status === 'paid');
-      const periodMrr = paidSalesForPeriod.reduce((acc, s) => acc + (s.amount || 0), 0);
+  const [financeTab, setFinanceTab] = useState<'geral' | 'historico'>('geral');
 
+  const renderFinance = () => {
       const stats = getFinancialData();
       const arpu = stats.payingUsers > 0 ? stats.mrr / stats.payingUsers : 0;
 
@@ -2645,201 +2643,154 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 5);
 
+      // ── Dados do período selecionado (Histórico) ────────────────────────────
+      const paidHist = filterSalesByPeriod(allSales).filter((s: any) => s.status === 'paid');
+      const histMrr = paidHist.reduce((acc: number, s: any) => acc + (s.amount || 0), 0);
+      const histEssencial = paidHist.filter((s: any) => s.plan?.includes('ESSENCIAL')).length;
+      const histPro       = paidHist.filter((s: any) => s.plan?.includes('PRO')).length;
+      const histEnterprise= paidHist.filter((s: any) => s.plan === 'ENTERPRISE').length;
+      const histCount     = paidHist.length;
+      const histArpu      = histCount > 0 ? histMrr / histCount : 0;
+      const periodLabel   = periodMode === 'mes'
+          ? new Date(periodMonth + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+          : periodYear;
+
+      const KpiCards = ({ mrr, payingUsers, arpuVal, totalUsers }: { mrr: number; payingUsers: number; arpuVal: number; totalUsers: number }) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-black text-white p-8 rounded-[2.5rem] border border-zinc-800 shadow-xl relative overflow-hidden">
+                  <div className="relative z-10">
+                      <div className="flex justify-between items-start mb-6">
+                          <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800"><Wallet className="w-6 h-6 text-[#84cc16]"/></div>
+                          <span className="text-[#84cc16] bg-[#84cc16]/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#84cc16]/20">Receita</span>
+                      </div>
+                      <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">Total Recebido</p>
+                      <h3 className="text-5xl font-black text-white tracking-tighter mb-2">R$ {mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                      <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mt-4">
+                          <TrendingUp className="w-4 h-4 text-emerald-500" />
+                          <span className="text-emerald-500">Projeção Anual:</span>
+                          R$ {(mrr * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                  </div>
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-800/30 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+              </div>
+              <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
+                  <div>
+                      <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100 w-fit mb-6"><CreditCard className="w-6 h-6 text-zinc-900"/></div>
+                      <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Assinantes / Vendas</p>
+                      <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">{payingUsers}</h3>
+                  </div>
+                  <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden mt-6">
+                      <div className="bg-black h-full rounded-full" style={{ width: `${Math.min(100, (payingUsers / (totalUsers || 1)) * 100)}%` }}></div>
+                  </div>
+                  <p className="text-[10px] font-bold text-zinc-400 mt-2 text-right">{((payingUsers / (totalUsers || 1)) * 100).toFixed(1)}% da base total</p>
+              </div>
+              <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
+                  <div>
+                      <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100 w-fit mb-6"><Briefcase className="w-6 h-6 text-zinc-900"/></div>
+                      <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Ticket Médio (ARPU)</p>
+                      <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">R$ {arpuVal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}</h3>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 border border-emerald-100 w-fit mt-6">
+                      <ArrowUpRight className="w-3 h-3" /> Saudável
+                  </span>
+              </div>
+          </div>
+      );
+
+      const PlanBreakdown = ({ essencial, pro, enterprise, paying, salesList }: { essencial: number; pro: number; enterprise: number; paying: number; salesList: any[] }) => (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8">
+                  <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2"><PieChart className="w-5 h-5"/> Distribuição de Receita</h3>
+                  <div className="space-y-6">
+                      {[
+                          { label: 'Plano Essencial', price: 'R$ 649,90 / mês', count: essencial, color: 'bg-zinc-900' },
+                          { label: 'Plano Pro',       price: 'R$ 999,90 / mês', count: pro,       color: 'bg-[#65a30d]' },
+                          { label: 'Enterprise',      price: 'A consultar',      count: enterprise, color: 'bg-purple-600' },
+                      ].map(p => (
+                          <div key={p.label}>
+                              <div className="flex justify-between items-end mb-2">
+                                  <div><span className="text-sm font-bold text-zinc-900 block">{p.label}</span><span className="text-xs text-zinc-500 font-medium">{p.price}</span></div>
+                                  <div className="text-right"><span className="text-lg font-black text-zinc-900">{p.count}</span><span className="text-xs text-zinc-400 font-bold ml-1">usuários</span></div>
+                              </div>
+                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
+                                  <div className={`${p.color} h-full rounded-full`} style={{ width: `${(p.count / (paying || 1)) * 100}%` }}></div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-zinc-100 text-xs font-bold text-zinc-500">
+                      Conversão: <strong className="text-zinc-900">{((paying / (stats.totalUsers || 1)) * 100).toFixed(1)}%</strong>
+                  </div>
+              </div>
+              <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8 flex flex-col">
+                  <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2"><Activity className="w-5 h-5"/> Vendas do Período</h3>
+                  <div className="flex-1 overflow-auto space-y-3 max-h-80">
+                      {salesList.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-10 text-zinc-400"><Ban className="w-8 h-8 mb-2 opacity-50" /><p className="text-xs font-bold uppercase">Nenhuma venda</p></div>
+                      ) : salesList.map((s: any) => (
+                          <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border border-zinc-100 bg-zinc-50/50">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-full bg-white border border-zinc-200 flex items-center justify-center text-zinc-500 font-black text-sm">{s.client_name?.charAt(0)}</div>
+                                  <div><p className="text-sm font-bold text-zinc-900">{s.client_name}</p><p className="text-[10px] text-zinc-400 font-bold uppercase">{s.plan}</p></div>
+                              </div>
+                              <div className="text-right">
+                                  <p className="text-sm font-black text-emerald-600">+ R$ {(s.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                  <p className="text-[10px] text-zinc-400">{s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : new Date(s.created_at).toLocaleDateString('pt-BR')}</p>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          </div>
+      );
+
       return (
-          <div className="space-y-8 animate-fade-in pb-12">
-              <div className="flex justify-between items-end">
+          <div className="space-y-6 animate-fade-in pb-12">
+              {/* Header */}
+              <div className="flex justify-between items-center">
                   <div>
                       <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Faturamento</h2>
                       <p className="text-zinc-500 font-medium">Gestão financeira e métricas de receita.</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                      <PeriodSelector />
-                      <div className="bg-white px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-500 shadow-sm flex items-center gap-2">
-                          <Calendar className="w-4 h-4"/>
-                          {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                      </div>
-                  </div>
               </div>
-              {true && (
-                  <div className="bg-zinc-900 text-white rounded-2xl px-5 py-4 flex items-center justify-between">
-                      <p className="text-sm font-bold">Receita — <span className="text-[#84cc16]">{periodMode === 'mes' ? periodMonth : periodYear}</span></p>
-                      <p className="text-2xl font-black">R$ {periodMrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+
+              {/* Sub-abas */}
+              <div className="flex items-center gap-1 bg-zinc-100 rounded-2xl p-1.5 w-fit">
+                  <button onClick={() => setFinanceTab('geral')}
+                      className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${financeTab === 'geral' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                      Geral
+                  </button>
+                  <button onClick={() => setFinanceTab('historico')}
+                      className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${financeTab === 'historico' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                      Histórico
+                  </button>
+              </div>
+
+              {financeTab === 'geral' && (
+                  <div className="space-y-8">
+                      <KpiCards mrr={stats.mrr} payingUsers={stats.payingUsers} arpuVal={arpu} totalUsers={stats.totalUsers} />
+                      <PlanBreakdown essencial={stats.ESSENCIAL.count} pro={stats.PRO.count} enterprise={stats.ENTERPRISE.count} paying={stats.payingUsers}
+                          salesList={allSales.filter((s: any) => s.status === 'paid').slice(0, 8)} />
                   </div>
               )}
 
-              {/* KPIS PRINCIPAIS */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* MRR CARD - BLACK */}
-                  <div className="bg-black text-white p-8 rounded-[2.5rem] border border-zinc-800 shadow-xl relative overflow-hidden group">
-                      <div className="relative z-10">
-                          <div className="flex justify-between items-start mb-6">
-                              <div className="p-3 bg-zinc-900 rounded-2xl border border-zinc-800">
-                                  <Wallet className="w-6 h-6 text-[#84cc16]"/>
-                              </div>
-                              <span className="text-[#84cc16] bg-[#84cc16]/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#84cc16]/20">
-                                  Mensal
-                              </span>
-                          </div>
-                          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-1">MRR (Receita Recorrente)</p>
-                          <h3 className="text-5xl font-black text-white tracking-tighter mb-2">
-                              R$ {stats.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </h3>
-                          <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mt-4">
-                              <TrendingUp className="w-4 h-4 text-emerald-500" />
-                              <span className="text-emerald-500">Projeção Anual:</span> 
-                              R$ {(stats.mrr * 12).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </div>
+              {financeTab === 'historico' && (
+                  <div className="space-y-8">
+                      {/* Seletor de período */}
+                      <div className="flex items-center gap-4 bg-white border border-zinc-200 rounded-2xl p-4 shadow-sm">
+                          <Calendar className="w-5 h-5 text-zinc-400" />
+                          <span className="text-sm font-bold text-zinc-600">Analisar período:</span>
+                          <PeriodSelector />
+                          <span className="ml-auto text-sm font-bold text-zinc-900 capitalize">{periodLabel}</span>
                       </div>
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-800/30 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+
+                      {/* KPIs do período */}
+                      <KpiCards mrr={histMrr} payingUsers={histCount} arpuVal={histArpu} totalUsers={stats.totalUsers} />
+
+                      {/* Breakdown do período */}
+                      <PlanBreakdown essencial={histEssencial} pro={histPro} enterprise={histEnterprise} paying={histCount} salesList={paidHist} />
                   </div>
-
-                  {/* PAYING USERS CARD */}
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
-                      <div>
-                          <div className="flex justify-between items-start mb-6">
-                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
-                                  <CreditCard className="w-6 h-6 text-zinc-900"/>
-                              </div>
-                          </div>
-                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Assinantes Ativos</p>
-                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
-                              {stats.payingUsers}
-                          </h3>
-                      </div>
-                      <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden mt-6">
-                          <div className="bg-black h-full rounded-full" style={{ width: `${(stats.payingUsers / (stats.totalUsers || 1)) * 100}%` }}></div>
-                      </div>
-                      <p className="text-[10px] font-bold text-zinc-400 mt-2 text-right">
-                          {((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}% da base total
-                      </p>
-                  </div>
-
-                  {/* ARPU CARD */}
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-zinc-200 shadow-sm flex flex-col justify-between">
-                      <div>
-                          <div className="flex justify-between items-start mb-6">
-                              <div className="p-3 bg-zinc-50 rounded-2xl border border-zinc-100">
-                                  <Briefcase className="w-6 h-6 text-zinc-900"/>
-                              </div>
-                          </div>
-                          <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-1">Ticket Médio (ARPU)</p>
-                          <h3 className="text-5xl font-black text-zinc-900 tracking-tighter">
-                              R$ {arpu.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                          </h3>
-                      </div>
-                      <div className="flex gap-2 mt-6">
-                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 border border-emerald-100">
-                              <ArrowUpRight className="w-3 h-3" /> Saudável
-                          </span>
-                      </div>
-                  </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* BREAKDOWN DE PLANOS */}
-                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8">
-                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
-                          <PieChart className="w-5 h-5"/> Distribuição de Receita
-                      </h3>
-                      
-                      <div className="space-y-6">
-                          {/* Essencial */}
-                          <div>
-                              <div className="flex justify-between items-end mb-2">
-                                  <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Essencial</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 649,90 / mês</span>
-                                  </div>
-                                  <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.ESSENCIAL.count}</span>
-                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
-                                  </div>
-                              </div>
-                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-zinc-900 h-full rounded-full" style={{ width: `${(stats.ESSENCIAL.count / (stats.payingUsers || 1)) * 100}%` }}></div>
-                              </div>
-                          </div>
-
-                          {/* Pro */}
-                          <div>
-                              <div className="flex justify-between items-end mb-2">
-                                  <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Pro</span>
-                                      <span className="text-xs text-zinc-500 font-medium">R$ 999,90 / mês</span>
-                                  </div>
-                                  <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.PRO.count}</span>
-                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
-                                  </div>
-                              </div>
-                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-[#65a30d] h-full rounded-full" style={{ width: `${(stats.PRO.count / (stats.payingUsers || 1)) * 100}%` }}></div>
-                              </div>
-                          </div>
-
-                          {/* Enterprise */}
-                          <div>
-                              <div className="flex justify-between items-end mb-2">
-                                  <div>
-                                      <span className="text-sm font-bold text-zinc-900 block">Plano Enterprise</span>
-                                      <span className="text-xs text-zinc-500 font-medium">A consultar</span>
-                                  </div>
-                                  <div className="text-right">
-                                      <span className="text-lg font-black text-zinc-900">{stats.ENTERPRISE.count}</span>
-                                      <span className="text-xs text-zinc-400 font-bold ml-1">usuários</span>
-                                  </div>
-                              </div>
-                              <div className="w-full bg-zinc-100 h-3 rounded-full overflow-hidden">
-                                  <div className="bg-purple-600 h-full rounded-full" style={{ width: `${(stats.ENTERPRISE.count / (stats.payingUsers || 1)) * 100}%` }}></div>
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="mt-8 pt-6 border-t border-zinc-100 flex justify-between items-center text-xs font-bold text-zinc-500">
-                          <span>Conversão: <strong className="text-zinc-900">{((stats.payingUsers / (stats.totalUsers || 1)) * 100).toFixed(1)}%</strong></span>
-                      </div>
-                  </div>
-
-                  {/* TRANSAÇÕES RECENTES (SIMULADO VIA USERS) */}
-                  <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm p-8 flex flex-col">
-                      <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2">
-                          <Activity className="w-5 h-5"/> Últimas Conversões
-                      </h3>
-                      
-                      <div className="flex-1 overflow-auto custom-scrollbar">
-                          {recentTransactions.length === 0 ? (
-                              <div className="flex flex-col items-center justify-center h-full text-zinc-400 py-10">
-                                  <Ban className="w-8 h-8 mb-2 opacity-50" />
-                                  <p className="text-xs font-bold uppercase">Nenhuma venda recente</p>
-                              </div>
-                          ) : (
-                              <div className="space-y-4">
-                                  {recentTransactions.map(user => (
-                                      <div key={user.id} className="flex items-center justify-between p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 hover:bg-zinc-50 transition-colors">
-                                          <div className="flex items-center gap-3">
-                                              <div className="w-10 h-10 rounded-full bg-white border border-zinc-200 flex items-center justify-center text-zinc-400 font-bold">
-                                                  {user.name?.charAt(0)}
-                                              </div>
-                                              <div>
-                                                  <p className="text-sm font-bold text-zinc-900">{user.name}</p>
-                                                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{user.plan}</p>
-                                              </div>
-                                          </div>
-                                          <div className="text-right">
-                                              <p className="text-sm font-black text-emerald-600">
-                                                  + R$ {user.plan === 'ENTERPRISE' ? 'A consultar' : user.plan === 'PRO' ? '999,90' : '649,90'}
-                                              </p>
-                                              <p className="text-[10px] text-zinc-400">
-                                                  {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                                              </p>
-                                          </div>
-                                      </div>
-                                  ))}
-                              </div>
-                          )}
-                      </div>
-                  </div>
-              </div>
+              )}
           </div>
       );
   };
