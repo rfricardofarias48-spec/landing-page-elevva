@@ -661,44 +661,189 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   );
 
   const renderOverview = () => {
-    const currentFinancials = getFinancialData();
+    const fin = getFinancialData();
+    const totalCandidates = allJobs.reduce((acc, job) => acc + job.candidates_count, 0);
+    const activeUsers = users.filter(u => u.status !== 'BLOCKED').length;
+    const blockedUsers = users.filter(u => u.status === 'BLOCKED').length;
+    const essencialCount = users.filter(u => u.plan === 'ESSENCIAL').length;
+    const proCount       = users.filter(u => u.plan === 'PRO').length;
+    const enterpriseCount= users.filter(u => u.plan === 'ENTERPRISE').length;
+    const arpu = fin.payingUsers > 0 ? fin.mrr / fin.payingUsers : 0;
+    const arr  = fin.mrr * 12;
+
+    // Gráfico: crescimento de usuários por mês (últimos 6 meses)
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      return { label: d.toLocaleDateString('pt-BR', { month: 'short' }), year: d.getFullYear(), month: d.getMonth() };
+    });
+    const monthCounts = months.map(m =>
+      users.filter(u => {
+        const d = new Date(u.created_at);
+        return d.getFullYear() === m.year && d.getMonth() === m.month;
+      }).length
+    );
+    const maxCount = Math.max(...monthCounts, 1);
+    const chartH = 100;
+    const chartW = 300;
+    const barW = 32;
+    const gap = (chartW - barW * 6) / 7;
+
+    // Vendas confirmadas
+    const paidSales = allSales.filter(s => s.status === 'paid');
+    const salesThisMonth = paidSales.filter(s => {
+      const d = new Date(s.paid_at || s.created_at);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    const revenueThisMonth = salesThisMonth.reduce((acc, s) => acc + (s.amount || 0), 0);
+
     return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in pb-8">
         <div>
             <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Visão Geral</h2>
-            <p className="text-zinc-500 font-medium">Métricas de hoje, {new Date().toLocaleDateString('pt-BR')}</p>
+            <p className="text-zinc-500 font-medium">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-zinc-100 rounded-2xl"><Users className="w-6 h-6 text-zinc-900"/></div>
-                    <span className="text-emerald-500 font-bold text-xs bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1"><TrendingUp className="w-3 h-3"/> +{users.length}</span>
-                </div>
-                <h3 className="text-4xl font-black text-zinc-900">{users.length}</h3>
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Total de Usuários</p>
+
+        {/* KPIs principais */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="bg-black text-white p-6 rounded-[2rem] shadow-xl col-span-2 lg:col-span-1">
+                <div className="p-3 bg-zinc-900 rounded-2xl w-fit mb-4"><DollarSign className="w-6 h-6 text-[#84cc16]"/></div>
+                <h3 className="text-4xl font-black">R$ {fin.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">MRR Estimado</p>
+                <p className="text-xs text-zinc-400 mt-2">ARR: R$ {arr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             </div>
             <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-zinc-100 rounded-2xl"><Megaphone className="w-6 h-6 text-zinc-900"/></div>
-                </div>
-                <h3 className="text-4xl font-black text-zinc-900">{ads.length}</h3>
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Anúncios Ativos</p>
+                <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><Users className="w-6 h-6 text-zinc-900"/></div>
+                <h3 className="text-4xl font-black text-zinc-900">{activeUsers}</h3>
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Clientes Ativos</p>
+                {blockedUsers > 0 && <p className="text-xs text-red-400 mt-2">{blockedUsers} bloqueado{blockedUsers > 1 ? 's' : ''}</p>}
             </div>
             <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-zinc-100 rounded-2xl"><FileText className="w-6 h-6 text-zinc-900"/></div>
-                </div>
-                <h3 className="text-4xl font-black text-zinc-900">{allJobs.reduce((acc, job) => acc + job.candidates_count, 0)}</h3>
+                <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><CreditCard className="w-6 h-6 text-zinc-900"/></div>
+                <h3 className="text-4xl font-black text-zinc-900">{salesThisMonth.length}</h3>
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Vendas este Mês</p>
+                <p className="text-xs text-emerald-600 font-bold mt-2">R$ {revenueThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            </div>
+            <div className="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm">
+                <div className="p-3 bg-zinc-100 rounded-2xl w-fit mb-4"><FileText className="w-6 h-6 text-zinc-900"/></div>
+                <h3 className="text-4xl font-black text-zinc-900">{totalCandidates}</h3>
                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Currículos Processados</p>
-            </div>
-            <div className="bg-black text-white p-6 rounded-[2rem] border border-zinc-900 shadow-xl">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-zinc-900 rounded-2xl"><DollarSign className="w-6 h-6 text-[#84cc16]"/></div>
-                </div>
-                <h3 className="text-4xl font-black text-white">R$ {currentFinancials.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">MRR Atual (Estimado)</p>
+                <p className="text-xs text-zinc-400 mt-2">{allJobs.length} vagas ativas</p>
             </div>
         </div>
+
+        {/* Gráfico + distribuição de planos */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {/* Gráfico de barras — novos clientes por mês */}
+            <div className="lg:col-span-2 bg-white border border-zinc-200 rounded-[2rem] p-7 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">Novos Clientes</p>
+                        <p className="text-sm font-bold text-zinc-500">Últimos 6 meses</p>
+                    </div>
+                    <span className="text-2xl font-black text-zinc-900">{users.length} total</span>
+                </div>
+                <svg viewBox={`0 0 ${chartW} ${chartH + 24}`} className="w-full" style={{ height: 160 }}>
+                    {monthCounts.map((count, i) => {
+                        const barH = maxCount > 0 ? (count / maxCount) * chartH : 0;
+                        const x = gap + i * (barW + gap);
+                        const y = chartH - barH;
+                        const m = months[i];
+                        return (
+                            <g key={i}>
+                                {/* Barra de fundo */}
+                                <rect x={x} y={0} width={barW} height={chartH} rx={8} fill="#f4f4f5" />
+                                {/* Barra de valor */}
+                                {count > 0 && <rect x={x} y={y} width={barW} height={barH} rx={8} fill="#000" />}
+                                {/* Label do mês */}
+                                <text x={x + barW / 2} y={chartH + 16} textAnchor="middle" fontSize={9} fontWeight="700" fill="#a1a1aa" style={{ textTransform: 'uppercase' }}>
+                                    {m.label}
+                                </text>
+                                {/* Valor */}
+                                {count > 0 && (
+                                    <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize={10} fontWeight="900" fill="#000">
+                                        {count}
+                                    </text>
+                                )}
+                            </g>
+                        );
+                    })}
+                </svg>
+            </div>
+
+            {/* Distribuição de planos */}
+            <div className="bg-white border border-zinc-200 rounded-[2rem] p-7 shadow-sm flex flex-col justify-between">
+                <div>
+                    <p className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-1">Mix de Planos</p>
+                    <p className="text-sm font-bold text-zinc-500 mb-6">Distribuição atual</p>
+                </div>
+                <div className="space-y-4">
+                    {[
+                        { label: 'Essencial', count: essencialCount, color: 'bg-zinc-200', textColor: 'text-zinc-600' },
+                        { label: 'Pro',       count: proCount,       color: 'bg-[#84cc16]', textColor: 'text-black' },
+                        { label: 'Enterprise',count: enterpriseCount,color: 'bg-purple-600', textColor: 'text-white' },
+                    ].map(({ label, count, color, textColor }) => {
+                        const pct = fin.payingUsers > 0 ? Math.round(count / fin.payingUsers * 100) : 0;
+                        return (
+                            <div key={label}>
+                                <div className="flex justify-between items-center mb-1.5">
+                                    <span className="text-xs font-bold text-zinc-500">{label}</span>
+                                    <span className="text-xs font-black text-zinc-900">{count} <span className="text-zinc-400 font-medium">({pct}%)</span></span>
+                                </div>
+                                <div className="w-full h-2.5 bg-zinc-100 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="mt-6 pt-5 border-t border-zinc-100 grid grid-cols-2 gap-3">
+                    <div className="bg-zinc-50 rounded-2xl p-3">
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">ARPU</p>
+                        <p className="text-lg font-black text-zinc-900 mt-0.5">R$ {arpu.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="bg-zinc-50 rounded-2xl p-3">
+                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Pagantes</p>
+                        <p className="text-lg font-black text-zinc-900 mt-0.5">{fin.payingUsers}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* Vendas recentes */}
+        {paidSales.length > 0 && (
+            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                    <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">Últimas Vendas Confirmadas</p>
+                    <button onClick={() => setCurrentView('VENDAS')} className="text-xs font-bold text-zinc-400 hover:text-black transition-colors">Ver todas →</button>
+                </div>
+                <div className="divide-y divide-zinc-50">
+                    {paidSales.slice(0, 5).map(s => (
+                        <div key={s.id} className="px-6 py-4 flex items-center justify-between hover:bg-zinc-50/50 transition-colors">
+                            <div className="flex items-center gap-4">
+                                <div className="w-9 h-9 rounded-2xl bg-zinc-100 flex items-center justify-center font-black text-zinc-600 text-sm">
+                                    {(s.client_name || '?')[0].toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-zinc-900 text-sm">{s.client_name}</p>
+                                    <p className="text-xs text-zinc-400">{s.client_email}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
+                                    s.plan?.includes('PRO') ? 'bg-[#84cc16] text-black' :
+                                    s.plan?.includes('ENTERPRISE') ? 'bg-purple-600 text-white' :
+                                    'bg-zinc-100 text-zinc-600'
+                                }`}>{s.plan}</span>
+                                <span className="font-black text-zinc-900">R$ {(s.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                <span className="text-xs text-zinc-400">{s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : '—'}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
     </div>
     );
   };
@@ -2273,7 +2418,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                 </div>
             )}
 
-            {currentView === 'OVERVIEW' && renderOverview()}
+            {currentView === 'OVERVIEW' && (() => { if (allSales.length === 0 && !allSalesLoading) fetchAllSales(); return renderOverview(); })()}
             {currentView === 'USERS' && renderUsersList()}
             {currentView === 'ADS' && renderAdsManager()}
             {currentView === 'FINANCE' && renderFinance()} 
