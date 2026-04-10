@@ -3354,6 +3354,25 @@ app.get("/api/sales", async (_req, res) => {
   }
 });
 
+// ── DELETE /api/sales/:id — Cancelar e deletar venda pendente ───────────────
+app.delete("/api/sales/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Só permite deletar vendas com status pending
+    const { data: sale, error: fetchErr } = await supabaseAdmin
+      .from('sales').select('id, status').eq('id', id).single();
+    if (fetchErr || !sale) return res.status(404).json({ error: 'Venda não encontrada' });
+    if (sale.status !== 'pending') {
+      return res.status(400).json({ error: 'Apenas vendas pendentes podem ser canceladas' });
+    }
+    const { error: delErr } = await supabaseAdmin.from('sales').delete().eq('id', id);
+    if (delErr) return res.status(500).json({ error: delErr.message });
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Encode/decode metadata do link (viaja no externalReference do Asaas) ────────
 // O banco só recebe o registro após pagamento confirmado — Asaas é a fonte da verdade
 function encodeLinkMeta(meta: Record<string, unknown>): string {

@@ -1956,6 +1956,24 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       );
   };
 
+  const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDeleteSale = async (id: string) => {
+      setDeletingSaleId(id);
+      try {
+          const res = await fetch(`/api/sales/${id}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao cancelar');
+          setConfirmDeleteId(null);
+          await fetchAllSales();
+      } catch (err: any) {
+          alert(err.message);
+      } finally {
+          setDeletingSaleId(null);
+      }
+  };
+
   const renderVendas = () => {
       const paid   = allSales.filter(s => s.status === 'paid');
       const total  = paid.reduce((acc, s) => acc + (s.amount || 0), 0);
@@ -2131,13 +2149,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               <th className="p-5 text-center">Pagamento</th>
                               <th className="p-5 text-center">Onboarding</th>
                               <th className="p-5 text-center">Data</th>
+                              <th className="p-5"></th>
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-50 text-sm">
                           {allSalesLoading ? (
-                              <tr><td colSpan={7} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
+                              <tr><td colSpan={8} className="p-12 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-zinc-300" /></td></tr>
                           ) : allSales.length === 0 ? (
-                              <tr><td colSpan={7} className="p-12 text-center text-zinc-400 font-medium">Nenhuma venda registrada ainda.</td></tr>
+                              <tr><td colSpan={8} className="p-12 text-center text-zinc-400 font-medium">Nenhuma venda registrada ainda.</td></tr>
                           ) : allSales.map((s) => (
                               <tr key={s.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-5">
@@ -2163,6 +2182,27 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                   <td className="p-5 text-center">{onboardBadge(s)}</td>
                                   <td className="p-5 text-center text-xs text-zinc-400 font-medium">
                                       {s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : '—'}
+                                  </td>
+                                  <td className="p-5 text-center">
+                                      {s.status === 'pending' && (
+                                          confirmDeleteId === s.id ? (
+                                              <div className="flex items-center gap-1.5 justify-center">
+                                                  <button onClick={() => handleDeleteSale(s.id)} disabled={deletingSaleId === s.id}
+                                                      className="text-[10px] font-black bg-red-500 text-white px-2.5 py-1 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50">
+                                                      {deletingSaleId === s.id ? '...' : 'Confirmar'}
+                                                  </button>
+                                                  <button onClick={() => setConfirmDeleteId(null)}
+                                                      className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 px-2 py-1">
+                                                      Não
+                                                  </button>
+                                              </div>
+                                          ) : (
+                                              <button onClick={() => setConfirmDeleteId(s.id)}
+                                                  className="text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors">
+                                                  Cancelar
+                                              </button>
+                                          )
+                                      )}
                                   </td>
                               </tr>
                           ))}
