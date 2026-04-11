@@ -240,83 +240,146 @@ export function DemonstracaoPage() {
       </header>
 
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
-      <section className="relative py-20 px-4 md:py-28 overflow-hidden">
+      <section className="relative overflow-hidden">
 
-        {/* Glow de fundo atrás do mockup */}
+        {/* Glow */}
         <div className="absolute inset-0 pointer-events-none">
           <Glow variant="above" className={`transition-opacity duration-1000 ${visible ? 'opacity-100' : 'opacity-0'}`} />
         </div>
 
-        <div className="relative max-w-7xl mx-auto flex flex-col gap-16">
+        {/* ── SPLIT: Título | Subtítulo ───────────────────────────────── */}
+        <div className="relative max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
 
-          {/* Texto central */}
-          <div className="flex flex-col items-center text-center gap-8">
+            {/* LEFT — Título */}
+            <div className="py-20 lg:py-32 lg:pr-20 flex flex-col justify-center">
 
-            {/* Heading */}
-            <h1
-              className="text-4xl md:text-6xl xl:text-7xl font-black tracking-tight leading-tight text-slate-900 whitespace-nowrap"
-              style={{
-                opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(14px)',
-                transition: 'opacity 0.6s ease, transform 0.6s ease',
-              }}
-            >
-              Elevva, a IA que contrata <span className="text-[#65a30d]">por Você.</span>
-            </h1>
+              {/* Eyebrow */}
+              <div
+                className="flex items-center gap-3 mb-10"
+                style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(10px)', transition: 'opacity 0.5s ease, transform 0.5s ease' }}
+              >
+                <span className="w-5 h-[2px] bg-[#65a30d] rounded-full" />
+                <span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#65a30d]">
+                  Plataforma de RH com IA
+                </span>
+              </div>
 
-            {/* Descrição */}
-            <p
-              className="max-w-xl text-lg md:text-xl text-slate-500 font-medium leading-relaxed"
-              style={{
-                opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(14px)',
-                transition: 'opacity 0.6s ease 0.15s, transform 0.6s ease 0.15s',
-              }}
-            >
-              O Elevva automatiza todo o processo seletivo — da triagem à admissão — veja na demonstração abaixo como nossa IA trabalha.
-            </p>
+              {/* Título principal */}
+              <h1
+                className="font-black tracking-tighter text-slate-900 leading-[0.92]"
+                style={{
+                  fontSize: 'clamp(3.2rem, 5.5vw, 5.5rem)',
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? 'translateY(0)' : 'translateY(18px)',
+                  transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
+                }}
+              >
+                Elevva,<br />
+                a IA que<br />
+                contrata<br />
+                <span
+                  className="text-[#65a30d]"
+                  style={{ WebkitTextStroke: '0px' }}
+                >
+                  por Você.
+                </span>
+              </h1>
 
-            {/* Tabs de navegação */}
-            <div
-              style={{
-                opacity: visible ? 1 : 0,
-                transform: visible ? 'translateY(0)' : 'translateY(14px)',
-                transition: 'opacity 0.6s ease 0.3s, transform 0.6s ease 0.3s',
-              }}
-            >
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-slate-100/80 border border-slate-200 p-1.5 rounded-2xl h-auto gap-1.5 flex-wrap justify-center backdrop-blur-sm">
-                  {demoTabs.map(({ id, label, icon: Icon }) => (
-                    <TabsTrigger
-                      key={id} value={id}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
-                        text-slate-500 hover:text-slate-700
-                        data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-lg"
-                    >
-                      <Icon
-                        className={`w-4 h-4 transition-colors ${activeTab === id ? 'text-[#65a30d]' : 'text-slate-400'}`}
-                      />
-                      {label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
+              {/* Linha decorativa */}
+              <div
+                className="flex items-center gap-2 mt-12"
+                style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.6s ease 0.5s' }}
+              >
+                <div className="h-[3px] w-14 bg-[#65a30d] rounded-full" />
+                <div className="h-[3px] w-5 bg-slate-200 rounded-full" />
+                <div className="h-[3px] w-2 bg-slate-100 rounded-full" />
+              </div>
+            </div>
+
+            {/* RIGHT — Descrição + Stats + CTAs */}
+            <div className="pb-20 lg:py-32 lg:pl-20 flex flex-col justify-center gap-10">
+
+              {/* Descrição */}
+              <p
+                className="text-xl md:text-2xl text-slate-500 font-medium leading-[1.55] max-w-lg"
+                style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.25s, transform 0.6s ease 0.25s' }}
+              >
+                Da triagem ao contrato — a IA assume o recrutamento e devolve{' '}
+                <span className="text-slate-900 font-black">seu tempo para o que realmente importa.</span>
+              </p>
+
+              {/* Stats */}
+              <div
+                className="grid grid-cols-3 gap-6 py-8 border-y border-slate-100"
+                style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.35s, transform 0.6s ease 0.35s' }}
+              >
+                {[
+                  { value: '80%', label: 'menos tempo\nno processo' },
+                  { value: '10×',  label: 'mais rápido\nque o manual' },
+                  { value: '0',   label: 'conflitos\nde agenda' },
+                ].map(({ value, label }) => (
+                  <div key={value} className="flex flex-col gap-1.5">
+                    <span className="text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-pre-line leading-snug">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTAs */}
+              <div
+                className="flex flex-col sm:flex-row gap-3"
+                style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.45s, transform 0.6s ease 0.45s' }}
+              >
+                <a
+                  href={whatsapp} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2.5 bg-black hover:bg-zinc-800 text-white font-bold px-7 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Falar com Especialista
+                </a>
+                <button
+                  onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="inline-flex items-center justify-center gap-2.5 border-2 border-slate-200 hover:border-[#65a30d] text-slate-600 hover:text-[#65a30d] font-bold px-7 py-4 rounded-2xl text-sm transition-all duration-200"
+                >
+                  <Play className="w-4 h-4" />
+                  Ver demonstração
+                </button>
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* ── MOCKUP ────────────────────────────────────────────────────── */}
+        {/* ── TABS + MOCKUP ──────────────────────────────────────────── */}
+        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-24 flex flex-col gap-8">
+
+          {/* Tabs */}
           <div
-            className="w-full"
-            style={{
-              opacity: visible ? 1 : 0,
-              transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)',
-              transition: 'opacity 0.8s ease 0.5s, transform 0.8s ease 0.5s',
-            }}
+            style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(14px)', transition: 'opacity 0.6s ease 0.55s, transform 0.6s ease 0.55s' }}
+          >
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="bg-slate-100/80 border border-slate-200 p-1.5 rounded-2xl h-auto gap-1.5 flex-wrap justify-center backdrop-blur-sm">
+                {demoTabs.map(({ id, label, icon: Icon }) => (
+                  <TabsTrigger
+                    key={id} value={id}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
+                      text-slate-500 hover:text-slate-700
+                      data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  >
+                    <Icon className={`w-4 h-4 transition-colors ${activeTab === id ? 'text-[#65a30d]' : 'text-slate-400'}`} />
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {/* Mockup */}
+          <div
+            style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.65s, transform 0.8s ease 0.65s' }}
           >
             <Mockup className="relative w-full shadow-[0_48px_120px_-24px_rgba(0,0,0,0.18)] border-slate-200/80">
               <BorderBeam size={600} duration={7} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={2} />
-
-              {/* Chrome do browser */}
               <div className="w-full bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex items-center gap-3 shrink-0">
                 <div className="flex gap-1.5">
                   <span className="w-3 h-3 rounded-full bg-slate-300" />
@@ -328,16 +391,12 @@ export function DemonstracaoPage() {
                   app.elevva.net.br
                 </div>
               </div>
-
-              {/* Conteúdo: vídeo ou dashboard */}
               {currentTab?.videoUrl ? (
                 <video
                   key={currentTab.videoUrl}
                   src={currentTab.videoUrl}
                   className="w-full block"
-                  controls
-                  autoPlay
-                  playsInline
+                  controls autoPlay playsInline
                   style={{ maxHeight: '680px', background: '#000' }}
                 />
               ) : (
