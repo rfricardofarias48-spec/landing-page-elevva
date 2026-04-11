@@ -3,8 +3,8 @@ import {
   Bot, Calendar, FileText, BarChart2, Zap,
   MessageSquare, Star, ChevronRight, Play,
 } from 'lucide-react';
+
 import { BorderBeam } from './ui/border-beam';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Glow } from './ui/glow';
 import { Mockup } from './ui/mockup';
 import VideoPlayer from './ui/video-player';
@@ -12,13 +12,6 @@ import { SocialProofAvatars } from './ui/social-proof-avatars';
 
 // ─── Dados ───────────────────────────────────────────────────────────────────
 
-const demoTabs = [
-  { id: 'como-funciona', label: 'Como funciona ?',              icon: Play,          videoUrl: '' },
-  { id: 'whatsapp',      label: 'Atendimento via WhatsApp',     icon: MessageSquare, videoUrl: 'https://ik.imagekit.io/xsbrdnr0y/Untitled%20design.mp4' },
-  { id: 'curriculos',    label: 'Triagem de Currículos',         icon: FileText,      videoUrl: '' },
-  { id: 'entrevistas',   label: 'Agendamento de Entrevistas',    icon: Calendar,      videoUrl: '' },
-  { id: 'documentos',    label: 'Coleta de Documentos',          icon: BarChart2,     videoUrl: '' },
-];
 
 const features = [
   {
@@ -206,9 +199,7 @@ function DashboardMockup() {
 
 export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState('como-funciona');
   const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
-  const currentTab = demoTabs.find(t => t.id === activeTab);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
@@ -350,33 +341,10 @@ export function DemonstracaoPage() {
           </div>
         </div>
 
-        {/* ── TABS + MOCKUP ──────────────────────────────────────────── */}
-        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-24 flex flex-col gap-8">
-
-          {/* Tabs */}
+        {/* ── MOCKUP ─────────────────────────────────────────────────── */}
+        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-24">
           <div
-            style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(14px)', transition: 'opacity 0.6s ease 0.55s, transform 0.6s ease 0.55s' }}
-          >
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="bg-slate-100/80 border border-slate-200 p-1.5 rounded-2xl h-auto gap-1.5 flex-wrap justify-center backdrop-blur-sm">
-                {demoTabs.map(({ id, label, icon: Icon }) => (
-                  <TabsTrigger
-                    key={id} value={id}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200
-                      text-slate-500 hover:text-slate-700
-                      data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:shadow-lg"
-                  >
-                    <Icon className={`w-4 h-4 transition-colors ${activeTab === id ? 'text-[#65a30d]' : 'text-slate-400'}`} />
-                    {label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {/* Mockup */}
-          <div
-            style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.65s, transform 0.8s ease 0.65s' }}
+            style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s' }}
           >
             <Mockup className="relative w-full shadow-[0_48px_120px_-24px_rgba(0,0,0,0.18)] border-slate-200/80">
               <BorderBeam size={600} duration={7} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={2} />
@@ -391,17 +359,7 @@ export function DemonstracaoPage() {
                   app.elevva.net.br
                 </div>
               </div>
-              {currentTab?.videoUrl ? (
-                <video
-                  key={currentTab.videoUrl}
-                  src={currentTab.videoUrl}
-                  className="w-full block"
-                  controls autoPlay playsInline
-                  style={{ maxHeight: '680px', background: '#000' }}
-                />
-              ) : (
-                <DashboardMockup />
-              )}
+              <DashboardMockup />
             </Mockup>
           </div>
         </div>
