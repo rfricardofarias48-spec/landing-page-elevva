@@ -222,7 +222,7 @@ export function DemonstracaoPage() {
     >
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <header className="w-full bg-white" style={{ borderBottom: '1px solid rgba(15,23,42,0.06)', boxShadow: '0 1px 0 rgba(15,23,42,0.04)' }}>
+      <header className="w-full bg-white">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <img
             src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
@@ -258,7 +258,7 @@ export function DemonstracaoPage() {
               <h1
                 className="font-black tracking-tighter text-slate-900 leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(4rem, 7.5vw, 7.5rem)',
+                  fontSize: 'clamp(3.2rem, 6vw, 6rem)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(18px)',
                   transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
