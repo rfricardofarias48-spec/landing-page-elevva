@@ -219,8 +219,8 @@ export function DemonstracaoPage() {
     >
       <AnimatedBackground />
 
-      {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <header className="w-full bg-transparent">
+      {/* ── NAVBAR flutuante ──────────────────────────────────────────────── */}
+      <div className="absolute top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <img
             src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
@@ -234,22 +234,17 @@ export function DemonstracaoPage() {
             Entrar
           </a>
         </div>
-      </header>
+      </div>
 
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden">
-
-        {/* Glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <Glow variant="above" className={`transition-opacity duration-1000 ${visible ? 'opacity-100' : 'opacity-0'}`} />
-        </div>
+      <section className="relative">
 
         {/* ── SPLIT: Título | Subtítulo ───────────────────────────────── */}
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
 
             {/* LEFT — Título */}
-            <div className="py-10 lg:py-20 lg:pr-20 flex flex-col justify-center">
+            <div className="pt-24 pb-10 lg:pt-32 lg:pb-20 lg:pr-20 flex flex-col justify-center">
 
               {/* Título principal */}
               <h1
@@ -294,7 +289,7 @@ export function DemonstracaoPage() {
             </div>
 
             {/* RIGHT — Descrição + Stats + CTAs */}
-            <div className="pb-10 lg:py-20 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
+            <div className="pb-10 lg:pt-32 lg:pb-20 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
 
               {/* Descrição */}
               <p
