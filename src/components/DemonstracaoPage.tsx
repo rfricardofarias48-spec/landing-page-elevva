@@ -25,7 +25,7 @@ const features = [
     icon: FileText,
     tag: 'Análise Inteligente',
     title: 'Currículos avaliados em segundos',
-    description: 'Claude AI lê cada currículo com base nos critérios da vaga e gera um ranking objetivo com pontuação, pontos fortes e pontos de atenção.',
+    description: 'O nosso agente lê cada currículo com base nos critérios definidos pelo RH e gera um ranking objetivo, com pontuação (0 a 10), pontos fortes e fracos e um resumo técnico do candidato.',
     stat: '10x', statLabel: 'mais rápido que análise manual',
   },
   {
