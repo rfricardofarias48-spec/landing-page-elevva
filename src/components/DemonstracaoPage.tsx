@@ -378,7 +378,7 @@ export function DemonstracaoPage() {
                 backgroundClip: 'text',
               }}
             >
-              Tudo que seu time precisa para contratar melhor
+              Tudo que o seu time precisa para<br />Contratar Melhor
             </h2>
           </div>
 
