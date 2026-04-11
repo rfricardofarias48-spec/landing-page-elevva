@@ -220,7 +220,7 @@ export function DemonstracaoPage() {
       <AnimatedBackground />
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <header className="w-full bg-white/70 backdrop-blur-sm">
+      <header className="w-full bg-transparent">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <img
             src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
@@ -371,7 +371,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
-      <section className="bg-white/60 backdrop-blur-[2px] py-16">
+      <section className="bg-transparent py-16">
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-xl mb-16">
             <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Funcionalidades</p>
