@@ -298,7 +298,7 @@ export function DemonstracaoPage() {
             </div>
 
             {/* RIGHT — Descrição + Stats + CTAs */}
-            <div className="pb-20 lg:py-32 lg:pl-20 flex flex-col justify-center gap-10">
+            <div className="pb-20 lg:py-32 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
 
               {/* Descrição */}
               <p
