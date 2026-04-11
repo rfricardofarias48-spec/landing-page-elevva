@@ -43,7 +43,7 @@ const features = [
     icon: BarChart2,
     tag: 'Custo de Ociosidade',
     title: 'O Prejuízo Oculto da Vaga Aberta',
-    description: 'Quanto dinheiro a sua operação sangra a cada dia que uma equipe trabalha desfalcada? A lentidão da triagem manual não atrasa apenas o RH, ela paralisa a sua capacidade de entrega. A inteligência artificial assume o processo instantaneamente para garantir que a sua operação não perca faturamento por falta de mão de obra.',
+    description: 'Falta de braço é perda de receita, com o nosso agente o seu recrutamento fica até 80% mais rápido e seu faturamento é menos afetado por falta de pessoal.',
     stat: null, statLabel: null,
   },
 ];
