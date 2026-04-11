@@ -10,12 +10,12 @@ const avatarData = [
 
 export function SocialProofAvatars() {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex items-center -space-x-2">
+    <div className="flex items-center gap-2 lg:gap-3">
+      <div className="flex items-center -space-x-1.5 lg:-space-x-2">
         {avatarData.map((item, idx) => (
           <Avatar.Root
             key={idx}
-            className="border-2 border-white h-9 w-9 flex items-center justify-center overflow-hidden rounded-full shadow-sm"
+            className="border-2 border-white h-6 w-6 lg:h-9 lg:w-9 flex items-center justify-center overflow-hidden rounded-full shadow-sm"
           >
             <Avatar.Image
               src={item.imgURL}
@@ -24,14 +24,14 @@ export function SocialProofAvatars() {
             />
             <Avatar.Fallback
               delayMs={600}
-              className="bg-slate-100 text-slate-600 text-xs font-bold w-full h-full flex items-center justify-center"
+              className="bg-slate-100 text-slate-600 text-[0.5rem] lg:text-xs font-bold w-full h-full flex items-center justify-center"
             >
               {item.name}
             </Avatar.Fallback>
           </Avatar.Root>
         ))}
       </div>
-      <p className="text-sm text-slate-500 font-medium">
+      <p className="text-[0.6rem] lg:text-sm text-slate-500 font-medium">
         + de <span className="text-slate-900 font-black">100 usuários</span>
       </p>
     </div>

@@ -290,7 +290,7 @@ export function DemonstracaoPage() {
 
               {/* Social proof */}
               <div
-                className="mt-8"
+                className="mt-4 lg:mt-8"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(10px)', transition: 'opacity 0.6s ease 0.6s, transform 0.6s ease 0.6s' }}
               >
                 <SocialProofAvatars />
