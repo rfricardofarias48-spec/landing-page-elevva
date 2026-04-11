@@ -229,7 +229,7 @@ export function DemonstracaoPage() {
           />
           <a
             href="https://app.elevva.net.br" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 border border-slate-200 hover:border-slate-400 text-slate-700 hover:text-slate-900 font-bold text-sm px-5 py-2.5 rounded-xl transition-colors duration-200"
+            className="flex items-center gap-2 bg-black hover:bg-zinc-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors duration-200"
           >
             Entrar
           </a>
