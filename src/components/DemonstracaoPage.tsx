@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Glow } from './ui/glow';
 import { Mockup } from './ui/mockup';
 import VideoPlayer from './ui/video-player';
+import { SocialProofAvatars } from './ui/social-proof-avatars';
 
 // ─── Dados ───────────────────────────────────────────────────────────────────
 
@@ -285,6 +286,14 @@ export function DemonstracaoPage() {
                 <div className="h-[3px] w-14 bg-[#65a30d] rounded-full" />
                 <div className="h-[3px] w-5 bg-slate-200 rounded-full" />
                 <div className="h-[3px] w-2 bg-slate-100 rounded-full" />
+              </div>
+
+              {/* Social proof */}
+              <div
+                className="mt-8"
+                style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(10px)', transition: 'opacity 0.6s ease 0.6s, transform 0.6s ease 0.6s' }}
+              >
+                <SocialProofAvatars />
               </div>
             </div>
 
