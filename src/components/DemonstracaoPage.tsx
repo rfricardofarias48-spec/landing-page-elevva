@@ -9,6 +9,7 @@ import { Glow } from './ui/glow';
 import { Mockup } from './ui/mockup';
 import VideoPlayer from './ui/video-player';
 import { SocialProofAvatars } from './ui/social-proof-avatars';
+import { AnimatedBackground } from './ui/animated-background';
 
 // ─── Dados ───────────────────────────────────────────────────────────────────
 
@@ -213,12 +214,13 @@ export function DemonstracaoPage() {
 
   return (
     <div
-      className="min-h-screen bg-white text-slate-900 selection:bg-[#65a30d] selection:text-white"
+      className="min-h-screen text-slate-900 selection:bg-[#65a30d] selection:text-white relative"
       style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
     >
+      <AnimatedBackground />
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <header className="w-full bg-white">
+      <header className="w-full bg-white/70 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <img
             src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
@@ -369,7 +371,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
-      <section className="bg-slate-50/70 py-16">
+      <section className="bg-white/60 backdrop-blur-[2px] py-16">
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-xl mb-16">
             <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Funcionalidades</p>
@@ -429,7 +431,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-transparent">
         <div className="max-w-7xl mx-auto px-6">
 
           {/* Cabeçalho */}
@@ -496,7 +498,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-      <section className="py-16 max-w-7xl mx-auto px-6">
+      <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent">
         <div className="max-w-xl mb-16">
           <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Depoimentos</p>
           <h2
@@ -561,7 +563,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="bg-white max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3">
+      <footer className="bg-transparent max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3">
         <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva" className="h-6 w-auto object-contain opacity-30" />
         <p className="text-xs text-slate-400 font-medium">© {new Date().getFullYear()} Elevva. Todos os direitos reservados.</p>
       </footer>
