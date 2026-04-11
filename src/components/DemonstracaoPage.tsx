@@ -264,9 +264,17 @@ export function DemonstracaoPage() {
                   transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
                 }}
               >
-                Chega de<br />
-                pilhas de<br />
-                <span className="text-[#65a30d]">currículos.</span>
+                {/* Mobile: 2 linhas */}
+                <span className="lg:hidden">
+                  Chega de pilhas<br />
+                  <span className="text-[#65a30d]">de currículos.</span>
+                </span>
+                {/* Desktop: 3 linhas */}
+                <span className="hidden lg:inline">
+                  Chega de<br />
+                  pilhas de<br />
+                  <span className="text-[#65a30d]">currículos.</span>
+                </span>
               </h1>
 
               {/* Linha decorativa */}
