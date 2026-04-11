@@ -430,28 +430,24 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
-      <section className="relative mx-4 md:mx-6 mb-8 rounded-[2rem] overflow-hidden bg-zinc-950 py-20 px-6 md:px-16">
+      <section className="py-28 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
 
-        {/* Glow verde suave */}
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 100%, rgba(101,163,13,0.12) 0%, transparent 70%)' }} />
-
-        <div className="relative max-w-4xl mx-auto">
-
-          {/* Eyebrow */}
-          <p className="text-[#65a30d] font-black italic text-base mb-4" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-            Simples assim
-          </p>
-
-          {/* Título */}
-          <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter leading-[1.05] mb-16">
-            Pronto para recuperar<br />12 horas por semana?
-          </h2>
+          {/* Cabeçalho */}
+          <div className="max-w-2xl mb-20">
+            <p className="text-[#65a30d] font-black italic text-base mb-4">Simples assim</p>
+            <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-[1.05]">
+              Pronto para recuperar<br />12 horas por semana?
+            </h2>
+          </div>
 
           {/* Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-6 relative">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
 
             {/* Linha conectora — só desktop */}
-            <div className="hidden md:block absolute top-5 left-[calc(16.66%+1.5rem)] right-[calc(16.66%+1.5rem)] h-[1px] border-t border-dashed border-zinc-700" />
+            <div className="hidden md:flex absolute top-7 left-[calc(16.66%+2rem)] right-[calc(16.66%+2rem)] items-center">
+              <div className="flex-1 border-t-2 border-dashed border-slate-200" />
+            </div>
 
             {[
               {
@@ -473,15 +469,16 @@ export function DemonstracaoPage() {
                 green: true,
               },
             ].map(({ n, title, desc, green }) => (
-              <div key={n} className="flex flex-col gap-5">
+              <div key={n} className="relative bg-white border border-slate-100 rounded-[1.75rem] p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300">
                 {/* Número */}
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black border-2 z-10 relative ${green ? 'bg-[#65a30d] border-[#65a30d] text-white' : 'bg-zinc-900 border-zinc-700 text-zinc-400'}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-base font-black mb-6 z-10 relative ${green ? 'bg-[#65a30d] text-white shadow-[0_4px_16px_rgba(101,163,13,0.35)]' : 'bg-slate-50 border border-slate-200 text-slate-400'}`}>
                   {n}
                 </div>
-                <div>
-                  <h3 className="text-white font-black text-lg mb-2 leading-snug">{title}</h3>
-                  <p className="text-zinc-400 text-sm leading-relaxed">{desc}</p>
-                </div>
+                <h3 className="text-slate-900 font-black text-lg mb-3 leading-snug">{title}</h3>
+                <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
+                {green && (
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#65a30d] rounded-t-[1.75rem]" />
+                )}
               </div>
             ))}
           </div>
@@ -490,7 +487,7 @@ export function DemonstracaoPage() {
           <div className="mt-14 flex justify-center">
             <a
               href={whatsapp} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold px-8 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_8px_32px_rgba(101,163,13,0.3)]"
+              className="inline-flex items-center gap-2 bg-black hover:bg-zinc-800 text-white font-bold px-8 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_24px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
             >
               Começar agora
               <ChevronRight className="w-4 h-4" />
