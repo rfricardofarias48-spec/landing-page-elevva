@@ -254,16 +254,14 @@ export function DemonstracaoPage() {
 
             {/* Heading */}
             <h1
-              className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight leading-[1.15] text-slate-900"
+              className="text-3xl md:text-4xl xl:text-5xl font-black tracking-tight leading-tight text-slate-900 whitespace-nowrap"
               style={{
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(14px)',
                 transition: 'opacity 0.6s ease, transform 0.6s ease',
               }}
             >
-              A IA que<br />
-              revoluciona<br />
-              <span className="text-[#65a30d]">o seu recrutamento.</span>
+              Elevva, a IA que contrata <span className="text-[#65a30d]">por Você.</span>
             </h1>
 
             {/* Descrição */}
