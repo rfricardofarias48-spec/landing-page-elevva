@@ -368,7 +368,7 @@ export function DemonstracaoPage() {
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
       <section className="bg-transparent py-16">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="max-w-xl mb-16">
+          <div className="w-full mb-16 text-center">
             <h2
               className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05]"
               style={{
@@ -429,7 +429,7 @@ export function DemonstracaoPage() {
         <div className="max-w-7xl mx-auto px-6">
 
           {/* Cabeçalho */}
-          <div className="max-w-2xl mb-20">
+          <div className="w-full mb-20 text-center">
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-[1.05]">
               Pronto para recuperar<br />12 horas por semana?
             </h2>
@@ -492,7 +492,7 @@ export function DemonstracaoPage() {
 
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
       <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent">
-        <div className="max-w-xl mb-16">
+        <div className="w-full mb-16 text-center">
           <h2
             className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900"
           >
