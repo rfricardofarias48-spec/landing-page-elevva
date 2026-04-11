@@ -249,51 +249,43 @@ export function DemonstracaoPage() {
 
         {/* ── SPLIT: Título | Subtítulo ───────────────────────────────── */}
         <div className="relative max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
+          <div className="grid grid-cols-2 divide-x divide-slate-100">
 
             {/* LEFT — Título */}
-            <div className="py-20 lg:py-32 lg:pr-20 flex flex-col justify-center">
+            <div className="py-8 sm:py-16 lg:py-32 pr-4 sm:pr-10 lg:pr-20 flex flex-col justify-center">
 
               {/* Título principal */}
               <h1
                 className="font-black tracking-tighter text-slate-900 leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(3.2rem, 6vw, 6rem)',
+                  fontSize: 'clamp(1rem, 5.5vw, 6rem)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(18px)',
                   transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
                 }}
               >
-                {/* Mobile: 2 linhas */}
-                <span className="lg:hidden">
-                  Chega de pilhas<br />
-                  <span className="text-[#65a30d]">de currículos.</span>
-                </span>
-                {/* Desktop: 3 linhas */}
-                <span className="hidden lg:inline">
-                  Chega de<br />
-                  pilhas de<br />
-                  <span className="text-[#65a30d]">currículos.</span>
-                </span>
+                Chega de<br />
+                pilhas de<br />
+                <span className="text-[#65a30d]">currículos.</span>
               </h1>
 
               {/* Linha decorativa */}
               <div
-                className="flex items-center gap-2 mt-12"
+                className="flex items-center gap-1.5 mt-4 sm:mt-8 lg:mt-12"
                 style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.6s ease 0.5s' }}
               >
-                <div className="h-[3px] w-14 bg-[#65a30d] rounded-full" />
-                <div className="h-[3px] w-5 bg-slate-200 rounded-full" />
-                <div className="h-[3px] w-2 bg-slate-100 rounded-full" />
+                <div className="h-[2px] sm:h-[3px] w-6 sm:w-10 lg:w-14 bg-[#65a30d] rounded-full" />
+                <div className="h-[2px] sm:h-[3px] w-2 sm:w-3 lg:w-5 bg-slate-200 rounded-full" />
+                <div className="h-[2px] sm:h-[3px] w-1 sm:w-2 bg-slate-100 rounded-full" />
               </div>
             </div>
 
             {/* RIGHT — Descrição + Stats + CTAs */}
-            <div className="pb-20 lg:py-32 lg:pl-20 flex flex-col justify-center gap-10">
+            <div className="py-8 sm:py-16 lg:py-32 pl-4 sm:pl-10 lg:pl-20 flex flex-col justify-center gap-3 sm:gap-6 lg:gap-10">
 
               {/* Descrição */}
               <p
-                className="text-xl md:text-2xl text-slate-500 font-medium leading-[1.55] max-w-lg"
+                className="text-[0.6rem] sm:text-sm md:text-base lg:text-xl xl:text-2xl text-slate-500 font-medium leading-[1.5]"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.25s, transform 0.6s ease 0.25s' }}
               >
                 Da triagem ao contrato — nossa IA assume o recrutamento e devolve{' '}
@@ -302,38 +294,38 @@ export function DemonstracaoPage() {
 
               {/* Stats */}
               <div
-                className="grid grid-cols-3 gap-6 py-8 border-y border-slate-100"
+                className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 py-3 sm:py-5 lg:py-8 border-y border-slate-100"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.35s, transform 0.6s ease 0.35s' }}
               >
                 {[
                   { value: '80%', label: 'menos tempo\nno processo' },
-                  { value: '10×',  label: 'mais rápido\nque o manual' },
+                  { value: '10×', label: 'mais rápido\nque o manual' },
                   { value: '0',   label: 'conflitos\nde agenda' },
                 ].map(({ value, label }) => (
-                  <div key={value} className="flex flex-col gap-1.5">
-                    <span className="text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-pre-line leading-snug">{label}</span>
+                  <div key={value} className="flex flex-col gap-0.5 sm:gap-1.5">
+                    <span className="text-base sm:text-2xl lg:text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
+                    <span className="text-[0.45rem] sm:text-[0.6rem] lg:text-[0.625rem] font-black text-slate-400 uppercase tracking-wider whitespace-pre-line leading-snug">{label}</span>
                   </div>
                 ))}
               </div>
 
               {/* CTAs */}
               <div
-                className="flex flex-col sm:flex-row gap-3"
+                className="flex flex-col gap-1.5 sm:gap-2 lg:gap-3"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.45s, transform 0.6s ease 0.45s' }}
               >
                 <a
                   href={whatsapp} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2.5 bg-black hover:bg-zinc-800 text-white font-bold px-7 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
+                  className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-black hover:bg-zinc-800 text-white font-bold px-2.5 sm:px-5 lg:px-7 py-2 sm:py-3 lg:py-4 rounded-lg sm:rounded-xl lg:rounded-2xl text-[0.55rem] sm:text-xs lg:text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(0,0,0,0.12)]"
                 >
-                  <MessageSquare className="w-4 h-4" />
+                  <MessageSquare className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4 shrink-0" />
                   Falar com Especialista
                 </a>
                 <button
                   onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="inline-flex items-center justify-center gap-2.5 border-2 border-slate-200 hover:border-[#65a30d] text-slate-600 hover:text-[#65a30d] font-bold px-7 py-4 rounded-2xl text-sm transition-all duration-200"
+                  className="inline-flex items-center justify-center gap-1.5 sm:gap-2 border-2 border-slate-200 hover:border-[#65a30d] text-slate-600 hover:text-[#65a30d] font-bold px-2.5 sm:px-5 lg:px-7 py-2 sm:py-3 lg:py-4 rounded-lg sm:rounded-xl lg:rounded-2xl text-[0.55rem] sm:text-xs lg:text-sm transition-all duration-200"
                 >
-                  <Play className="w-4 h-4" />
+                  <Play className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4 shrink-0" />
                   Ver demonstração
                 </button>
               </div>
