@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Bot, Calendar, FileText, BarChart2, Zap,
-  MessageSquare, Star, ChevronRight,
+  MessageSquare, Star, ChevronRight, Play,
 } from 'lucide-react';
 import { BorderBeam } from './ui/border-beam';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
@@ -12,10 +12,11 @@ import VideoPlayer from './ui/video-player';
 // ─── Dados ───────────────────────────────────────────────────────────────────
 
 const demoTabs = [
-  { id: 'whatsapp',    label: 'Atendimento via WhatsApp',     icon: MessageSquare, videoUrl: 'https://ik.imagekit.io/xsbrdnr0y/Untitled%20design.mp4' },
-  { id: 'curriculos',  label: 'Triagem de Currículos',         icon: FileText,      videoUrl: '' },
-  { id: 'entrevistas', label: 'Agendamento de Entrevistas',    icon: Calendar,      videoUrl: '' },
-  { id: 'documentos',  label: 'Coleta de Documentos',          icon: BarChart2,     videoUrl: '' },
+  { id: 'como-funciona', label: 'Como funciona ?',              icon: Play,          videoUrl: '' },
+  { id: 'whatsapp',      label: 'Atendimento via WhatsApp',     icon: MessageSquare, videoUrl: 'https://ik.imagekit.io/xsbrdnr0y/Untitled%20design.mp4' },
+  { id: 'curriculos',    label: 'Triagem de Currículos',         icon: FileText,      videoUrl: '' },
+  { id: 'entrevistas',   label: 'Agendamento de Entrevistas',    icon: Calendar,      videoUrl: '' },
+  { id: 'documentos',    label: 'Coleta de Documentos',          icon: BarChart2,     videoUrl: '' },
 ];
 
 const features = [
@@ -204,7 +205,7 @@ function DashboardMockup() {
 
 export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState('whatsapp');
+  const [activeTab, setActiveTab] = useState('como-funciona');
   const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
   const currentTab = demoTabs.find(t => t.id === activeTab);
 
@@ -260,8 +261,8 @@ export function DemonstracaoPage() {
                 transition: 'opacity 0.6s ease, transform 0.6s ease',
               }}
             >
-              Contrate mais rápido.<br />
-              <span className="text-[#65a30d]">Sem retrabalho.</span>
+              A IA que revoluciona<br />
+              <span className="text-[#65a30d]">o seu recrutamento.</span>
             </h1>
 
             {/* Descrição */}

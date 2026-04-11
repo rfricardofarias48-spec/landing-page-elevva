@@ -493,7 +493,7 @@ export const VendedorDashboard: React.FC = () => {
                   {/* Preview valor + comissão */}
                   {linkPlan !== 'ENTERPRISE' && (() => {
                     const planKey = linkBilling === 'anual' ? `${linkPlan}_ANUAL` : linkPlan;
-                    const valor = (PLAN_PRICES[planKey] || 0) / 100;
+                    const valor = PLAN_PRICES[planKey] || 0;
                     const comissao = parseFloat((valor * salesperson.commission_pct / 100).toFixed(2));
                     return (
                       <div className="bg-zinc-50 rounded-2xl p-4 space-y-1.5">
