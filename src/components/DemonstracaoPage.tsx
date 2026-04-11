@@ -252,16 +252,17 @@ export function DemonstracaoPage() {
           {/* Texto central */}
           <div className="flex flex-col items-center text-center gap-8">
 
-            {/* Heading com gradiente preto → verde */}
+            {/* Heading */}
             <h1
-              className="text-5xl md:text-7xl xl:text-8xl font-black tracking-tighter leading-[1.02] text-slate-900"
+              className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight leading-[1.15] text-slate-900"
               style={{
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(14px)',
                 transition: 'opacity 0.6s ease, transform 0.6s ease',
               }}
             >
-              A IA que revoluciona<br />
+              A IA que<br />
+              revoluciona<br />
               <span className="text-[#65a30d]">o seu recrutamento.</span>
             </h1>
 
