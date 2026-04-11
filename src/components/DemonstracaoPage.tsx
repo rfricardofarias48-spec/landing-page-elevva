@@ -247,7 +247,7 @@ export function DemonstracaoPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
 
             {/* LEFT — Título */}
-            <div className="py-20 lg:py-32 lg:pr-20 flex flex-col justify-center">
+            <div className="py-10 lg:py-20 lg:pr-20 flex flex-col justify-center">
 
               {/* Título principal */}
               <h1
@@ -292,7 +292,7 @@ export function DemonstracaoPage() {
             </div>
 
             {/* RIGHT — Descrição + Stats + CTAs */}
-            <div className="pb-20 lg:py-32 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
+            <div className="pb-10 lg:py-20 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
 
               {/* Descrição */}
               <p
@@ -345,7 +345,7 @@ export function DemonstracaoPage() {
         </div>
 
         {/* ── MOCKUP ─────────────────────────────────────────────────── */}
-        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-24">
+        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-12">
           <div
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s' }}
           >
@@ -369,7 +369,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
-      <section className="bg-slate-50/70 py-28">
+      <section className="bg-slate-50/70 py-16">
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-xl mb-16">
             <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Funcionalidades</p>
@@ -429,7 +429,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
-      <section className="py-28 bg-white">
+      <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-6">
 
           {/* Cabeçalho */}
@@ -496,7 +496,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-      <section className="py-28 max-w-7xl mx-auto px-6">
+      <section className="py-16 max-w-7xl mx-auto px-6">
         <div className="max-w-xl mb-16">
           <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Depoimentos</p>
           <h2
