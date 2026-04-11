@@ -275,15 +275,9 @@ export function DemonstracaoPage() {
                   transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
                 }}
               >
-                Elevva,<br />
-                a IA que<br />
-                contrata<br />
-                <span
-                  className="text-[#65a30d]"
-                  style={{ WebkitTextStroke: '0px' }}
-                >
-                  por Você.
-                </span>
+                Chega de<br />
+                pilhas de<br />
+                <span className="text-[#65a30d]">currículos.</span>
               </h1>
 
               {/* Linha decorativa */}
@@ -305,7 +299,7 @@ export function DemonstracaoPage() {
                 className="text-xl md:text-2xl text-slate-500 font-medium leading-[1.55] max-w-lg"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.25s, transform 0.6s ease 0.25s' }}
               >
-                Da triagem ao contrato — a IA assume o recrutamento e devolve{' '}
+                Da triagem ao contrato — nossa IA assume o recrutamento e devolve{' '}
                 <span className="text-slate-900 font-black">seu tempo para o que realmente importa.</span>
               </p>
 
