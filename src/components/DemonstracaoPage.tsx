@@ -209,7 +209,7 @@ export function DemonstracaoPage() {
 
   return (
     <div
-      className="min-h-screen bg-white text-slate-900 selection:bg-[#65a30d] selection:text-white overflow-x-hidden"
+      className="min-h-screen bg-white text-slate-900 selection:bg-[#65a30d] selection:text-white"
       style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
     >
 
