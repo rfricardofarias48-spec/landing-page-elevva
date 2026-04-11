@@ -296,7 +296,7 @@ export function DemonstracaoPage() {
                 className="text-xl md:text-2xl text-slate-500 font-medium leading-[1.55] max-w-lg"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.25s, transform 0.6s ease 0.25s' }}
               >
-                Conheça o Bento: O Agente de IA que atende no WhatsApp, qualifica currículos e{' '}
+                Conheça o Bento, nosso Agente de IA que atende no WhatsApp, qualifica currículos e{' '}
                 <span className="text-slate-900 font-black">agenda entrevistas automaticamente.</span>
               </p>
 
