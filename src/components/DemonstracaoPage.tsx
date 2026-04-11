@@ -254,7 +254,7 @@ export function DemonstracaoPage() {
 
             {/* Heading */}
             <h1
-              className="text-3xl md:text-4xl xl:text-5xl font-black tracking-tight leading-tight text-slate-900 whitespace-nowrap"
+              className="text-4xl md:text-6xl xl:text-7xl font-black tracking-tight leading-tight text-slate-900 whitespace-nowrap"
               style={{
                 opacity: visible ? 1 : 0,
                 transform: visible ? 'translateY(0)' : 'translateY(14px)',
