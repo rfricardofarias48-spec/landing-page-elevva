@@ -254,22 +254,11 @@ export function DemonstracaoPage() {
             {/* LEFT — Título */}
             <div className="py-20 lg:py-32 lg:pr-20 flex flex-col justify-center">
 
-              {/* Eyebrow */}
-              <div
-                className="flex items-center gap-3 mb-10"
-                style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(10px)', transition: 'opacity 0.5s ease, transform 0.5s ease' }}
-              >
-                <span className="w-5 h-[2px] bg-[#65a30d] rounded-full" />
-                <span className="text-[11px] font-black uppercase tracking-[0.22em] text-[#65a30d]">
-                  Plataforma de RH com IA
-                </span>
-              </div>
-
               {/* Título principal */}
               <h1
-                className="font-black tracking-tighter text-slate-900 leading-[0.92]"
+                className="font-black tracking-tighter text-slate-900 leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(3.2rem, 5.5vw, 5.5rem)',
+                  fontSize: 'clamp(4rem, 7.5vw, 7.5rem)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(18px)',
                   transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
@@ -515,7 +504,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3">
+      <footer className="bg-white max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3">
         <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva" className="h-6 w-auto object-contain opacity-30" />
         <p className="text-xs text-slate-400 font-medium">© {new Date().getFullYear()} Elevva. Todos os direitos reservados.</p>
       </footer>
