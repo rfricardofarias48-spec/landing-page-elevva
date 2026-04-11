@@ -457,19 +457,19 @@ export function DemonstracaoPage() {
               {
                 n: '1',
                 title: 'Qualificação no WhatsApp',
-                desc: 'O candidato chama no WhatsApp. Nosso Agente de IA atende na hora, 24/7, faz as perguntas-chave e recolhe o currículo em PDF.',
+                desc: 'O candidato chama no WhatsApp, Bento atende na hora, 24/7, recolhe o currículo em PDF e envia para análise.',
                 green: false,
               },
               {
                 n: '2',
                 title: 'Scoring Instantâneo',
-                desc: 'A IA analisa o currículo em segundos e gera um resumo com Nota de Compatibilidade, Pontos Fortes e Alertas Vermelhos.',
+                desc: 'Bento analisa o currículo em segundos e gera um relatório completo com nota (0 a 10), Pontos Fortes e fracos e um resumo do currículo.',
                 green: false,
               },
               {
                 n: '3',
                 title: 'Agendamento na Agenda',
-                desc: 'Se aprovado, o robô cruza a disponibilidade do candidato com a sua agenda e já marca a entrevista em vídeo no Google Meet.',
+                desc: 'Se aprovado, Bento cruza a disponibilidade do candidato com a sua agenda e agenda a entrevista em vídeo no Google Meet ou presencial, ele é capaz de fazer reagendamentos caso solicitado.',
                 green: true,
               },
             ].map(({ n, title, desc, green }) => (
