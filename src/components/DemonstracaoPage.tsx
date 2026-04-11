@@ -34,7 +34,6 @@ const features = [
     tagGreen: true,
     title: 'Integrações inteligentes',
     description: 'Além da triagem, nossa IA consegue agendar entrevistas direto no seu Google Agenda, ela é capaz de gerar e enviar automaticamente os links do Google Meet para entrevistas online.',
-    stat: '0', statLabel: 'conflitos de agenda',
     images: [
       'https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg',
       'https://upload.wikimedia.org/wikipedia/commons/9/9b/Google_Meet_icon_%282020%29.svg',
@@ -45,7 +44,7 @@ const features = [
     tag: 'Custo de Ociosidade',
     title: 'O Prejuízo Oculto da Vaga Aberta',
     description: 'Quanto dinheiro a sua operação sangra a cada dia que uma equipe trabalha desfalcada? A lentidão da triagem manual não atrasa apenas o RH, ela paralisa a sua capacidade de entrega. A inteligência artificial assume o processo instantaneamente para garantir que a sua operação não perca faturamento por falta de mão de obra.',
-    stat: '100%', statLabel: 'visibilidade do processo',
+    stat: null, statLabel: null,
   },
 ];
 
@@ -418,10 +417,12 @@ export function DemonstracaoPage() {
                 <h3 className="text-xl font-black text-slate-900 tracking-tight mb-3 leading-snug">{title}</h3>
                 <p className="text-sm text-slate-500 leading-relaxed mb-8">{description}</p>
 
-                <div className="pt-6 border-t border-slate-50 flex items-baseline gap-2">
-                  <span className="text-5xl font-black tracking-tighter text-slate-900">{stat}</span>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{statLabel}</span>
-                </div>
+                {stat && (
+                  <div className="pt-6 border-t border-slate-50 flex items-baseline gap-2">
+                    <span className="text-5xl font-black tracking-tighter text-slate-900">{stat}</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{statLabel}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
