@@ -369,7 +369,6 @@ export function DemonstracaoPage() {
       <section className="bg-transparent py-16">
         <div className="max-w-7xl mx-auto px-6">
           <div className="max-w-xl mb-16">
-            <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Funcionalidades</p>
             <h2
               className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05]"
               style={{
@@ -431,7 +430,6 @@ export function DemonstracaoPage() {
 
           {/* Cabeçalho */}
           <div className="max-w-2xl mb-20">
-            <p className="text-[#65a30d] font-black italic text-base mb-4">Simples assim</p>
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-[1.05]">
               Pronto para recuperar<br />12 horas por semana?
             </h2>
@@ -495,7 +493,6 @@ export function DemonstracaoPage() {
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
       <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent">
         <div className="max-w-xl mb-16">
-          <p className="text-xs font-black text-[#65a30d] uppercase tracking-[0.2em] mb-4">Depoimentos</p>
           <h2
             className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900"
           >
