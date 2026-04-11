@@ -30,10 +30,15 @@ const features = [
   },
   {
     icon: Calendar,
-    tag: 'Agendamento Automático',
-    title: 'Entrevistas no calendário sem esforço',
-    description: 'Integração com Google Calendar. O candidato escolhe o horário disponível e o evento com Google Meet é criado automaticamente.',
+    tag: 'Ecossistema Google',
+    tagGreen: true,
+    title: 'Integrações inteligentes',
+    description: 'Além da triagem, nossa IA consegue agendar entrevistas direto no seu Google Agenda, ela é capaz de gerar e enviar automaticamente os links do Google Meet para entrevistas online.',
     stat: '0', statLabel: 'conflitos de agenda',
+    images: [
+      'https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg',
+      'https://upload.wikimedia.org/wikipedia/commons/9/9b/Google_Meet_icon_%282020%29.svg',
+    ],
   },
   {
     icon: BarChart2,
@@ -384,7 +389,7 @@ export function DemonstracaoPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {features.map(({ icon: Icon, tag, title, description, stat, statLabel }) => (
+            {features.map(({ icon: Icon, tag, tagGreen, title, description, stat, statLabel, images }: any) => (
               <div
                 key={title}
                 className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group overflow-hidden"
@@ -392,10 +397,20 @@ export function DemonstracaoPage() {
                 <BorderBeam size={280} duration={12} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={1.5} />
 
                 <div className="flex items-start justify-between mb-6">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:bg-[#65a30d]/10 group-hover:border-[#65a30d]/20 transition-all duration-300">
-                    <Icon className="w-5 h-5 text-slate-400 group-hover:text-[#65a30d] transition-colors duration-300" />
-                  </div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 border border-slate-100 rounded-full px-3 py-1.5">
+                  {images ? (
+                    <div className="flex items-center gap-3">
+                      {images.map((src: string, i: number) => (
+                        <div key={i} className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center shadow-md overflow-hidden p-2">
+                          <img src={src} alt="" className="w-full h-full object-contain" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:bg-[#65a30d]/10 group-hover:border-[#65a30d]/20 transition-all duration-300">
+                      <Icon className="w-5 h-5 text-slate-400 group-hover:text-[#65a30d] transition-colors duration-300" />
+                    </div>
+                  )}
+                  <span className={`text-[10px] font-black uppercase tracking-widest rounded-full px-3 py-1.5 ${tagGreen ? 'text-[#65a30d] bg-[#65a30d]/10 border border-[#65a30d]/20' : 'text-slate-400 bg-slate-50 border border-slate-100'}`}>
                     {tag}
                   </span>
                 </div>
