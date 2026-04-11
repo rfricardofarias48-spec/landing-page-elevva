@@ -429,6 +429,76 @@ export function DemonstracaoPage() {
         </div>
       </section>
 
+      {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
+      <section className="relative mx-4 md:mx-6 mb-8 rounded-[2rem] overflow-hidden bg-zinc-950 py-20 px-6 md:px-16">
+
+        {/* Glow verde suave */}
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 100%, rgba(101,163,13,0.12) 0%, transparent 70%)' }} />
+
+        <div className="relative max-w-4xl mx-auto">
+
+          {/* Eyebrow */}
+          <p className="text-[#65a30d] font-black italic text-base mb-4" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+            Simples assim
+          </p>
+
+          {/* Título */}
+          <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter leading-[1.05] mb-16">
+            Pronto para recuperar<br />12 horas por semana?
+          </h2>
+
+          {/* Steps */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-6 relative">
+
+            {/* Linha conectora — só desktop */}
+            <div className="hidden md:block absolute top-5 left-[calc(16.66%+1.5rem)] right-[calc(16.66%+1.5rem)] h-[1px] border-t border-dashed border-zinc-700" />
+
+            {[
+              {
+                n: '1',
+                title: 'Qualificação no WhatsApp',
+                desc: 'O candidato chama no WhatsApp. Nosso Agente de IA atende na hora, 24/7, faz as perguntas-chave e recolhe o currículo em PDF.',
+                green: false,
+              },
+              {
+                n: '2',
+                title: 'Scoring Instantâneo',
+                desc: 'A IA analisa o currículo em segundos e gera um resumo com Nota de Compatibilidade, Pontos Fortes e Alertas Vermelhos.',
+                green: false,
+              },
+              {
+                n: '3',
+                title: 'Agendamento na Agenda',
+                desc: 'Se aprovado, o robô cruza a disponibilidade do candidato com a sua agenda e já marca a entrevista em vídeo no Google Meet.',
+                green: true,
+              },
+            ].map(({ n, title, desc, green }) => (
+              <div key={n} className="flex flex-col gap-5">
+                {/* Número */}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black border-2 z-10 relative ${green ? 'bg-[#65a30d] border-[#65a30d] text-white' : 'bg-zinc-900 border-zinc-700 text-zinc-400'}`}>
+                  {n}
+                </div>
+                <div>
+                  <h3 className="text-white font-black text-lg mb-2 leading-snug">{title}</h3>
+                  <p className="text-zinc-400 text-sm leading-relaxed">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="mt-14 flex justify-center">
+            <a
+              href={whatsapp} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold px-8 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_8px_32px_rgba(101,163,13,0.3)]"
+            >
+              Começar agora
+              <ChevronRight className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
       <section className="py-28 max-w-7xl mx-auto px-6">
         <div className="max-w-xl mb-16">
