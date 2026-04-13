@@ -361,6 +361,12 @@ export function DemonstracaoPage() {
     >
       <AnimatedBackground />
 
+      {/* ── RAILS VERTICAIS — linhas discretas nas laterais do conteúdo ─────── */}
+      <div
+        className="fixed top-0 bottom-0 left-1/2 -translate-x-1/2 pointer-events-none"
+        style={{ width: 'min(80rem, 100vw)', borderLeft: '1px solid rgba(148,163,184,0.18)', borderRight: '1px solid rgba(148,163,184,0.18)', zIndex: 0 }}
+      />
+
       {/* ── MODAL DE CHECKOUT ─────────────────────────────────────────────── */}
       {checkoutPlan && (
         <CheckoutModal
@@ -432,7 +438,7 @@ export function DemonstracaoPage() {
       </nav>
 
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
-      <section id="inicio" className="relative pt-16">
+      <section id="inicio" className="relative pt-16 border-b border-slate-100">
 
         {/* ── SPLIT: Título | Subtítulo ───────────────────────────────── */}
         <div className="relative max-w-7xl mx-auto px-6">
@@ -561,7 +567,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
-      <section id="funcionalidades" className="bg-transparent py-16">
+      <section id="funcionalidades" className="bg-transparent py-16 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6">
           <div className="w-full mb-16 text-center">
             <h2
@@ -620,7 +626,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
-      <section id="como-funciona" className="py-16 bg-transparent">
+      <section id="como-funciona" className="py-16 bg-transparent border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6">
 
           {/* Cabeçalho */}
@@ -686,7 +692,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── SEGURANÇA ─────────────────────────────────────────────────────── */}
-      <section id="seguranca" className="py-20 bg-transparent">
+      <section id="seguranca" className="py-20 bg-transparent border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6">
 
           {/* Título */}
@@ -735,7 +741,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-      <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent">
+      <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent border-b border-slate-100">
         <div className="w-full mb-16 text-center">
           <h2
             className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900"
@@ -769,7 +775,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── PLANOS ────────────────────────────────────────────────────────── */}
-      <section id="planos" className="py-20 bg-transparent">
+      <section id="planos" className="py-20 bg-transparent border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6">
 
           {/* Cabeçalho */}
