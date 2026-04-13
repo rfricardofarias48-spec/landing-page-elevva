@@ -582,9 +582,10 @@ export async function processIncomingMessage(
   console.log(`[Agent] START instance="${instance}" phone="${phone}" type="${messageType}"`);
 
   // Identify recruiter from Evolution instance name
+  // portal_code is fetched separately to avoid query failure if the column doesn't exist yet
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, name, portal_code, status_automacao, evolution_token, chatwoot_account_id, chatwoot_token, chatwoot_inbox_id')
+    .select('id, name, status_automacao, evolution_token, chatwoot_account_id, chatwoot_token, chatwoot_inbox_id')
     .eq('instancia_evolution', instance)
     .eq('status_automacao', true)
     .maybeSingle();
@@ -599,6 +600,19 @@ export async function processIncomingMessage(
   }
 
   console.log(`[Agent] Profile found id="${profile.id}" hasToken=${!!profile.evolution_token}`);
+
+  // Busca portal_code separadamente (coluna pode não existir ainda)
+  let portalCodeRaw: string = profile.id;
+  try {
+    const { data: pcRow } = await supabase
+      .from('profiles')
+      .select('portal_code')
+      .eq('id', profile.id)
+      .maybeSingle();
+    if (pcRow?.portal_code) portalCodeRaw = pcRow.portal_code;
+  } catch (_) {
+    // coluna ainda não existe — usa UUID como fallback
+  }
 
   // Prioridade: token do payload (Evolution GO) > token do DB > env var
   const instanceToken: string | undefined = webhookToken || profile.evolution_token || undefined;
@@ -683,8 +697,8 @@ export async function processIncomingMessage(
     return;
   }
 
-  // Portal code para o link curto
-  const portalCode: string = (profile as Record<string, unknown>).portal_code as string || profile.id;
+  // Portal code para o link curto (já resolvido acima)
+  const portalCode: string = portalCodeRaw;
 
   switch (conv.state) {
     // ── Fluxo de candidatura: estados legados + novo estado ──
