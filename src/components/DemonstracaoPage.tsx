@@ -361,13 +361,7 @@ export function DemonstracaoPage() {
     >
       <AnimatedBackground />
 
-      {/* ── RAILS VERTICAIS — linhas discretas nas laterais do conteúdo ─────── */}
-      <div
-        className="fixed top-0 bottom-0 left-1/2 -translate-x-1/2 pointer-events-none"
-        style={{ width: 'min(80rem, 100vw)', borderLeft: '1px solid rgba(148,163,184,0.18)', borderRight: '1px solid rgba(148,163,184,0.18)', zIndex: 0 }}
-      />
-
-      {/* ── MODAL DE CHECKOUT ─────────────────────────────────────────────── */}
+{/* ── MODAL DE CHECKOUT ─────────────────────────────────────────────── */}
       {checkoutPlan && (
         <CheckoutModal
           plan={checkoutPlan}
@@ -441,7 +435,7 @@ export function DemonstracaoPage() {
       <section id="inicio" className="relative pt-16 border-b border-slate-100">
 
         {/* ── SPLIT: Título | Subtítulo ───────────────────────────────── */}
-        <div className="relative max-w-7xl mx-auto px-6">
+        <div className="relative max-w-7xl mx-auto px-6 border-x border-slate-100">
           <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
 
             {/* LEFT — Título */}
@@ -543,7 +537,7 @@ export function DemonstracaoPage() {
         </div>
 
         {/* ── MOCKUP ─────────────────────────────────────────────────── */}
-        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-12">
+        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-12 border-x border-slate-100">
           <div
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s' }}
           >
@@ -568,7 +562,7 @@ export function DemonstracaoPage() {
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
       <section id="funcionalidades" className="bg-transparent py-16 border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
           <div className="w-full mb-16 text-center">
             <h2
               className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05]"
@@ -627,7 +621,7 @@ export function DemonstracaoPage() {
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
       <section id="como-funciona" className="py-16 bg-transparent border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
 
           {/* Cabeçalho */}
           <div className="w-full mb-20 text-center">
@@ -693,7 +687,7 @@ export function DemonstracaoPage() {
 
       {/* ── SEGURANÇA ─────────────────────────────────────────────────────── */}
       <section id="seguranca" className="py-20 bg-transparent border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
 
           {/* Título */}
           <div className="text-center mb-16">
@@ -741,7 +735,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-      <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent border-b border-slate-100">
+      <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent border border-slate-100 border-t-0">
         <div className="w-full mb-16 text-center">
           <h2
             className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900"
@@ -776,7 +770,7 @@ export function DemonstracaoPage() {
 
       {/* ── PLANOS ────────────────────────────────────────────────────────── */}
       <section id="planos" className="py-20 bg-transparent border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
 
           {/* Cabeçalho */}
           <div className="text-center mb-12">
@@ -946,7 +940,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="bg-transparent max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3">
+      <footer className="bg-transparent max-w-7xl mx-auto px-6 py-8 border-x border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3">
         <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva" className="h-6 w-auto object-contain opacity-30" />
         <p className="text-xs text-slate-400 font-medium">© {new Date().getFullYear()} Elevva. Todos os direitos reservados.</p>
       </footer>
