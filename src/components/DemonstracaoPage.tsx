@@ -636,7 +636,7 @@ export function DemonstracaoPage() {
                 Para equipes enxutas e recrutamento ágil.
               </p>
               <ul className="space-y-3 flex-1 mb-8">
-                {['Até 3 vagas em simultâneo', 'Triagem e ranking via IA', 'Relatórios individuais de currículos', 'Agendamento autônomo (WhatsApp)', 'Integração Google Calendar e Meet'].map(f => (
+                {['Até 3 vagas em simultâneo', 'Triagem e ranking', 'Relatórios individuais automáticos', 'Agendamento autônomo (WhatsApp)', 'Integração Google Calendar e Meet'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
                     <span className="w-4 h-4 rounded-full bg-[#65a30d]/15 flex items-center justify-center shrink-0 mt-0.5">
                       <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -676,7 +676,7 @@ export function DemonstracaoPage() {
                 Tração total para seu RH com mais vagas.
               </p>
               <ul className="space-y-3 flex-1 mb-8">
-                {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão Mobile', 'Dossiê automático (PDF)', 'Conformidade LGPD (Exclusão em 5 dias)'].map(f => (
+                {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão', 'Conformidade LGPD (Exclusão em 5 dias)'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <span className="w-4 h-4 rounded-full bg-[#65a30d]/20 flex items-center justify-center shrink-0 mt-0.5">
                       <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -706,7 +706,7 @@ export function DemonstracaoPage() {
                 Solução sob medida para grandes operações.
               </p>
               <ul className="space-y-3 flex-1 mb-8">
-                {['Vagas Ilimitadas', 'Análise Ilimitada de Currículos', 'Integração via API', 'Atendimento Prioritário'].map(f => (
+                {['Vagas Ilimitadas', 'Atendimento Prioritário'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
                     <span className="w-4 h-4 rounded-full bg-[#65a30d]/15 flex items-center justify-center shrink-0 mt-0.5">
                       <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
