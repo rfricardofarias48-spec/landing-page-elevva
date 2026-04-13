@@ -536,26 +536,12 @@ export function DemonstracaoPage() {
           </div>
         </div>
 
-        {/* ── MOCKUP ─────────────────────────────────────────────────── */}
+        {/* ── ÁREA DE VÍDEO ──────────────────────────────────────────────── */}
         <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-12 border-x border-slate-100">
           <div
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s' }}
           >
-            <Mockup className="relative w-full shadow-[0_48px_120px_-24px_rgba(0,0,0,0.18)] border-slate-200/80">
-              <BorderBeam size={600} duration={7} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={2} />
-              <div className="w-full bg-slate-50 border-b border-slate-200 px-5 py-3.5 flex items-center gap-3 shrink-0">
-                <div className="flex gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-slate-300" />
-                  <span className="w-3 h-3 rounded-full bg-slate-300" />
-                  <span className="w-3 h-3 rounded-full bg-slate-300" />
-                </div>
-                <div className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-400 font-medium flex items-center gap-2 max-w-xs mx-auto">
-                  <span className="w-2 h-2 rounded-full bg-[#65a30d] shrink-0" />
-                  app.elevva.net.br
-                </div>
-              </div>
-              <DashboardMockup />
-            </Mockup>
+            <div className="w-full rounded-3xl border border-slate-200 bg-white shadow-[0_48px_120px_-24px_rgba(0,0,0,0.08)]" style={{ minHeight: '480px' }} />
           </div>
         </div>
       </section>
