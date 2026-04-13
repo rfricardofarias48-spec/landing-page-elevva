@@ -2707,18 +2707,16 @@ const App: React.FC = () => {
 
                        {/* Link do Portal */}
                        {(user as any)?.id && (
-                         <div className="mb-6 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 animate-fade-in">
-                           <div className="flex-1 min-w-0">
-                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Link do Portal de Candidaturas</p>
-                             <p className="text-xs font-bold text-slate-700 truncate">
-                               {window.location.origin}/vagas/{(user as any).id}
-                             </p>
-                           </div>
+                         <div className="mb-4 flex items-center gap-2 animate-fade-in">
+                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Portal</span>
+                           <span className="text-[10px] font-mono text-slate-500 truncate flex-1 min-w-0">
+                             {window.location.origin}/vagas/{(user as any).id}
+                           </span>
                            <button
                              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vagas/${(user as any).id}`)}
-                             className="shrink-0 text-xs font-bold text-[#65a30d] hover:text-[#4d7c0f] bg-white border border-slate-200 hover:border-[#65a30d] px-3 py-1.5 rounded-lg transition-all"
+                             className="shrink-0 text-[10px] font-bold text-[#65a30d] hover:text-[#4d7c0f] transition-colors"
                            >
-                             Copiar Link
+                             Copiar
                            </button>
                          </div>
                        )}
