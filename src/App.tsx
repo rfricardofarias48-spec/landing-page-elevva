@@ -2154,7 +2154,7 @@ const App: React.FC = () => {
                           )}
 
                           <div className="space-y-3 mb-6 text-sm font-medium text-slate-600 flex-1">
-                              {['Até 3 vagas em simultâneo', 'Triagem e ranking via IA', 'Relatórios individuais de currículos', 'Agendamento autônomo (WhatsApp)', 'Integração Google Calendar e Meet'].map(f => (
+                              {['Até 3 vagas em simultâneo', 'Triagem e ranking', 'Relatórios individuais automáticos', 'Agendamento autônomo (WhatsApp)', 'Integração Google Calendar e Meet'].map(f => (
                                   <div key={f} className="flex items-center gap-3">
                                       <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
                                       <span>{f}</span>
@@ -2197,7 +2197,7 @@ const App: React.FC = () => {
                           )}
 
                           <div className="space-y-3 mb-6 text-sm font-medium text-zinc-300 flex-1">
-                              {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão Mobile', 'Dossiê automático (PDF)', 'Conformidade LGPD (Exclusão em 5 dias)'].map(f => (
+                              {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão', 'Conformidade LGPD (Exclusão em 5 dias)'].map(f => (
                                   <div key={f} className="flex items-center gap-3">
                                       <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
                                       <span>{f}</span>
@@ -2225,7 +2225,7 @@ const App: React.FC = () => {
                           </div>
 
                           <div className="space-y-3 mb-6 text-sm font-medium text-slate-600 flex-1">
-                              {['Vagas Ilimitadas', 'Análise Ilimitada de Currículos', 'Integração via API', 'Atendimento Prioritário'].map(f => (
+                              {['Vagas Ilimitadas', 'Atendimento Prioritário'].map(f => (
                                   <div key={f} className="flex items-center gap-3">
                                       <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
                                       <span>{f}</span>
