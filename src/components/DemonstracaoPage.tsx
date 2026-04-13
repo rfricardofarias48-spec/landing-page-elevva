@@ -498,11 +498,10 @@ export function DemonstracaoPage() {
           {/* Título */}
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900">
-              Fortaleza Digital.<br />
-              <span className="text-[#65a30d]">Privacidade Absoluta.</span>
+              Plataforma Segura
             </h2>
             <p className="mt-6 text-base text-slate-500 font-medium leading-relaxed max-w-2xl mx-auto">
-              Seus dados e os dos seus candidatos estão protegidos por uma infraestrutura de nível bancário. Operamos com arquitetura isolada e criptografia avançada, garantindo conformidade total com a LGPD e padrões globais.
+              O Elevva processa a informação, extrai os dados essenciais e descarta o documento original. Sua empresa blindada contra vazamentos e multas.
             </p>
           </div>
 
@@ -511,18 +510,18 @@ export function DemonstracaoPage() {
             {[
               {
                 icon: Lock,
-                title: 'Criptografia de Ponta',
-                desc: 'Todos os dados são criptografados em trânsito (TLS 1.3) e em repouso (AES-256). Ninguém, além de você, tem acesso às informações sensíveis.',
+                title: 'Exclusão Automática (5 Dias)',
+                desc: 'Os currículos em PDF não formam passivo de dados. Após 5 dias do processamento, o arquivo original é deletado permanentemente dos nossos servidores. Zero acúmulo de informações desnecessárias.',
+              },
+              {
+                icon: ShieldCheck,
+                title: 'Proteção Legal',
+                desc: 'Coletamos e processamos apenas o estritamente necessário para o ranqueamento da vaga. A automação elimina a retenção indevida de dados sensíveis e protege o seu CNPJ contra sanções legais.',
               },
               {
                 icon: Server,
-                title: 'Infraestrutura Isolada',
-                desc: 'Arquitetura Multi-Tenant com isolamento lógico de dados. Hospedagem premium na AWS com redundância e backups automáticos diários.',
-              },
-              {
-                icon: BadgeCheck,
-                title: 'Conformidade LGPD',
-                desc: 'Nossos processos e sistemas foram desenhados desde o primeiro dia (Privacy by Design) para atender 100% aos requisitos da LGPD e GDPR.',
+                title: 'Ambiente Fechado',
+                desc: 'O seu painel é blindado. Apenas utilizadores autorizados pela sua gestão possuem acesso às informações extraídas, eliminando fugas de informação.',
               },
             ].map(({ icon: Icon, title, desc }) => (
               <div
