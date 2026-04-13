@@ -203,19 +203,150 @@ function DashboardMockup() {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
+// ─── Modal de Checkout ────────────────────────────────────────────────────────
+
+type CheckoutPlan = 'ESSENCIAL' | 'PRO' | 'ENTERPRISE';
+
+const PLAN_LABELS: Record<string, string> = {
+  ESSENCIAL: 'Essencial',
+  PRO: 'Pro',
+  ENTERPRISE: 'Enterprise',
+};
+
+const PLAN_PRICES_DISPLAY: Record<string, Record<string, string>> = {
+  ESSENCIAL: { mensal: 'R$ 649,90/mês', anual: 'R$ 519,20/mês' },
+  PRO:       { mensal: 'R$ 999,90/mês', anual: 'R$ 799,92/mês' },
+  ENTERPRISE:{ mensal: 'A consultar',   anual: 'A consultar' },
+};
+
+function CheckoutModal({ plan, billing, onClose }: {
+  plan: CheckoutPlan;
+  billing: 'mensal' | 'anual';
+  onClose: () => void;
+}) {
+  const [name, setName]   = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]    = useState('');
+
+  const planKey = billing === 'anual' && plan !== 'ENTERPRISE' ? `${plan}_ANUAL` : plan;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || !phone.trim()) {
+      setError('Preencha todos os campos.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/sales/direct-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: name.trim(),
+          clientEmail: email.trim(),
+          clientPhone: phone.trim(),
+          plan: planKey,
+          billing,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao gerar link de pagamento.');
+      window.open(data.paymentLink, '_blank');
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+
+      {/* Card */}
+      <div className="relative bg-white rounded-[2rem] shadow-[0_32px_80px_rgba(0,0,0,0.18)] w-full max-w-md p-8 z-10">
+        {/* Fechar */}
+        <button onClick={onClose} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold">×</button>
+
+        {/* Plano selecionado */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-2xl bg-[#65a30d]/10 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-[#65a30d]" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Plano selecionado</p>
+            <p className="text-base font-black text-slate-900">{PLAN_LABELS[plan]} — {PLAN_PRICES_DISPLAY[plan][billing]}</p>
+          </div>
+        </div>
+
+        <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-1">Seus dados</h3>
+        <p className="text-sm text-slate-500 font-medium mb-6">Preencha para gerar seu link de pagamento seguro.</p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Nome completo</label>
+            <input
+              type="text" value={name} onChange={e => setName(e.target.value)}
+              placeholder="João Silva"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#65a30d]/30 focus:border-[#65a30d] transition-all"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">E-mail</label>
+            <input
+              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="joao@empresa.com.br"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#65a30d]/30 focus:border-[#65a30d] transition-all"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">WhatsApp</label>
+            <input
+              type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder="(51) 99999-9999"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#65a30d]/30 focus:border-[#65a30d] transition-all"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-500 font-medium bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{error}</p>
+          )}
+
+          <button
+            type="submit" disabled={loading}
+            className="w-full bg-black hover:bg-zinc-800 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black py-4 rounded-2xl text-sm transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Gerando link...</>
+            ) : (
+              <>Ir para o pagamento <ChevronRight className="w-4 h-4" /></>
+            )}
+          </button>
+
+          <p className="text-center text-[11px] text-slate-400 font-medium">
+            Você será redirecionado para o checkout seguro Asaas.<br />CPF e cartão são informados lá.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
+
 export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
   const [billing, setBilling] = useState<'mensal' | 'anual'>('mensal');
+  const [checkoutPlan, setCheckoutPlan] = useState<CheckoutPlan | null>(null);
   const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
-
-  // Links de pagamento — substituir pelas URLs reais do Asaas
-  const CHECKOUT = {
-    ESSENCIAL_MENSAL: 'https://wa.me/5551999999999?text=Quero+o+plano+Essencial+mensal',
-    ESSENCIAL_ANUAL:  'https://wa.me/5551999999999?text=Quero+o+plano+Essencial+anual',
-    PRO_MENSAL:       'https://wa.me/5551999999999?text=Quero+o+plano+Pro+mensal',
-    PRO_ANUAL:        'https://wa.me/5551999999999?text=Quero+o+plano+Pro+anual',
-    ENTERPRISE:       'https://wa.me/5551999999999?text=Quero+conhecer+o+plano+Enterprise',
-  };
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
@@ -229,6 +360,15 @@ export function DemonstracaoPage() {
       style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
     >
       <AnimatedBackground />
+
+      {/* ── MODAL DE CHECKOUT ─────────────────────────────────────────────── */}
+      {checkoutPlan && (
+        <CheckoutModal
+          plan={checkoutPlan}
+          billing={billing}
+          onClose={() => setCheckoutPlan(null)}
+        />
+      )}
 
       {/* ── NAVBAR flutuante ──────────────────────────────────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-50">
@@ -645,13 +785,12 @@ export function DemonstracaoPage() {
                   </li>
                 ))}
               </ul>
-              <a
-                href={billing === 'mensal' ? CHECKOUT.ESSENCIAL_MENSAL : CHECKOUT.ESSENCIAL_ANUAL}
-                target="_blank" rel="noopener noreferrer"
+              <button
+                onClick={() => setCheckoutPlan('ESSENCIAL')}
                 className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 font-bold py-3.5 rounded-2xl text-sm transition-all duration-200"
               >
                 Assinar Essencial
-              </a>
+              </button>
             </div>
 
             {/* PRO — destaque */}
@@ -685,13 +824,12 @@ export function DemonstracaoPage() {
                   </li>
                 ))}
               </ul>
-              <a
-                href={billing === 'mensal' ? CHECKOUT.PRO_MENSAL : CHECKOUT.PRO_ANUAL}
-                target="_blank" rel="noopener noreferrer"
+              <button
+                onClick={() => setCheckoutPlan('PRO')}
                 className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-3.5 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(101,163,13,0.4)]"
               >
                 Assinar Pro
-              </a>
+              </button>
             </div>
 
             {/* ENTERPRISE */}
@@ -716,7 +854,7 @@ export function DemonstracaoPage() {
                 ))}
               </ul>
               <a
-                href={CHECKOUT.ENTERPRISE}
+                href={whatsapp}
                 target="_blank" rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 font-bold py-3.5 rounded-2xl text-sm transition-all duration-200"
               >
