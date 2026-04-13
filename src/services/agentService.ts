@@ -107,32 +107,28 @@ type SendFn = (jid: string, text: string) => Promise<void>;
 
 async function handleNovo(
   conv: Conversation,
-  instance: string,
+  _instance: string,
   phone: string,
   pushName: string,
+  portalCode: string,
   supabase: SupabaseClient,
   send: SendFn,
 ): Promise<void> {
-  const { data: jobs } = await supabase
-    .from('jobs')
-    .select('id, title')
-    .eq('user_id', conv.user_id)
-    .eq('is_paused', false)
-    .order('created_at', { ascending: false });
-
-  if (!jobs || jobs.length === 0) {
-    await send(phone, 'Olá! No momento não há vagas abertas. Fique atento às nossas oportunidades!');
-    return;
-  }
+  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
+  const portalLink = `${baseUrl}/vagas/${portalCode}`;
 
   const greeting = pushName ? `Olá, *${pushName}*! 👋` : 'Olá! 👋';
-  const jobList = jobs.map((j, i) => `*${i + 1}.* ${j.title}`).join('\n');
 
-  await send(phone, `${greeting} Sou o Bento, assistente de recrutamento.\n\nNossas vagas abertas:\n\n${jobList}\n\nResponda com o *número* da vaga que deseja se candidatar.`);
+  await send(phone,
+    `${greeting} Sou o *Bento*, assistente de recrutamento.\n\n` +
+    `Para se candidatar às nossas vagas, acesse o link abaixo:\n\n` +
+    `🔗 ${portalLink}\n\n` +
+    `No portal você escolhe a área, a vaga e envia seu currículo em menos de 1 minuto. ✅`
+  );
 
   await updateConversation(conv.id, {
-    state: 'SELECIONANDO_VAGA',
-    context: { ...conv.context, jobs: jobs.map((j, i) => ({ id: j.id, title: j.title, index: i + 1 })) },
+    state: 'LINK_ENVIADO',
+    context: { ...conv.context },
   }, supabase);
 }
 
@@ -588,7 +584,7 @@ export async function processIncomingMessage(
   // Identify recruiter from Evolution instance name
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, status_automacao, evolution_token, chatwoot_account_id, chatwoot_token, chatwoot_inbox_id')
+    .select('id, name, portal_code, status_automacao, evolution_token, chatwoot_account_id, chatwoot_token, chatwoot_inbox_id')
     .eq('instancia_evolution', instance)
     .eq('status_automacao', true)
     .maybeSingle();
@@ -687,15 +683,25 @@ export async function processIncomingMessage(
     return;
   }
 
+  // Portal code para o link curto
+  const portalCode: string = (profile as Record<string, unknown>).portal_code as string || profile.id;
+
   switch (conv.state) {
-    // Terminal / restart states — treat as new candidate
+    // ── Fluxo de candidatura: estados legados + novo estado ──
+    // Em todos esses estados, o agente apenas envia o link do portal.
     case 'NOVO':
     case 'REPROVADO':
     case 'EM_ANALISE':
     case 'CANCELADA':
-      await handleNovo(conv, instance, phone, pushName, supabase, send);
+    case 'LINK_ENVIADO':
+    case 'SELECIONANDO_VAGA':
+    case 'AGUARDANDO_CURRICULO':
+    case 'ANALISANDO':
+    case 'CURRICULO_RECEBIDO':
+      await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
       break;
 
+    // ── Fluxo de entrevista: mantido intacto ──
     case 'ENTREVISTA_CONFIRMADA':
       await send(phone, 'Sua entrevista já está confirmada! Se precisar reagendar, basta digitar *reagendar*. 😊');
       break;
@@ -708,32 +714,12 @@ export async function processIncomingMessage(
       await send(phone, 'Ainda estamos aguardando o recrutador liberar novos horários. Assim que houver disponibilidade, enviaremos o link para você escolher. 😊');
       break;
 
-    case 'SELECIONANDO_VAGA':
-      await handleSelecionandoVaga(conv, instance, phone, text, selectedRowId, supabase, send);
-      break;
-
-    case 'AGUARDANDO_CURRICULO':
-      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken);
-      break;
-
-    case 'ANALISANDO':
-      if (['documentMessage', 'documentWithCaptionMessage'].includes(messageType) && mediaData) {
-        await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken);
-      } else {
-        await send(phone, 'Aguarde! Estamos analisando seu currículo... ⏳');
-      }
-      break;
-
-    case 'CURRICULO_RECEBIDO':
-      await send(phone, 'Seu currículo já foi recebido! Em breve nossa equipe entrará em contato com os próximos passos. 😊');
-      break;
-
     case 'AGUARDANDO_ESCOLHA_SLOT':
       await handleAguardandoEscolhaSlot(conv, instance, phone, text, selectedRowId, supabase, send);
       break;
 
     default:
-      await handleNovo(conv, instance, phone, pushName, supabase, send);
+      await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
   }
 }
 

@@ -39,7 +39,6 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
   // Form fields
   const [candidateName, setCandidateName] = useState('');
   const [candidatePhone, setCandidatePhone] = useState('');
-  const [candidateEmail, setCandidateEmail] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -217,7 +216,6 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
         status: 'PENDING',
         'WhatsApp com DDD': cleanPhone,
         candidate_name: candidateName.trim(),
-        candidate_email: candidateEmail.trim() || null,
       }));
 
       const { error: dbError } = await supabase.from('candidates').insert(inserts);
@@ -489,19 +487,6 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
               onChange={handlePhoneChange}
               required
               placeholder="(11) 99999-9999"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 font-medium text-sm text-slate-900 focus:outline-none focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] transition-all placeholder:text-slate-400"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1.5 block">
-              E-mail (opcional)
-            </label>
-            <input
-              type="email"
-              value={candidateEmail}
-              onChange={e => setCandidateEmail(e.target.value)}
-              placeholder="joao@email.com"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 font-medium text-sm text-slate-900 focus:outline-none focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] transition-all placeholder:text-slate-400"
             />
           </div>
