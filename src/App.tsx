@@ -860,8 +860,9 @@ const App: React.FC = () => {
       if (!profile.portal_code) {
         const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
         const code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-        await supabase.from('profiles').update({ portal_code: code }).eq('id', userId);
-        profile.portal_code = code;
+        const { error: pcError } = await supabase.from('profiles').update({ portal_code: code }).eq('id', userId);
+        // Só usa o código curto se o banco aceitou (coluna existe); caso contrário usa o UUID
+        profile.portal_code = pcError ? userId : code;
       }
 
       setUser(profile);
