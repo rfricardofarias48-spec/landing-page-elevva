@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Bot, Calendar, FileText, BarChart2, Zap,
   MessageSquare, Star, ChevronRight, Play,
+  ShieldCheck, Server, BadgeCheck, Lock,
 } from 'lucide-react';
 
 import { BorderBeam } from './ui/border-beam';
@@ -486,6 +487,73 @@ export function DemonstracaoPage() {
               Começar agora
               <ChevronRight className="w-4 h-4" />
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── SEGURANÇA ─────────────────────────────────────────────────────── */}
+      <section className="py-20 bg-transparent">
+        <div className="max-w-7xl mx-auto px-6">
+
+          {/* Título */}
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900">
+              Fortaleza Digital.<br />
+              <span className="text-[#65a30d]">Privacidade Absoluta.</span>
+            </h2>
+            <p className="mt-6 text-base text-slate-500 font-medium leading-relaxed max-w-2xl mx-auto">
+              Seus dados e os dos seus candidatos estão protegidos por uma infraestrutura de nível bancário. Operamos com arquitetura isolada e criptografia avançada, garantindo conformidade total com a LGPD e padrões globais.
+            </p>
+          </div>
+
+          {/* Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-12">
+            {[
+              {
+                icon: Lock,
+                title: 'Criptografia de Ponta',
+                desc: 'Todos os dados são criptografados em trânsito (TLS 1.3) e em repouso (AES-256). Ninguém, além de você, tem acesso às informações sensíveis.',
+              },
+              {
+                icon: Server,
+                title: 'Infraestrutura Isolada',
+                desc: 'Arquitetura Multi-Tenant com isolamento lógico de dados. Hospedagem premium na AWS com redundância e backups automáticos diários.',
+              },
+              {
+                icon: BadgeCheck,
+                title: 'Conformidade LGPD',
+                desc: 'Nossos processos e sistemas foram desenhados desde o primeiro dia (Privacy by Design) para atender 100% aos requisitos da LGPD e GDPR.',
+              },
+            ].map(({ icon: Icon, title, desc }) => (
+              <div
+                key={title}
+                className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-[#65a30d]/10 border border-[#65a30d]/20 flex items-center justify-center mb-6 group-hover:bg-[#65a30d]/15 transition-all duration-300">
+                  <Icon className="w-5 h-5 text-[#65a30d]" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight mb-3">{title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Badges de certificação */}
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            {[
+              { label: 'SOC 2', sub: 'AICPA' },
+              { label: 'LGPD', sub: 'COMPLIANT' },
+              { label: 'GDPR', sub: 'READY' },
+              { label: 'BY DESIGN', sub: 'PRIVACY' },
+            ].map(({ label, sub }) => (
+              <div key={label} className="flex items-center gap-2.5 border border-slate-200 rounded-full px-5 py-2.5 bg-white shadow-sm">
+                <ShieldCheck className="w-4 h-4 text-[#65a30d] shrink-0" />
+                <div className="leading-none">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{sub}</p>
+                  <p className="text-xs font-black text-slate-800 tracking-tight">{label}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
