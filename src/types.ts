@@ -104,6 +104,7 @@ export interface User {
   status_automacao?: boolean;
   google_calendar_id?: string;
   chatwoot_account_id?: number;
+  portal_code?: string;
 }
 
 // Interface para o Dashboard do Admin

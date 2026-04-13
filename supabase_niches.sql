@@ -64,6 +64,10 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_niches_user_id ON niches(user_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_niche_id ON jobs(niche_id);
 
+-- 8. Coluna portal_code em profiles (link curto para o portal público)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS portal_code VARCHAR(8) UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_profiles_portal_code ON profiles(portal_code);
+
 -- ============================================================
 -- VERIFICAÇÃO: rode isso para confirmar que funcionou
 -- SELECT * FROM niches LIMIT 5;

@@ -856,8 +856,16 @@ const App: React.FC = () => {
         role: isAdmin ? 'ADMIN' : isSdr ? 'SDR' : 'USER'
       };
 
+      // Gera portal_code curto se ainda não existir
+      if (!profile.portal_code) {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        const code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        await supabase.from('profiles').update({ portal_code: code }).eq('id', userId);
+        profile.portal_code = code;
+      }
+
       setUser(profile);
-      
+
       if (isAdmin || isSdr) {
           setView('DASHBOARD');
       }
@@ -2706,20 +2714,24 @@ const App: React.FC = () => {
                        </div>
 
                        {/* Link do Portal */}
-                       {(user as any)?.id && (
-                         <div className="mb-4 flex items-center gap-2 animate-fade-in">
-                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Portal</span>
-                           <span className="text-[10px] font-mono text-slate-500 truncate flex-1 min-w-0">
-                             {window.location.origin}/vagas/{(user as any).id}
-                           </span>
-                           <button
-                             onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vagas/${(user as any).id}`)}
-                             className="shrink-0 text-[10px] font-bold text-[#65a30d] hover:text-[#4d7c0f] transition-colors"
-                           >
-                             Copiar
-                           </button>
-                         </div>
-                       )}
+                       {(user as any)?.id && (() => {
+                         const portalCode = (user as any).portal_code || (user as any).id;
+                         const portalUrl = `${window.location.origin}/vagas/${portalCode}`;
+                         return (
+                           <div className="mb-4 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 animate-fade-in">
+                             <div className="flex-1 min-w-0">
+                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Link do Portal de Candidaturas</p>
+                               <p className="text-xs font-mono text-slate-600 truncate">{portalUrl}</p>
+                             </div>
+                             <button
+                               onClick={() => navigator.clipboard.writeText(portalUrl)}
+                               className="shrink-0 bg-white border border-slate-200 hover:border-slate-400 text-slate-700 font-black text-xs px-3 py-2 rounded-xl transition-all hover:text-slate-900"
+                             >
+                               Copiar Link
+                             </button>
+                           </div>
+                         );
+                       })()}
 
                        {/* Banner: vagas sem nicho */}
                        {(() => {

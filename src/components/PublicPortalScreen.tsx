@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 interface PublicPortalProps {
-  userId: string;
+  userId: string; // pode ser UUID completo ou portal_code curto (6 chars)
   onBack: () => void;
 }
 
@@ -18,12 +18,14 @@ interface PortalJob extends Job {
 }
 
 const MAX_FILE_MB = 5;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function sanitizeFileName(name: string) {
   return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
-export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId, onBack }) => {
+export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userIdOrCode, onBack }) => {
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(UUID_REGEX.test(userIdOrCode) ? userIdOrCode : null);
   const [niches, setNiches] = useState<Niche[]>([]);
   const [allJobs, setAllJobs] = useState<PortalJob[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -47,10 +49,27 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId, onBack
   const honeypotRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchPortalData();
-  }, [userId]);
+    if (resolvedUserId) {
+      fetchPortalData(resolvedUserId);
+    } else {
+      // Resolve portal_code curto → UUID real
+      supabase
+        .from('profiles')
+        .select('id')
+        .eq('portal_code', userIdOrCode)
+        .single()
+        .then(({ data }) => {
+          if (data?.id) {
+            setResolvedUserId(data.id);
+            fetchPortalData(data.id);
+          } else {
+            setLoading(false);
+          }
+        });
+    }
+  }, []);
 
-  const fetchPortalData = async () => {
+  const fetchPortalData = async (userId: string) => {
     setLoading(true);
     try {
       // Busca dados da empresa
@@ -219,6 +238,19 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId, onBack
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-[#65a30d] animate-spin" />
+      </div>
+    );
+  }
+
+  // ── Portal não encontrado ──────────────────────────────────────────────
+  if (!resolvedUserId) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 text-center">
+        <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 border border-slate-100">
+          <Briefcase className="w-8 h-8 text-slate-300" />
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 tracking-tighter mb-2">Portal não encontrado</h2>
+        <p className="text-slate-500 text-sm">Verifique o link e tente novamente.</p>
       </div>
     );
   }
