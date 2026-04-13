@@ -940,9 +940,78 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="bg-transparent max-w-7xl mx-auto px-6 py-8 border-x border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3">
-        <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva" className="h-6 w-auto object-contain opacity-30" />
-        <p className="text-xs text-slate-400 font-medium">© {new Date().getFullYear()} Elevva. Todos os direitos reservados.</p>
+      <footer className="bg-zinc-950 mt-0">
+        <div className="max-w-7xl mx-auto px-6 border-x border-white/5">
+
+          {/* Corpo principal */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 py-16 border-b border-white/10">
+
+            {/* Coluna 1 — Logo + descrição */}
+            <div className="md:col-span-1">
+              <img
+                src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
+                alt="Elevva"
+                className="h-8 w-auto object-contain brightness-0 invert mb-5"
+              />
+              <p className="text-sm text-zinc-400 font-medium leading-relaxed max-w-xs">
+                Plataforma de Recrutamento e Seleção Autogerida por IA. Escale suas contratações e recupere seu tempo.
+              </p>
+            </div>
+
+            {/* Coluna 2 — Plataforma */}
+            <div>
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-5">Plataforma</p>
+              <ul className="space-y-3">
+                {[
+                  { label: 'Funcionalidades', id: 'funcionalidades' },
+                  { label: 'Como Funciona',   id: 'como-funciona' },
+                  { label: 'Segurança',        id: 'seguranca' },
+                  { label: 'Planos',           id: 'planos' },
+                ].map(({ label, id }) => (
+                  <li key={id}>
+                    <a
+                      href={`#${id}`}
+                      onClick={e => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); }}
+                      className="text-sm text-zinc-400 hover:text-white font-medium transition-colors duration-150"
+                    >
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Coluna 3 — Legal */}
+            <div>
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-5">Legal</p>
+              <ul className="space-y-3">
+                {[
+                  { label: 'Termos de Uso',  href: '#' },
+                  { label: 'Privacidade',    href: '#' },
+                  { label: 'Cookies',        href: '#' },
+                ].map(({ label, href }) => (
+                  <li key={label}>
+                    <a href={href} className="text-sm text-zinc-400 hover:text-white font-medium transition-colors duration-150">
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Rodapé inferior */}
+          <div className="py-6 flex flex-col md:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-zinc-600 font-medium">
+              © {new Date().getFullYear()} Elevva. Todos os direitos reservados.
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500 font-medium">Feito no Brasil</span>
+              <span className="w-2 h-2 rounded-full bg-[#65a30d] animate-pulse" />
+            </div>
+          </div>
+
+        </div>
       </footer>
     </div>
   );
