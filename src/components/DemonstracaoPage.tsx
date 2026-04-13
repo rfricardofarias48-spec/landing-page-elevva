@@ -205,7 +205,17 @@ function DashboardMockup() {
 
 export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
+  const [billing, setBilling] = useState<'mensal' | 'anual'>('mensal');
   const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
+
+  // Links de pagamento — substituir pelas URLs reais do Asaas
+  const CHECKOUT = {
+    ESSENCIAL_MENSAL: 'https://wa.me/5551999999999?text=Quero+o+plano+Essencial+mensal',
+    ESSENCIAL_ANUAL:  'https://wa.me/5551999999999?text=Quero+o+plano+Essencial+anual',
+    PRO_MENSAL:       'https://wa.me/5551999999999?text=Quero+o+plano+Pro+mensal',
+    PRO_ANUAL:        'https://wa.me/5551999999999?text=Quero+o+plano+Pro+anual',
+    ENTERPRISE:       'https://wa.me/5551999999999?text=Quero+conhecer+o+plano+Enterprise',
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
@@ -537,23 +547,6 @@ export function DemonstracaoPage() {
             ))}
           </div>
 
-          {/* Badges de certificação */}
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            {[
-              { label: 'SOC 2', sub: 'AICPA' },
-              { label: 'LGPD', sub: 'COMPLIANT' },
-              { label: 'GDPR', sub: 'READY' },
-              { label: 'BY DESIGN', sub: 'PRIVACY' },
-            ].map(({ label, sub }) => (
-              <div key={label} className="flex items-center gap-2.5 border border-slate-200 rounded-full px-5 py-2.5 bg-white shadow-sm">
-                <ShieldCheck className="w-4 h-4 text-[#65a30d] shrink-0" />
-                <div className="leading-none">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{sub}</p>
-                  <p className="text-xs font-black text-slate-800 tracking-tight">{label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -588,6 +581,149 @@ export function DemonstracaoPage() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── PLANOS ────────────────────────────────────────────────────────── */}
+      <section className="py-20 bg-transparent">
+        <div className="max-w-7xl mx-auto px-6">
+
+          {/* Cabeçalho */}
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900">
+              Planos e Preços
+            </h2>
+            <p className="mt-4 text-base text-slate-500 font-medium max-w-lg mx-auto">
+              Escolha o plano ideal para o tamanho da sua operação.
+            </p>
+
+            {/* Toggle mensal / anual */}
+            <div className="inline-flex items-center gap-1 mt-8 bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
+              <button
+                onClick={() => setBilling('mensal')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all duration-200 ${billing === 'mensal' ? 'bg-black text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                Mensal
+              </button>
+              <button
+                onClick={() => setBilling('anual')}
+                className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all duration-200 flex items-center gap-2 ${billing === 'anual' ? 'bg-black text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                Anual
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${billing === 'anual' ? 'bg-[#65a30d] text-white' : 'bg-[#65a30d]/15 text-[#65a30d]'}`}>
+                  -20%
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Cards de plano */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+
+            {/* ESSENCIAL */}
+            <div className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col">
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Essencial</p>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-black text-slate-900 tracking-tighter leading-none">
+                  R$ {billing === 'mensal' ? '649,90' : '519,20'}
+                </span>
+                <span className="text-sm text-slate-400 font-medium mb-1">/mês</span>
+              </div>
+              {billing === 'anual' && (
+                <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 6.230,40/ano</p>
+              )}
+              <p className="text-sm text-slate-500 font-medium mt-3 mb-8 leading-relaxed">
+                Para equipes começando a estruturar o recrutamento com IA.
+              </p>
+              <ul className="space-y-3 flex-1 mb-8">
+                {['1 vaga ativa simultaneamente', 'Triagem via WhatsApp 24/7', 'Análise e ranking de currículos', 'Agendamento no Google Agenda', 'Suporte por e-mail'].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
+                    <span className="w-4 h-4 rounded-full bg-[#65a30d]/15 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={billing === 'mensal' ? CHECKOUT.ESSENCIAL_MENSAL : CHECKOUT.ESSENCIAL_ANUAL}
+                target="_blank" rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 font-bold py-3.5 rounded-2xl text-sm transition-all duration-200"
+              >
+                Assinar Essencial
+              </a>
+            </div>
+
+            {/* PRO — destaque */}
+            <div className="relative bg-black rounded-[2rem] border border-black p-8 shadow-[0px_16px_48px_rgba(0,0,0,0.16)] flex flex-col scale-[1.02]">
+              <BorderBeam size={400} duration={6} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={2} />
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Pro</p>
+                <span className="text-[10px] font-black bg-[#65a30d] text-white px-3 py-1 rounded-full uppercase tracking-widest">
+                  Mais popular
+                </span>
+              </div>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-black text-white tracking-tighter leading-none">
+                  R$ {billing === 'mensal' ? '999,90' : '799,92'}
+                </span>
+                <span className="text-sm text-slate-500 font-medium mb-1">/mês</span>
+              </div>
+              {billing === 'anual' && (
+                <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 9.599,04/ano</p>
+              )}
+              <p className="text-sm text-slate-400 font-medium mt-3 mb-8 leading-relaxed">
+                Para empresas que recrutam com frequência e buscam escala real.
+              </p>
+              <ul className="space-y-3 flex-1 mb-8">
+                {['Vagas simultâneas ilimitadas', 'Triagem via WhatsApp 24/7', 'Análise e ranking de currículos', 'Agendamento + Google Meet', 'Relatórios avançados por vaga', 'Suporte prioritário'].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
+                    <span className="w-4 h-4 rounded-full bg-[#65a30d]/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={billing === 'mensal' ? CHECKOUT.PRO_MENSAL : CHECKOUT.PRO_ANUAL}
+                target="_blank" rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-3.5 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(101,163,13,0.4)]"
+              >
+                Assinar Pro
+              </a>
+            </div>
+
+            {/* ENTERPRISE */}
+            <div className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col">
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Enterprise</p>
+              <div className="flex items-end gap-1 mb-1">
+                <span className="text-4xl font-black text-slate-900 tracking-tighter leading-none">
+                  Sob consulta
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 font-medium mt-3 mb-8 leading-relaxed">
+                Para operações com alto volume de vagas e necessidades específicas de integração.
+              </p>
+              <ul className="space-y-3 flex-1 mb-8">
+                {['Tudo do plano Pro', 'SLA garantido em contrato', 'Integrações customizadas', 'Onboarding dedicado', 'Gerente de conta exclusivo', 'Preço por volume'].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
+                    <span className="w-4 h-4 rounded-full bg-[#65a30d]/15 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={CHECKOUT.ENTERPRISE}
+                target="_blank" rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 font-bold py-3.5 rounded-2xl text-sm transition-all duration-200"
+              >
+                Falar com Especialista
+              </a>
+            </div>
+          </div>
         </div>
       </section>
 
