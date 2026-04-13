@@ -214,25 +214,32 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
 
     setUploading(true);
     try {
-      // Upload do PDF uma única vez
-      const cleanName = sanitizeFileName(selectedFile.name);
-      const fileName = `${Date.now()}_${cleanName}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('curriculos')
-        .upload(fileName, selectedFile);
+      // Upload do PDF via API do servidor (evita restrições de RLS no Storage para anônimos)
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('userId', resolvedUserId!);
 
-      if (uploadError) throw uploadError;
+      const uploadRes = await fetch('/api/portal/upload-resume', {
+        method: 'POST',
+        body: formData,
+      });
 
-      const filePath = uploadData.path;
+      if (!uploadRes.ok) {
+        const uploadErr = await uploadRes.json().catch(() => ({}));
+        throw new Error(uploadErr.error || 'Falha no upload do currículo');
+      }
+
+      const { filePath } = await uploadRes.json();
 
       // Cria um registro de candidato para cada vaga selecionada
       const inserts = Array.from(selectedJobIds).map(jobId => ({
         job_id: jobId,
+        user_id: resolvedUserId,
         file_name: selectedFile.name,
         file_path: filePath,
         status: 'PENDING',
         'WhatsApp com DDD': cleanPhone,
-        candidate_name: candidateName.trim(),
+        'Nome Completo': candidateName.trim(),
       }));
 
       const { error: dbError } = await supabase.from('candidates').insert(inserts);

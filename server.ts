@@ -958,6 +958,62 @@ app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Upload de currículo via portal público — usa service role para bypassar RLS do Storage
+// POST /api/portal/upload-resume  (multipart/form-data: file, userId)
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/portal/upload-resume", async (req, res) => {
+  try {
+    // express já parseia multipart via raw body; usamos busboy inline
+    const busboy = (await import('busboy')).default;
+    const bb = busboy({ headers: req.headers });
+
+    let userId = '';
+    let fileBuffer: Buffer | null = null;
+    let fileName = '';
+    let mimeType = '';
+
+    await new Promise<void>((resolve, reject) => {
+      bb.on('field', (name, val) => {
+        if (name === 'userId') userId = val;
+      });
+      bb.on('file', (_fieldname, stream, info) => {
+        fileName = info.filename;
+        mimeType = info.mimeType;
+        const chunks: Buffer[] = [];
+        stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+        stream.on('end', () => { fileBuffer = Buffer.concat(chunks); });
+        stream.on('error', reject);
+      });
+      bb.on('finish', resolve);
+      bb.on('error', reject);
+      req.pipe(bb);
+    });
+
+    if (!fileBuffer || !userId) {
+      return res.status(400).json({ error: 'file e userId são obrigatórios' });
+    }
+
+    const safeName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `${Date.now()}_${safeName}`;
+
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+      .from('curriculos')
+      .upload(storagePath, fileBuffer, { contentType: mimeType || 'application/pdf', upsert: false });
+
+    if (uploadError) {
+      console.error('[Portal upload]', uploadError.message);
+      return res.status(500).json({ error: uploadError.message });
+    }
+
+    return res.json({ filePath: uploadData.path });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[Portal upload] unexpected error:', msg);
+    return res.status(500).json({ error: msg });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // Análise de currículo via OpenAI — chamado pelo frontend (App.tsx)
 // POST /api/analyze-resume
 // Body: { base64: string, job_title: string, criteria: string }
