@@ -895,37 +895,8 @@ export function DemonstracaoPage() {
         </div>
       </section>
 
-      {/* ── CTA FINAL ─────────────────────────────────────────────────────── */}
-      <section className="relative mx-4 md:mx-6 mb-8 rounded-[2rem] overflow-hidden">
-        {/* Fundo preto com glow verde */}
-        <div className="absolute inset-0 bg-black" />
-        <Glow variant="center" className="opacity-60" />
-        <BorderBeam size={800} duration={5} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={2} />
 
-        <div className="relative py-24 px-8 text-center">
-          <img
-            src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
-            alt="Elevva"
-            className="h-10 w-auto object-contain mx-auto mb-10 brightness-0 invert opacity-90"
-          />
-          <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 leading-tight text-white">
-            Pronto para transformar<br />seu recrutamento?
-          </h2>
-          <p className="text-slate-400 font-medium mb-10 max-w-md mx-auto">
-            Fale com um especialista e veja o Elevva em ação com um processo real da sua empresa.
-          </p>
-          <a
-            href={whatsapp} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-3 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold px-9 py-4 rounded-2xl transition-all duration-200 text-sm shadow-[0_8px_32px_rgba(101,163,13,0.35)] group"
-          >
-            <MessageSquare className="w-4 h-4" />
-            Falar com Especialista
-            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-          </a>
-        </div>
-      </section>
-
-      {/* ── FOOTER ────────────────────────────────────────────────────────── */}
+{/* ── FOOTER ────────────────────────────────────────────────────────── */}
       <footer className="bg-zinc-950 mt-0">
         <div className="max-w-7xl mx-auto px-6 border-x border-white/5">
 
