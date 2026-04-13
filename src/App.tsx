@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './services/supabaseClient';
-import { Job, Candidate, CandidateStatus, User, ViewState, Announcement, AnalysisResult, Admission } from './types';
+import { Job, Candidate, CandidateStatus, User, ViewState, Announcement, AnalysisResult, Admission, Niche } from './types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
@@ -19,6 +19,8 @@ import { ScheduleInterviewsModal } from './components/ScheduleInterviewsModal';
 import { InterviewsTab } from './components/InterviewsTab';
 import { AprovadosTab } from './components/AprovadosTab';
 import { BentoChat } from './components/BentoChat';
+import { NicheSection } from './components/NicheSection';
+import { PublicPortalScreen } from './components/PublicPortalScreen';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
@@ -239,6 +241,17 @@ const App: React.FC = () => {
   const [showInterviewModal, setShowInterviewModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // ── Nichos ─────────────────────────────────────────────────────────
+  const [niches, setNiches] = useState<Niche[]>([]);
+  const [showNicheModal, setShowNicheModal] = useState(false);
+  const [newNicheName, setNewNicheName] = useState('');
+  const [nicheModalLoading, setNicheModalLoading] = useState(false);
+  const [selectedNicheId, setSelectedNicheId] = useState<string | null>(null);
+  const [collapsedNiches, setCollapsedNiches] = useState<Set<string>>(new Set());
+  const [publicPortalUserId, setPublicPortalUserId] = useState<string | null>(null);
+  const [orphanNicheName, setOrphanNicheName] = useState('');
+  const [orphanLoading, setOrphanLoading] = useState(false);
   // const [showUpgradeModal, setShowUpgradeModal] = useState(false); // Removed
   // const [pendingUpgradePlan, setPendingUpgradePlan] = useState<PlanType | null>(null); // Removed
   const [showReport, setShowReport] = useState(false);
@@ -638,8 +651,16 @@ const App: React.FC = () => {
     const path = window.location.pathname;
     const pathMatch = path.match(/^\/(\d{5,6})$/);
     const agendarMatch = path.match(/^\/agendar\/([a-zA-Z0-9]+)$/);
+    const vagasMatch = path.match(/^\/vagas\/([a-zA-Z0-9-]+)$/);
 
-    if (agendarMatch) {
+    if (vagasMatch) {
+        setPublicPortalUserId(vagasMatch[1]);
+        setView('PUBLIC_PORTAL');
+        return () => {
+          subscription.unsubscribe();
+          clearTimeout(safetyTimer);
+        };
+    } else if (agendarMatch) {
         setSchedulingToken(agendarMatch[1]);
         setView('SCHEDULING');
         return () => {
@@ -850,6 +871,7 @@ const App: React.FC = () => {
       // Inicia processos paralelos
       await Promise.all([
           fetchJobs(userId),
+          fetchNiches(userId),
           fetchInterviews(userId),
           fetchAdmissions(userId),
           fetchAnnouncements(),
@@ -1166,6 +1188,16 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchNiches = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('niches')
+      .select('*')
+      .eq('user_id', userId)
+      .order('is_pinned', { ascending: false })
+      .order('order_pos', { ascending: true });
+    if (!error && data) setNiches(data as Niche[]);
+  };
+
   const fetchAnnouncements = async () => {
       const { data, error } = await supabase
         .from('announcements')
@@ -1230,9 +1262,7 @@ const App: React.FC = () => {
   const handleRefresh = async () => {
       if (!user) return;
       setIsRefreshing(true);
-      await fetchJobs(user.id);
-      
-      // Simula um delay mínimo para feedback visual se a resposta for muito rápida
+      await Promise.all([fetchJobs((user as any).id), fetchNiches((user as any).id)]);
       setTimeout(() => setIsRefreshing(false), 800);
   };
 
@@ -1259,12 +1289,13 @@ const App: React.FC = () => {
           
           const { data, error } = await supabase
             .from('jobs')
-            .insert([{ 
-                user_id: user.id, 
-                title, 
-                description, 
+            .insert([{
+                user_id: user.id,
+                title,
+                description,
                 criteria,
-                short_code: shortCode
+                short_code: shortCode,
+                niche_id: selectedNicheId || null,
             }])
             .select()
             .single();
@@ -1342,6 +1373,85 @@ const App: React.FC = () => {
           await supabase.from('jobs').update({ isPinned: newPinned }).eq('id', id);
           setJobs(prev => prev.map(j => j.id === id ? { ...j, isPinned: newPinned } : j));
       }
+  };
+
+  // ── Handlers de Nicho ────────────────────────────────────────────────
+  const handleCreateNiche = async () => {
+    if (!newNicheName.trim() || !user) return;
+    setNicheModalLoading(true);
+    const { data, error } = await supabase
+      .from('niches')
+      .insert([{ user_id: (user as any).id, name: newNicheName.trim(), order_pos: niches.length }])
+      .select()
+      .single();
+    if (!error && data) {
+      setNiches(prev => [...prev, data as Niche]);
+      setNewNicheName('');
+      setShowNicheModal(false);
+    }
+    setNicheModalLoading(false);
+  };
+
+  const handleDeleteNiche = async (id: string) => {
+    const hasJobs = jobs.some(j => j.niche_id === id);
+    if (hasJobs) {
+      alert('Remova todas as vagas deste nicho antes de excluí-lo.');
+      return;
+    }
+    await supabase.from('niches').delete().eq('id', id);
+    setNiches(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handlePinNiche = async (id: string) => {
+    const niche = niches.find(n => n.id === id);
+    if (!niche) return;
+    const newPinned = !niche.is_pinned;
+    await supabase.from('niches').update({ is_pinned: newPinned }).eq('id', id);
+    setNiches(prev => prev.map(n => n.id === id ? { ...n, is_pinned: newPinned } : n));
+  };
+
+  const handleMoveNiche = async (id: string, direction: 'up' | 'down') => {
+    const sorted = [...niches].sort((a, b) => a.order_pos - b.order_pos);
+    const idx = sorted.findIndex(n => n.id === id);
+    if (direction === 'up' && idx === 0) return;
+    if (direction === 'down' && idx === sorted.length - 1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    const newNiches = [...sorted];
+    [newNiches[idx], newNiches[swapIdx]] = [newNiches[swapIdx], newNiches[idx]];
+    const updated = newNiches.map((n, i) => ({ ...n, order_pos: i }));
+    setNiches(updated);
+    await Promise.all(updated.map(n =>
+      supabase.from('niches').update({ order_pos: n.order_pos }).eq('id', n.id)
+    ));
+  };
+
+  const handleAssignOrphanJobs = async () => {
+    if (!orphanNicheName.trim() || !(user as any)?.id) return;
+    setOrphanLoading(true);
+    const orphanIds = jobs.filter(j => !j.niche_id).map(j => j.id);
+    const { data: niche, error } = await supabase
+      .from('niches')
+      .insert([{ user_id: (user as any).id, name: orphanNicheName.trim(), order_pos: niches.length }])
+      .select()
+      .single();
+    if (!error && niche) {
+      if (orphanIds.length > 0) {
+        await supabase.from('jobs').update({ niche_id: niche.id }).in('id', orphanIds);
+      }
+      setNiches(prev => [...prev, niche as Niche]);
+      setJobs(prev => prev.map(j => orphanIds.includes(j.id) ? { ...j, niche_id: niche.id } : j));
+      setOrphanNicheName('');
+    }
+    setOrphanLoading(false);
+  };
+
+  const handleToggleNicheCollapse = (id: string) => {
+    setCollapsedNiches(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const handleChangePassword = async () => {
@@ -2384,6 +2494,22 @@ const App: React.FC = () => {
       return <PublicAdmissionScreen token={_admissaoToken} />;
   }
 
+  // Public Portal View (candidato)
+  const _vagasMatch = window.location.pathname.match(/^\/vagas\/([a-zA-Z0-9-]+)$/);
+  if (_vagasMatch || (view === 'PUBLIC_PORTAL' && publicPortalUserId)) {
+      const portalUserId = _vagasMatch?.[1] || publicPortalUserId!;
+      return (
+          <PublicPortalScreen
+            userId={portalUserId}
+            onBack={() => {
+              setView('DASHBOARD');
+              setPublicPortalUserId(null);
+              window.history.pushState({}, '', '/');
+            }}
+          />
+      );
+  }
+
   // Public Upload View
   if (view === 'PUBLIC_UPLOAD') {
       return (
@@ -2541,52 +2667,134 @@ const App: React.FC = () => {
                {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} interviews={interviews} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} />}
                {currentTab === 'JOBS' && (
                    <>
+                       {/* Header */}
                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 animate-fade-in">
                           <div>
                               <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">Painel de Vagas<span className="text-[#65a30d]">.</span></h1>
                               <p className="text-slate-500 font-bold mt-1 text-sm">Gerencie seus processos seletivos.</p>
                           </div>
-                          
-                          <div className="flex gap-3 w-full md:w-auto">
-                              <button 
+
+                          <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                              <button
                                 onClick={handleRefresh}
                                 className="flex-1 md:flex-none justify-center bg-white hover:bg-slate-50 text-black px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-2 border-2 border-slate-200 transition-all hover:border-black active:scale-95"
                                 title="Atualizar Lista de Vagas"
                               >
-                                 <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} /> 
-                                 <span className="hidden md:inline">Atualizar Lista</span>
+                                <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                <span className="hidden md:inline">Atualizar Lista</span>
                               </button>
 
-                              <button 
-                                onClick={() => { setShowCreateModal(true); setIsEditing(false); }}
+                              <button
+                                onClick={() => setShowNicheModal(true)}
+                                className="flex-1 md:flex-none justify-center bg-white hover:bg-slate-50 text-slate-900 px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-2 border-2 border-slate-200 hover:border-slate-400 transition-all active:scale-95"
+                              >
+                                <Plus className="w-4 h-4" /> Novo Nicho
+                              </button>
+
+                              <button
+                                onClick={() => { setShowCreateModal(true); setIsEditing(false); setSelectedNicheId(null); }}
                                 className="flex-1 md:flex-none justify-center bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-[0_4px_14px_0_rgba(101,163,13,0.4)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.6)] hover:-translate-y-0.5 active:translate-y-0 transition-all"
                               >
-                                 <Plus className="w-5 h-5" /> Nova Vaga
+                                <Plus className="w-5 h-5" /> Nova Vaga
                               </button>
                           </div>
                        </div>
-                       
-                       {jobs.length === 0 ? (
-                           <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400 animate-fade-in">
+
+                       {/* Link do Portal */}
+                       {(user as any)?.id && (
+                         <div className="mb-6 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 animate-fade-in">
+                           <div className="flex-1 min-w-0">
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Link do Portal de Candidaturas</p>
+                             <p className="text-xs font-bold text-slate-700 truncate">
+                               {window.location.origin}/vagas/{(user as any).id}
+                             </p>
+                           </div>
+                           <button
+                             onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vagas/${(user as any).id}`)}
+                             className="shrink-0 text-xs font-bold text-[#65a30d] hover:text-[#4d7c0f] bg-white border border-slate-200 hover:border-[#65a30d] px-3 py-1.5 rounded-lg transition-all"
+                           >
+                             Copiar Link
+                           </button>
+                         </div>
+                       )}
+
+                       {/* Banner: vagas sem nicho */}
+                       {(() => {
+                         const orphanCount = jobs.filter(j => !j.niche_id).length;
+                         if (orphanCount === 0) return null;
+                         return (
+                           <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 animate-fade-in">
+                             <p className="text-sm font-black text-amber-800 mb-0.5">
+                               {orphanCount} {orphanCount === 1 ? 'vaga sem nicho' : 'vagas sem nicho'}
+                             </p>
+                             <p className="text-xs text-amber-600 font-medium mb-3">
+                               Defina um nome e todas serão organizadas automaticamente.
+                             </p>
+                             <div className="flex gap-2">
+                               <input
+                                 type="text"
+                                 value={orphanNicheName}
+                                 onChange={e => setOrphanNicheName(e.target.value)}
+                                 onKeyDown={e => { if (e.key === 'Enter') handleAssignOrphanJobs(); }}
+                                 placeholder="Ex: Geral, Operacional, Administrativo..."
+                                 className="flex-1 bg-white border border-amber-300 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-900 placeholder:font-medium placeholder:text-slate-400 focus:outline-none focus:border-amber-500 transition-all"
+                               />
+                               <button
+                                 onClick={handleAssignOrphanJobs}
+                                 disabled={!orphanNicheName.trim() || orphanLoading}
+                                 className="bg-amber-500 hover:bg-amber-600 text-white font-black px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                               >
+                                 {orphanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                 Organizar
+                               </button>
+                             </div>
+                           </div>
+                         );
+                       })()}
+
+                       {/* Nichos */}
+                       {niches.length === 0 ? (
+                           <div className="flex flex-col items-center justify-center h-[45vh] text-slate-400 animate-fade-in">
                                <div className="bg-white p-6 rounded-[2rem] border-2 border-slate-200 mb-4 shadow-sm">
                                    <LayoutDashboard className="w-10 h-10 text-slate-300" />
                                </div>
-                               <p className="font-bold text-lg text-slate-900">Nenhuma vaga criada</p>
-                               <p className="text-sm">Clique em "Nova Vaga" para começar.</p>
+                               <p className="font-bold text-lg text-slate-900">Nenhum nicho criado</p>
+                               <p className="text-sm text-center max-w-xs">Clique em "+ Novo Nicho" para criar uma categoria (ex: Financeiro, RH, Comercial) e depois adicione vagas dentro dela.</p>
                            </div>
                        ) : (
-                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 animate-slide-up pb-24 md:pb-0">
-                               {jobs.map(job => (
-                                   <JobCard 
-                                      key={job.id} 
-                                      job={job}
-                                      onClick={(j) => { setActiveJob(j); setView('JOB_DETAILS'); }}
-                                      onDelete={handleDeleteJob}
-                                      onEdit={handleEditJobSetup}
-                                      onPin={handlePinJob}
-                                      onShare={(j) => { setActiveJob(j); setShowShareModal(true); }}
+                           <div className="space-y-4 animate-slide-up pb-24 md:pb-0">
+                             {(() => {
+                               const sorted = [...niches].sort((a, b) => {
+                                 if (a.is_pinned && !b.is_pinned) return -1;
+                                 if (!a.is_pinned && b.is_pinned) return 1;
+                                 return a.order_pos - b.order_pos;
+                               });
+                               const unpinned = sorted.filter(n => !n.is_pinned);
+                               return sorted.map((niche, idx) => {
+                                 const unpinnedIdx = unpinned.findIndex(n => n.id === niche.id);
+                                 const isFirst = niche.is_pinned ? false : unpinnedIdx === 0;
+                                 const isLast = niche.is_pinned ? false : unpinnedIdx === unpinned.length - 1;
+                                 return (
+                                   <NicheSection
+                                     key={niche.id}
+                                     niche={niche}
+                                     jobs={jobs.filter(j => j.niche_id === niche.id)}
+                                     isCollapsed={collapsedNiches.has(niche.id)}
+                                     onToggle={() => handleToggleNicheCollapse(niche.id)}
+                                     onPin={handlePinNiche}
+                                     onDelete={handleDeleteNiche}
+                                     onMoveUp={(id) => handleMoveNiche(id, 'up')}
+                                     onMoveDown={(id) => handleMoveNiche(id, 'down')}
+                                     isFirst={isFirst}
+                                     isLast={isLast}
+                                     onJobClick={(j) => { setActiveJob(j); setView('JOB_DETAILS'); }}
+                                     onJobDelete={handleDeleteJob}
+                                     onJobPin={handlePinJob}
+                                     onJobEdit={handleEditJobSetup}
                                    />
-                               ))}
+                                 );
+                               });
+                             })()}
                            </div>
                        )}
                    </>
@@ -2736,13 +2944,12 @@ const App: React.FC = () => {
       {/* CREATE JOB MODAL */}
       {showCreateModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-              <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-10 shadow-2xl relative animate-slide-up border border-zinc-200">
+              <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-10 shadow-2xl relative animate-slide-up border border-zinc-200 max-h-[90vh] overflow-y-auto">
                   <button onClick={() => setShowCreateModal(false)} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors border border-zinc-100 hover:border-zinc-300 text-zinc-400 hover:text-black">
                       <X className="w-5 h-5"/>
                   </button>
-                  
+
                   <div className="mb-8">
-                      {/* Icone: Fundo Preto, Icone Lime */}
                       <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-6 shadow-xl transform -rotate-3 border-2 border-black">
                           <Briefcase className="w-8 h-8 text-[#65a30d]" />
                       </div>
@@ -2751,11 +2958,49 @@ const App: React.FC = () => {
                   </div>
 
                   <form onSubmit={handleJobFormSubmit} className="space-y-5">
+                      {/* Seletor de Nicho */}
+                      {!isEditing && (
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-2 block">
+                            Nicho <span className="text-red-400">*</span>
+                          </label>
+                          {niches.length === 0 ? (
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs font-bold text-amber-700 flex items-center gap-2">
+                              Crie um nicho primeiro antes de adicionar vagas.
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {niches.map(n => (
+                                <button
+                                  key={n.id}
+                                  type="button"
+                                  onClick={() => setSelectedNicheId(n.id)}
+                                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all border ${
+                                    selectedNicheId === n.id
+                                      ? 'bg-[#65a30d] text-white border-[#65a30d] shadow-[0_2px_8px_rgba(101,163,13,0.4)]'
+                                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'
+                                  }`}
+                                >
+                                  {n.name}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => { setShowCreateModal(false); setShowNicheModal(true); }}
+                                className="px-4 py-2 rounded-xl text-xs font-black border border-dashed border-slate-300 text-slate-400 hover:text-slate-600 hover:border-slate-400 transition-all"
+                              >
+                                + Novo Nicho
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div>
                           <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-2 block">Título do Cargo</label>
                           <input name="title" defaultValue={isEditing ? activeJob?.title : ''} required placeholder="Ex: Desenvolvedor Front-end Senior" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium placeholder:text-slate-400" />
                       </div>
-                      
+
                       <div>
                           <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-2 block">Descrição (Opcional)</label>
                           <textarea name="description" defaultValue={isEditing ? activeJob?.description : ''} placeholder="Breve resumo das responsabilidades..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all min-h-[80px] placeholder:font-medium placeholder:text-slate-400" />
@@ -2766,10 +3011,54 @@ const App: React.FC = () => {
                           <textarea name="criteria" defaultValue={isEditing ? activeJob?.criteria : ''} required placeholder="Liste os requisitos chave (ex: React, Inglês Fluente, 3 anos de xp...)" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] placeholder:font-medium placeholder:text-slate-400" />
                       </div>
 
-                      <button type="submit" className="w-full bg-black text-white font-black py-5 rounded-2xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 border-b-4 border-[#65a30d] hover:border-[#65a30d] mt-6">
+                      <button
+                        type="submit"
+                        disabled={!isEditing && niches.length > 0 && !selectedNicheId}
+                        className="w-full bg-black text-white font-black py-5 rounded-2xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 border-b-4 border-[#65a30d] hover:border-[#65a30d] mt-6 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                      >
                           {isEditing ? 'Salvar Alterações' : 'Criar Vaga com IA'}
                       </button>
                   </form>
+              </div>
+          </div>
+      )}
+
+      {/* NOVO NICHO MODAL */}
+      {showNicheModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl relative animate-slide-up border border-zinc-200">
+                  <button onClick={() => { setShowNicheModal(false); setNewNicheName(''); }} className="absolute top-5 right-5 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors border border-zinc-100 text-zinc-400 hover:text-black">
+                      <X className="w-4 h-4" />
+                  </button>
+                  <div className="mb-6">
+                      <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center mb-4">
+                          <Plus className="w-6 h-6 text-[#65a30d]" />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Novo Nicho</h2>
+                      <p className="text-slate-500 text-sm font-medium mt-1">Agrupe suas vagas por área.</p>
+                  </div>
+                  <div className="space-y-4">
+                      <div>
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-2 block">Nome do Nicho</label>
+                          <input
+                            type="text"
+                            value={newNicheName}
+                            onChange={e => setNewNicheName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateNiche(); } }}
+                            placeholder="Ex: Financeiro, RH, Comercial..."
+                            autoFocus
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 text-slate-900 font-bold text-sm focus:outline-none focus:border-black focus:bg-white transition-all placeholder:font-medium placeholder:text-slate-400"
+                          />
+                      </div>
+                      <button
+                        onClick={handleCreateNiche}
+                        disabled={!newNicheName.trim() || nicheModalLoading}
+                        className="w-full bg-black text-white font-black py-4 rounded-2xl hover:bg-zinc-900 transition-all flex items-center justify-center gap-2 border-b-4 border-[#65a30d] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          {nicheModalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 text-[#65a30d]" />}
+                          Criar Nicho
+                      </button>
+                  </div>
               </div>
           </div>
       )}

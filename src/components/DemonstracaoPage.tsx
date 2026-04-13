@@ -63,7 +63,7 @@ const testimonials = [
 
 function DashboardMockup() {
   return (
-    <div className="bg-white flex w-full" style={{ minHeight: '620px' }}>
+    <div className="bg-white flex w-full" style={{ minHeight: 'clamp(320px, 80vw, 620px)' }}>
       {/* Sidebar */}
       <div className="w-56 border-r border-slate-100 bg-white flex-col shrink-0 hidden lg:flex">
         <div className="h-16 flex items-center justify-center border-b border-slate-100 px-4">
@@ -357,7 +357,7 @@ export function DemonstracaoPage() {
   return (
     <div
       className="min-h-screen text-slate-900 selection:bg-[#65a30d] selection:text-white relative"
-      style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+      style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", overflowX: 'hidden', maxWidth: '100vw' }}
     >
       <AnimatedBackground />
 
@@ -372,10 +372,10 @@ export function DemonstracaoPage() {
 
       {/* ── NAVBAR FIXO ───────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
 
           {/* Logo */}
-          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345" alt="Elevva" className="h-10 w-auto object-contain" />
+          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345" alt="Elevva" className="h-8 w-auto object-contain max-w-[120px] shrink-0" />
 
           {/* Links centrais */}
           <div className="hidden md:flex items-center gap-1">
@@ -424,7 +424,7 @@ export function DemonstracaoPage() {
           {/* Entrar */}
           <a
             href="https://app.elevva.net.br" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-black hover:bg-zinc-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors duration-200"
+            className="shrink-0 flex items-center gap-2 bg-black hover:bg-zinc-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors duration-200"
           >
             Entrar
           </a>
@@ -435,17 +435,17 @@ export function DemonstracaoPage() {
       <section id="inicio" className="relative pt-16 border-b border-slate-100">
 
         {/* ── SPLIT: Título | Subtítulo ───────────────────────────────── */}
-        <div className="relative max-w-7xl mx-auto px-6 border-x border-slate-100">
+        <div className="relative max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
           <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
 
             {/* LEFT — Título */}
-            <div className="pt-24 pb-10 lg:pt-32 lg:pb-20 lg:pr-20 flex flex-col justify-center">
+            <div className="pt-10 pb-8 lg:pt-32 lg:pb-20 lg:pr-20 flex flex-col justify-center">
 
               {/* Título principal */}
               <h1
                 className="font-black tracking-tighter text-slate-900 leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(3.2rem, 6vw, 6rem)',
+                  fontSize: 'clamp(1.8rem, 8vw, 6rem)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(18px)',
                   transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
@@ -466,7 +466,7 @@ export function DemonstracaoPage() {
 
               {/* Linha decorativa */}
               <div
-                className="flex items-center gap-2 mt-12"
+                className="flex items-center gap-2 mt-6 lg:mt-12"
                 style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.6s ease 0.5s' }}
               >
                 <div className="h-[3px] w-14 bg-[#65a30d] rounded-full" />
@@ -484,11 +484,11 @@ export function DemonstracaoPage() {
             </div>
 
             {/* RIGHT — Descrição + Stats + CTAs */}
-            <div className="pb-10 lg:pt-32 lg:pb-20 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
+            <div className="pt-6 pb-10 lg:pt-32 lg:pb-20 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
 
               {/* Descrição */}
               <p
-                className="text-xl md:text-2xl text-slate-500 font-medium leading-[1.55] max-w-lg"
+                className="text-base md:text-2xl text-slate-500 font-medium leading-[1.55] max-w-lg"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.25s, transform 0.6s ease 0.25s' }}
               >
                 Conheça o Bento, Agente de IA que atende no WhatsApp, qualifica currículos e{' '}
@@ -537,19 +537,19 @@ export function DemonstracaoPage() {
         </div>
 
         {/* ── ÁREA DE VÍDEO ──────────────────────────────────────────────── */}
-        <div id="demo-section" className="relative max-w-7xl mx-auto px-6 pb-12 border-x border-slate-100">
+        <div id="demo-section" className="relative max-w-7xl mx-auto px-4 md:px-6 pb-12 md:border-x md:border-slate-100">
           <div
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s' }}
           >
-            <div className="w-full rounded-3xl border border-slate-200 bg-white shadow-[0_48px_120px_-24px_rgba(0,0,0,0.08)]" style={{ minHeight: '480px' }} />
+            <div className="w-full rounded-3xl border border-slate-200 bg-white shadow-[0_48px_120px_-24px_rgba(0,0,0,0.08)]" style={{ minHeight: 'clamp(220px, 50vw, 480px)' }} />
           </div>
         </div>
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
       <section id="funcionalidades" className="bg-transparent py-16 border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
-          <div className="w-full mb-16 text-center">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
+          <div className="w-full mb-10 md:mb-16 text-center">
             <h2
               className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05]"
               style={{
@@ -567,7 +567,7 @@ export function DemonstracaoPage() {
             {features.map(({ icon: Icon, tag, tagGreen, title, description, stat, statLabel, images }: any) => (
               <div
                 key={title}
-                className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group overflow-hidden"
+                className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group overflow-hidden"
               >
                 <BorderBeam size={280} duration={12} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={1.5} />
 
@@ -607,10 +607,10 @@ export function DemonstracaoPage() {
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
       <section id="como-funciona" className="py-16 bg-transparent border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
           {/* Cabeçalho */}
-          <div className="w-full mb-20 text-center">
+          <div className="w-full mb-10 md:mb-20 text-center">
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-[1.05]">
               Pronto para recuperar<br />12 horas por semana?
             </h2>
@@ -644,7 +644,7 @@ export function DemonstracaoPage() {
                 green: true,
               },
             ].map(({ n, title, desc, green }) => (
-              <div key={n} className="relative bg-white border border-slate-100 rounded-[1.75rem] p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300">
+              <div key={n} className="relative bg-white border border-slate-100 rounded-[1.75rem] p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300">
                 {/* Número */}
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-base font-black mb-6 z-10 relative ${green ? 'bg-[#65a30d] text-white shadow-[0_4px_16px_rgba(101,163,13,0.35)]' : 'bg-slate-50 border border-slate-200 text-slate-400'}`}>
                   {n}
@@ -673,10 +673,10 @@ export function DemonstracaoPage() {
 
       {/* ── SEGURANÇA ─────────────────────────────────────────────────────── */}
       <section id="seguranca" className="py-20 bg-transparent border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
           {/* Título */}
-          <div className="text-center mb-16">
+          <div className="text-center mb-10 md:mb-16">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900">
               Plataforma Segura
             </h2>
@@ -706,7 +706,7 @@ export function DemonstracaoPage() {
             ].map(({ icon: Icon, title, desc }) => (
               <div
                 key={title}
-                className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group"
+                className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group"
               >
                 <div className="w-12 h-12 rounded-2xl bg-[#65a30d]/10 border border-[#65a30d]/20 flex items-center justify-center mb-6 group-hover:bg-[#65a30d]/15 transition-all duration-300">
                   <Icon className="w-5 h-5 text-[#65a30d]" />
@@ -721,8 +721,8 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-      <section className="py-16 max-w-7xl mx-auto px-6 bg-transparent border border-slate-100 border-t-0">
-        <div className="w-full mb-16 text-center">
+      <section className="py-16 max-w-7xl mx-auto px-4 md:px-6 bg-transparent md:border md:border-slate-100 md:border-t-0">
+        <div className="w-full mb-10 md:mb-16 text-center">
           <h2
             className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900"
           >
@@ -734,7 +734,7 @@ export function DemonstracaoPage() {
           {testimonials.map(({ name, role, text, initials }) => (
             <div
               key={name}
-              className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col gap-6 overflow-hidden"
+              className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col gap-6 overflow-hidden"
             >
               <BorderBeam size={200} duration={16} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={1} />
               {/* Quote mark */}
@@ -756,10 +756,10 @@ export function DemonstracaoPage() {
 
       {/* ── PLANOS ────────────────────────────────────────────────────────── */}
       <section id="planos" className="py-20 bg-transparent border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 border-x border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
           {/* Cabeçalho */}
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 md:mb-12">
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900">
               Planos e Preços
             </h2>
@@ -791,7 +791,7 @@ export function DemonstracaoPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
 
             {/* ESSENCIAL */}
-            <div className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col">
+            <div className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col">
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Essencial</p>
               <div className="flex items-end gap-1 mb-1">
                 <span className="text-4xl font-black text-slate-900 tracking-tighter leading-none">
@@ -824,7 +824,7 @@ export function DemonstracaoPage() {
             </div>
 
             {/* PRO — destaque */}
-            <div className="relative bg-black rounded-[2rem] border border-black p-8 shadow-[0px_16px_48px_rgba(0,0,0,0.16)] flex flex-col scale-[1.02]">
+            <div className="relative bg-black rounded-[2rem] border border-black p-6 md:p-8 shadow-[0px_16px_48px_rgba(0,0,0,0.16)] flex flex-col md:scale-[1.02] overflow-hidden">
               <BorderBeam size={400} duration={6} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={2} />
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Pro</p>
@@ -863,7 +863,7 @@ export function DemonstracaoPage() {
             </div>
 
             {/* ENTERPRISE */}
-            <div className="relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col">
+            <div className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col">
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Enterprise</p>
               <div className="flex items-end gap-1 mb-1">
                 <span className="text-4xl font-black text-slate-900 tracking-tighter leading-none">
@@ -897,10 +897,10 @@ export function DemonstracaoPage() {
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
       <footer className="bg-zinc-950 mt-0">
-        <div className="max-w-7xl mx-auto px-6 border-x border-white/5">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-white/5">
 
           {/* Corpo principal */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 py-16 border-b border-white/10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 py-16 border-b border-white/10">
 
             {/* Coluna 1 — Logo + descrição */}
             <div className="md:col-span-1">

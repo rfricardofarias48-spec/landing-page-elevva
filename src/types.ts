@@ -43,6 +43,15 @@ export interface Candidate {
   createdAt?: number;
 }
 
+export interface Niche {
+  id: string;
+  user_id?: string;
+  name: string;
+  order_pos: number;
+  is_pinned?: boolean;
+  created_at?: string;
+}
+
 export interface Job {
   id: string;
   title: string;
@@ -50,11 +59,12 @@ export interface Job {
   criteria: string;
   createdAt: number;
   candidates: Candidate[];
-  isPinned?: boolean; // Novo campo para destacar a vaga
-  ownerEmail?: string; // NOVO: Email do dono da vaga (visível apenas para admin)
-  short_code?: string; // NOVO: Código de 5 dígitos para link curto
-  auto_analyze?: boolean; // NOVO: Analisar automaticamente ao receber upload
-  is_paused?: boolean; // NOVO: Impedir novos uploads
+  isPinned?: boolean;
+  ownerEmail?: string;
+  short_code?: string;
+  auto_analyze?: boolean;
+  is_paused?: boolean;
+  niche_id?: string | null; // NOVO: Nicho ao qual a vaga pertence
 }
 
 export type PlanType = 'ESSENCIAL' | 'PRO' | 'ENTERPRISE' | 'ADMIN';
@@ -146,7 +156,7 @@ export interface Interview {
   interviewer_name?: string;
 }
 
-export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD' | 'SCHEDULING';
+export type ViewState = 'DASHBOARD' | 'JOB_DETAILS' | 'CREATE_JOB' | 'EDIT_JOB' | 'PUBLIC_UPLOAD' | 'SCHEDULING' | 'PUBLIC_PORTAL';
 
 // ============================================================
 // MÓDULO DE ADMISSÃO

@@ -62,12 +62,26 @@
       }
     </script>
     <style>
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      html {
+        overflow-x: hidden !important;
+        max-width: 100%;
+      }
       body {
         /* Tom de Cinza Claro / Branco Reluzente (Aprox #F3F4F6 / Zinc-100) */
         background-color: #F3F4F6;
         color: #0f172a;
         font-family: 'Plus Jakarta Sans', sans-serif;
         top: 0 !important; /* Previne que a barra do Google empurre o body */
+        overflow-x: hidden !important;
+        max-width: 100%;
+        width: 100%;
+      }
+      #root {
+        overflow-x: hidden;
+        max-width: 100%;
       }
       
       /* Oculta elementos do Google Translate se eles forem injetados */
