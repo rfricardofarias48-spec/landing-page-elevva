@@ -1445,6 +1445,11 @@ const App: React.FC = () => {
     setOrphanLoading(false);
   };
 
+  const handleMoveJob = async (jobId: string, targetNicheId: string) => {
+    await supabase.from('jobs').update({ niche_id: targetNicheId }).eq('id', jobId);
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, niche_id: targetNicheId } : j));
+  };
+
   const handleToggleNicheCollapse = (id: string) => {
     setCollapsedNiches(prev => {
       const next = new Set(prev);
@@ -2723,11 +2728,11 @@ const App: React.FC = () => {
                          const orphanCount = jobs.filter(j => !j.niche_id).length;
                          if (orphanCount === 0) return null;
                          return (
-                           <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 animate-fade-in">
-                             <p className="text-sm font-black text-amber-800 mb-0.5">
+                           <div className="mb-6 bg-white border border-slate-200 rounded-2xl px-5 py-4 animate-fade-in shadow-[0px_2px_12px_rgba(0,0,0,0.04)]">
+                             <p className="text-sm font-black text-slate-900 mb-0.5">
                                {orphanCount} {orphanCount === 1 ? 'vaga sem nicho' : 'vagas sem nicho'}
                              </p>
-                             <p className="text-xs text-amber-600 font-medium mb-3">
+                             <p className="text-xs text-slate-500 font-medium mb-3">
                                Defina um nome e todas serão organizadas automaticamente.
                              </p>
                              <div className="flex gap-2">
@@ -2737,12 +2742,12 @@ const App: React.FC = () => {
                                  onChange={e => setOrphanNicheName(e.target.value)}
                                  onKeyDown={e => { if (e.key === 'Enter') handleAssignOrphanJobs(); }}
                                  placeholder="Ex: Geral, Operacional, Administrativo..."
-                                 className="flex-1 bg-white border border-amber-300 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-900 placeholder:font-medium placeholder:text-slate-400 focus:outline-none focus:border-amber-500 transition-all"
+                                 className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-900 placeholder:font-medium placeholder:text-slate-400 focus:outline-none focus:border-slate-900 transition-all"
                                />
                                <button
                                  onClick={handleAssignOrphanJobs}
                                  disabled={!orphanNicheName.trim() || orphanLoading}
-                                 className="bg-amber-500 hover:bg-amber-600 text-white font-black px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                 className="bg-slate-900 hover:bg-black text-white font-black px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed border-b-2 border-[#65a30d]"
                                >
                                  {orphanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                                  Organizar
@@ -2778,6 +2783,7 @@ const App: React.FC = () => {
                                    <NicheSection
                                      key={niche.id}
                                      niche={niche}
+                                     allNiches={niches}
                                      jobs={jobs.filter(j => j.niche_id === niche.id)}
                                      isCollapsed={collapsedNiches.has(niche.id)}
                                      onToggle={() => handleToggleNicheCollapse(niche.id)}
@@ -2791,6 +2797,7 @@ const App: React.FC = () => {
                                      onJobDelete={handleDeleteJob}
                                      onJobPin={handlePinJob}
                                      onJobEdit={handleEditJobSetup}
+                                     onMoveJob={handleMoveJob}
                                    />
                                  );
                                });
