@@ -52,17 +52,34 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
       fetchPortalData(resolvedUserId);
     } else {
       // Resolve portal_code curto → UUID real
+      // Se a coluna portal_code não existir ou não achar, tenta buscar o perfil
+      // pelo campo short_code de vagas associadas (fallback de emergência)
       supabase
         .from('profiles')
         .select('id')
         .eq('portal_code', userIdOrCode)
-        .single()
-        .then(({ data }) => {
+        .maybeSingle()
+        .then(({ data, error }) => {
           if (data?.id) {
             setResolvedUserId(data.id);
             fetchPortalData(data.id);
           } else {
-            setLoading(false);
+            // portal_code não encontrado (coluna pode não existir ainda)
+            // tenta encontrar pelo short_code de alguma vaga
+            console.warn('[Portal] portal_code not found, error:', error?.message);
+            supabase
+              .from('jobs')
+              .select('user_id')
+              .eq('short_code', userIdOrCode)
+              .maybeSingle()
+              .then(({ data: jobData }) => {
+                if (jobData?.user_id) {
+                  setResolvedUserId(jobData.user_id);
+                  fetchPortalData(jobData.user_id);
+                } else {
+                  setLoading(false);
+                }
+              });
           }
         });
     }
