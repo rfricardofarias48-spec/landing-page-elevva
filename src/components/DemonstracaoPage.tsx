@@ -67,7 +67,7 @@ function DashboardMockup() {
       {/* Sidebar */}
       <div className="w-56 border-r border-slate-100 bg-white flex-col shrink-0 hidden lg:flex">
         <div className="h-16 flex items-center justify-center border-b border-slate-100 px-4">
-          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva" className="h-7 w-auto object-contain" />
+          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345" alt="Elevva" className="h-7 w-auto object-contain" />
         </div>
         <nav className="p-3 space-y-1 flex-1">
           {[
@@ -375,7 +375,7 @@ export function DemonstracaoPage() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
 
           {/* Logo */}
-          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva" className="h-10 w-auto object-contain" />
+          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345" alt="Elevva" className="h-10 w-auto object-contain" />
 
           {/* Links centrais */}
           <div className="hidden md:flex items-center gap-1">
@@ -904,7 +904,7 @@ export function DemonstracaoPage() {
 
         <div className="relative py-24 px-8 text-center">
           <img
-            src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
+            src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345"
             alt="Elevva"
             className="h-10 w-auto object-contain mx-auto mb-10 brightness-0 invert opacity-90"
           />
@@ -935,7 +935,7 @@ export function DemonstracaoPage() {
             {/* Coluna 1 — Logo + descrição */}
             <div className="md:col-span-1">
               <img
-                src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png"
+                src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345"
                 alt="Elevva"
                 className="h-8 w-auto object-contain brightness-0 invert mb-5"
               />
