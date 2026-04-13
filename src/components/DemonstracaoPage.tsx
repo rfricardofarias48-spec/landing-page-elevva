@@ -521,17 +521,17 @@ export function DemonstracaoPage() {
               {
                 icon: Lock,
                 title: 'Exclusão Automática (5 Dias)',
-                desc: 'Os currículos em PDF não formam passivo de dados. Após 5 dias do processamento, o arquivo original é deletado permanentemente dos nossos servidores. Zero acúmulo de informações desnecessárias.',
+                desc: 'PDF original é deletado permanentemente 5 dias após a análise. Zero passivo de dados para a sua empresa.',
               },
               {
                 icon: ShieldCheck,
                 title: 'Proteção Legal',
-                desc: 'Coletamos e processamos apenas o estritamente necessário para o ranqueamento da vaga. A automação elimina a retenção indevida de dados sensíveis e protege o seu CNPJ contra sanções legais.',
+                desc: 'Processamos apenas o essencial para o ranqueamento da vaga, blindando o seu CNPJ contra multas e sanções.',
               },
               {
                 icon: Server,
                 title: 'Ambiente Fechado',
-                desc: 'O seu painel é blindado. Apenas utilizadores autorizados pela sua gestão possuem acesso às informações extraídas, eliminando fugas de informação.',
+                desc: 'Acesso restrito a utilizadores autorizados pela sua gestão. Elimina o risco de vazamento de informações internas.',
               },
             ].map(({ icon: Icon, title, desc }) => (
               <div
