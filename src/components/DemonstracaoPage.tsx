@@ -633,10 +633,10 @@ export function DemonstracaoPage() {
                 <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 6.230,40/ano</p>
               )}
               <p className="text-sm text-slate-500 font-medium mt-3 mb-8 leading-relaxed">
-                Para equipes começando a estruturar o recrutamento com IA.
+                Para equipes enxutas e recrutamento ágil.
               </p>
               <ul className="space-y-3 flex-1 mb-8">
-                {['1 vaga ativa simultaneamente', 'Triagem via WhatsApp 24/7', 'Análise e ranking de currículos', 'Agendamento no Google Agenda', 'Suporte por e-mail'].map(f => (
+                {['Até 3 vagas em simultâneo', 'Triagem e ranking via IA', 'Relatórios individuais de currículos', 'Agendamento autônomo (WhatsApp)', 'Integração Google Calendar e Meet'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
                     <span className="w-4 h-4 rounded-full bg-[#65a30d]/15 flex items-center justify-center shrink-0 mt-0.5">
                       <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -673,10 +673,10 @@ export function DemonstracaoPage() {
                 <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 9.599,04/ano</p>
               )}
               <p className="text-sm text-slate-400 font-medium mt-3 mb-8 leading-relaxed">
-                Para empresas que recrutam com frequência e buscam escala real.
+                Tração total para seu RH com mais vagas.
               </p>
               <ul className="space-y-3 flex-1 mb-8">
-                {['Vagas simultâneas ilimitadas', 'Triagem via WhatsApp 24/7', 'Análise e ranking de currículos', 'Agendamento + Google Meet', 'Relatórios avançados por vaga', 'Suporte prioritário'].map(f => (
+                {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão Mobile', 'Dossiê automático (PDF)', 'Conformidade LGPD (Exclusão em 5 dias)'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <span className="w-4 h-4 rounded-full bg-[#65a30d]/20 flex items-center justify-center shrink-0 mt-0.5">
                       <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -703,10 +703,10 @@ export function DemonstracaoPage() {
                 </span>
               </div>
               <p className="text-sm text-slate-500 font-medium mt-3 mb-8 leading-relaxed">
-                Para operações com alto volume de vagas e necessidades específicas de integração.
+                Solução sob medida para grandes operações.
               </p>
               <ul className="space-y-3 flex-1 mb-8">
-                {['Tudo do plano Pro', 'SLA garantido em contrato', 'Integrações customizadas', 'Onboarding dedicado', 'Gerente de conta exclusivo', 'Preço por volume'].map(f => (
+                {['Vagas Ilimitadas', 'Análise Ilimitada de Currículos', 'Integração via API', 'Atendimento Prioritário'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
                     <span className="w-4 h-4 rounded-full bg-[#65a30d]/15 flex items-center justify-center shrink-0 mt-0.5">
                       <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
