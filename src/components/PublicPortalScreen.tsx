@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../services/supabaseClient';
 import { Niche, Job } from '../types';
 import {
   ChevronRight, ChevronLeft, CheckCircle2, Check, Briefcase, Upload,
@@ -18,14 +17,13 @@ interface PortalJob extends Job {
 }
 
 const MAX_FILE_MB = 5;
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function sanitizeFileName(name: string) {
   return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
 export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userIdOrCode, onBack }) => {
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(UUID_REGEX.test(userIdOrCode) ? userIdOrCode : null);
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
   const [niches, setNiches] = useState<Niche[]>([]);
   const [allJobs, setAllJobs] = useState<PortalJob[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -48,94 +46,35 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
   const honeypotRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (resolvedUserId) {
-      fetchPortalData(resolvedUserId);
-    } else {
-      // Resolve portal_code curto → UUID real
-      // Se a coluna portal_code não existir ou não achar, tenta buscar o perfil
-      // pelo campo short_code de vagas associadas (fallback de emergência)
-      supabase
-        .from('profiles')
-        .select('id')
-        .eq('portal_code', userIdOrCode)
-        .maybeSingle()
-        .then(({ data, error }) => {
-          if (data?.id) {
-            setResolvedUserId(data.id);
-            fetchPortalData(data.id);
-          } else {
-            // portal_code não encontrado (coluna pode não existir ainda)
-            // tenta encontrar pelo short_code de alguma vaga
-            console.warn('[Portal] portal_code not found, error:', error?.message);
-            supabase
-              .from('jobs')
-              .select('user_id')
-              .eq('short_code', userIdOrCode)
-              .maybeSingle()
-              .then(({ data: jobData }) => {
-                if (jobData?.user_id) {
-                  setResolvedUserId(jobData.user_id);
-                  fetchPortalData(jobData.user_id);
-                } else {
-                  setLoading(false);
-                }
-              });
-          }
-        });
-    }
+    // Busca todos os dados do portal via endpoint do servidor (usa admin client, sem RLS)
+    fetch(`/api/portal/${encodeURIComponent(userIdOrCode)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error || !data.userId) {
+          setLoading(false);
+          return;
+        }
+        setResolvedUserId(data.userId);
+        setCompanyName(data.companyName || '');
+        setLogoUrl(data.avatarUrl || '');
+        setNiches(data.niches || []);
+
+        const jobsList: PortalJob[] = (data.jobs || []).map((j: Record<string, unknown>) => ({
+          id: j.id as string,
+          title: j.title as string,
+          description: (j.description as string) || '',
+          criteria: (j.criteria as string) || '',
+          short_code: j.short_code as string,
+          niche_id: j.niche_id as string,
+          auto_analyze: j.auto_analyze as boolean,
+          createdAt: Date.now(),
+          candidates: [],
+        }));
+        setAllJobs(jobsList);
+      })
+      .catch(err => console.error('[Portal] fetch error:', err))
+      .finally(() => setLoading(false));
   }, []);
-
-  const fetchPortalData = async (userId: string) => {
-    setLoading(true);
-    try {
-      // Busca dados da empresa
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name, avatar_url')
-        .eq('id', userId)
-        .single();
-
-      if (profile) {
-        setCompanyName(profile.name || '');
-        setLogoUrl(profile.avatar_url || '');
-      }
-
-      // Busca nichos
-      const { data: nichesData } = await supabase
-        .from('niches')
-        .select('*')
-        .eq('user_id', userId)
-        .order('is_pinned', { ascending: false })
-        .order('order_pos', { ascending: true });
-
-      const nichesList: Niche[] = nichesData || [];
-      setNiches(nichesList);
-
-      // Busca vagas com nicho
-      const { data: jobsData } = await supabase
-        .from('jobs')
-        .select('id, title, description, criteria, short_code, niche_id, auto_analyze')
-        .eq('user_id', userId)
-        .not('niche_id', 'is', null)
-        .eq('is_paused', false);
-
-      const jobsList: PortalJob[] = (jobsData || []).map((j: Record<string, unknown>) => ({
-        id: j.id as string,
-        title: j.title as string,
-        description: (j.description as string) || '',
-        criteria: (j.criteria as string) || '',
-        short_code: j.short_code as string,
-        niche_id: j.niche_id as string,
-        auto_analyze: j.auto_analyze as boolean,
-        createdAt: Date.now(),
-        candidates: [],
-      }));
-
-      setAllJobs(jobsList);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const jobsInSelectedNiche = selectedNiche
     ? allJobs.filter(j => j.niche_id === selectedNiche.id)

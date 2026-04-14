@@ -959,6 +959,82 @@ app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Dados públicos do portal — resolve portal_code ou UUID e retorna
+// apenas campos públicos (sem tokens sensíveis).
+// GET /api/portal/:code
+// ─────────────────────────────────────────────────────────────────────
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+app.get("/api/portal/:code", async (req, res) => {
+  try {
+    const { code } = req.params;
+
+    // 1. Resolve userId: UUID direto ou busca por portal_code
+    let userId: string | null = null;
+
+    if (UUID_REGEX.test(code)) {
+      userId = code;
+    } else {
+      const { data: profileRow } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('portal_code', code)
+        .maybeSingle();
+
+      if (profileRow?.id) {
+        userId = profileRow.id;
+      } else {
+        // fallback: tenta short_code em jobs
+        const { data: jobRow } = await supabaseAdmin
+          .from('jobs')
+          .select('user_id')
+          .eq('short_code', code)
+          .maybeSingle();
+        if (jobRow?.user_id) userId = jobRow.user_id;
+      }
+    }
+
+    if (!userId) {
+      return res.status(404).json({ error: 'Portal não encontrado' });
+    }
+
+    // 2. Dados públicos do perfil (sem tokens)
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('name, avatar_url')
+      .eq('id', userId)
+      .single();
+
+    // 3. Nichos
+    const { data: niches } = await supabaseAdmin
+      .from('niches')
+      .select('*')
+      .eq('user_id', userId)
+      .order('is_pinned', { ascending: false })
+      .order('order_pos', { ascending: true });
+
+    // 4. Vagas abertas com nicho
+    const { data: jobs } = await supabaseAdmin
+      .from('jobs')
+      .select('id, title, description, criteria, short_code, niche_id, auto_analyze')
+      .eq('user_id', userId)
+      .not('niche_id', 'is', null)
+      .eq('is_paused', false);
+
+    return res.json({
+      userId,
+      companyName: profile?.name || '',
+      avatarUrl: profile?.avatar_url || '',
+      niches: niches || [],
+      jobs: jobs || [],
+    });
+  } catch (err) {
+    console.error('[Portal data]', err);
+    return res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // Submissão completa do portal público: upload + insert + análise
 // POST /api/portal/submit  (multipart/form-data)
 // Fields: file, userId, jobIds (JSON array), name, phone
