@@ -214,54 +214,28 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
 
     setUploading(true);
     try {
-      // Upload do PDF via API do servidor (evita restrições de RLS no Storage para anônimos)
+      // Tudo pelo servidor: upload + insert + análise (evita RLS para anônimos)
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('userId', resolvedUserId!);
+      formData.append('jobIds', JSON.stringify(Array.from(selectedJobIds)));
+      formData.append('name', candidateName.trim());
+      formData.append('phone', cleanPhone);
 
-      const uploadRes = await fetch('/api/portal/upload-resume', {
+      const res = await fetch('/api/portal/submit', {
         method: 'POST',
         body: formData,
       });
 
-      if (!uploadRes.ok) {
-        const uploadErr = await uploadRes.json().catch(() => ({}));
-        throw new Error(uploadErr.error || 'Falha no upload do currículo');
-      }
-
-      const { filePath } = await uploadRes.json();
-
-      // Cria um registro de candidato para cada vaga selecionada
-      const inserts = Array.from(selectedJobIds).map(jobId => ({
-        job_id: jobId,
-        user_id: resolvedUserId,
-        file_name: selectedFile.name,
-        file_path: filePath,
-        status: 'PENDING',
-        'WhatsApp com DDD': cleanPhone,
-        'Nome Completo': candidateName.trim(),
-      }));
-
-      const { data: inserted, error: dbError } = await supabase
-        .from('candidates')
-        .insert(inserts)
-        .select('id');
-      if (dbError) throw dbError;
-
-      // Dispara análise em background para cada candidato inserido
-      // Não bloqueia o sucesso — se falhar, o recrutador analisa manualmente
-      if (inserted && inserted.length > 0) {
-        fetch('/api/portal/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ candidateIds: inserted.map((r: { id: string }) => r.id) }),
-        }).catch(() => { /* silencia — análise é best-effort */ });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha ao enviar candidatura');
       }
 
       setStep('success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('Portal upload error:', message);
+      console.error('Portal submit error:', message);
       setFormError('Erro ao enviar candidatura. Tente novamente.');
     } finally {
       setUploading(false);

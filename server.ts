@@ -958,6 +958,134 @@ app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Submissão completa do portal público: upload + insert + análise
+// POST /api/portal/submit  (multipart/form-data)
+// Fields: file, userId, jobIds (JSON array), name, phone
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/portal/submit", async (req, res) => {
+  try {
+    const busboy2 = (await import('busboy')).default;
+    const bb = busboy2({ headers: req.headers });
+
+    let userId = '', name = '', phone = '', jobIdsRaw = '';
+    let fileBuffer: Buffer | null = null;
+    let fileName = '', mimeType = '';
+
+    await new Promise<void>((resolve, reject) => {
+      bb.on('field', (fieldName, val) => {
+        if (fieldName === 'userId')  userId    = val;
+        if (fieldName === 'name')    name      = val;
+        if (fieldName === 'phone')   phone     = val;
+        if (fieldName === 'jobIds')  jobIdsRaw = val;
+      });
+      bb.on('file', (_f, stream, info) => {
+        fileName = info.filename;
+        mimeType = info.mimeType;
+        const chunks: Buffer[] = [];
+        stream.on('data', (c: Buffer) => chunks.push(c));
+        stream.on('end', () => { fileBuffer = Buffer.concat(chunks); });
+        stream.on('error', reject);
+      });
+      bb.on('finish', resolve);
+      bb.on('error', reject);
+      req.pipe(bb);
+    });
+
+    const jobIds: string[] = JSON.parse(jobIdsRaw || '[]');
+    if (!fileBuffer || !userId || !jobIds.length) {
+      return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+    }
+
+    // 1. Upload para o Storage com service role
+    const safeName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `${Date.now()}_${safeName}`;
+
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+      .from('curriculos')
+      .upload(storagePath, fileBuffer, { contentType: mimeType || 'application/pdf', upsert: false });
+
+    if (uploadError) {
+      console.error('[Portal Submit] storage upload:', uploadError.message);
+      return res.status(500).json({ error: uploadError.message });
+    }
+
+    const filePath = uploadData.path;
+
+    // 2. Insert dos candidatos com service role (bypassa RLS)
+    const inserts = jobIds.map(jobId => ({
+      job_id: jobId,
+      user_id: userId,
+      file_name: fileName,
+      file_path: filePath,
+      status: 'ANALYZING',           // já marca como analisando
+      'WhatsApp com DDD': phone,
+      'Nome Completo': name,
+    }));
+
+    const { data: inserted, error: insertError } = await supabaseAdmin
+      .from('candidates')
+      .insert(inserts)
+      .select('id, job_id');
+
+    if (insertError) {
+      console.error('[Portal Submit] insert:', insertError.message);
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    // 3. Responde imediatamente — análise roda em background
+    res.json({ ok: true });
+
+    // 4. Análise em background para cada candidato
+    if (!inserted || inserted.length === 0) return;
+
+    // Download do PDF uma única vez
+    const { data: fileBlob } = await supabaseAdmin.storage.from('curriculos').download(filePath);
+    if (!fileBlob) return;
+    const base64 = Buffer.from(await fileBlob.arrayBuffer()).toString('base64');
+
+    for (const row of inserted) {
+      try {
+        const { data: job } = await supabaseAdmin
+          .from('jobs')
+          .select('title, criteria')
+          .eq('id', row.job_id)
+          .single();
+
+        if (!job) continue;
+
+        const result = await analyzeResume(base64, job.title, job.criteria || '');
+
+        let finalStatus = 'REPROVADO';
+        if (result.matchScore >= 7) finalStatus = 'APROVADO';
+        else if (result.matchScore >= 4) finalStatus = 'EM_ANALISE';
+
+        const finalResult = {
+          ...result,
+          candidateName: name || result.candidateName,
+          phoneNumbers: phone ? [phone] : result.phoneNumbers,
+        };
+
+        await supabaseAdmin.from('candidates').update({
+          status: finalStatus,
+          analysis_result: finalResult,
+          match_score: result.matchScore,
+        }).eq('id', row.id);
+
+        console.log(`[Portal Submit] candidato ${row.id} → ${finalStatus} (${result.matchScore})`);
+      } catch (err) {
+        console.error('[Portal Submit] análise falhou para', row.id, err);
+        await supabaseAdmin.from('candidates').update({ status: 'ERROR' }).eq('id', row.id).catch(() => {});
+      }
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[Portal Submit] erro geral:', msg);
+    // Se ainda não respondeu, responde com erro
+    if (!res.headersSent) res.status(500).json({ error: msg });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // Upload de currículo via portal público — usa service role para bypassar RLS do Storage
 // POST /api/portal/upload-resume  (multipart/form-data: file, userId)
 // ─────────────────────────────────────────────────────────────────────
