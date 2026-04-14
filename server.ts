@@ -16,6 +16,7 @@ import { provisionClient } from "./src/services/onboardingService.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import busboy from "busboy";
 
 dotenv.config();
 
@@ -964,8 +965,7 @@ app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────
 app.post("/api/portal/submit", async (req, res) => {
   try {
-    const busboy2 = (await import('busboy')).default;
-    const bb = busboy2({ headers: req.headers });
+    const bb = busboy({ headers: req.headers });
 
     let userId = '', name = '', phone = '', jobIdsRaw = '';
     let fileBuffer: Buffer | null = null;
@@ -1096,7 +1096,6 @@ app.post("/api/portal/submit", async (req, res) => {
 app.post("/api/portal/upload-resume", async (req, res) => {
   try {
     // express já parseia multipart via raw body; usamos busboy inline
-    const busboy = (await import('busboy')).default;
     const bb = busboy({ headers: req.headers });
 
     let userId = '';

@@ -710,15 +710,14 @@ export async function processIncomingMessage(
       await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
       break;
 
-    // ── Fluxo legado (candidatos que usavam o fluxo antigo via WhatsApp) ──
-    // Redireciona para o portal sem perder o contexto
+    // ── Fluxo de seleção de vaga (candidatos que iniciaram pelo WhatsApp antes do portal) ──
     case 'SELECIONANDO_VAGA':
+      await handleSelecionandoVaga(conv, instance, phone, text, selectedRowId, supabase, send);
+      break;
+
+    // ── Aguardando currículo via WhatsApp ──
     case 'AGUARDANDO_CURRICULO':
-      await send(phone,
-        `Para se candidatar, acesse nosso portal de vagas:\n\n🔗 ${portalLink}\n\n` +
-        `Lá você escolhe a área, a vaga e envia seu currículo em menos de 1 minuto. ✅`
-      );
-      await updateConversation(conv.id, { state: 'LINK_ENVIADO' }, supabase);
+      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken);
       break;
 
     // ── Currículo em análise ──
