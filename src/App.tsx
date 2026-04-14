@@ -1722,30 +1722,47 @@ const App: React.FC = () => {
 
             // 2. Analyze — server downloads PDF from Storage directly (fast path)
             const result = await analyzeResumeFast(candidate.filePath, activeJob.title, activeJob.criteria);
-            
-            // 4. Update DB
+
+            // Se o candidato veio do portal (tem nome e telefone preenchidos no formulário),
+            // esses dados têm prioridade sobre o que a IA extraiu do PDF.
+            const finalPhone = candidate.whatsapp || result.phoneNumbers?.[0] || null;
+            const finalName  = candidate.result?.candidateName || result.candidateName;
+
+            // Garante que o analysis_result exiba o nome/telefone corretos no card
+            const finalResult = {
+                ...result,
+                candidateName: finalName,
+                phoneNumbers: finalPhone ? [finalPhone] : result.phoneNumbers,
+            };
+
+            // 4. Update DB — preserva nome e telefone do formulário, atualiza só dados analíticos
+            const updatePayload: Record<string, unknown> = {
+                status: 'COMPLETED',
+                analysis_result: finalResult,
+                match_score: result.matchScore,
+            };
+            // Só atualiza o telefone no banco se o candidato ainda não tiver um registrado
+            if (!candidate.whatsapp && finalPhone) {
+                updatePayload['WhatsApp com DDD'] = finalPhone;
+            }
+
             const { error: updateError } = await supabase.from('candidates')
-                .update({ 
-                    status: 'COMPLETED',
-                    analysis_result: result,
-                    match_score: result.matchScore,
-                    "WhatsApp com DDD": candidate.whatsapp || result.phoneNumbers?.[0] || null
-                })
+                .update(updatePayload)
                 .eq('id', candidate.id);
-            
+
             if (updateError) {
                 console.error("DB Save Failed:", updateError);
                 throw new Error("Falha ao salvar no banco: " + updateError.message);
             }
-            
+
             // 5. Update UI State (Individual Success)
             setActiveJob(prev => {
                 if (!prev) return null;
                 return {
                     ...prev,
-                    candidates: prev.candidates.map(c => 
-                        c.id === candidate.id 
-                        ? { ...c, status: CandidateStatus.COMPLETED, result: result, whatsapp: c.whatsapp || result.phoneNumbers?.[0] || undefined } 
+                    candidates: prev.candidates.map(c =>
+                        c.id === candidate.id
+                        ? { ...c, status: CandidateStatus.COMPLETED, result: finalResult, whatsapp: finalPhone || undefined }
                         : c
                     )
                 };
