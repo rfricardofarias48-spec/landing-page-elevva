@@ -242,8 +242,21 @@ export const PublicPortalScreen: React.FC<PublicPortalProps> = ({ userId: userId
         'Nome Completo': candidateName.trim(),
       }));
 
-      const { error: dbError } = await supabase.from('candidates').insert(inserts);
+      const { data: inserted, error: dbError } = await supabase
+        .from('candidates')
+        .insert(inserts)
+        .select('id');
       if (dbError) throw dbError;
+
+      // Dispara análise em background para cada candidato inserido
+      // Não bloqueia o sucesso — se falhar, o recrutador analisa manualmente
+      if (inserted && inserted.length > 0) {
+        fetch('/api/portal/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidateIds: inserted.map((r: { id: string }) => r.id) }),
+        }).catch(() => { /* silencia — análise é best-effort */ });
+      }
 
       setStep('success');
     } catch (err: unknown) {

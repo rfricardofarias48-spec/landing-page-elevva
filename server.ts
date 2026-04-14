@@ -1014,6 +1014,85 @@ app.post("/api/portal/upload-resume", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Análise de candidatos do portal público — chamado após insert do portal
+// POST /api/portal/analyze
+// Body: { candidateIds: string[] }
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/portal/analyze", async (req, res) => {
+  // Responde imediatamente — análise roda em background
+  res.json({ ok: true });
+
+  const { candidateIds } = req.body as { candidateIds: string[] };
+  if (!Array.isArray(candidateIds) || candidateIds.length === 0) return;
+
+  for (const candidateId of candidateIds) {
+    try {
+      // Busca candidato + vaga
+      const { data: candidate } = await supabaseAdmin
+        .from('candidates')
+        .select('id, file_path, "Nome Completo", "WhatsApp com DDD", job_id')
+        .eq('id', candidateId)
+        .single();
+
+      if (!candidate?.file_path || !candidate?.job_id) {
+        console.warn('[Portal Analyze] candidato sem file_path ou job_id:', candidateId);
+        continue;
+      }
+
+      const { data: job } = await supabaseAdmin
+        .from('jobs')
+        .select('title, criteria, auto_analyze')
+        .eq('id', candidate.job_id)
+        .single();
+
+      if (!job) continue;
+
+      // Marca como analisando
+      await supabaseAdmin.from('candidates').update({ status: 'ANALYZING' }).eq('id', candidateId);
+
+      // Download do PDF
+      const { data: fileBlob, error: dlError } = await supabaseAdmin.storage
+        .from('curriculos')
+        .download(candidate.file_path);
+
+      if (dlError || !fileBlob) {
+        console.error('[Portal Analyze] download error:', dlError);
+        await supabaseAdmin.from('candidates').update({ status: 'ERROR' }).eq('id', candidateId);
+        continue;
+      }
+
+      const base64 = Buffer.from(await fileBlob.arrayBuffer()).toString('base64');
+      const result = await analyzeResume(base64, job.title, job.criteria || '');
+
+      // Determina status pelo score
+      let finalStatus = 'REPROVADO';
+      if (result.matchScore >= 7) finalStatus = 'APROVADO';
+      else if (result.matchScore >= 4) finalStatus = 'EM_ANALISE';
+
+      // Preserva nome e telefone preenchidos no formulário
+      const finalResult = {
+        ...result,
+        candidateName: candidate['Nome Completo'] || result.candidateName,
+        phoneNumbers: candidate['WhatsApp com DDD']
+          ? [candidate['WhatsApp com DDD']]
+          : result.phoneNumbers,
+      };
+
+      await supabaseAdmin.from('candidates').update({
+        status: finalStatus,
+        analysis_result: finalResult,
+        match_score: result.matchScore,
+      }).eq('id', candidateId);
+
+      console.log(`[Portal Analyze] candidato ${candidateId} → ${finalStatus} (score ${result.matchScore})`);
+    } catch (err) {
+      console.error('[Portal Analyze] erro no candidato', candidateId, err);
+      await supabaseAdmin.from('candidates').update({ status: 'ERROR' }).eq('id', candidateId).catch(() => {});
+    }
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // Análise de currículo via OpenAI — chamado pelo frontend (App.tsx)
 // POST /api/analyze-resume
 // Body: { base64: string, job_title: string, criteria: string }
