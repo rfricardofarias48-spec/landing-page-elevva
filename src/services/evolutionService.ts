@@ -35,9 +35,9 @@ export interface ListSection {
   rows: ListRow[];
 }
 
-/** Strip @s.whatsapp.net and similar suffixes from a JID */
+/** Strip @s.whatsapp.net suffix and leading + from a JID/phone */
 export function cleanPhone(rawJid: string): string {
-  return rawJid.replace(/@.*$/, '');
+  return rawJid.replace(/@.*$/, '').replace(/^\+/, '');
 }
 
 async function post(path: string, body: Record<string, unknown>, apiKey?: string): Promise<unknown> {

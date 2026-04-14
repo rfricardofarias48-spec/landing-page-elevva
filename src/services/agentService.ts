@@ -71,14 +71,27 @@ async function getOrCreateConversation(
   userId: string,
   supabase: SupabaseClient,
 ): Promise<Conversation> {
+  // Tenta encontrar conversa existente — inclui variante com + para compatibilidade
+  // com registros antigos que podem ter sido salvos com o prefixo +
+  const phoneVariants = [phone, `+${phone}`];
   const { data: existing } = await supabase
     .from('agent_conversations')
     .select('*')
-    .eq('phone', phone)
+    .in('phone', phoneVariants)
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (existing) return existing as Conversation;
+  if (existing) {
+    // Normaliza o telefone salvo se ainda tiver + (migração silenciosa)
+    if (existing.phone !== phone) {
+      await supabase
+        .from('agent_conversations')
+        .update({ phone })
+        .eq('id', existing.id);
+      existing.phone = phone;
+    }
+    return existing as Conversation;
+  }
 
   const { data: created, error } = await supabase
     .from('agent_conversations')
@@ -839,8 +852,10 @@ export async function triggerSchedulingForCandidates(
         .eq('id', interview.candidate_id)
         .single();
 
-      const phone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
-      if (!phone) { errors++; continue; }
+      const rawPhone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
+      if (!rawPhone) { errors++; continue; }
+      // Normaliza: remove @ suffix e + prefix (formato aceito pela Evolution API)
+      const phone = rawPhone.replace(/@.*$/, '').replace(/^\+/, '');
 
       const candidateName = candidate?.['Nome Completo' as keyof typeof candidate] as string | undefined;
       const firstName = candidateName?.split(' ')[0] || 'Candidato';
