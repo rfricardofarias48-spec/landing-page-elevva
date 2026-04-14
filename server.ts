@@ -1032,15 +1032,16 @@ app.post("/api/portal/submit", async (req, res) => {
       return res.status(500).json({ error: insertError.message });
     }
 
-    // 3. Responde imediatamente — análise roda em background
-    res.json({ ok: true });
-
-    // 4. Análise em background para cada candidato
-    if (!inserted || inserted.length === 0) return;
+    // 3. Análise síncrona (Vercel encerra a função após res.json, não há background real)
+    if (!inserted || inserted.length === 0) {
+      return res.json({ ok: true });
+    }
 
     // Download do PDF uma única vez
     const { data: fileBlob } = await supabaseAdmin.storage.from('curriculos').download(filePath);
-    if (!fileBlob) return;
+    if (!fileBlob) {
+      return res.json({ ok: true });
+    }
     const base64 = Buffer.from(await fileBlob.arrayBuffer()).toString('base64');
 
     for (const row of inserted) {
@@ -1077,10 +1078,13 @@ app.post("/api/portal/submit", async (req, res) => {
         await supabaseAdmin.from('candidates').update({ status: 'ERROR' }).eq('id', row.id).catch(() => {});
       }
     }
+
+    // 4. Responde ao candidato após análise completa
+    return res.json({ ok: true });
+
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[Portal Submit] erro geral:', msg);
-    // Se ainda não respondeu, responde com erro
     if (!res.headersSent) res.status(500).json({ error: msg });
   }
 });
