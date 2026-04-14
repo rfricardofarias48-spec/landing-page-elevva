@@ -699,19 +699,50 @@ export async function processIncomingMessage(
 
   // Portal code para o link curto (já resolvido acima)
   const portalCode: string = portalCodeRaw;
+  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
+  const portalLink = `${baseUrl}/vagas/${portalCode}`;
 
   switch (conv.state) {
-    // ── Fluxo de candidatura: estados legados + novo estado ──
-    // Em todos esses estados, o agente apenas envia o link do portal.
+
+    // ── Primeiro contato: envia link do portal ──
     case 'NOVO':
-    case 'REPROVADO':
-    case 'EM_ANALISE':
-    case 'CANCELADA':
     case 'LINK_ENVIADO':
+      await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
+      break;
+
+    // ── Fluxo legado (candidatos que usavam o fluxo antigo via WhatsApp) ──
+    // Redireciona para o portal sem perder o contexto
     case 'SELECIONANDO_VAGA':
     case 'AGUARDANDO_CURRICULO':
+      await send(phone,
+        `Para se candidatar, acesse nosso portal de vagas:\n\n🔗 ${portalLink}\n\n` +
+        `Lá você escolhe a área, a vaga e envia seu currículo em menos de 1 minuto. ✅`
+      );
+      await updateConversation(conv.id, { state: 'LINK_ENVIADO' }, supabase);
+      break;
+
+    // ── Currículo em análise ──
     case 'ANALISANDO':
+      await send(phone, 'Seu currículo está sendo analisado... ⏳ Aguarde, em breve você receberá um retorno.');
+      break;
+
+    // ── Currículo recebido / em avaliação ──
     case 'CURRICULO_RECEBIDO':
+    case 'EM_ANALISE':
+      await send(phone, 'Seu currículo está em análise. 🔍 Em breve nossa equipe entrará em contato com os próximos passos. 😊');
+      break;
+
+    // ── Reprovado: pode tentar outras vagas pelo portal ──
+    case 'REPROVADO':
+      await send(phone,
+        `Obrigado pelo interesse! No momento o seu perfil não foi selecionado para esta vaga.\n\n` +
+        `Mas não desanime — temos outras oportunidades disponíveis:\n\n🔗 ${portalLink}`
+      );
+      await updateConversation(conv.id, { state: 'LINK_ENVIADO' }, supabase);
+      break;
+
+    // ── Cancelado: recomeça ──
+    case 'CANCELADA':
       await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
       break;
 
