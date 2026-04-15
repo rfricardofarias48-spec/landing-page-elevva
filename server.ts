@@ -1885,13 +1885,16 @@ app.get("/api/cron/interview-reminders", async (req, res) => {
           .eq('id', interview.candidate_id)
           .single();
 
-        const phone = (candidate as Record<string, string>)?.['WhatsApp com DDD'];
+        const rawPhone = (candidate as Record<string, string>)?.['WhatsApp com DDD'];
         const firstName = ((candidate as Record<string, string>)?.['Nome Completo'] || '').split(' ')[0] || 'Candidato';
 
-        if (!phone) {
+        if (!rawPhone) {
           console.warn(`[Reminder Cron] No phone for candidate ${interview.candidate_id}`);
           continue;
         }
+
+        // Normalize to digits only (same as processIncomingMessage)
+        const phone = rawPhone.replace(/@.*$/, '').replace(/\D/g, '');
 
         // Get job to find recruiter's Evolution instance
         const { data: job } = await supabaseAdmin
@@ -1936,10 +1939,11 @@ app.get("/api/cron/interview-reminders", async (req, res) => {
         await supabaseAdmin.from('interviews').update({ lembrete_enviado: true }).eq('id', interview.id);
 
         // Buscar conversa do candidato e mudar para AGUARDANDO_CONFIRMACAO_LEMBRETE
+        // Usa os últimos 8 dígitos como chave para tolerar variações de formato
         const { data: convData } = await supabaseAdmin.from('agent_conversations')
           .select('id, context')
-          .eq('phone', phone)
           .eq('user_id', job.user_id)
+          .ilike('phone', `%${phone.slice(-8)}%`)
           .maybeSingle();
 
         if (convData) {
