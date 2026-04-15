@@ -151,27 +151,27 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-[0px_8px_40px_rgba(0,0,0,0.12)] relative border border-slate-100 max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-[0px_8px_40px_rgba(0,0,0,0.14)] relative border border-slate-200 max-h-[90vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-slate-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-slate-200 flex-shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-11 h-11 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100">
-              <Calendar className="w-5 h-5 text-[#65a30d]" />
+            <div className="w-11 h-11 bg-[#f0fdf4] rounded-2xl flex items-center justify-center border border-[#bbf7d0]">
+              <Calendar className="w-5 h-5 text-[#16a34a]" />
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-900 tracking-tighter">Agendar Entrevistas</h2>
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+              <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mt-0.5">
                 Para {selectedCandidates.length} candidato{selectedCandidates.length !== 1 ? 's' : ''} selecionado{selectedCandidates.length !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 hover:text-slate-900">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4 bg-slate-50/60 rounded-b-[2rem]">
           {loadingSlots ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 border-2 border-[#84cc16] border-t-transparent rounded-full animate-spin" />
@@ -187,23 +187,25 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
           ) : (
             <>
               {/* Interviewer selection */}
-              <div className="bg-white rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] p-5">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <User className="w-3.5 h-3.5" /> Selecionar entrevistadores
-                </p>
-                <div className="space-y-2">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-[0px_2px_8px_rgba(0,0,0,0.06)] overflow-hidden">
+                <div className="px-5 py-3 bg-slate-100 border-b border-slate-200">
+                  <p className="text-[11px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                    <User className="w-3.5 h-3.5" /> Selecionar entrevistadores
+                  </p>
+                </div>
+                <div className="p-4 space-y-2">
                   {interviewers.map(name => {
                     const checked = selectedInterviewers.has(name);
                     const count = slots.filter(s => (s.interviewer_name || '(sem entrevistador)') === name).length;
                     return (
                       <label key={name} onClick={() => toggleInterviewer(name)}
-                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checked ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100 opacity-50'}`}>
-                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${checked ? 'bg-slate-900 border-slate-900' : 'border-slate-200'}`}>
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checked ? 'bg-slate-50 border-slate-300 shadow-sm' : 'bg-white border-slate-200 opacity-50'}`}>
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${checked ? 'bg-slate-900 border-slate-900' : 'border-slate-300'}`}>
                           {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-black text-slate-800 truncate">{name}</p>
-                          <p className="text-[10px] font-bold text-slate-400">{count} horário{count !== 1 ? 's' : ''}</p>
+                          <p className="text-[11px] font-bold text-slate-500">{count} horário{count !== 1 ? 's' : ''}</p>
                         </div>
                       </label>
                     );
@@ -213,28 +215,30 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
               {/* Preview */}
               {filteredSlots.length > 0 && (
-                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] p-5">
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5" /> Horários que serão enviados
-                  </p>
-                  <div className="space-y-2">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-[0px_2px_8px_rgba(0,0,0,0.06)] overflow-hidden">
+                  <div className="px-5 py-3 bg-slate-100 border-b border-slate-200">
+                    <p className="text-[11px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5" /> Horários que serão enviados
+                    </p>
+                  </div>
+                  <div className="p-4 space-y-2.5">
                     {Object.entries<AvailabilitySlot[]>(groupedPreview).map(([date, daySlots]) => (
                       <div key={date} className="flex items-start gap-3">
-                        <span className="text-xs font-black text-slate-500 w-24 shrink-0 pt-0.5 capitalize">{formatDate(date)}</span>
+                        <span className="text-xs font-black text-slate-600 w-24 shrink-0 pt-0.5 capitalize">{formatDate(date)}</span>
                         <div className="flex flex-wrap gap-1.5">
                           {daySlots.map(s => (
-                            <div key={s.id} className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">
-                              <span className="text-xs font-black text-slate-700">{s.slot_time.substring(0, 5)}</span>
+                            <div key={s.id} className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-sm">
+                              <span className="text-xs font-black text-slate-800">{s.slot_time.substring(0, 5)}</span>
                               {s.format === 'ONLINE'
-                                ? <Video className="w-3 h-3 text-blue-400" />
-                                : <MapPin className="w-3 h-3 text-orange-400" />
+                                ? <Video className="w-3 h-3 text-blue-500" />
+                                : <MapPin className="w-3 h-3 text-orange-500" />
                               }
                             </div>
                           ))}
                         </div>
                       </div>
                     ))}
-                    <p className="text-[10px] text-slate-300 font-bold mt-1">
+                    <p className="text-[11px] text-slate-500 font-bold mt-1">
                       {filteredSlots.length} horário{filteredSlots.length !== 1 ? 's' : ''} • O agente enviará essas opções via WhatsApp
                     </p>
                   </div>
