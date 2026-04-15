@@ -364,7 +364,17 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
   };
 
   return (
-    <div className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] animate-fade-in relative overflow-hidden">
+    <div className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] animate-fade-in relative">
+
+      {/* Botão fixo no canto superior direito da tela */}
+      <button
+        onClick={() => setShowSlotsModal(true)}
+        className="fixed top-5 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] border-2 border-black text-black rounded-xl font-black text-sm hover:bg-[#65a30d] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+      >
+        <Clock className="w-4 h-4" />
+        Horários Disponíveis
+      </button>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
@@ -376,13 +386,6 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowSlotsModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] border-2 border-black text-black rounded-xl font-black text-sm hover:bg-[#65a30d] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-          >
-            <Clock className="w-4 h-4" />
-            Horários Disponíveis
-          </button>
           <button
             onClick={handleExportPDF}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm"
