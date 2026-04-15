@@ -98,8 +98,28 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
       if (slotsError) throw slotsError;
 
-      // 2. Insert into interviews
-      const interviewsToInsert = selectedCandidates.map(candidate => ({
+      // 2. Filtra candidatos que já têm entrevista ativa para esta vaga
+      const ACTIVE_STATUSES = ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA'];
+      const selectedIds = selectedCandidates.map(c => c.id);
+
+      const { data: existingInterviews } = await supabase
+        .from('interviews')
+        .select('candidate_id')
+        .eq('job_id', job.id)
+        .in('status', ACTIVE_STATUSES)
+        .in('candidate_id', selectedIds);
+
+      const alreadyScheduledIds = new Set((existingInterviews || []).map(i => i.candidate_id));
+      const candidatesToSchedule = selectedCandidates.filter(c => !alreadyScheduledIds.has(c.id));
+
+      if (candidatesToSchedule.length === 0) {
+        setError('Todos os candidatos selecionados já possuem entrevista ativa. Nenhum convite foi enviado.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 3. Insert into interviews (apenas candidatos sem entrevista ativa)
+      const interviewsToInsert = candidatesToSchedule.map(candidate => ({
         job_id: job.id,
         candidate_id: candidate.id,
         status: 'AGUARDANDO_RESPOSTA',
@@ -113,7 +133,11 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
       if (insertError) throw insertError;
 
-      // 3. Disparar agente interno — envia WhatsApp para cada candidato com os horários
+      if (alreadyScheduledIds.size > 0) {
+        console.log(`[ScheduleModal] ${alreadyScheduledIds.size} candidato(s) ignorado(s) por já terem entrevista ativa.`);
+      }
+
+      // 4. Disparar agente interno — envia WhatsApp para cada candidato com os horários
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const userId = authUser?.id;
