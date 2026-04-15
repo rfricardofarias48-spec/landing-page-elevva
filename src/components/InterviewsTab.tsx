@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText, ThumbsUp, ThumbsDown, Loader2, Bell, Plus } from 'lucide-react';
 import { Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { AvailableSlotsModal } from './AvailableSlotsModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh, approvedCandidateIds = new Set(), userId }) => {
+  const [showSlotsModal, setShowSlotsModal] = useState(false);
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -374,6 +376,13 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSlotsModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] border-2 border-black text-black rounded-xl font-black text-sm hover:bg-[#65a30d] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <Clock className="w-4 h-4" />
+            Horários Disponíveis
+          </button>
           <button
             onClick={handleExportPDF}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm"
@@ -968,6 +977,11 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL HORÁRIOS DISPONÍVEIS */}
+      {showSlotsModal && userId && (
+        <AvailableSlotsModal userId={userId} onClose={() => setShowSlotsModal(false)} />
       )}
     </div>
   );

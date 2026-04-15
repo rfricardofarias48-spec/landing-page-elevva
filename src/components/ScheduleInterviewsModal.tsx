@@ -1,104 +1,86 @@
-import React, { useState } from 'react';
-import { X, Calendar, Clock, Send, Plus, Trash2, MapPin, Video } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Calendar, Send, MapPin, Video, Clock, AlertCircle } from 'lucide-react';
 import { Job } from '../types';
 import { supabase } from '../services/supabaseClient';
+
 interface Props {
   job: Job;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-interface DaySlot {
-  date: string;
-  times: string[];
+interface AvailabilitySlot {
+  id: string;
+  slot_date: string;
+  slot_time: string;
+  interviewer_name: string | null;
+  format: string;
+  location: string | null;
 }
 
 export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSuccess }) => {
-  const [days, setDays] = useState<DaySlot[]>([{ date: '', times: [''] }]);
-  const [interviewFormat, setInterviewFormat] = useState<'ONLINE' | 'PRESENCIAL'>('ONLINE');
-  const [address, setAddress] = useState('');
-  const [interviewerName, setInterviewerName] = useState('');
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const selectedCandidates = job.candidates.filter(c => c.isSelected);
 
-  const addDay = () => {
-    setDays([...days, { date: '', times: [''] }]);
-  };
+  useEffect(() => {
+    const fetchSlots = async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+      const today = new Date().toISOString().split('T')[0];
+      const { data } = await supabase
+        .from('availability_slots')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .gte('slot_date', today)
+        .order('slot_date', { ascending: true })
+        .order('slot_time', { ascending: true });
+      setSlots(data || []);
+      setLoadingSlots(false);
+    };
+    fetchSlots();
+  }, []);
 
-  const removeDay = (index: number) => {
-    setDays(days.filter((_, i) => i !== index));
-  };
-
-  const updateDayDate = (index: number, date: string) => {
-    const newDays = [...days];
-    newDays[index].date = date;
-    setDays(newDays);
-  };
-
-  const addTime = (dayIndex: number) => {
-    const newDays = [...days];
-    newDays[dayIndex].times.push('');
-    setDays(newDays);
-  };
-
-  const removeTime = (dayIndex: number, timeIndex: number) => {
-    const newDays = [...days];
-    newDays[dayIndex].times = newDays[dayIndex].times.filter((_, i) => i !== timeIndex);
-    setDays(newDays);
-  };
-
-  const updateTime = (dayIndex: number, timeIndex: number, time: string) => {
-    const newDays = [...days];
-    newDays[dayIndex].times[timeIndex] = time;
-    setDays(newDays);
+  const formatDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
+      weekday: 'short', day: '2-digit', month: 'short'
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate days and times
-    const validDays = days.filter(d => d.date && d.times.some(t => t));
-    
-    if (validDays.length === 0) {
-      setError('Por favor, adicione pelo menos um dia e horário disponível completo.');
-      return;
-    }
+    setError('');
 
-    if (interviewFormat === 'PRESENCIAL' && !address.trim()) {
-      setError('Por favor, informe o endereço para a entrevista presencial.');
+    if (slots.length === 0) {
+      setError('Nenhum horário disponível cadastrado. Adicione horários em "Horários Disponíveis" antes de agendar.');
       return;
     }
 
     setIsSubmitting(true);
-    setError('');
 
     try {
-      // 1. Insert into interview_slots
-      const slotsToInsert: Record<string, unknown>[] = [];
-      validDays.forEach(day => {
-        day.times.filter(t => t).forEach(time => {
-          slotsToInsert.push({
-            job_id: job.id,
-            format: interviewFormat,
-            location: interviewFormat === 'PRESENCIAL' ? address.trim() : null,
-            interviewer_name: interviewerName.trim() || null,
-            slot_date: day.date,
-            slot_time: time,
-            is_booked: false
-          });
-        });
-      });
+      // 1. Copy availability_slots → interview_slots for this job
+      const slotsToInsert = slots.map(s => ({
+        job_id: job.id,
+        format: s.format,
+        location: s.location,
+        interviewer_name: s.interviewer_name,
+        slot_date: s.slot_date,
+        slot_time: s.slot_time,
+        is_booked: false,
+      }));
 
-      const { data: insertedSlots, error: slotsError } = await supabase
+      const { error: slotsError } = await supabase
         .from('interview_slots')
-        .insert(slotsToInsert)
-        .select();
+        .insert(slotsToInsert);
 
       if (slotsError) throw slotsError;
 
-      // 2. Filtra candidatos que já têm entrevista ativa para esta vaga
+      // 2. Filter candidates that already have an active interview for this job
       const ACTIVE_STATUSES = ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA'];
       const selectedIds = selectedCandidates.map(c => c.id);
 
@@ -118,12 +100,13 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         return;
       }
 
-      // 3. Insert into interviews (apenas candidatos sem entrevista ativa)
+      // 3. Insert interviews (only candidates without active interview)
+      const interviewerName = slots[0]?.interviewer_name || null;
       const interviewsToInsert = candidatesToSchedule.map(candidate => ({
         job_id: job.id,
         candidate_id: candidate.id,
         status: 'AGUARDANDO_RESPOSTA',
-        interviewer_name: interviewerName.trim() || null,
+        interviewer_name: interviewerName,
       }));
 
       const { data: insertedInterviews, error: insertError } = await supabase
@@ -133,11 +116,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
       if (insertError) throw insertError;
 
-      if (alreadyScheduledIds.size > 0) {
-        console.log(`[ScheduleModal] ${alreadyScheduledIds.size} candidato(s) ignorado(s) por já terem entrevista ativa.`);
-      }
-
-      // 4. Disparar agente interno — envia WhatsApp para cada candidato com os horários
+      // 4. Trigger agent to send WhatsApp messages
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const userId = authUser?.id;
@@ -160,7 +139,6 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
           console.warn('Aviso do agente:', body.error);
         }
 
-        // Also notify candidates waiting for reschedule slots
         await fetch('/api/agent/notify-pending-reschedules', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -173,19 +151,27 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
       onSuccess();
     } catch (err: unknown) {
       console.error('Erro ao agendar entrevistas:', err);
-      setError(err.message || 'Erro ao agendar entrevistas. Tente novamente.');
+      const message = err instanceof Error ? err.message : 'Erro ao agendar entrevistas. Tente novamente.';
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Group slots by date for preview
+  const grouped = slots.reduce<Record<string, AvailabilitySlot[]>>((acc, s) => {
+    if (!acc[s.slot_date]) acc[s.slot_date] = [];
+    acc[s.slot_date].push(s);
+    return acc;
+  }, {});
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-[2rem] w-full max-w-2xl p-8 shadow-2xl relative animate-slide-up border-4 border-black max-h-[95vh] flex flex-col">
+      <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative animate-slide-up border-4 border-black max-h-[90vh] flex flex-col">
         <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 hover:border-black text-slate-400 hover:text-black z-10">
-          <X className="w-5 h-5"/>
+          <X className="w-5 h-5" />
         </button>
-        
+
         <div className="flex items-center gap-3 mb-6 flex-shrink-0">
           <div className="w-12 h-12 bg-[#84cc16] rounded-xl flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
             <Calendar className="w-6 h-6 text-black" />
@@ -196,179 +182,81 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 flex-1 overflow-y-auto custom-scrollbar pr-2 pb-4">
-          
-          {/* Formato da Entrevista */}
-          <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200">
-            <div className="mb-6">
-              <label className="block text-xs font-black text-slate-900 uppercase tracking-widest mb-2">
-                Nome do Entrevistador
-              </label>
-              <input
-                type="text"
-                value={interviewerName}
-                onChange={(e) => setInterviewerName(e.target.value)}
-                placeholder="Ex: João Silva"
-                className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:border-black focus:ring-0 transition-colors"
-                required
-              />
-              <p className="text-[10px] text-slate-500 mt-1 font-bold">O candidato será informado de quem irá entrevistá-lo.</p>
+        <div className="flex-1 overflow-y-auto space-y-5 pr-1">
+          {/* Slots preview */}
+          <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="w-4 h-4 text-[#65a30d]" />
+              <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Horários que serão enviados</p>
             </div>
 
-            <label className="block text-xs font-black text-slate-900 uppercase tracking-widest mb-3">
-              Formato da Entrevista
-            </label>
-            <div className="flex gap-3 mb-4">
-              <button
-                type="button"
-                onClick={() => setInterviewFormat('ONLINE')}
-                className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
-                  interviewFormat === 'ONLINE' 
-                    ? 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(101,163,13,1)]' 
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <Video className="w-4 h-4" /> Online
-              </button>
-              <button
-                type="button"
-                onClick={() => setInterviewFormat('PRESENCIAL')}
-                className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
-                  interviewFormat === 'PRESENCIAL' 
-                    ? 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(101,163,13,1)]' 
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <MapPin className="w-4 h-4" /> Presencial
-              </button>
-            </div>
-
-            {interviewFormat === 'PRESENCIAL' && (
-              <div className="animate-fade-in">
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  Endereço Completo
-                </label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Ex: Rua das Flores, 123 - Centro, São Paulo/SP"
-                  className="w-full bg-white border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:outline-none focus:border-black focus:ring-0 transition-colors"
-                  required
-                />
+            {loadingSlots ? (
+              <div className="flex justify-center py-4">
+                <div className="w-6 h-6 border-2 border-[#84cc16] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : slots.length === 0 ? (
+              <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-black text-amber-700">Nenhum horário disponível</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Cadastre horários em "Horários Disponíveis" antes de agendar entrevistas.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {Object.entries(grouped).map(([date, daySlots]) => (
+                  <div key={date} className="flex items-start gap-3">
+                    <span className="text-xs font-black text-slate-600 w-24 shrink-0 pt-0.5 capitalize">{formatDate(date)}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {daySlots.map(s => (
+                        <div key={s.id} className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                          <span className="text-xs font-black text-slate-700">{s.slot_time.substring(0, 5)}</span>
+                          {s.format === 'ONLINE'
+                            ? <Video className="w-3 h-3 text-blue-500" />
+                            : <MapPin className="w-3 h-3 text-orange-500" />
+                          }
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[10px] text-slate-400 font-bold mt-2">
+                  {slots.length} horário{slots.length !== 1 ? 's' : ''} • O agente enviará essas opções via WhatsApp
+                </p>
               </div>
             )}
           </div>
 
-          <div>
-            <label className="block text-xs font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#65a30d]" /> Dias e Horários Disponíveis
-            </label>
-            
-            <div className="space-y-4">
-              {days.map((day, dayIndex) => (
-                <div key={dayIndex} className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 relative">
-                  {days.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeDay(dayIndex)}
-                      className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Remover dia"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  
-                  <div className="mb-4 pr-8">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Data</label>
-                    <input
-                      type="date"
-                      value={day.date}
-                      onChange={(e) => updateDayDate(dayIndex, e.target.value)}
-                      className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:border-black focus:ring-0 transition-colors"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-2">Horários de Início</label>
-                    <div className="flex flex-wrap gap-2">
-                      {day.times.map((time, timeIndex) => (
-                        <div key={timeIndex} className="flex items-center bg-white border-2 border-slate-200 rounded-xl overflow-hidden focus-within:border-black transition-colors">
-                          <input
-                            type="time"
-                            value={time}
-                            onChange={(e) => updateTime(dayIndex, timeIndex, e.target.value)}
-                            className="px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none border-none"
-                            required
-                          />
-                          {day.times.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeTime(dayIndex, timeIndex)}
-                              className="px-2 py-2 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors border-l border-slate-100"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      
-                      <button
-                        type="button"
-                        onClick={() => addTime(dayIndex)}
-                        className="flex items-center justify-center gap-1 bg-white border-2 border-dashed border-slate-300 text-slate-500 hover:text-black hover:border-black rounded-xl px-3 py-2 text-sm font-bold transition-colors"
-                      >
-                        <Plus className="w-4 h-4" /> Horário
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={addDay}
-              className="mt-4 flex items-center justify-center w-full gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border-2 border-transparent hover:border-slate-300 rounded-xl px-4 py-3 text-sm font-bold transition-colors"
-            >
-              <Calendar className="w-4 h-4" /> Adicionar outro dia
-            </button>
-
-            <p className="text-xs text-slate-500 font-bold mt-4">
-              O agente entrará em contato com os candidatos via WhatsApp oferecendo essas opções.
-            </p>
-          </div>
-
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl">
-              {error}
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+              <p className="text-xs font-bold text-red-600">{error}</p>
             </div>
           )}
+        </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-3 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-[#84cc16] hover:bg-[#65a30d] text-black px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 border-black"
-            >
-              {isSubmitting ? (
-                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  Seguir com agendamentos <Send className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        <div className="flex justify-end gap-3 pt-5 border-t border-slate-100 mt-5 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-3 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || loadingSlots || slots.length === 0}
+            className="bg-[#84cc16] hover:bg-[#65a30d] text-black px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 border-black"
+          >
+            {isSubmitting ? (
+              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                Confirmar e Notificar <Send className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

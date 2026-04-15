@@ -924,7 +924,7 @@ export async function triggerSchedulingForCandidates(
     .single();
 
   // Get available slots for this job
-  const { data: slots } = await supabase
+  let { data: slots } = await supabase
     .from('interview_slots')
     .select('id, slot_date, slot_time, format, location, interviewer_name')
     .eq('job_id', jobId)
@@ -932,8 +932,37 @@ export async function triggerSchedulingForCandidates(
     .order('slot_date', { ascending: true })
     .order('slot_time', { ascending: true });
 
+  // Fallback: if no interview_slots exist for this job, copy from availability_slots
   if (!slots || slots.length === 0) {
-    throw new Error('Nenhum horário disponível para esta vaga. Adicione horários antes de disparar o agente.');
+    const today = new Date().toISOString().split('T')[0];
+    const { data: availSlots } = await supabase
+      .from('availability_slots')
+      .select('slot_date, slot_time, format, location, interviewer_name')
+      .eq('user_id', userId)
+      .gte('slot_date', today)
+      .order('slot_date', { ascending: true })
+      .order('slot_time', { ascending: true });
+
+    if (availSlots && availSlots.length > 0) {
+      const toInsert = availSlots.map(s => ({
+        job_id: jobId,
+        format: s.format,
+        location: s.location,
+        interviewer_name: s.interviewer_name,
+        slot_date: s.slot_date,
+        slot_time: s.slot_time,
+        is_booked: false,
+      }));
+      const { data: inserted } = await supabase
+        .from('interview_slots')
+        .insert(toInsert)
+        .select('id, slot_date, slot_time, format, location, interviewer_name');
+      slots = inserted || [];
+    }
+  }
+
+  if (!slots || slots.length === 0) {
+    throw new Error('Nenhum horário disponível. Cadastre horários em "Horários Disponíveis" antes de disparar o agente.');
   }
 
   // Determine base URL for scheduling links
