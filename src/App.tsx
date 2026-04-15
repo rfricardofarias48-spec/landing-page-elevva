@@ -2731,26 +2731,6 @@ const App: React.FC = () => {
                           </div>
                        </div>
 
-                       {/* Link do Portal */}
-                       {(user as any)?.id && (() => {
-                         const portalCode = (user as any).portal_code || (user as any).id;
-                         const portalUrl = `${window.location.origin}/vagas/${portalCode}`;
-                         return (
-                           <div className="mb-4 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 animate-fade-in">
-                             <div className="flex-1 min-w-0">
-                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Link do Portal de Candidaturas</p>
-                               <p className="text-xs font-mono text-slate-600 truncate">{portalUrl}</p>
-                             </div>
-                             <button
-                               onClick={() => navigator.clipboard.writeText(portalUrl)}
-                               className="shrink-0 bg-white border border-slate-200 hover:border-slate-400 text-slate-700 font-black text-xs px-3 py-2 rounded-xl transition-all hover:text-slate-900"
-                             >
-                               Copiar Link
-                             </button>
-                           </div>
-                         );
-                       })()}
-
                        {/* Banner: vagas sem nicho */}
                        {(() => {
                          const orphanCount = jobs.filter(j => !j.niche_id).length;
