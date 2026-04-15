@@ -2283,14 +2283,14 @@ const App: React.FC = () => {
 
                           <div className="text-slate-900 mb-1 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">{isAnnual ? '519' : '649'}</span>
-                              <span className="text-xl font-bold">,{isAnnual ? '20' : '90'}</span>
+                              <span className="text-6xl font-black tracking-tighter">{isAnnual ? '439' : '549'}</span>
+                              <span className="text-xl font-bold">,{isAnnual ? '20' : '00'}</span>
                               <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
                           </div>
                           {isAnnual ? (
                               <div className="mb-5">
-                                  <span className="text-sm text-slate-400 line-through mr-2">R$ 7.798,80</span>
-                                  <span className="text-sm font-bold text-[#65a30d]">R$ 6.230,40/ano</span>
+                                  <span className="text-sm text-slate-400 line-through mr-2">R$ 6.588,00</span>
+                                  <span className="text-sm font-bold text-[#65a30d]">R$ 5.270,40/ano</span>
                               </div>
                           ) : (
                               <div className="mb-5 h-4"></div>
@@ -2326,14 +2326,14 @@ const App: React.FC = () => {
 
                           <div className="text-white mb-1 flex items-baseline">
                               <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">{isAnnual ? '799' : '999'}</span>
-                              <span className="text-xl font-bold">,{isAnnual ? '92' : '90'}</span>
+                              <span className="text-6xl font-black tracking-tighter">{isAnnual ? '719' : '899'}</span>
+                              <span className="text-xl font-bold">,{isAnnual ? '20' : '00'}</span>
                               <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
                           </div>
                           {isAnnual ? (
                               <div className="mb-5">
-                                  <span className="text-sm text-zinc-500 line-through mr-2">R$ 11.998,80</span>
-                                  <span className="text-sm font-bold text-[#65a30d]">R$ 9.599,04/ano</span>
+                                  <span className="text-sm text-zinc-500 line-through mr-2">R$ 10.788,00</span>
+                                  <span className="text-sm font-bold text-[#65a30d]">R$ 8.630,40/ano</span>
                               </div>
                           ) : (
                               <div className="mb-5 h-4"></div>
