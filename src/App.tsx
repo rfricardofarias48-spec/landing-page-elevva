@@ -2242,7 +2242,25 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="flex items-end justify-between mb-3">
-                      <h3 className="text-4xl font-black tracking-tighter text-white">{normalizedPlan}</h3>
+                      <div>
+                          <h3 className="text-4xl font-black tracking-tighter text-white">{normalizedPlan}</h3>
+                          {(() => {
+                              const stdPrice = normalizedPlan === 'ESSENCIAL' ? 549 : normalizedPlan === 'PRO' ? 899 : null;
+                              const activePrice = user?.plan_price ?? stdPrice;
+                              if (!activePrice) return null;
+                              const isNegotiated = stdPrice !== null && user?.plan_price != null && user.plan_price !== stdPrice;
+                              return (
+                                  <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-xl font-black text-white">
+                                          R$ {activePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}<span className="text-sm font-bold text-zinc-400">/mês</span>
+                                      </span>
+                                      {isNegotiated && (
+                                          <span className="text-[10px] font-black bg-[#65a30d] text-white px-2 py-0.5 rounded-md uppercase tracking-widest">Negociado</span>
+                                      )}
+                                  </div>
+                              );
+                          })()}
+                      </div>
                       <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500">
                           <span>Vagas Ativas</span>
                           <span className="text-white text-sm">{user?.job_limit >= 9999 ? '∞' : `${jobs.length} / ${user?.job_limit}`}</span>
@@ -2281,19 +2299,32 @@ const App: React.FC = () => {
                           <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Essencial</h4>
                           <p className="text-sm text-slate-500 font-medium mb-5">Para equipes enxutas e recrutamento ágil.</p>
 
-                          <div className="text-slate-900 mb-1 flex items-baseline">
-                              <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">{isAnnual ? '439' : '549'}</span>
-                              <span className="text-xl font-bold">,{isAnnual ? '20' : '00'}</span>
-                              <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
-                          </div>
-                          {isAnnual ? (
-                              <div className="mb-5">
-                                  <span className="text-sm text-slate-400 line-through mr-2">R$ 6.588,00</span>
-                                  <span className="text-sm font-bold text-[#65a30d]">R$ 5.270,40/ano</span>
+                          {normalizedPlan === 'ESSENCIAL' && user?.plan_price != null && user.plan_price !== 549 ? (
+                              <div className="mb-6">
+                                  <div className="text-slate-900 mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-5xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
+                                  </div>
+                                  <span className="text-xs font-black bg-[#65a30d]/10 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
                               </div>
                           ) : (
-                              <div className="mb-5 h-4"></div>
+                              <>
+                                  <div className="text-slate-900 mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-6xl font-black tracking-tighter">{isAnnual ? '439' : '549'}</span>
+                                      <span className="text-xl font-bold">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
+                                  </div>
+                                  {isAnnual ? (
+                                      <div className="mb-5">
+                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 6.588,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 5.270,40/ano</span>
+                                      </div>
+                                  ) : (
+                                      <div className="mb-5 h-4"></div>
+                                  )}
+                              </>
                           )}
 
                           <div className="space-y-3 mb-6 text-sm font-medium text-slate-600 flex-1">
@@ -2324,19 +2355,32 @@ const App: React.FC = () => {
                           <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-5">Tração total para seu RH com mais vagas.</p>
 
-                          <div className="text-white mb-1 flex items-baseline">
-                              <span className="text-sm font-bold mr-1">R$</span>
-                              <span className="text-6xl font-black tracking-tighter">{isAnnual ? '719' : '899'}</span>
-                              <span className="text-xl font-bold">,{isAnnual ? '20' : '00'}</span>
-                              <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
-                          </div>
-                          {isAnnual ? (
-                              <div className="mb-5">
-                                  <span className="text-sm text-zinc-500 line-through mr-2">R$ 10.788,00</span>
-                                  <span className="text-sm font-bold text-[#65a30d]">R$ 8.630,40/ano</span>
+                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 899 ? (
+                              <div className="mb-6">
+                                  <div className="text-white mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-5xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
+                                  </div>
+                                  <span className="text-xs font-black bg-[#65a30d]/20 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
                               </div>
                           ) : (
-                              <div className="mb-5 h-4"></div>
+                              <>
+                                  <div className="text-white mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-6xl font-black tracking-tighter">{isAnnual ? '719' : '899'}</span>
+                                      <span className="text-xl font-bold">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
+                                  </div>
+                                  {isAnnual ? (
+                                      <div className="mb-5">
+                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 10.788,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 8.630,40/ano</span>
+                                      </div>
+                                  ) : (
+                                      <div className="mb-5 h-4"></div>
+                                  )}
+                              </>
                           )}
 
                           <div className="space-y-3 mb-6 text-sm font-medium text-zinc-300 flex-1">

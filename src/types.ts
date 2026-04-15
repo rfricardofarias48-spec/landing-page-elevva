@@ -93,7 +93,8 @@ export interface User {
   resume_limit: number;   // Máximo de currículos (ciclo ou total)
   resume_usage: number;   // Currículos já usados
   subscription_status?: 'active' | 'past_due' | 'canceled' | 'trialing';
-  current_period_end?: string; // NOVO: Data de renovação do plano
+  current_period_end?: string;
+  plan_price?: number;         // Preço mensal negociado (sobrescreve o padrão do plano)
   features?: {
     public_link: boolean;
     priority_support: boolean;

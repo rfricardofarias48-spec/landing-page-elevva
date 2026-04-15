@@ -3163,7 +3163,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                         <div className="bg-zinc-50 p-5 rounded-2xl border border-zinc-100 relative group">
                             <div className="flex justify-between items-start mb-2">
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Plano Atual (Manual)</p>
-                                <button onClick={() => { setIsEditingPlan(!isEditingPlan); if (!isEditingPlan && selectedUser) { const defPrice = selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 649.90 : selectedUser.plan === 'PRO' ? 999.90 : 0); setTempPlanPrice(String(defPrice)); } }} className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" title="Trocar Plano">
+                                <button onClick={() => { setIsEditingPlan(!isEditingPlan); if (!isEditingPlan && selectedUser) { const defPrice = selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 549.00 : selectedUser.plan === 'PRO' ? 899.00 : 0); setTempPlanPrice(String(defPrice)); } }} className="text-zinc-400 hover:text-black transition-colors bg-white p-1 rounded-md border border-zinc-200" title="Trocar Plano">
                                     {isEditingPlan ? <X className="w-4 h-4"/> : <Edit3 className="w-4 h-4" />}
                                 </button>
                             </div>
