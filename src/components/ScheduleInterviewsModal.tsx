@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Calendar, Send, MapPin, Video, Clock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Calendar, Send, MapPin, Video, Clock, AlertCircle, User } from 'lucide-react';
 import { Job } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -21,6 +21,7 @@ interface AvailabilitySlot {
 export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSuccess }) => {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
+  const [selectedInterviewers, setSelectedInterviewers] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,11 +39,36 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         .gte('slot_date', today)
         .order('slot_date', { ascending: true })
         .order('slot_time', { ascending: true });
-      setSlots(data || []);
+      const fetched = data || [];
+      setSlots(fetched);
+      // Select all interviewers by default
+      const names = new Set(fetched.map(s => s.interviewer_name || '(sem entrevistador)'));
+      setSelectedInterviewers(names);
       setLoadingSlots(false);
     };
     fetchSlots();
   }, []);
+
+  // Unique interviewers
+  const interviewers = useMemo(() => {
+    const set = new Set<string>();
+    slots.forEach(s => set.add(s.interviewer_name || '(sem entrevistador)'));
+    return Array.from(set);
+  }, [slots]);
+
+  // Slots filtered by selected interviewers
+  const filteredSlots = useMemo(() =>
+    slots.filter(s => selectedInterviewers.has(s.interviewer_name || '(sem entrevistador)')),
+    [slots, selectedInterviewers]
+  );
+
+  const toggleInterviewer = (name: string) => {
+    setSelectedInterviewers(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
 
   const formatDate = (dateStr: string) => {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -51,20 +77,19 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError('');
 
-    if (slots.length === 0) {
-      setError('Nenhum horário disponível cadastrado. Adicione horários em "Horários Disponíveis" antes de agendar.');
+    if (filteredSlots.length === 0) {
+      setError('Selecione pelo menos um entrevistador com horários disponíveis.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // 1. Copy availability_slots → interview_slots for this job
-      const slotsToInsert = slots.map(s => ({
+      // 1. Copy filtered availability_slots → interview_slots for this job
+      const slotsToInsert = filteredSlots.map(s => ({
         job_id: job.id,
         format: s.format,
         location: s.location,
@@ -101,7 +126,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
       }
 
       // 3. Insert interviews (only candidates without active interview)
-      const interviewerName = slots[0]?.interviewer_name || null;
+      const interviewerName = filteredSlots[0]?.interviewer_name || null;
       const interviewsToInsert = candidatesToSchedule.map(candidate => ({
         job_id: job.id,
         candidate_id: candidate.id,
@@ -116,7 +141,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
       if (insertError) throw insertError;
 
-      // 4. Trigger agent to send WhatsApp messages
+      // 4. Trigger agent
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const userId = authUser?.id;
@@ -127,11 +152,7 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         const agentRes = await fetch('/api/agent/start-scheduling', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: userId,
-            job_id: job.id,
-            interview_ids: interviewIds,
-          }),
+          body: JSON.stringify({ user_id: userId, job_id: job.id, interview_ids: interviewIds }),
         });
 
         if (!agentRes.ok) {
@@ -158,8 +179,8 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
     }
   };
 
-  // Group slots by date for preview
-  const grouped = slots.reduce<Record<string, AvailabilitySlot[]>>((acc, s) => {
+  // Group filtered slots by date for preview
+  const groupedPreview = filteredSlots.reduce<Record<string, AvailabilitySlot[]>>((acc, s) => {
     if (!acc[s.slot_date]) acc[s.slot_date] = [];
     acc[s.slot_date].push(s);
     return acc;
@@ -182,50 +203,80 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-          {/* Slots preview */}
-          <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="w-4 h-4 text-[#65a30d]" />
-              <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Horários que serão enviados</p>
-            </div>
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
 
-            {loadingSlots ? (
-              <div className="flex justify-center py-4">
-                <div className="w-6 h-6 border-2 border-[#84cc16] border-t-transparent rounded-full animate-spin" />
+          {loadingSlots ? (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-[#84cc16] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : slots.length === 0 ? (
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black text-amber-700">Nenhum horário disponível</p>
+                <p className="text-xs text-amber-600 mt-0.5">Cadastre horários em "Horários Disponíveis" antes de agendar entrevistas.</p>
               </div>
-            ) : slots.length === 0 ? (
-              <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-black text-amber-700">Nenhum horário disponível</p>
-                  <p className="text-xs text-amber-600 mt-0.5">Cadastre horários em "Horários Disponíveis" antes de agendar entrevistas.</p>
+            </div>
+          ) : (
+            <>
+              {/* Interviewer checkboxes */}
+              <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <User className="w-4 h-4 text-[#65a30d]" />
+                  <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Selecionar entrevistadores</p>
+                </div>
+                <div className="space-y-2">
+                  {interviewers.map(name => {
+                    const checked = selectedInterviewers.has(name);
+                    const count = slots.filter(s => (s.interviewer_name || '(sem entrevistador)') === name).length;
+                    return (
+                      <label key={name} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${checked ? 'bg-white border-black' : 'bg-white border-slate-200 opacity-60'}`}>
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${checked ? 'bg-black border-black' : 'border-slate-300'}`}>
+                          {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                        </div>
+                        <input type="checkbox" checked={checked} onChange={() => toggleInterviewer(name)} className="sr-only" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-slate-800 truncate">{name}</p>
+                          <p className="text-[10px] font-bold text-slate-400">{count} horário{count !== 1 ? 's' : ''}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(grouped).map(([date, daySlots]) => (
-                  <div key={date} className="flex items-start gap-3">
-                    <span className="text-xs font-black text-slate-600 w-24 shrink-0 pt-0.5 capitalize">{formatDate(date)}</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {daySlots.map(s => (
-                        <div key={s.id} className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
-                          <span className="text-xs font-black text-slate-700">{s.slot_time.substring(0, 5)}</span>
-                          {s.format === 'ONLINE'
-                            ? <Video className="w-3 h-3 text-blue-500" />
-                            : <MapPin className="w-3 h-3 text-orange-500" />
-                          }
-                        </div>
-                      ))}
-                    </div>
+
+              {/* Preview of slots that will be sent */}
+              {filteredSlots.length > 0 && (
+                <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock className="w-4 h-4 text-[#65a30d]" />
+                    <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Horários que serão enviados</p>
                   </div>
-                ))}
-                <p className="text-[10px] text-slate-400 font-bold mt-2">
-                  {slots.length} horário{slots.length !== 1 ? 's' : ''} • O agente enviará essas opções via WhatsApp
-                </p>
-              </div>
-            )}
-          </div>
+                  <div className="space-y-2">
+                    {Object.entries<AvailabilitySlot[]>(groupedPreview).map(([date, daySlots]) => (
+                      <div key={date} className="flex items-start gap-3">
+                        <span className="text-xs font-black text-slate-600 w-24 shrink-0 pt-0.5 capitalize">{formatDate(date)}</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {daySlots.map(s => (
+                            <div key={s.id} className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                              <span className="text-xs font-black text-slate-700">{s.slot_time.substring(0, 5)}</span>
+                              {s.format === 'ONLINE'
+                                ? <Video className="w-3 h-3 text-blue-500" />
+                                : <MapPin className="w-3 h-3 text-orange-500" />
+                              }
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-slate-400 font-bold mt-1">
+                      {filteredSlots.length} horário{filteredSlots.length !== 1 ? 's' : ''} • O agente enviará essas opções via WhatsApp
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
@@ -245,15 +296,13 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting || loadingSlots || slots.length === 0}
+            disabled={isSubmitting || loadingSlots || filteredSlots.length === 0}
             className="bg-[#84cc16] hover:bg-[#65a30d] text-black px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 border-black"
           >
             {isSubmitting ? (
               <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
             ) : (
-              <>
-                Confirmar e Notificar <Send className="w-4 h-4" />
-              </>
+              <>Confirmar e Notificar <Send className="w-4 h-4" /></>
             )}
           </button>
         </div>

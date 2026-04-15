@@ -51,14 +51,17 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose }) => {
 
   useEffect(() => { fetchSlots(); }, [userId]);
 
-  // Group slots by date
+  // Group slots by date → interviewer
   const grouped = useMemo(() => {
-    const map = new Map<string, AvailabilitySlot[]>();
+    const dateMap = new Map<string, Map<string, AvailabilitySlot[]>>();
     slots.forEach(s => {
-      if (!map.has(s.slot_date)) map.set(s.slot_date, []);
-      map.get(s.slot_date)!.push(s);
+      const interviewerKey = s.interviewer_name || '(sem entrevistador)';
+      if (!dateMap.has(s.slot_date)) dateMap.set(s.slot_date, new Map());
+      const interviewerMap = dateMap.get(s.slot_date)!;
+      if (!interviewerMap.has(interviewerKey)) interviewerMap.set(interviewerKey, []);
+      interviewerMap.get(interviewerKey)!.push(s);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return Array.from(dateMap.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [slots]);
 
   const formatDate = (dateStr: string) => {
@@ -155,34 +158,40 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose }) => {
             </div>
           ) : (
             <div className="space-y-4">
-              {grouped.map(([date, daySlots]) => (
+              {grouped.map(([date, interviewerMap]) => (
                 <div key={date} className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="px-4 py-3 bg-slate-100 border-b border-slate-200">
                     <p className="text-xs font-black text-slate-700 uppercase tracking-widest capitalize">
                       {formatDate(date)}
                     </p>
                   </div>
-                  <div className="p-3 flex flex-wrap gap-2">
-                    {daySlots.map(slot => (
-                      <div key={slot.id} className="flex items-center gap-2 bg-white border-2 border-slate-200 rounded-xl px-3 py-2 group hover:border-slate-300 transition-all">
-                        <span className="text-sm font-black text-slate-800">{formatTime(slot.slot_time)}</span>
-                        {slot.format === 'ONLINE'
-                          ? <Video className="w-3.5 h-3.5 text-blue-500" />
-                          : <MapPin className="w-3.5 h-3.5 text-orange-500" />
-                        }
-                        {slot.interviewer_name && (
-                          <span className="text-[10px] font-bold text-slate-400 hidden group-hover:block">{slot.interviewer_name}</span>
-                        )}
-                        <button
-                          onClick={() => handleDelete(slot.id)}
-                          disabled={deletingId === slot.id}
-                          className="ml-1 p-0.5 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50"
-                        >
-                          {deletingId === slot.id
-                            ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                            : <X className="w-3 h-3" />
-                          }
-                        </button>
+                  <div className="divide-y divide-slate-100">
+                    {Array.from(interviewerMap.entries()).map(([interviewer, daySlots]) => (
+                      <div key={interviewer} className="p-3">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> {interviewer}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {daySlots.map(slot => (
+                            <div key={slot.id} className="flex items-center gap-2 bg-white border-2 border-slate-200 rounded-xl px-3 py-2 hover:border-slate-300 transition-all">
+                              <span className="text-sm font-black text-slate-800">{formatTime(slot.slot_time)}</span>
+                              {slot.format === 'ONLINE'
+                                ? <Video className="w-3.5 h-3.5 text-blue-500" />
+                                : <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                              }
+                              <button
+                                onClick={() => handleDelete(slot.id)}
+                                disabled={deletingId === slot.id}
+                                className="ml-1 p-0.5 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50"
+                              >
+                                {deletingId === slot.id
+                                  ? <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                                  : <X className="w-3 h-3" />
+                                }
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
