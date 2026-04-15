@@ -45,6 +45,9 @@ interface ConversationContext {
   job_title?: string;
   job_id?: string;
   jobs?: Array<{ id: string; title: string }>;
+  niches?: Array<{ id: string; name: string }>;
+  niche_id?: string;
+  niche_name?: string;
   interview_id?: string;
   scheduling_token?: string;
   reminder_interview_id?: string;
@@ -123,25 +126,129 @@ async function handleNovo(
   _instance: string,
   phone: string,
   pushName: string,
-  portalCode: string,
+  _portalCode: string,
   supabase: SupabaseClient,
   send: SendFn,
 ): Promise<void> {
-  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-  const portalLink = `${baseUrl}/vagas/${portalCode}`;
+  // Busca nichos ativos do recrutador ordenados por posição
+  const { data: niches } = await supabase
+    .from('niches')
+    .select('id, name')
+    .eq('user_id', conv.user_id)
+    .order('order_pos', { ascending: true });
 
   const greeting = pushName ? `Olá, *${pushName}*! 👋` : 'Olá! 👋';
 
+  // Se não há nichos cadastrados, vai direto para lista de vagas
+  if (!niches || niches.length === 0) {
+    await handleNovo_SemNichos(conv, phone, greeting, supabase, send);
+    return;
+  }
+
+  const nicheList = niches.map((n, i) => `${i + 1}. ${n.name}`).join('\n');
+
   await send(phone,
-    `${greeting} Sou o *Bento*, assistente de recrutamento.\n\n` +
-    `Para se candidatar às nossas vagas, acesse o link abaixo:\n\n` +
-    `🔗 ${portalLink}\n\n` +
-    `No portal você escolhe a área, a vaga e envia seu currículo em menos de 1 minuto. ✅`
+    `${greeting} Sou o *Bento*, assistente de recrutamento. 🤖\n\n` +
+    `Temos vagas abertas em diversas áreas! Em qual delas você tem interesse?\n\n` +
+    `${nicheList}\n\n` +
+    `Responda com o *número* da área desejada.`
   );
 
   await updateConversation(conv.id, {
-    state: 'LINK_ENVIADO',
-    context: { ...conv.context },
+    state: 'SELECIONANDO_NICHO',
+    context: { ...conv.context, niches },
+  }, supabase);
+}
+
+async function handleNovo_SemNichos(
+  conv: Conversation,
+  phone: string,
+  greeting: string,
+  supabase: SupabaseClient,
+  send: SendFn,
+): Promise<void> {
+  const { data: jobs } = await supabase
+    .from('jobs')
+    .select('id, title')
+    .eq('user_id', conv.user_id)
+    .eq('is_paused', false)
+    .order('created_at', { ascending: false });
+
+  if (!jobs || jobs.length === 0) {
+    await send(phone, `${greeting} Sou o *Bento*, assistente de recrutamento. 🤖\n\nNo momento não há vagas abertas. Em breve novas oportunidades serão divulgadas!`);
+    return;
+  }
+
+  const jobList = jobs.map((j, i) => `${i + 1}. ${j.title}`).join('\n');
+  await send(phone,
+    `${greeting} Sou o *Bento*, assistente de recrutamento. 🤖\n\n` +
+    `Temos as seguintes vagas abertas:\n\n${jobList}\n\n` +
+    `Responda com o *número* da vaga desejada.`
+  );
+
+  await updateConversation(conv.id, {
+    state: 'SELECIONANDO_VAGA',
+    context: { ...conv.context, jobs },
+  }, supabase);
+}
+
+async function handleSelecionandoNicho(
+  conv: Conversation,
+  phone: string,
+  text: string,
+  supabase: SupabaseClient,
+  send: SendFn,
+): Promise<void> {
+  const niches = conv.context.niches || [];
+  let selectedNiche: { id: string; name: string } | undefined;
+
+  // Tenta por número
+  const num = parseInt(text, 10);
+  if (!isNaN(num) && num >= 1 && num <= niches.length) {
+    selectedNiche = niches[num - 1];
+  }
+
+  // Tenta por nome (fuzzy)
+  if (!selectedNiche && text.length > 1) {
+    const lower = text.toLowerCase();
+    selectedNiche = niches.find(n => n.name.toLowerCase().includes(lower));
+  }
+
+  if (!selectedNiche) {
+    const list = niches.map((n, i) => `${i + 1}. ${n.name}`).join('\n');
+    await send(phone, `Não entendi. Por favor, responda com o *número* da área:\n\n${list}`);
+    return;
+  }
+
+  // Busca vagas do nicho selecionado
+  const { data: jobs } = await supabase
+    .from('jobs')
+    .select('id, title')
+    .eq('user_id', conv.user_id)
+    .eq('niche_id', selectedNiche.id)
+    .eq('is_paused', false)
+    .order('created_at', { ascending: false });
+
+  if (!jobs || jobs.length === 0) {
+    const list = niches.map((n, i) => `${i + 1}. ${n.name}`).join('\n');
+    await send(phone, `No momento não há vagas abertas em *${selectedNiche.name}*. 😔\n\nEscolha outra área:\n\n${list}`);
+    return;
+  }
+
+  const jobList = jobs.map((j, i) => `${i + 1}. ${j.title}`).join('\n');
+  await send(phone,
+    `Ótimo! Vagas disponíveis em *${selectedNiche.name}*:\n\n${jobList}\n\n` +
+    `Responda com o *número* da vaga que deseja se candidatar.`
+  );
+
+  await updateConversation(conv.id, {
+    state: 'SELECIONANDO_VAGA',
+    context: {
+      ...conv.context,
+      niche_id: selectedNiche.id,
+      niche_name: selectedNiche.name,
+      jobs,
+    },
   }, supabase);
 }
 
@@ -717,13 +824,18 @@ export async function processIncomingMessage(
 
   switch (conv.state) {
 
-    // ── Primeiro contato: envia link do portal ──
+    // ── Primeiro contato: envia lista de nichos ──
     case 'NOVO':
     case 'LINK_ENVIADO':
       await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
       break;
 
-    // ── Fluxo de seleção de vaga (candidatos que iniciaram pelo WhatsApp antes do portal) ──
+    // ── Candidato escolhendo nicho ──
+    case 'SELECIONANDO_NICHO':
+      await handleSelecionandoNicho(conv, phone, text, supabase, send);
+      break;
+
+    // ── Candidato escolhendo vaga dentro do nicho ──
     case 'SELECIONANDO_VAGA':
       await handleSelecionandoVaga(conv, instance, phone, text, selectedRowId, supabase, send);
       break;
@@ -744,13 +856,14 @@ export async function processIncomingMessage(
       await send(phone, 'Seu currículo está em análise. 🔍 Em breve nossa equipe entrará em contato com os próximos passos. 😊');
       break;
 
-    // ── Reprovado: pode tentar outras vagas pelo portal ──
+    // ── Reprovado: reinicia fluxo com lista de nichos ──
     case 'REPROVADO':
       await send(phone,
         `Obrigado pelo interesse! No momento o seu perfil não foi selecionado para esta vaga.\n\n` +
-        `Mas não desanime — temos outras oportunidades disponíveis:\n\n🔗 ${portalLink}`
+        `Mas não desanime — temos outras oportunidades disponíveis! 💪`
       );
-      await updateConversation(conv.id, { state: 'LINK_ENVIADO' }, supabase);
+      await updateConversation(conv.id, { state: 'NOVO', context: { candidate_name: conv.context.candidate_name } }, supabase);
+      await handleNovo(conv, instance, phone, '', portalCode, supabase, send);
       break;
 
     // ── Cancelado: recomeça ──
@@ -854,8 +967,25 @@ export async function triggerSchedulingForCandidates(
 
       const rawPhone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
       if (!rawPhone) { errors++; continue; }
-      // Normaliza: remove @ suffix e + prefix (formato aceito pela Evolution API)
-      const phone = rawPhone.replace(/@.*$/, '').replace(/^\+/, '');
+
+      // Remove toda formatação: mantém apenas dígitos, remove + e @suffix
+      const digitsOnly = rawPhone.replace(/@.*$/, '').replace(/\D/g, '');
+
+      // Prefere o número verificado do agent_conversations (JID real do WhatsApp)
+      // em vez do número digitado no formulário (pode ter formatação incorreta)
+      let phone = digitsOnly;
+      const { data: existingConv } = await supabase
+        .from('agent_conversations')
+        .select('phone')
+        .eq('user_id', userId)
+        .ilike('phone', `%${digitsOnly.slice(-8)}%`)   // últimos 8 dígitos como chave de busca
+        .maybeSingle();
+
+      if (existingConv?.phone) {
+        // Usa o número já verificado pelo WhatsApp (cleanPhone do JID real)
+        phone = existingConv.phone.replace(/^\+/, '');
+        console.log(`[Agent] triggerScheduling: usando phone verificado ${phone} (era ${digitsOnly})`);
+      }
 
       const candidateName = candidate?.['Nome Completo' as keyof typeof candidate] as string | undefined;
       const firstName = candidateName?.split(' ')[0] || 'Candidato';
@@ -901,9 +1031,14 @@ export async function triggerSchedulingForCandidates(
         ? '\n💻 *Formato:* Online'
         : '\n🏢 *Formato:* Presencial';
 
-      await evo.sendText(instance, phone, `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`, instanceToken);
+      const delivered = await evo.sendText(instance, phone, `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`, instanceToken);
 
-      sent++;
+      if (delivered) {
+        sent++;
+      } else {
+        console.warn(`[Agent] triggerScheduling: mensagem não entregue para ${phone} (número possivelmente sem WhatsApp)`);
+        errors++;
+      }
     } catch (err) {
       console.error(`[Agent] triggerScheduling error for interview ${interviewId}:`, err);
       errors++;
