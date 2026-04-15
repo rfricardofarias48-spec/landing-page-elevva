@@ -40,7 +40,43 @@ export function cleanPhone(rawJid: string): string {
   return rawJid.replace(/@.*$/, '').replace(/^\+/, '');
 }
 
-async function post(path: string, body: Record<string, unknown>, apiKey?: string): Promise<unknown> {
+/** Sleep for a given number of milliseconds */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Calculate a human-like typing delay based on message length.
+ * ~45 chars/sec average typing speed + random variance + initial reaction time.
+ */
+function humanDelay(text: string): number {
+  const reactionMs = 800 + Math.random() * 1200;        // 0.8–2s to "read and start typing"
+  const typingMs   = (text.length / 45) * 1000;         // ~45 chars/sec
+  const variance   = (Math.random() - 0.5) * 0.4 * typingMs; // ±20% variance
+  const total      = reactionMs + typingMs + variance;
+  return Math.min(Math.max(total, 1200), 8000);          // clamp 1.2s – 8s
+}
+
+/** Send WhatsApp typing presence indicator (best-effort, won't throw) */
+async function sendTypingPresence(instance: string, jid: string, durationMs: number, apiKey: string): Promise<void> {
+  const phone = cleanPhone(jid);
+  const endpoints = [
+    `/chat/sendPresence/${instance}`,
+    `/chat/whatsappPresence/${instance}`,
+  ];
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(`${BASE_URL}${ep}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: apiKey },
+        body: JSON.stringify({ number: phone, options: { delay: durationMs, presence: 'composing' } }),
+      });
+      if (res.ok) return;
+    } catch { /* ignore */ }
+  }
+}
+
+async function post(path: string, body: Record<string, unknown>, apiKey?: string): Promise<{ ok: boolean; data: unknown }> {
   const key = apiKey || API_KEY;
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
@@ -48,22 +84,36 @@ async function post(path: string, body: Record<string, unknown>, apiKey?: string
       headers: { 'Content-Type': 'application/json', apikey: key },
       body: JSON.stringify(body),
     });
+    const text = await res.text();
     if (!res.ok) {
-      const text = await res.text();
       console.error(`[Evolution] ${path} → HTTP ${res.status}: ${text}`);
+      return { ok: false, data: null };
     }
-    return res.json().catch(() => null);
+    try { return { ok: true, data: JSON.parse(text) }; } catch { return { ok: true, data: null }; }
   } catch (err) {
     console.error(`[Evolution] fetch error on ${path}:`, err);
-    return null;
+    return { ok: false, data: null };
   }
 }
 
-/** Send a plain text message (Evolution GO: POST /send/text) */
-export async function sendText(instance: string, jid: string, text: string, tokenOverride?: string): Promise<void> {
-  const phone = cleanPhone(jid);
-  console.log(`[Evolution] sendText → instance: ${instance}, phone: ${phone}, text length: ${text.length}`);
-  await post('/send/text', { number: phone, text }, tokenOverride || getApiKey(instance));
+/** Send a plain text message with human-like typing simulation.
+ *  Sends a "composing" presence, waits proportionally to text length, then sends.
+ *  Returns true if the message was accepted by the API, false otherwise. */
+export async function sendText(instance: string, jid: string, text: string, tokenOverride?: string): Promise<boolean> {
+  const phone  = cleanPhone(jid);
+  const apiKey = tokenOverride || getApiKey(instance);
+  const delay  = humanDelay(text);
+
+  console.log(`[Evolution] sendText → instance: ${instance}, phone: ${phone}, delay: ${Math.round(delay)}ms, text length: ${text.length}`);
+
+  // Fire typing presence and wait concurrently — if presence fails, delay still runs
+  await Promise.all([
+    sendTypingPresence(instance, jid, delay, apiKey),
+    sleep(delay),
+  ]);
+
+  const { ok } = await post('/send/text', { number: phone, text }, apiKey);
+  return ok;
 }
 
 /** Send an interactive list message (renders as a tappable menu on WhatsApp) */
