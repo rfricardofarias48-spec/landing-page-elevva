@@ -145,6 +145,42 @@ async function handleNovo(
     return;
   }
 
+  // Se há apenas 1 nicho, pula a seleção e vai direto para as vagas desse nicho
+  if (niches.length === 1) {
+    const onlyNiche = niches[0];
+    const { data: jobs } = await supabase
+      .from('jobs')
+      .select('id, title')
+      .eq('user_id', conv.user_id)
+      .eq('niche_id', onlyNiche.id)
+      .eq('is_paused', false)
+      .order('created_at', { ascending: false });
+
+    if (!jobs || jobs.length === 0) {
+      await send(phone, `${greeting} Sou o *Bento*, assistente de recrutamento. 🤖\n\nNo momento não há vagas abertas. Em breve novas oportunidades serão divulgadas!`);
+      return;
+    }
+
+    const jobList = jobs.map((j, i) => `${i + 1}. ${j.title}`).join('\n');
+    await send(phone,
+      `${greeting} Sou o *Bento*, assistente de recrutamento. 🤖\n\n` +
+      `Temos as seguintes vagas abertas:\n\n${jobList}\n\n` +
+      `Responda com o *número* da vaga desejada.`
+    );
+
+    await updateConversation(conv.id, {
+      state: 'SELECIONANDO_VAGA',
+      context: {
+        ...conv.context,
+        niches,
+        niche_id: onlyNiche.id,
+        niche_name: onlyNiche.name,
+        jobs,
+      },
+    }, supabase);
+    return;
+  }
+
   const nicheList = niches.map((n, i) => `${i + 1}. ${n.name}`).join('\n');
 
   await send(phone,
