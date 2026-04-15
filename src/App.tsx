@@ -2690,18 +2690,6 @@ const App: React.FC = () => {
       {/* MAIN CONTENT Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50/50 relative">
 
-        {/* Botão fixo Horários Disponíveis — visível sempre na aba Entrevistas */}
-        {view === 'DASHBOARD' && currentTab === 'ENTREVISTAS' && (
-          <button
-            onClick={() => setShowAvailableSlots(true)}
-            style={{ position: 'fixed', top: '20px', right: '24px', zIndex: 9999 }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] border-2 border-black text-black rounded-xl font-black text-sm hover:bg-[#65a30d] transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
-          >
-            <Clock className="w-4 h-4" />
-            Horários Disponíveis
-          </button>
-        )}
-
         {/* Modal Horários Disponíveis */}
         {showAvailableSlots && (user as any)?.id && (
           <AvailableSlotsModal userId={(user as any).id} onClose={() => setShowAvailableSlots(false)} />
@@ -2713,7 +2701,7 @@ const App: React.FC = () => {
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
-               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} />}
+               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} onOpenAvailableSlots={() => setShowAvailableSlots(true)} />}
                {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} interviews={interviews} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} />}
                {currentTab === 'JOBS' && (
                    <>

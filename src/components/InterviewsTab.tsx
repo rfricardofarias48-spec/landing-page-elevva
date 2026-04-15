@@ -13,9 +13,10 @@ interface Props {
   onRefresh?: () => void;
   approvedCandidateIds?: Set<string>;
   userId?: string;
+  onOpenAvailableSlots?: () => void;
 }
 
-export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh, approvedCandidateIds = new Set(), userId }) => {
+export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInterview, onClearInitialSelectedInterview, onOpenChat, onRefresh, approvedCandidateIds = new Set(), userId, onOpenAvailableSlots }) => {
   const [interviewToCancel, setInterviewToCancel] = useState<Interview | null>(null);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(initialSelectedInterview || null);
   const [isCanceling, setIsCanceling] = useState(false);
@@ -375,6 +376,15 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {onOpenAvailableSlots && (
+            <button
+              onClick={onOpenAvailableSlots}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] hover:bg-[#65a30d] text-black rounded-xl font-black text-sm transition-all shadow-[0px_4px_12px_rgba(132,204,22,0.35)] hover:shadow-[0px_4px_16px_rgba(132,204,22,0.45)] border border-[#65a30d]"
+            >
+              <Clock className="w-4 h-4" />
+              Horários Disponíveis
+            </button>
+          )}
           <button
             onClick={handleExportPDF}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm"
