@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText, ThumbsUp, ThumbsDown, Loader2, Bell, Plus } from 'lucide-react';
 import { Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -366,14 +367,17 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
   return (
     <div className="bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] animate-fade-in relative">
 
-      {/* Botão fixo no canto superior direito da tela */}
-      <button
-        onClick={() => setShowSlotsModal(true)}
-        className="fixed top-5 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] border-2 border-black text-black rounded-xl font-black text-sm hover:bg-[#65a30d] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
-      >
-        <Clock className="w-4 h-4" />
-        Horários Disponíveis
-      </button>
+      {ReactDOM.createPortal(
+        <button
+          onClick={() => setShowSlotsModal(true)}
+          style={{ position: 'fixed', top: '20px', right: '24px', zIndex: 9999 }}
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] border-2 border-black text-black rounded-xl font-black text-sm hover:bg-[#65a30d] transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+        >
+          <Clock className="w-4 h-4" />
+          Horários Disponíveis
+        </button>,
+        document.body
+      )}
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div className="flex items-center gap-4">
