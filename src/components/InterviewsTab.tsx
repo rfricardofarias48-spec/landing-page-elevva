@@ -231,15 +231,6 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     return `${parts[0]} ${parts[parts.length - 1]}`;
   };
 
-  if (interviews.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-        <Calendar className="w-12 h-12 text-slate-300 mb-4" />
-        <h3 className="text-lg font-black text-slate-900 mb-1">Nenhuma entrevista agendada</h3>
-        <p className="text-sm font-bold text-slate-500">Selecione candidatos aprovados em uma vaga e clique em "Agendar Entrevistas".</p>
-      </div>
-    );
-  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -440,8 +431,17 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-end gap-4 mb-8 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
+      {/* Empty state — shown inside the full layout so header/buttons always visible */}
+      {interviews.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 mb-8">
+          <Calendar className="w-12 h-12 text-slate-300 mb-4" />
+          <h3 className="text-lg font-black text-slate-900 mb-1">Nenhuma entrevista agendada</h3>
+          <p className="text-sm font-bold text-slate-500">Selecione candidatos aprovados em uma vaga e clique em "Agendar Entrevistas".</p>
+        </div>
+      )}
+
+      {/* Filters — only shown when there are interviews */}
+      {interviews.length > 0 && <div className="flex flex-wrap items-end gap-4 mb-8 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
         <div className="flex items-center gap-2 w-full mb-2">
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-bold text-slate-700">Filtros</span>
@@ -508,9 +508,9 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             Limpar
           </button>
         )}
-      </div>
+      </div>}
 
-      <div className="overflow-x-auto">
+      {interviews.length > 0 && <div className="overflow-x-auto">
         <div className="min-w-[900px] flex flex-col">
           {/* Header */}
           <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr_0.5fr_0.5fr] gap-4 px-6 py-4 border-b border-slate-100 mb-2 items-center">
@@ -678,7 +678,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
             })
           )}
         </div>
-      </div>
+      </div>}
 
       {/* MODAL DE DETALHES DA ENTREVISTA */}
       {selectedInterview && (
