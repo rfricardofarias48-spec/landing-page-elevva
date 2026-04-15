@@ -248,7 +248,7 @@ export const AdminDashboard: React.FC = () => {
           newJobLimit = 9999;
       }
 
-      const priceToSave = customPrice != null ? customPrice : (newPlan === 'ESSENCIAL' ? 649.90 : newPlan === 'PRO' ? 999.90 : 0);
+      const priceToSave = customPrice != null ? customPrice : (newPlan === 'ESSENCIAL' ? 549.00 : newPlan === 'PRO' ? 899.00 : 0);
 
       try {
           const { error } = await supabase
@@ -584,8 +584,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       });
 
       const stats = {
-          ESSENCIAL: { count: 0, price: 649.90, revenue: 0 },
-          PRO: { count: 0, price: 999.90, revenue: 0 },
+          ESSENCIAL: { count: 0, price: 549.00, revenue: 0 },
+          PRO: { count: 0, price: 899.00, revenue: 0 },
           ENTERPRISE: { count: 0, price: 0, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
@@ -595,7 +595,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       };
 
       historicalUsers.forEach(u => {
-          const defaultPrice = u.plan === 'ESSENCIAL' ? 649.90 : u.plan === 'PRO' ? 999.90 : 0;
+          const defaultPrice = u.plan === 'ESSENCIAL' ? 549.00 : u.plan === 'PRO' ? 899.00 : 0;
           const userPrice = u.plan_price != null ? u.plan_price : defaultPrice;
 
           if (u.plan in stats) {
@@ -684,7 +684,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       return users
         .filter(u => new Date(u.created_at) <= endOfMonth && u.plan !== 'ADMIN')
         .reduce((acc, u) => {
-          const defaultPrice = u.plan === 'PRO' ? 999.90 : u.plan === 'ENTERPRISE' ? 0 : 649.90;
+          const defaultPrice = u.plan === 'PRO' ? 899.00 : u.plan === 'ENTERPRISE' ? 0 : 549.00;
           return acc + (u.plan_price ?? defaultPrice);
         }, 0);
     });
@@ -1675,14 +1675,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                               <span className="text-zinc-500 font-medium">Valor personalizado abaixo</span>
                                           ) : directLinkForm.billing === 'anual' ? (
                                               <span className="font-black text-zinc-900">
-                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 6.230,40/ano' : 'R$ 9.599,04/ano'}
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 5.270,40/ano' : 'R$ 8.630,40/ano'}
                                                   <span className="ml-2 text-xs text-zinc-400 font-medium line-through">
-                                                      {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 7.798,80' : 'R$ 11.998,80'}
+                                                      {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 6.588,00' : 'R$ 10.788,00'}
                                                   </span>
                                               </span>
                                           ) : (
                                               <span className="font-black text-zinc-900">
-                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 649,90/mês' : 'R$ 999,90/mês'}
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 549,00/mês' : 'R$ 899,00/mês'}
                                               </span>
                                           )}
                                       </div>
@@ -2319,14 +2319,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                               <span className="text-zinc-500 font-medium">Valor personalizado abaixo</span>
                                           ) : directLinkForm.billing === 'anual' ? (
                                               <span className="font-black text-zinc-900">
-                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 6.230,40/ano' : 'R$ 9.599,04/ano'}
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 5.270,40/ano' : 'R$ 8.630,40/ano'}
                                                   <span className="ml-2 text-xs text-zinc-400 font-medium line-through">
-                                                      {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 7.798,80' : 'R$ 11.998,80'}
+                                                      {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 6.588,00' : 'R$ 10.788,00'}
                                                   </span>
                                               </span>
                                           ) : (
                                               <span className="font-black text-zinc-900">
-                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 649,90/mês' : 'R$ 999,90/mês'}
+                                                  {directLinkForm.plan === 'ESSENCIAL' ? 'R$ 549,00/mês' : 'R$ 899,00/mês'}
                                               </span>
                                           )}
                                       </div>
@@ -2688,8 +2688,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                   <h3 className="text-lg font-black text-zinc-900 mb-6 flex items-center gap-2"><PieChart className="w-5 h-5"/> Distribuição de Receita</h3>
                   <div className="space-y-6">
                       {[
-                          { label: 'Plano Essencial', price: 'R$ 649,90 / mês', count: essencial, color: 'bg-zinc-900' },
-                          { label: 'Plano Pro',       price: 'R$ 999,90 / mês', count: pro,       color: 'bg-[#65a30d]' },
+                          { label: 'Plano Essencial', price: 'R$ 549,00 / mês', count: essencial, color: 'bg-zinc-900' },
+                          { label: 'Plano Pro',       price: 'R$ 899,00 / mês', count: pro,       color: 'bg-[#65a30d]' },
                           { label: 'Enterprise',      price: 'A consultar',      count: enterprise, color: 'bg-purple-600' },
                       ].map(p => (
                           <div key={p.label}>
@@ -3184,10 +3184,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                         />
                                     </div>
                                     <div className="grid grid-cols-1 gap-2">
-                                        <button onClick={() => handleUpdatePlan('ESSENCIAL', tempPlanPrice ? parseFloat(tempPlanPrice) : 499.90)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
+                                        <button onClick={() => handleUpdatePlan('ESSENCIAL', tempPlanPrice ? parseFloat(tempPlanPrice) : 549.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
                                             <span>ESSENCIAL</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas / CVs Ilimitados</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('PRO', tempPlanPrice ? parseFloat(tempPlanPrice) : 799.90)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
+                                        <button onClick={() => handleUpdatePlan('PRO', tempPlanPrice ? parseFloat(tempPlanPrice) : 899.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
                                             <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas / CVs Ilimitados</span>
                                         </button>
                                         <button onClick={() => handleUpdatePlan('ENTERPRISE', tempPlanPrice ? parseFloat(tempPlanPrice) : 0)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
@@ -3202,7 +3202,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                 <div>
                                     <p className="text-3xl font-black text-zinc-900">{selectedUser.plan}</p>
                                     <p className="text-sm font-bold text-[#65a30d] mt-1">
-                                        R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 649.90 : selectedUser.plan === 'PRO' ? 999.90 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês
+                                        R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 549.00 : selectedUser.plan === 'PRO' ? 899.00 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês
                                     </p>
                                     <p className="text-xs text-zinc-400 font-bold mt-1">
                                         {selectedUser.plan === 'ESSENCIAL' ? 'Limites: 3 Vagas / CVs Ilimitados' : selectedUser.plan === 'PRO' ? 'Limites: 10 Vagas / CVs Ilimitados' : selectedUser.plan === 'ENTERPRISE' ? `Limites: ${selectedUser.job_limit === 9999 ? 'Ilimitado' : (selectedUser.job_limit ?? 'Ilimitado')} Vagas / CVs Ilimitados` : 'Limites: ILIMITADO'}
