@@ -45,18 +45,6 @@ export function AnimatedBackground() {
           pointerEvents: 'none',
         }}
       >
-        {/* Grid de pontos */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage:
-              'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-            opacity: 0.45,
-          }}
-        />
-
         {/* Blob verde-lima — topo-esquerdo */}
         <div
           className="ab-blob-a"
