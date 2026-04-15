@@ -17,6 +17,7 @@ import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
 import { ScheduleInterviewsModal } from './components/ScheduleInterviewsModal';
 import { InterviewsTab } from './components/InterviewsTab';
+import { AvailableSlotsModal } from './components/AvailableSlotsModal';
 import { AprovadosTab } from './components/AprovadosTab';
 import { BentoChat } from './components/BentoChat';
 import { NicheSection } from './components/NicheSection';
@@ -239,6 +240,7 @@ const App: React.FC = () => {
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [showAvailableSlots, setShowAvailableSlots] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
@@ -2687,7 +2689,24 @@ const App: React.FC = () => {
 
       {/* MAIN CONTENT Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50/50 relative">
-        
+
+        {/* Botão fixo Horários Disponíveis — visível sempre na aba Entrevistas */}
+        {view === 'DASHBOARD' && currentTab === 'ENTREVISTAS' && (
+          <button
+            onClick={() => setShowAvailableSlots(true)}
+            style={{ position: 'fixed', top: '20px', right: '24px', zIndex: 9999 }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#84cc16] border-2 border-black text-black rounded-xl font-black text-sm hover:bg-[#65a30d] transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <Clock className="w-4 h-4" />
+            Horários Disponíveis
+          </button>
+        )}
+
+        {/* Modal Horários Disponíveis */}
+        {showAvailableSlots && (user as any)?.id && (
+          <AvailableSlotsModal userId={(user as any).id} onClose={() => setShowAvailableSlots(false)} />
+        )}
+
         {/* VIEW: DASHBOARD (Includes TABS) */}
         {view === 'DASHBOARD' && (
             <div className={`flex-1 p-4 md:p-6 ${currentTab === 'BILLING' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
