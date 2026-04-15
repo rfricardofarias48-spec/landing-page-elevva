@@ -41,22 +41,19 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         .order('slot_time', { ascending: true });
       const fetched = data || [];
       setSlots(fetched);
-      // Select all interviewers by default
-      const names = new Set(fetched.map(s => s.interviewer_name || '(sem entrevistador)'));
+      const names = new Set(fetched.map((s: AvailabilitySlot) => s.interviewer_name || '(sem entrevistador)'));
       setSelectedInterviewers(names);
       setLoadingSlots(false);
     };
     fetchSlots();
   }, []);
 
-  // Unique interviewers
   const interviewers = useMemo(() => {
     const set = new Set<string>();
     slots.forEach(s => set.add(s.interviewer_name || '(sem entrevistador)'));
     return Array.from(set);
   }, [slots]);
 
-  // Slots filtered by selected interviewers
   const filteredSlots = useMemo(() =>
     slots.filter(s => selectedInterviewers.has(s.interviewer_name || '(sem entrevistador)')),
     [slots, selectedInterviewers]
@@ -79,16 +76,12 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
   const handleSubmit = async () => {
     setError('');
-
     if (filteredSlots.length === 0) {
       setError('Selecione pelo menos um entrevistador com horários disponíveis.');
       return;
     }
-
     setIsSubmitting(true);
-
     try {
-      // 1. Copy filtered availability_slots → interview_slots for this job
       const slotsToInsert = filteredSlots.map(s => ({
         job_id: job.id,
         format: s.format,
@@ -99,87 +92,57 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         is_booked: false,
       }));
 
-      const { error: slotsError } = await supabase
-        .from('interview_slots')
-        .insert(slotsToInsert);
-
+      const { error: slotsError } = await supabase.from('interview_slots').insert(slotsToInsert);
       if (slotsError) throw slotsError;
 
-      // 2. Filter candidates that already have an active interview for this job
       const ACTIVE_STATUSES = ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA'];
       const selectedIds = selectedCandidates.map(c => c.id);
 
       const { data: existingInterviews } = await supabase
-        .from('interviews')
-        .select('candidate_id')
-        .eq('job_id', job.id)
-        .in('status', ACTIVE_STATUSES)
-        .in('candidate_id', selectedIds);
+        .from('interviews').select('candidate_id')
+        .eq('job_id', job.id).in('status', ACTIVE_STATUSES).in('candidate_id', selectedIds);
 
       const alreadyScheduledIds = new Set((existingInterviews || []).map(i => i.candidate_id));
       const candidatesToSchedule = selectedCandidates.filter(c => !alreadyScheduledIds.has(c.id));
 
       if (candidatesToSchedule.length === 0) {
-        setError('Todos os candidatos selecionados já possuem entrevista ativa. Nenhum convite foi enviado.');
+        setError('Todos os candidatos selecionados já possuem entrevista ativa.');
         setIsSubmitting(false);
         return;
       }
 
-      // 3. Insert interviews (only candidates without active interview)
       const interviewerName = filteredSlots[0]?.interviewer_name || null;
-      const interviewsToInsert = candidatesToSchedule.map(candidate => ({
-        job_id: job.id,
-        candidate_id: candidate.id,
-        status: 'AGUARDANDO_RESPOSTA',
-        interviewer_name: interviewerName,
-      }));
-
       const { data: insertedInterviews, error: insertError } = await supabase
         .from('interviews')
-        .insert(interviewsToInsert)
+        .insert(candidatesToSchedule.map(c => ({ job_id: job.id, candidate_id: c.id, status: 'AGUARDANDO_RESPOSTA', interviewer_name: interviewerName })))
         .select();
-
       if (insertError) throw insertError;
 
-      // 4. Trigger agent
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const userId = authUser?.id;
         if (!userId) throw new Error('Usuário não autenticado.');
-
         const interviewIds = insertedInterviews?.map(i => i.id) || [];
-
         const agentRes = await fetch('/api/agent/start-scheduling', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId, job_id: job.id, interview_ids: interviewIds }),
         });
-
-        if (!agentRes.ok) {
-          const body = await agentRes.json().catch(() => ({})) as { error?: string };
-          console.warn('Aviso do agente:', body.error);
-        }
-
+        if (!agentRes.ok) console.warn('Aviso agente:', await agentRes.json().catch(() => ({})));
         await fetch('/api/agent/notify-pending-reschedules', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId, job_id: job.id }),
         }).catch(() => {});
-      } catch (agentError) {
-        console.error('Erro ao disparar agente:', agentError);
-      }
+      } catch (agentError) { console.error('Erro ao disparar agente:', agentError); }
 
       onSuccess();
     } catch (err: unknown) {
-      console.error('Erro ao agendar entrevistas:', err);
-      const message = err instanceof Error ? err.message : 'Erro ao agendar entrevistas. Tente novamente.';
+      const message = err instanceof Error ? err.message : 'Erro ao agendar entrevistas.';
       setError(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Group filtered slots by date for preview
   const groupedPreview = filteredSlots.reduce<Record<string, AvailabilitySlot[]>>((acc, s) => {
     if (!acc[s.slot_date]) acc[s.slot_date] = [];
     acc[s.slot_date].push(s);
@@ -187,54 +150,57 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
   }, {});
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative animate-slide-up border-4 border-black max-h-[90vh] flex flex-col">
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 hover:border-black text-slate-400 hover:text-black z-10">
-          <X className="w-5 h-5" />
-        </button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-[0px_8px_40px_rgba(0,0,0,0.12)] relative border border-slate-100 max-h-[90vh] flex flex-col">
 
-        <div className="flex items-center gap-3 mb-6 flex-shrink-0">
-          <div className="w-12 h-12 bg-[#84cc16] rounded-xl flex items-center justify-center border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-            <Calendar className="w-6 h-6 text-black" />
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-slate-100 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="w-11 h-11 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100">
+              <Calendar className="w-5 h-5 text-[#65a30d]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tighter">Agendar Entrevistas</h2>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                Para {selectedCandidates.length} candidato{selectedCandidates.length !== 1 ? 's' : ''} selecionado{selectedCandidates.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Agendar Entrevistas</h2>
-            <p className="text-sm font-bold text-slate-500">Para {selectedCandidates.length} candidato(s) selecionado(s)</p>
-          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400 hover:text-slate-700">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
           {loadingSlots ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 border-2 border-[#84cc16] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : slots.length === 0 ? (
-            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-black text-amber-700">Nenhum horário disponível</p>
-                <p className="text-xs text-amber-600 mt-0.5">Cadastre horários em "Horários Disponíveis" antes de agendar entrevistas.</p>
+                <p className="text-xs text-amber-500 mt-0.5">Cadastre horários em "Horários Disponíveis" antes de agendar entrevistas.</p>
               </div>
             </div>
           ) : (
             <>
-              {/* Interviewer checkboxes */}
-              <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <User className="w-4 h-4 text-[#65a30d]" />
-                  <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Selecionar entrevistadores</p>
-                </div>
+              {/* Interviewer selection */}
+              <div className="bg-white rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] p-5">
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <User className="w-3.5 h-3.5" /> Selecionar entrevistadores
+                </p>
                 <div className="space-y-2">
                   {interviewers.map(name => {
                     const checked = selectedInterviewers.has(name);
                     const count = slots.filter(s => (s.interviewer_name || '(sem entrevistador)') === name).length;
                     return (
-                      <label key={name} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${checked ? 'bg-white border-black' : 'bg-white border-slate-200 opacity-60'}`}>
-                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${checked ? 'bg-black border-black' : 'border-slate-300'}`}>
+                      <label key={name} onClick={() => toggleInterviewer(name)}
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checked ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100 opacity-50'}`}>
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${checked ? 'bg-slate-900 border-slate-900' : 'border-slate-200'}`}>
                           {checked && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                         </div>
-                        <input type="checkbox" checked={checked} onChange={() => toggleInterviewer(name)} className="sr-only" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-black text-slate-800 truncate">{name}</p>
                           <p className="text-[10px] font-bold text-slate-400">{count} horário{count !== 1 ? 's' : ''}</p>
@@ -245,31 +211,30 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
                 </div>
               </div>
 
-              {/* Preview of slots that will be sent */}
+              {/* Preview */}
               {filteredSlots.length > 0 && (
-                <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Clock className="w-4 h-4 text-[#65a30d]" />
-                    <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Horários que serão enviados</p>
-                  </div>
+                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] p-5">
+                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5" /> Horários que serão enviados
+                  </p>
                   <div className="space-y-2">
                     {Object.entries<AvailabilitySlot[]>(groupedPreview).map(([date, daySlots]) => (
                       <div key={date} className="flex items-start gap-3">
-                        <span className="text-xs font-black text-slate-600 w-24 shrink-0 pt-0.5 capitalize">{formatDate(date)}</span>
+                        <span className="text-xs font-black text-slate-500 w-24 shrink-0 pt-0.5 capitalize">{formatDate(date)}</span>
                         <div className="flex flex-wrap gap-1.5">
                           {daySlots.map(s => (
-                            <div key={s.id} className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                            <div key={s.id} className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">
                               <span className="text-xs font-black text-slate-700">{s.slot_time.substring(0, 5)}</span>
                               {s.format === 'ONLINE'
-                                ? <Video className="w-3 h-3 text-blue-500" />
-                                : <MapPin className="w-3 h-3 text-orange-500" />
+                                ? <Video className="w-3 h-3 text-blue-400" />
+                                : <MapPin className="w-3 h-3 text-orange-400" />
                               }
                             </div>
                           ))}
                         </div>
                       </div>
                     ))}
-                    <p className="text-[10px] text-slate-400 font-bold mt-1">
+                    <p className="text-[10px] text-slate-300 font-bold mt-1">
                       {filteredSlots.length} horário{filteredSlots.length !== 1 ? 's' : ''} • O agente enviará essas opções via WhatsApp
                     </p>
                   </div>
@@ -279,31 +244,27 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
           )}
 
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
-              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-              <p className="text-xs font-bold text-red-600">{error}</p>
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <p className="text-xs font-bold text-red-500">{error}</p>
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-3 pt-5 border-t border-slate-100 mt-5 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-6 py-3 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors"
-          >
+        {/* Footer */}
+        <div className="flex justify-end gap-3 px-8 py-6 border-t border-slate-100 flex-shrink-0">
+          <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || loadingSlots || filteredSlots.length === 0}
-            className="bg-[#84cc16] hover:bg-[#65a30d] text-black px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-0.5 hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 border-black"
+            className="bg-[#84cc16] hover:bg-[#65a30d] text-black px-6 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 shadow-[0px_4px_12px_rgba(132,204,22,0.3)] hover:shadow-[0px_4px_16px_rgba(132,204,22,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[#65a30d]"
           >
-            {isSubmitting ? (
-              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>Confirmar e Notificar <Send className="w-4 h-4" /></>
-            )}
+            {isSubmitting
+              ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+              : <><Send className="w-4 h-4" /> Confirmar e Notificar</>
+            }
           </button>
         </div>
       </div>
