@@ -721,7 +721,7 @@ export async function processIncomingMessage(
 
   console.log(`[Agent] Profile found id="${profile.id}" hasToken=${!!profile.evolution_token}`);
 
-  // Busca portal_code separadamente (coluna pode não existir ainda)
+  // portal_code mantido apenas para compatibilidade com rotas de agendamento
   let portalCodeRaw: string = profile.id;
   try {
     const { data: pcRow } = await supabase
@@ -817,10 +817,7 @@ export async function processIncomingMessage(
     return;
   }
 
-  // Portal code para o link curto (já resolvido acima)
   const portalCode: string = portalCodeRaw;
-  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-  const portalLink = `${baseUrl}/vagas/${portalCode}`;
 
   switch (conv.state) {
 
