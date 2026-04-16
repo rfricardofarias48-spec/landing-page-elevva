@@ -669,7 +669,7 @@ async function handleReschedule(
   // Ensure scheduling token exists
   let token = interview.scheduling_token;
   if (!token) {
-    token = crypto.randomBytes(16).toString('hex');
+    token = crypto.randomBytes(6).toString('base64url');
     await supabase
       .from('interviews')
       .update({ scheduling_token: token })
@@ -1055,7 +1055,7 @@ export async function triggerSchedulingForCandidates(
       // Generate scheduling token if not exists
       let token = interview.scheduling_token;
       if (!token) {
-        token = crypto.randomBytes(16).toString('hex');
+        token = crypto.randomBytes(6).toString('base64url');
         await supabase
           .from('interviews')
           .update({ scheduling_token: token })
@@ -1184,7 +1184,7 @@ export async function notifyPendingReschedules(
       // Ensure scheduling token
       let token = iv.scheduling_token;
       if (!token) {
-        token = crypto.randomBytes(16).toString('hex');
+        token = crypto.randomBytes(6).toString('base64url');
         await supabase.from('interviews')
           .update({ scheduling_token: token })
           .eq('id', iv.id);
