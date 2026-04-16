@@ -485,7 +485,7 @@ export function DemonstracaoPage() {
             </div>
 
             {/* RIGHT — Descrição + Stats + CTAs */}
-            <div className="pt-6 pb-10 lg:pt-32 lg:pb-20 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
+            <div className="pt-4 pb-16 lg:pt-32 lg:pb-20 lg:pl-20 flex flex-col justify-center gap-6 lg:gap-10">
 
               {/* Descrição */}
               <p
@@ -498,7 +498,7 @@ export function DemonstracaoPage() {
 
               {/* Stats */}
               <div
-                className="grid grid-cols-3 gap-3 lg:gap-6 py-4 lg:py-8 border-y border-slate-100"
+                className="grid grid-cols-3 gap-4 lg:gap-6 py-6 lg:py-8 border-y border-slate-100"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.35s, transform 0.6s ease 0.35s' }}
               >
                 {[
@@ -506,9 +506,9 @@ export function DemonstracaoPage() {
                   { value: '10×',  label: 'mais rápido\nque o manual' },
                   { value: '0',   label: 'conflitos\nde agenda' },
                 ].map(({ value, label }) => (
-                  <div key={value} className="flex flex-col gap-1">
-                    <span className="text-xl lg:text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
-                    <span className="text-[0.5rem] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-pre-line leading-snug">{label}</span>
+                  <div key={value} className="flex flex-col gap-1.5">
+                    <span className="text-2xl lg:text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
+                    <span className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-pre-line leading-snug">{label}</span>
                   </div>
                 ))}
               </div>
