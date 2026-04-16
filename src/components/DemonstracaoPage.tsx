@@ -612,9 +612,6 @@ export function DemonstracaoPage() {
           {/* Cabeçalho */}
           <div className="mb-16 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
-              <span className="inline-flex items-center gap-2 bg-slate-100 rounded-full px-4 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">
-                Como funciona
-              </span>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-[1.05]">
                 Pronto para recuperar<br />
                 <span className="text-[#65a30d]">12 horas por semana?</span>
@@ -708,9 +705,9 @@ export function DemonstracaoPage() {
                 </p>
               </div>
 
-              <div className="mt-8 flex items-baseline gap-2">
-                <span className="text-5xl font-black text-white tracking-tighter">0</span>
-                <span className="text-xs font-black text-slate-500 uppercase tracking-widest leading-snug">dados<br />armazenados<br />sem necessidade</span>
+              <div className="mt-auto pt-8 border-t border-white/10 flex items-center gap-4">
+                <span className="text-6xl font-black text-white tracking-tighter leading-none">0</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">dados<br />armazenados<br />desnecessários</span>
               </div>
             </div>
 
