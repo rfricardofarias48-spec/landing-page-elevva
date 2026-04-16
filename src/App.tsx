@@ -2267,12 +2267,24 @@ const App: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500">
                           <span>Vagas Ativas</span>
-                          <span className="text-white text-sm">{user?.job_limit >= 9999 ? '∞' : `${jobs.length} / ${user?.job_limit}`}</span>
+                          {(() => {
+                              const limit = user?.job_limit ?? 3;
+                              const isUnlimited = limit >= 9999 || normalizedPlan === 'ENTERPRISE';
+                              return (
+                                  <span className="text-white text-sm">
+                                      {isUnlimited ? `${jobs.length} / ∞` : `${jobs.length} / ${limit}`}
+                                  </span>
+                              );
+                          })()}
                       </div>
                   </div>
 
                   <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-[#65a30d] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
+                      {normalizedPlan !== 'ENTERPRISE' && (user?.job_limit ?? 0) < 9999 ? (
+                          <div className="bg-[#65a30d] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
+                      ) : (
+                          <div className="bg-[#65a30d] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / 10) * 100)}%` }}></div>
+                      )}
                   </div>
               </div>
               <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-zinc-800 rounded-full blur-[80px] opacity-30 pointer-events-none"></div>

@@ -43,6 +43,7 @@ export const AdminDashboard: React.FC = () => {
   const [tempTelefoneAgente, setTempTelefoneAgente] = useState('');
   const [tempStatusAutomacao, setTempStatusAutomacao] = useState(false);
   const [tempJobLimit, setTempJobLimit] = useState<number>(9999);
+  const [tempRenewalDate, setTempRenewalDate] = useState('');
   const [tempCalendarId, setTempCalendarId] = useState('');
   const [tempChatwootAccountId, setTempChatwootAccountId] = useState('');
   const [tempChatwootToken, setTempChatwootToken] = useState('');
@@ -99,6 +100,7 @@ export const AdminDashboard: React.FC = () => {
       setTempTelefoneAgente(selectedUser.telefone_agente || '');
       setTempStatusAutomacao(selectedUser.status_automacao || false);
       setTempJobLimit(selectedUser.job_limit ?? 9999);
+      setTempRenewalDate(selectedUser.current_period_end ? selectedUser.current_period_end.slice(0, 10) : '');
       setTempCalendarId(selectedUser.google_calendar_id || selectedUser.email || '');
       setTempChatwootAccountId(selectedUser.chatwoot_account_id != null ? String(selectedUser.chatwoot_account_id) : '');
       setTempChatwootToken(selectedUser.chatwoot_token || '');
@@ -247,6 +249,28 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
+  const handleUpdateRenewalDate = async (dateStr: string) => {
+      if (!selectedUser) return;
+      if (!dateStr) { alert('Selecione uma data válida.'); return; }
+      setActionLoading(true);
+      try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ current_period_end: dateStr })
+            .eq('id', selectedUser.id);
+          if (error) throw error;
+          const updatedUser = { ...selectedUser, current_period_end: dateStr };
+          setSelectedUser(updatedUser);
+          setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
+          alert(`Data de renovação salva: ${new Date(dateStr).toLocaleDateString('pt-BR')}`);
+      } catch (err) {
+          console.error('Erro ao salvar data de renovação:', err);
+          alert('Erro ao salvar data.');
+      } finally {
+          setActionLoading(false);
+      }
+  };
+
   const handleUpdatePriceOnly = async (price: number) => {
       if (!selectedUser) return;
       if (!price || price <= 0) { alert('Informe um valor maior que zero.'); return; }
@@ -280,7 +304,8 @@ export const AdminDashboard: React.FC = () => {
       if (newPlan === 'PRO') {
           newJobLimit = 10;
       } else if (newPlan === 'ENTERPRISE' || newPlan === 'ADMIN') {
-          newJobLimit = 9999;
+          // Respeita o limite personalizado definido no campo "Limite de Vagas"
+          newJobLimit = (tempJobLimit > 0 && tempJobLimit < 9999) ? tempJobLimit : 9999;
       }
 
       const priceToSave = customPrice != null ? customPrice : (newPlan === 'ESSENCIAL' ? 549.00 : newPlan === 'PRO' ? 899.00 : 0);
@@ -3256,6 +3281,27 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                             </button>
                                         </div>
                                         <p className="text-[10px] text-zinc-400 mt-1">↑ Salva só o preço sem mudar o plano. Ou clique no plano abaixo para mudar plano + preço.</p>
+                                    </div>
+
+                                    {/* Data de Renovação */}
+                                    <div>
+                                        <label className="text-xs font-bold text-zinc-700 block mb-1">Data de Renovação</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="date"
+                                                value={tempRenewalDate}
+                                                onChange={(e) => setTempRenewalDate(e.target.value)}
+                                                className="flex-1 bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => handleUpdateRenewalDate(tempRenewalDate)}
+                                                disabled={actionLoading || !tempRenewalDate}
+                                                className="px-3 py-2 bg-black text-white text-xs font-black rounded-lg hover:bg-zinc-800 disabled:opacity-40 transition-colors whitespace-nowrap">
+                                                Salvar data
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-zinc-400 mt-1">Data da próxima cobrança (mensal ou anual).</p>
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-2">
