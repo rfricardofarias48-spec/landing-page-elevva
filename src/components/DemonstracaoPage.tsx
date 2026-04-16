@@ -685,7 +685,7 @@ export function DemonstracaoPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
 
             {/* LEFT — declaração principal */}
-            <div className="relative bg-slate-950 rounded-[2rem] p-10 md:p-14 overflow-hidden flex flex-col justify-between min-h-[340px]">
+            <div className="relative bg-slate-950 rounded-[2rem] p-8 md:p-10 overflow-hidden flex flex-col justify-between min-h-[280px]">
               {/* Escudo decorativo de fundo */}
               <ShieldCheck
                 className="absolute -bottom-8 -right-8 text-white/[0.03]"
@@ -694,9 +694,6 @@ export function DemonstracaoPage() {
               />
 
               <div>
-                <span className="inline-flex items-center gap-2 bg-[#65a30d]/15 border border-[#65a30d]/25 rounded-full px-3 py-1 text-[10px] font-black text-[#a3e635] uppercase tracking-widest mb-6">
-                  LGPD Compliant
-                </span>
                 <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter leading-[1.1] mb-4">
                   Plataforma<br />Segura
                 </h2>
