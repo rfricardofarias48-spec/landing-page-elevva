@@ -11,6 +11,7 @@ import { Mockup } from './ui/mockup';
 import VideoPlayer from './ui/video-player';
 import { SocialProofAvatars } from './ui/social-proof-avatars';
 import { AnimatedBackground } from './ui/animated-background';
+import { LogosSlider } from './ui/logos-slider';
 
 // ─── Dados ───────────────────────────────────────────────────────────────────
 
@@ -543,6 +544,16 @@ export function DemonstracaoPage() {
           >
             <div className="w-full rounded-3xl border border-slate-200 bg-white shadow-[0_48px_120px_-24px_rgba(0,0,0,0.08)]" style={{ minHeight: 'clamp(220px, 50vw, 480px)' }} />
           </div>
+        </div>
+      </section>
+
+      {/* ── LOGOS / CLIENTES ──────────────────────────────────────────────── */}
+      <section className="bg-transparent border-b border-slate-100 py-10">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
+          <p className="text-center text-[11px] font-black text-slate-400 uppercase tracking-widest mb-8">
+            Empresas que confiam na Elevva
+          </p>
+          <LogosSlider />
         </div>
       </section>
 
