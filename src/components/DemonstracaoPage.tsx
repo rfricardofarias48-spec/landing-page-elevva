@@ -702,9 +702,9 @@ export function DemonstracaoPage() {
                 </p>
               </div>
 
-              <div className="mt-auto pt-8 border-t border-white/10 flex items-center gap-4">
-                <span className="text-6xl font-black text-white tracking-tighter leading-none">0</span>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">dados<br />armazenados<br />desnecessários</span>
+              <div className="mt-auto pt-5 border-t border-white/10 flex items-baseline gap-3">
+                <span className="text-5xl font-black text-white tracking-tighter leading-none">0</span>
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">dados retidos</span>
               </div>
             </div>
 
