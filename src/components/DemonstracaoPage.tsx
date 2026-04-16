@@ -606,22 +606,30 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
-      <section id="como-funciona" className="py-20 bg-slate-950 border-y border-white/5">
-        <div className="max-w-7xl mx-auto px-4 md:px-6">
+      <section id="como-funciona" className="py-20 bg-transparent border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
           {/* Cabeçalho */}
-          <div className="text-center mb-16">
-            <span className="inline-flex items-center gap-2 bg-[#65a30d]/10 border border-[#65a30d]/20 rounded-full px-4 py-1.5 text-[11px] font-black text-[#a3e635] uppercase tracking-widest mb-5">
-              Como funciona
-            </span>
-            <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter leading-[1.05]">
-              Pronto para recuperar<br />
-              <span className="text-[#a3e635]">12 horas por semana?</span>
-            </h2>
+          <div className="mb-16 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+            <div>
+              <span className="inline-flex items-center gap-2 bg-slate-100 rounded-full px-4 py-1.5 text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                Como funciona
+              </span>
+              <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-[1.05]">
+                Pronto para recuperar<br />
+                <span className="text-[#65a30d]">12 horas por semana?</span>
+              </h2>
+            </div>
+            <a
+              href={whatsapp} target="_blank" rel="noopener noreferrer"
+              className="shrink-0 inline-flex items-center gap-2 bg-black hover:bg-zinc-800 text-white font-bold px-7 py-3.5 rounded-2xl text-sm transition-all duration-200 self-start md:self-auto"
+            >
+              Começar agora <ChevronRight className="w-4 h-4" />
+            </a>
           </div>
 
-          {/* Steps — glass panels separados por linha fina */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5 rounded-3xl overflow-hidden">
+          {/* Steps — 3 colunas divididas por linhas finas, sem fundo extra */}
+          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
             {[
               {
                 n: '01',
@@ -632,52 +640,43 @@ export function DemonstracaoPage() {
               {
                 n: '02',
                 title: 'Scoring Instantâneo',
-                desc: 'Bento analisa o currículo em segundos e gera um relatório completo com nota (0 a 10), pontos fortes e fracos e um resumo do candidato.',
+                desc: 'Bento analisa o currículo em segundos e gera nota (0 a 10), pontos fortes e fracos e um resumo completo do candidato.',
                 accent: false,
               },
               {
                 n: '03',
                 title: 'Agendamento na Agenda',
-                desc: 'Se aprovado, Bento cruza a disponibilidade com a sua agenda e agenda a entrevista no Google Meet — inclusive com reagendamentos.',
+                desc: 'Se aprovado, Bento cruza a disponibilidade com a sua agenda e marca a entrevista no Google Meet — inclusive com reagendamentos.',
                 accent: true,
               },
             ].map(({ n, title, desc, accent }) => (
-              <div
-                key={n}
-                className={`relative flex flex-col p-8 md:p-10 overflow-hidden ${accent ? 'bg-[#0d1f02]' : 'bg-slate-900/60'}`}
-              >
-                {/* Número decorativo de fundo */}
+              <div key={n} className={`relative flex flex-col gap-5 p-8 md:p-10 ${accent ? 'bg-[#65a30d]/[0.04]' : ''}`}>
+
+                {/* Número grande decorativo */}
                 <span
-                  className="absolute -top-4 -right-2 text-[7rem] font-black leading-none select-none pointer-events-none"
-                  style={{ color: accent ? 'rgba(101,163,13,0.08)' : 'rgba(255,255,255,0.03)' }}
+                  className="absolute top-4 right-6 text-[5.5rem] font-black leading-none select-none pointer-events-none tracking-tighter"
+                  style={{ color: accent ? 'rgba(101,163,13,0.12)' : 'rgba(15,23,42,0.045)' }}
                 >
                   {n}
                 </span>
 
                 {/* Badge do passo */}
-                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black mb-8 ${accent ? 'bg-[#65a30d] text-white shadow-[0_4px_20px_rgba(101,163,13,0.4)]' : 'bg-white/5 text-slate-500 border border-white/10'}`}>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black ${accent ? 'bg-[#65a30d] text-white shadow-[0_4px_16px_rgba(101,163,13,0.3)]' : 'bg-slate-100 text-slate-500'}`}>
                   {n}
                 </div>
 
-                <h3 className={`font-black text-lg mb-3 leading-snug ${accent ? 'text-[#a3e635]' : 'text-white'}`}>{title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
+                <div>
+                  <h3 className={`font-black text-xl mb-2 tracking-tight leading-snug ${accent ? 'text-[#3d6b07]' : 'text-slate-900'}`}>
+                    {title}
+                  </h3>
+                  <p className="text-sm text-slate-500 leading-relaxed">{desc}</p>
+                </div>
 
                 {accent && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#65a30d] to-transparent" />
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#65a30d] rounded-t-none md:rounded-none" />
                 )}
               </div>
             ))}
-          </div>
-
-          {/* CTA */}
-          <div className="mt-12 flex justify-center">
-            <a
-              href={whatsapp} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0a] text-white font-bold px-8 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_24px_rgba(101,163,13,0.35)]"
-            >
-              Começar agora
-              <ChevronRight className="w-4 h-4" />
-            </a>
           </div>
         </div>
       </section>
