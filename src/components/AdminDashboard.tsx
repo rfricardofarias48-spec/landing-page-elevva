@@ -235,6 +235,29 @@ export const AdminDashboard: React.FC = () => {
       }
   };
 
+  const handleUpdatePriceOnly = async (price: number) => {
+      if (!selectedUser) return;
+      if (!price || price <= 0) { alert('Informe um valor maior que zero.'); return; }
+      setActionLoading(true);
+      try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ plan_price: price })
+            .eq('id', selectedUser.id);
+          if (error) throw error;
+          const updatedUser = { ...selectedUser, plan_price: price };
+          setSelectedUser(updatedUser);
+          setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
+          setIsEditingPlan(false);
+          alert(`Preço atualizado: R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês`);
+      } catch (err) {
+          console.error('Erro ao atualizar preço:', err);
+          alert('Erro ao salvar o preço.');
+      } finally {
+          setActionLoading(false);
+      }
+  };
+
   const handleUpdatePlan = async (newPlan: string, customPrice?: number) => {
       if (!selectedUser) return;
       setActionLoading(true);
@@ -3171,18 +3194,38 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                             {isEditingPlan ? (
                                 <div className="space-y-3 animate-fade-in">
                                     <p className="text-xs text-zinc-500 font-medium">Selecione o plano e defina o valor mensal.</p>
+
+                                    {/* Price input + save-price-only button */}
                                     <div>
-                                        <label className="text-xs font-bold text-zinc-600 block mb-1">Valor Mensal (R$)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            value={tempPlanPrice}
-                                            onChange={(e) => setTempPlanPrice(e.target.value)}
-                                            placeholder="Ex: 499.90"
-                                            className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
-                                        />
+                                        <label className="text-xs font-bold text-zinc-600 block mb-1">
+                                            Valor Mensal (R$)
+                                            {selectedUser.plan_price != null && selectedUser.plan_price > 0 && (
+                                                <span className="ml-2 font-normal text-zinc-400">
+                                                    atual: R$ {selectedUser.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </span>
+                                            )}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={tempPlanPrice}
+                                                onChange={(e) => setTempPlanPrice(e.target.value)}
+                                                placeholder="Ex: 1200.00"
+                                                className="flex-1 bg-white border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => handleUpdatePriceOnly(parseFloat(tempPlanPrice))}
+                                                disabled={actionLoading || !tempPlanPrice || parseFloat(tempPlanPrice) <= 0}
+                                                className="px-3 py-2 bg-black text-white text-xs font-black rounded-lg hover:bg-zinc-800 disabled:opacity-40 transition-colors whitespace-nowrap">
+                                                Salvar preço
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-zinc-400 mt-1">↑ Salva só o preço sem mudar o plano. Ou clique no plano abaixo para mudar plano + preço.</p>
                                     </div>
+
                                     <div className="grid grid-cols-1 gap-2">
                                         <button onClick={() => handleUpdatePlan('ESSENCIAL', tempPlanPrice ? parseFloat(tempPlanPrice) : 549.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
                                             <span>ESSENCIAL</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas / CVs Ilimitados</span>
@@ -3199,7 +3242,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 handleUpdatePlan('ENTERPRISE', parseFloat(tempPlanPrice));
                                             }}
                                             className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
-                                            <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + API — valor obrigatório</span>
+                                            <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + API</span>
                                         </button>
                                         <button onClick={() => handleUpdatePlan('ADMIN', 0)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
                                             <span>ADMIN</span> <span className="text-[10px] text-zinc-400 font-normal">Acesso Total</span>
