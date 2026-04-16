@@ -117,9 +117,21 @@ export const AdminDashboard: React.FC = () => {
           throw new Error(`Erro ao buscar perfis: ${profilesError.message} (Dica: Rode o Script V43)`);
       }
 
-      const { data: jobsData, error: jobsError } = await supabase.from('jobs').select('*, candidates(id)');
+      const { data: jobsData, error: jobsError } = await supabase.from('jobs').select('id, user_id, title, created_at');
       if (jobsError) {
           console.warn("Erro não crítico ao buscar jobs:", jobsError);
+      }
+
+      // Busca contagens reais de CVs via endpoint admin (bypassa RLS)
+      let cvCounts: Record<string, number> = {};
+      try {
+        const cvRes = await fetch('/api/admin/cv-counts');
+        if (cvRes.ok) {
+          const cvJson = await cvRes.json();
+          cvCounts = cvJson.counts || {};
+        }
+      } catch (e) {
+        console.warn("Erro ao buscar contagem de CVs:", e);
       }
 
       const { data: adsData, error: adsError } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
@@ -127,7 +139,7 @@ export const AdminDashboard: React.FC = () => {
 
       const mappedUsers: AdminUserProfile[] = profilesData.map((u: Record<string, unknown>) => {
           const userJobs = jobsData?.filter((j: Record<string, unknown>) => j.user_id === u.id) || [];
-          
+
           // Mapeamento de planos antigos para ESSENCIAL (exceto ADMIN)
           let currentPlan = u.plan as string;
           if (['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'].includes(currentPlan)) {
@@ -144,7 +156,7 @@ export const AdminDashboard: React.FC = () => {
             status: u.status || 'ACTIVE',
             created_at: u.created_at,
             jobs_count: userJobs.length,
-            resume_usage: u.resume_usage || 0,
+            resume_usage: cvCounts[u.id as string] || 0,
             last_active: u.updated_at || u.created_at,
             job_limit: u.job_limit,
             subscription_status: u.subscription_status,
@@ -168,7 +180,7 @@ export const AdminDashboard: React.FC = () => {
               id: j.id,
               title: j.title,
               created_at: j.created_at,
-              candidates_count: j.candidates ? j.candidates.length : 0,
+              candidates_count: 0,
               owner_name: owner?.name || 'Desconhecido',
               owner_email: owner?.email || 'N/A',
               status: 'ACTIVE'

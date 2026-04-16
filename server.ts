@@ -642,6 +642,31 @@ app.delete("/api/admin/delete-user/:id", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN: Contagem real de CVs por usuário (bypassa RLS via service role)
+// GET /api/admin/cv-counts
+// ─────────────────────────────────────────────────────────────────────
+app.get("/api/admin/cv-counts", async (_req, res) => {
+  try {
+    // Busca todos os jobs com seus candidatos usando service role (sem RLS)
+    const { data: jobs, error } = await supabaseAdmin
+      .from('jobs')
+      .select('user_id, candidates(id)');
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Agrega contagem por user_id
+    const counts: Record<string, number> = {};
+    for (const job of (jobs || [])) {
+      const uid = job.user_id as string;
+      const count = (job.candidates as unknown[])?.length || 0;
+      counts[uid] = (counts[uid] || 0) + count;
+    }
+    return res.json({ counts });
+  } catch (err) {
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // CHATWOOT: Webhook de eventos (mensagens humanas → WhatsApp)
 // Configure este URL no Chatwoot: Settings → Integrations → Webhooks
 // POST /api/webhooks/chatwoot
