@@ -331,7 +331,7 @@ export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
   const [billing, setBilling] = useState<'mensal' | 'anual'>('mensal');
   const [checkoutPlan, setCheckoutPlan] = useState<CheckoutPlan | null>(null);
-  const whatsapp = 'https://wa.me/5551943960890?text=Ol%C3%A1%2C%20quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20do%20Elevva!';
+  const whatsapp = 'https://wa.me/5551994396089?text=Ol%C3%A1%2C%20quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20do%20Elevva!';
 
   const [scrolled, setScrolled] = useState(false);
 
