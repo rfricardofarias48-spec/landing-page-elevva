@@ -685,7 +685,7 @@ export function DemonstracaoPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
 
             {/* LEFT — declaração principal */}
-            <div className="relative bg-slate-950 rounded-[2rem] p-8 md:p-14 overflow-hidden flex flex-col justify-between min-h-[240px] md:min-h-[360px]">
+            <div className="relative bg-slate-950 rounded-[2rem] p-6 md:p-14 overflow-hidden flex flex-col justify-between min-h-[180px] md:min-h-[360px]">
               {/* Escudo decorativo de fundo */}
               <ShieldCheck
                 className="absolute -bottom-8 -right-8 text-white/[0.03]"
