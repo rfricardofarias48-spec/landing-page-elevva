@@ -2246,14 +2246,18 @@ const App: React.FC = () => {
                           <h3 className="text-4xl font-black tracking-tighter text-white">{normalizedPlan}</h3>
                           {(() => {
                               const stdPrice = normalizedPlan === 'ESSENCIAL' ? 549 : normalizedPlan === 'PRO' ? 899 : null;
-                              const activePrice = user?.plan_price ?? stdPrice;
+                              const activePrice = user?.plan_price && user.plan_price > 0 ? user.plan_price : stdPrice;
                               if (!activePrice) return null;
-                              const isNegotiated = stdPrice !== null && user?.plan_price != null && user.plan_price !== stdPrice;
+                              const isEnterprise = normalizedPlan === 'ENTERPRISE';
+                              const isNegotiated = !isEnterprise && stdPrice !== null && user?.plan_price != null && user.plan_price !== stdPrice;
                               return (
                                   <div className="flex items-center gap-2 mt-1">
                                       <span className="text-xl font-black text-white">
                                           R$ {activePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}<span className="text-sm font-bold text-zinc-400">/mês</span>
                                       </span>
+                                      {isEnterprise && (
+                                          <span className="text-[10px] font-black bg-purple-600 text-white px-2 py-0.5 rounded-md uppercase tracking-widest">Personalizado</span>
+                                      )}
                                       {isNegotiated && (
                                           <span className="text-[10px] font-black bg-[#65a30d] text-white px-2 py-0.5 rounded-md uppercase tracking-widest">Negociado</span>
                                       )}
@@ -2407,9 +2411,20 @@ const App: React.FC = () => {
                           <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Enterprise</h4>
                           <p className="text-sm text-slate-500 font-medium mb-5">Solução sob medida para grandes operações.</p>
 
-                          <div className="text-slate-900 mb-6 flex items-baseline">
-                              <span className="text-4xl font-black tracking-tighter">A consultar</span>
-                          </div>
+                          {normalizedPlan === 'ENTERPRISE' && user?.plan_price && user.plan_price > 0 ? (
+                              <div className="mb-6">
+                                  <div className="text-slate-900 mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-5xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
+                                  </div>
+                                  <span className="text-xs font-black bg-purple-100 text-purple-600 px-2 py-0.5 rounded-md">Plano personalizado</span>
+                              </div>
+                          ) : (
+                              <div className="text-slate-900 mb-6 flex items-baseline">
+                                  <span className="text-4xl font-black tracking-tighter">A consultar</span>
+                              </div>
+                          )}
 
                           <div className="space-y-3 mb-6 text-sm font-medium text-slate-600 flex-1">
                               {['Vagas Ilimitadas', 'Atendimento Prioritário'].map(f => (

@@ -3190,8 +3190,16 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                         <button onClick={() => handleUpdatePlan('PRO', tempPlanPrice ? parseFloat(tempPlanPrice) : 899.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
                                             <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas / CVs Ilimitados</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('ENTERPRISE', tempPlanPrice ? parseFloat(tempPlanPrice) : 0)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
-                                            <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + API</span>
+                                        <button
+                                            onClick={() => {
+                                                if (!tempPlanPrice || parseFloat(tempPlanPrice) <= 0) {
+                                                    alert('Defina o Valor Mensal (R$) antes de atribuir o plano Enterprise.');
+                                                    return;
+                                                }
+                                                handleUpdatePlan('ENTERPRISE', parseFloat(tempPlanPrice));
+                                            }}
+                                            className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-purple-600 text-white border-purple-600 hover:bg-purple-700">
+                                            <span>ENTERPRISE</span> <span className="text-[10px] text-white/60 font-normal">Ilimitado + API — valor obrigatório</span>
                                         </button>
                                         <button onClick={() => handleUpdatePlan('ADMIN', 0)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-black text-white border-black hover:bg-zinc-800">
                                             <span>ADMIN</span> <span className="text-[10px] text-zinc-400 font-normal">Acesso Total</span>
@@ -3202,7 +3210,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                 <div>
                                     <p className="text-3xl font-black text-zinc-900">{selectedUser.plan}</p>
                                     <p className="text-sm font-bold text-[#65a30d] mt-1">
-                                        R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 549.00 : selectedUser.plan === 'PRO' ? 899.00 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês
+                                        {selectedUser.plan === 'ENTERPRISE' && (!selectedUser.plan_price || selectedUser.plan_price === 0)
+                                            ? <span className="text-zinc-400">A consultar — defina o valor acima</span>
+                                            : <>R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 549.00 : selectedUser.plan === 'PRO' ? 899.00 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês</>
+                                        }
                                     </p>
                                     <p className="text-xs text-zinc-400 font-bold mt-1">
                                         {selectedUser.plan === 'ESSENCIAL' ? 'Limites: 3 Vagas / CVs Ilimitados' : selectedUser.plan === 'PRO' ? 'Limites: 10 Vagas / CVs Ilimitados' : selectedUser.plan === 'ENTERPRISE' ? `Limites: ${selectedUser.job_limit === 9999 ? 'Ilimitado' : (selectedUser.job_limit ?? 'Ilimitado')} Vagas / CVs Ilimitados` : 'Limites: ILIMITADO'}
