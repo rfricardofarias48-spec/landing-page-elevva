@@ -340,9 +340,17 @@ export function DemonstracaoPage() {
   const [checkoutPlan, setCheckoutPlan] = useState<CheckoutPlan | null>(null);
   const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
 
+  const [scrolled, setScrolled] = useState(false);
+
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 60);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
 
@@ -363,7 +371,14 @@ export function DemonstracaoPage() {
       )}
 
       {/* ── NAVBAR FIXO ───────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-sm">
+      <nav
+        style={{
+          transform: scrolled ? 'translateY(0)' : 'translateY(-100%)',
+          transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1)',
+          borderBottom: scrolled ? '1px solid rgba(0,0,0,0.06)' : '1px solid transparent',
+        }}
+        className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md"
+      >
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
 
           {/* Logo */}
