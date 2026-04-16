@@ -2051,7 +2051,8 @@ app.post("/api/admissions", async (req, res) => {
         .update({ required_docs, status: 'PENDING', submitted_at: null, submitted_docs: [] })
         .eq('id', existing.id);
     } else {
-      // Create new admission
+      // Create new admission with short token
+      const shortToken = crypto.randomBytes(6).toString('base64url');
       const { data: newAdmission, error: insertError } = await supabaseAdmin
         .from('admissions')
         .insert({
@@ -2060,6 +2061,7 @@ app.post("/api/admissions", async (req, res) => {
           candidate_id,
           required_docs,
           status: 'PENDING',
+          token: shortToken,
         })
         .select('token')
         .single();
