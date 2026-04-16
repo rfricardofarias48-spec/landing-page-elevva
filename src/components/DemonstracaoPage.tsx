@@ -704,8 +704,8 @@ export function DemonstracaoPage() {
             <div className="relative bg-slate-950 rounded-[2rem] p-6 md:p-14 overflow-hidden flex flex-col justify-between min-h-[180px] md:min-h-[360px]">
               {/* Escudo decorativo de fundo */}
               <ShieldCheck
-                className="absolute -bottom-8 -right-8 text-white/[0.08]"
-                style={{ width: 260, height: 260 }}
+                className="absolute -bottom-6 -right-6 md:-bottom-8 md:-right-8 text-white/[0.08]"
+                style={{ width: 'clamp(120px, 35vw, 260px)', height: 'clamp(120px, 35vw, 260px)' }}
                 strokeWidth={1}
               />
 
