@@ -702,10 +702,6 @@ export function DemonstracaoPage() {
                 </p>
               </div>
 
-              <div className="mt-auto pt-5 border-t border-white/10 flex flex-col gap-1">
-                <span className="text-7xl font-black text-[#a3e635] tracking-tighter leading-none">0</span>
-                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">arquivos retidos</span>
-              </div>
             </div>
 
             {/* RIGHT — itens de segurança */}
