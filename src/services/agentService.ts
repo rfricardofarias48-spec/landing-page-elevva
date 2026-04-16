@@ -550,8 +550,9 @@ async function handleConfirmacaoLembrete(
           .update({ status: 'CANCELADA' }).eq('id', interview.id);
       }
     }
-    await send(phone, 'Entendido. Sua entrevista foi cancelada.\n\nCaso mude de ideia, entre em contato conosco. Desejamos sucesso! 🙏');
-    await updateConversation(conv.id, { state: 'CANCELADA' }, supabase);
+    await send(phone, 'Entendido. Sua entrevista foi cancelada. Desejamos sucesso! 🙏');
+    await updateConversation(conv.id, { state: 'CANCELADA', context: { pos_cancelamento: true } }, supabase);
+    await send(phone, 'Você pode se candidatar a outras oportunidades disponíveis ou aguardar um novo convite para entrevista. O que prefere?\n\n1️⃣ Ver outras vagas disponíveis\n2️⃣ Aguardar um novo convite');
 
   } else {
     await send(phone, 'Por favor, responda com:\n\n✅ *SIM* — confirmo presença\n🔄 *REAGENDAR* — preciso de outro horário\n❌ *CANCELAR* — não irei participar');
@@ -899,10 +900,48 @@ export async function processIncomingMessage(
       await handleNovo(conv, instance, phone, '', portalCode, supabase, send);
       break;
 
-    // ── Cancelado: recomeça ──
-    case 'CANCELADA':
-      await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
+    // ── Cancelado: trata resposta pós-cancelamento ou reinicia ──
+    case 'CANCELADA': {
+      if (conv.context?.pos_cancelamento) {
+        const lower = text.toLowerCase().trim();
+        const wantsJobs =
+          lower === '1' ||
+          lower.includes('vaga') ||
+          lower.includes('oportunidade') ||
+          lower.includes('candidatar') ||
+          lower.includes('outra');
+        const wantsWait =
+          lower === '2' ||
+          lower.includes('aguardar') ||
+          lower.includes('esperar') ||
+          lower.includes('convite');
+
+        if (wantsJobs) {
+          // Limpa flag e inicia fluxo normal (busca vagas)
+          await updateConversation(conv.id, {
+            state: 'NOVO',
+            context: { candidate_name: conv.context.candidate_name },
+          }, supabase);
+          await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
+        } else if (wantsWait) {
+          await send(phone, 'Entendido! Quando houver um novo convite de entrevista, entraremos em contato. Boa sorte! 🍀');
+          await updateConversation(conv.id, {
+            state: 'NOVO',
+            context: { candidate_name: conv.context.candidate_name },
+          }, supabase);
+        } else {
+          // Não entendeu — repete as opções
+          await send(phone,
+            'Não entendi. Por favor, escolha uma das opções:\n\n' +
+            '1️⃣ Ver outras vagas disponíveis\n' +
+            '2️⃣ Aguardar um novo convite'
+          );
+        }
+      } else {
+        await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
+      }
       break;
+    }
 
     // ── Fluxo de entrevista: mantido intacto ──
     case 'ENTREVISTA_CONFIRMADA':
