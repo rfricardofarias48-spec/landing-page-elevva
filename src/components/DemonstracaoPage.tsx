@@ -702,16 +702,9 @@ export function DemonstracaoPage() {
                 </p>
               </div>
 
-              <div className="mt-auto pt-5 border-t border-white/10 flex items-stretch gap-px">
-                <div className="flex-1 flex flex-col gap-1 pr-4">
-                  <span className="text-3xl font-black text-[#a3e635] tracking-tighter leading-none">0</span>
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">arquivos retidos</span>
-                </div>
-                <div className="w-px bg-white/10" />
-                <div className="flex-1 flex flex-col gap-1 pl-4">
-                  <span className="text-3xl font-black text-[#a3e635] tracking-tighter leading-none">5d</span>
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">exclusão auto.</span>
-                </div>
+              <div className="mt-auto pt-5 border-t border-white/10 flex flex-col gap-1">
+                <span className="text-7xl font-black text-[#a3e635] tracking-tighter leading-none">0</span>
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">arquivos retidos</span>
               </div>
             </div>
 
