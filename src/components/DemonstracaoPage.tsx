@@ -375,7 +375,7 @@ export function DemonstracaoPage() {
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
 
           {/* Logo */}
-          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345" alt="Elevva" className="h-10 md:h-8 w-auto object-contain max-w-[140px] md:max-w-[120px] shrink-0" />
+          <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png?updatedAt=1773974222345" alt="Elevva" className="h-10 md:h-11 w-auto object-contain max-w-[160px] shrink-0" />
 
           {/* Links centrais */}
           <div className="hidden md:flex items-center gap-1">
