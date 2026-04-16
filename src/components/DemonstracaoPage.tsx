@@ -685,19 +685,19 @@ export function DemonstracaoPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
 
             {/* LEFT — declaração principal */}
-            <div className="relative bg-slate-950 rounded-[2rem] p-8 md:p-10 overflow-hidden flex flex-col justify-between min-h-[280px]">
+            <div className="relative bg-slate-950 rounded-[2rem] p-10 md:p-14 overflow-hidden flex flex-col justify-between min-h-[360px]">
               {/* Escudo decorativo de fundo */}
               <ShieldCheck
                 className="absolute -bottom-8 -right-8 text-white/[0.03]"
-                style={{ width: 220, height: 220 }}
+                style={{ width: 260, height: 260 }}
                 strokeWidth={1}
               />
 
               <div>
-                <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter leading-[1.1] mb-4">
+                <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter leading-[1.05] mb-5">
                   Plataforma<br />Segura
                 </h2>
-                <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+                <p className="text-slate-400 text-base leading-relaxed max-w-sm">
                   O Elevva processa a informação, extrai o essencial e descarta o documento original. Sua empresa blindada contra vazamentos e multas.
                 </p>
               </div>
