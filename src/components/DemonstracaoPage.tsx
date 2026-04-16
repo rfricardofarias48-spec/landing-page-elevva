@@ -765,7 +765,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── CLIENTES ──────────────────────────────────────────────────────── */}
-      <section className="py-14 max-w-7xl mx-auto px-4 md:px-6 bg-transparent md:border md:border-slate-100 md:border-t-0">
+      <section className="py-8 md:py-14 max-w-7xl mx-auto px-4 md:px-6 bg-transparent md:border md:border-slate-100 md:border-t-0">
         <p className="text-center text-[11px] font-black text-slate-400 uppercase tracking-widest mb-10">
           Empresas que confiam na Elevva
         </p>
@@ -773,7 +773,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── PLANOS ────────────────────────────────────────────────────────── */}
-      <section id="planos" className="py-20 bg-transparent border-b border-slate-100">
+      <section id="planos" className="pt-8 pb-20 md:py-20 bg-transparent border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
           {/* Cabeçalho */}
