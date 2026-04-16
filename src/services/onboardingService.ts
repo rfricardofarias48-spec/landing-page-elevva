@@ -164,14 +164,27 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     // ── ETAPA 2: Criar perfil ─────────────────────────────────────────────────
     if (!ctx.profileCreated) {
       console.log('[Onboarding] Etapa 2: criar perfil');
+
+      // Calcula data de renovação (próximo ciclo de cobrança)
+      const isAnnual = (sale.plan as string).endsWith('_ANUAL');
+      const periodEnd = new Date();
+      if (isAnnual) {
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      } else {
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      }
+      // Normaliza nome do plano (remove sufixo _ANUAL)
+      const normalizedPlan = (sale.plan as string).replace('_ANUAL', '');
+
       const { error: profileErr } = await supabase.from('profiles').upsert({
         id: userId,
         email: sale.client_email,
         name: sale.client_name,
-        plan: sale.plan,
+        plan: normalizedPlan,
         job_limit: limits.jobLimit,
         resume_limit: limits.resumeLimit,
         subscription_status: 'active',
+        current_period_end: periodEnd.toISOString(),
         salesperson: (sale as any).salespeople?.name || null,
         sale_id: saleId,
         created_at: new Date().toISOString(),

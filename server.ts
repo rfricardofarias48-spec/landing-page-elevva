@@ -3334,6 +3334,33 @@ app.get("/api/sdr/leads/:leadId/messages", async (req, res) => {
   }
 });
 
+// ── Stats do Gerador de Leads (hoje e mês corrente) ──────────────────────────
+app.get("/api/sdr/leads/generation-stats", async (_req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const [todayRes, monthRes] = await Promise.all([
+      supabaseAdmin
+        .from('sdr_generation_log')
+        .select('count')
+        .gte('generated_at', todayStart),
+      supabaseAdmin
+        .from('sdr_generation_log')
+        .select('count')
+        .gte('generated_at', monthStart),
+    ]);
+
+    const todayTotal = (todayRes.data || []).reduce((s: number, r: any) => s + (r.count || 0), 0);
+    const monthTotal = (monthRes.data || []).reduce((s: number, r: any) => s + (r.count || 0), 0);
+
+    return res.json({ today: todayTotal, month: monthTotal });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Gerador de Leads via Apify ────────────────────────────────────────────────
 // Passo 1: inicia o run e retorna runId imediatamente
 app.post("/api/sdr/leads/generate", async (req, res) => {
@@ -3434,6 +3461,18 @@ app.get("/api/sdr/leads/result/:runId", async (req, res) => {
         reviews: item.reviewsCount || 0,
       };
     });
+
+    // Salva log de geração para estatísticas
+    if (leads.length > 0) {
+      const { runId: _runId } = req.params;
+      await supabaseAdmin.from('sdr_generation_log').insert({
+        run_id: _runId,
+        count: leads.length,
+        generated_at: new Date().toISOString(),
+      }).then(({ error }) => {
+        if (error) console.warn('[Apify] Erro ao salvar log de geração:', error.message);
+      });
+    }
 
     return res.json({ status: 'SUCCEEDED', leads, total: leads.length });
   } catch (err: any) {
@@ -4159,7 +4198,7 @@ app.post("/api/webhooks/asaas", async (req, res) => {
 
   const { event, payment } = req.body as {
     event?: string;
-    payment?: { id?: string; externalReference?: string; status?: string; value?: number };
+    payment?: { id?: string; externalReference?: string; status?: string; value?: number; dueDate?: string; billingType?: string; subscription?: string };
   };
 
   console.log(`[Asaas Webhook] Evento: ${event}, Payment: ${payment?.id}`);
@@ -4184,6 +4223,34 @@ app.post("/api/webhooks/asaas", async (req, res) => {
       // Decodificar metadata do link (novo formato: base64 JSON)
       const meta = decodeLinkMeta(externalRef) as any;
 
+      // ── Helper: calcular próxima data de renovação ────────────────────────────
+      // Usa dueDate do Asaas como base (data de vencimento deste pagamento)
+      // e avança 1 mês (mensal) ou 1 ano (anual) para obter o próximo ciclo.
+      const calcPeriodEnd = (planType: string, dueDate?: string): string => {
+        const base = dueDate ? new Date(dueDate + 'T12:00:00Z') : new Date();
+        const isAnnual = planType.endsWith('_ANUAL');
+        if (isAnnual) {
+          base.setFullYear(base.getFullYear() + 1);
+        } else {
+          base.setMonth(base.getMonth() + 1);
+        }
+        return base.toISOString();
+      };
+
+      // ── Helper: atualizar current_period_end no perfil pelo e-mail ───────────
+      const syncRenewalDate = async (email: string, planType: string) => {
+        const periodEnd = calcPeriodEnd(planType, payment?.dueDate);
+        const { data: profile } = await supabaseAdmin
+          .from('profiles').select('id').eq('email', email).maybeSingle();
+        if (profile) {
+          await supabaseAdmin.from('profiles').update({
+            current_period_end: periodEnd,
+            subscription_status: 'active',
+          }).eq('id', profile.id);
+          console.log(`[Asaas Webhook] ✅ Renovação sincronizada para ${email}: ${new Date(periodEnd).toLocaleDateString('pt-BR')}`);
+        }
+      };
+
       let saleId: string;
 
       if (meta?.clientEmail) {
@@ -4195,7 +4262,10 @@ app.post("/api/webhooks/asaas", async (req, res) => {
           .from('sales').select('id').eq('asaas_payment_id', payment!.id!).maybeSingle();
 
         if (existing) {
-          console.warn(`[Asaas Webhook] Pagamento ${payment!.id} já processado (sale ${existing.id}) — ignorando`);
+          // Pagamento já processado (onboarding feito) — pode ser renovação
+          // Apenas atualiza current_period_end
+          console.log(`[Asaas Webhook] Renovação detectada para ${meta.clientEmail} — atualizando data`);
+          await syncRenewalDate(meta.clientEmail, meta.plan || '');
           return;
         }
 
@@ -4239,6 +4309,8 @@ app.post("/api/webhooks/asaas", async (req, res) => {
 
       if (result.success) {
         console.log(`[Asaas Webhook] ✅ Onboarding concluído: ${result.clientEmail}`);
+        // Garante que current_period_end fica correto mesmo após onboarding
+        await syncRenewalDate(result.clientEmail, meta?.plan || '');
       } else {
         console.error(`[Asaas Webhook] ❌ Onboarding falhou: ${result.error}`);
       }

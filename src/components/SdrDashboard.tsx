@@ -134,6 +134,19 @@ export const SdrDashboard: React.FC = () => {
   const [gLoading, setGLoading] = useState(false);
   const [gError, setGError] = useState<string | null>(null);
   const [gStatus, setGStatus] = useState<string>('');
+  const [gStatsToday, setGStatsToday] = useState(0);
+  const [gStatsMonth, setGStatsMonth] = useState(0);
+
+  const fetchGenerationStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sdr/leads/generation-stats');
+      if (res.ok) {
+        const data = await res.json();
+        setGStatsToday(data.today ?? 0);
+        setGStatsMonth(data.month ?? 0);
+      }
+    } catch { /* silencioso */ }
+  }, []);
 
   // ─────── Data Fetching ───────────────────────────────────────────────────────
 
@@ -233,6 +246,10 @@ export const SdrDashboard: React.FC = () => {
       setSdrPromptSaving(false);
     }
   };
+
+  useEffect(() => {
+    fetchGenerationStats();
+  }, [fetchGenerationStats]);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -1598,9 +1615,24 @@ export const SdrDashboard: React.FC = () => {
           {/* ══════ GERADOR DE LEADS ══════════════════════════════════════════════ */}
           {currentView === 'GERADOR_LEADS' && (
             <>
-              <div className="mb-6">
-                <h1 className="text-3xl font-black tracking-tight text-white">Gerador de Leads</h1>
-                <p className="text-slate-500 text-sm mt-1">Busca empresas por nicho e região via Google Maps. Os dados ficam disponíveis para exportação.</p>
+              <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+                <div>
+                  <h1 className="text-3xl font-black tracking-tight text-white">Gerador de Leads</h1>
+                  <p className="text-slate-500 text-sm mt-1">Busca empresas por nicho e região via Google Maps. Os dados ficam disponíveis para exportação.</p>
+                </div>
+                {/* Contadores */}
+                <div className="flex gap-3 shrink-0">
+                  <div className="bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[110px]">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Hoje</span>
+                    <span className="text-3xl font-black text-white leading-none">{gStatsToday}</span>
+                    <span className="text-[10px] font-bold text-slate-600 mt-1">leads gerados</span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[110px]">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Este mês</span>
+                    <span className="text-3xl font-black text-lime-400 leading-none">{gStatsMonth}</span>
+                    <span className="text-[10px] font-bold text-slate-600 mt-1">leads gerados</span>
+                  </div>
+                </div>
               </div>
 
               {/* Formulário */}
@@ -1672,6 +1704,7 @@ export const SdrDashboard: React.FC = () => {
                           if (pollData.status === 'SUCCEEDED') {
                             setGLeads(pollData.leads || []);
                             setGStatus('');
+                            fetchGenerationStats();
                             return;
                           }
                           if (pollData.status !== 'RUNNING' && pollData.status !== 'READY') {
