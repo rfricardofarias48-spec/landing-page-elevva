@@ -428,47 +428,39 @@ export function DemonstracaoPage() {
 
         {/* ── SPLIT: Título | Subtítulo ───────────────────────────────── */}
         <div className="relative max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
-          <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
+          <div className="grid grid-cols-2 divide-x divide-slate-100">
 
             {/* LEFT — Título */}
-            <div className="pt-10 pb-8 lg:pt-32 lg:pb-20 lg:pr-20 flex flex-col justify-center">
+            <div className="pt-8 pb-8 pr-4 lg:pt-32 lg:pb-20 lg:pr-20 flex flex-col justify-center">
 
               {/* Título principal */}
               <h1
                 className="font-black tracking-tighter text-slate-900 leading-[0.9]"
                 style={{
-                  fontSize: 'clamp(1.8rem, 8vw, 6rem)',
+                  fontSize: 'clamp(1.4rem, 8vw, 6rem)',
                   opacity: visible ? 1 : 0,
                   transform: visible ? 'translateY(0)' : 'translateY(18px)',
                   transition: 'opacity 0.65s ease 0.1s, transform 0.65s ease 0.1s',
                 }}
               >
-                {/* Mobile: 2 linhas */}
-                <span className="lg:hidden">
-                  Chega de pilhas<br />
-                  <span className="text-[#65a30d]">de currículos.</span>
-                </span>
-                {/* Desktop: 3 linhas */}
-                <span className="hidden lg:inline">
-                  Chega de<br />
-                  pilhas de<br />
-                  <span className="text-[#65a30d]">currículos.</span>
-                </span>
+                Chega de<br />
+                pilhas de<br />
+                <span className="text-[#65a30d]">currículos.</span>
               </h1>
 
               {/* Linha decorativa */}
               <div
-                className="flex items-center gap-2 mt-6 lg:mt-12"
+                className="flex items-center gap-1.5 mt-4 lg:mt-12"
                 style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.6s ease 0.5s' }}
               >
-                <div className="h-[3px] w-14 bg-[#65a30d] rounded-full" />
-                <div className="h-[3px] w-5 bg-slate-200 rounded-full" />
-                <div className="h-[3px] w-2 bg-slate-100 rounded-full" />
+                <div className="h-[3px] w-8 lg:w-14 bg-[#65a30d] rounded-full" />
+                <div className="h-[3px] w-3 lg:w-5 bg-slate-200 rounded-full" />
+                <div className="h-[3px] w-1.5 lg:w-2 bg-slate-100 rounded-full" />
               </div>
 
               {/* Social proof */}
               <div
-                className="mt-4 lg:mt-8"
+                className="mt-3 lg:mt-8"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(10px)', transition: 'opacity 0.6s ease 0.6s, transform 0.6s ease 0.6s' }}
               >
                 <SocialProofAvatars />
@@ -476,20 +468,28 @@ export function DemonstracaoPage() {
             </div>
 
             {/* RIGHT — Descrição + Stats + CTAs */}
-            <div className="pt-4 pb-16 lg:pt-32 lg:pb-20 lg:pl-20 flex flex-col justify-center gap-6 lg:gap-10">
+            <div className="pt-8 pb-8 pl-4 lg:pt-32 lg:pb-20 lg:pl-20 flex flex-col justify-center gap-4 lg:gap-10">
 
               {/* Descrição */}
               <p
-                className="text-base md:text-2xl text-slate-500 font-medium leading-[1.55] max-w-lg"
+                className="text-[clamp(0.7rem,2.5vw,1.5rem)] md:text-2xl text-slate-500 font-medium leading-[1.5] max-w-lg"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.25s, transform 0.6s ease 0.25s' }}
               >
-                Conheça o Bento, Agente de IA que atende no WhatsApp, qualifica currículos e{' '}
-                <span className="text-slate-900 font-black">agenda entrevistas automaticamente.</span>
+                {/* Mobile: subtítulo curto */}
+                <span className="lg:hidden">
+                  Conheça o Bento, o agente de IA capaz de{' '}
+                  <span className="text-slate-900 font-black">recrutar por você.</span>
+                </span>
+                {/* Desktop: subtítulo completo */}
+                <span className="hidden lg:inline">
+                  Conheça o Bento, Agente de IA que atende no WhatsApp, qualifica currículos e{' '}
+                  <span className="text-slate-900 font-black">agenda entrevistas automaticamente.</span>
+                </span>
               </p>
 
               {/* Stats */}
               <div
-                className="grid grid-cols-3 gap-4 lg:gap-6 py-6 lg:py-8 border-y border-slate-100"
+                className="grid grid-cols-3 gap-2 lg:gap-6 py-4 lg:py-8 border-y border-slate-100"
                 style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.6s ease 0.35s, transform 0.6s ease 0.35s' }}
               >
                 {[
@@ -497,9 +497,9 @@ export function DemonstracaoPage() {
                   { value: '10×',  label: 'mais rápido\nque o manual' },
                   { value: '0',   label: 'conflitos\nde agenda' },
                 ].map(({ value, label }) => (
-                  <div key={value} className="flex flex-col gap-1.5">
-                    <span className="text-2xl lg:text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
-                    <span className="text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-pre-line leading-snug">{label}</span>
+                  <div key={value} className="flex flex-col gap-1">
+                    <span className="text-[clamp(1rem,3.5vw,2.5rem)] lg:text-4xl font-black text-slate-900 tracking-tighter leading-none">{value}</span>
+                    <span className="text-[clamp(6px,1.5vw,10px)] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-pre-line leading-snug">{label}</span>
                   </div>
                 ))}
               </div>
