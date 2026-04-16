@@ -42,13 +42,6 @@ const features = [
       'https://upload.wikimedia.org/wikipedia/commons/9/9b/Google_Meet_icon_%282020%29.svg',
     ],
   },
-  {
-    icon: BarChart2,
-    tag: 'Custo de Ociosidade',
-    title: 'O Prejuízo Oculto da Vaga Aberta',
-    description: 'Falta de braço é perda de receita, com o nosso agente o seu recrutamento fica até 80% mais rápido e seu faturamento é menos afetado por falta de pessoal.',
-    stat: null, statLabel: null,
-  },
 ];
 
 // ─── Dashboard Mockup ────────────────────────────────────────────────────────
@@ -613,63 +606,74 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
-      <section id="como-funciona" className="py-16 bg-transparent border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
+      <section id="como-funciona" className="py-20 bg-slate-950 border-y border-white/5">
+        <div className="max-w-7xl mx-auto px-4 md:px-6">
 
           {/* Cabeçalho */}
-          <div className="w-full mb-10 md:mb-20 text-center">
-            <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-[1.05]">
-              Pronto para recuperar<br />12 horas por semana?
+          <div className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 bg-[#65a30d]/10 border border-[#65a30d]/20 rounded-full px-4 py-1.5 text-[11px] font-black text-[#a3e635] uppercase tracking-widest mb-5">
+              Como funciona
+            </span>
+            <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter leading-[1.05]">
+              Pronto para recuperar<br />
+              <span className="text-[#a3e635]">12 horas por semana?</span>
             </h2>
           </div>
 
-          {/* Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-
-            {/* Linha conectora — só desktop */}
-            <div className="hidden md:flex absolute top-7 left-[calc(16.66%+2rem)] right-[calc(16.66%+2rem)] items-center">
-              <div className="flex-1 border-t-2 border-dashed border-slate-200" />
-            </div>
-
+          {/* Steps — glass panels separados por linha fina */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5 rounded-3xl overflow-hidden">
             {[
               {
-                n: '1',
+                n: '01',
                 title: 'Qualificação no WhatsApp',
                 desc: 'O candidato chama no WhatsApp, Bento atende na hora, 24/7, recolhe o currículo em PDF e envia para análise.',
-                green: false,
+                accent: false,
               },
               {
-                n: '2',
+                n: '02',
                 title: 'Scoring Instantâneo',
-                desc: 'Bento analisa o currículo em segundos e gera um relatório completo com nota (0 a 10), Pontos Fortes e fracos e um resumo do currículo.',
-                green: false,
+                desc: 'Bento analisa o currículo em segundos e gera um relatório completo com nota (0 a 10), pontos fortes e fracos e um resumo do candidato.',
+                accent: false,
               },
               {
-                n: '3',
+                n: '03',
                 title: 'Agendamento na Agenda',
-                desc: 'Se aprovado, Bento cruza a disponibilidade do candidato com a sua agenda e agenda a entrevista em vídeo no Google Meet ou presencial, ele é capaz de fazer reagendamentos caso solicitado.',
-                green: true,
+                desc: 'Se aprovado, Bento cruza a disponibilidade com a sua agenda e agenda a entrevista no Google Meet — inclusive com reagendamentos.',
+                accent: true,
               },
-            ].map(({ n, title, desc, green }) => (
-              <div key={n} className="relative bg-white border border-slate-100 rounded-[1.75rem] p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300">
-                {/* Número */}
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-base font-black mb-6 z-10 relative ${green ? 'bg-[#65a30d] text-white shadow-[0_4px_16px_rgba(101,163,13,0.35)]' : 'bg-slate-50 border border-slate-200 text-slate-400'}`}>
+            ].map(({ n, title, desc, accent }) => (
+              <div
+                key={n}
+                className={`relative flex flex-col p-8 md:p-10 overflow-hidden ${accent ? 'bg-[#0d1f02]' : 'bg-slate-900/60'}`}
+              >
+                {/* Número decorativo de fundo */}
+                <span
+                  className="absolute -top-4 -right-2 text-[7rem] font-black leading-none select-none pointer-events-none"
+                  style={{ color: accent ? 'rgba(101,163,13,0.08)' : 'rgba(255,255,255,0.03)' }}
+                >
+                  {n}
+                </span>
+
+                {/* Badge do passo */}
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black mb-8 ${accent ? 'bg-[#65a30d] text-white shadow-[0_4px_20px_rgba(101,163,13,0.4)]' : 'bg-white/5 text-slate-500 border border-white/10'}`}>
                   {n}
                 </div>
-                <h3 className="text-slate-900 font-black text-lg mb-3 leading-snug">{title}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed">{desc}</p>
-                {green && (
-                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#65a30d] rounded-t-[1.75rem]" />
+
+                <h3 className={`font-black text-lg mb-3 leading-snug ${accent ? 'text-[#a3e635]' : 'text-white'}`}>{title}</h3>
+                <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
+
+                {accent && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#65a30d] to-transparent" />
                 )}
               </div>
             ))}
           </div>
 
           {/* CTA */}
-          <div className="mt-14 flex justify-center">
+          <div className="mt-12 flex justify-center">
             <a
               href={whatsapp} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-black hover:bg-zinc-800 text-white font-bold px-8 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_24px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
+              className="inline-flex items-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0a] text-white font-bold px-8 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_24px_rgba(101,163,13,0.35)]"
             >
               Começar agora
               <ChevronRight className="w-4 h-4" />
@@ -682,48 +686,76 @@ export function DemonstracaoPage() {
       <section id="seguranca" className="py-20 bg-transparent border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
-          {/* Título */}
-          <div className="text-center mb-10 md:mb-16">
-            <h2 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900">
-              Plataforma Segura
-            </h2>
-            <p className="mt-6 text-base text-slate-500 font-medium leading-relaxed max-w-2xl mx-auto">
-              O Elevva processa a informação, extrai os dados essenciais e descarta o documento original. Sua empresa blindada contra vazamentos e multas.
-            </p>
-          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
 
-          {/* Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-12">
-            {[
-              {
-                icon: Lock,
-                title: 'Exclusão Automática (5 Dias)',
-                desc: 'PDF original é deletado permanentemente 5 dias após a análise. Zero passivo de dados para a sua empresa.',
-              },
-              {
-                icon: ShieldCheck,
-                title: 'Proteção Legal',
-                desc: 'Processamos apenas o essencial para o ranqueamento da vaga, blindando o seu CNPJ contra multas e sanções.',
-              },
-              {
-                icon: Server,
-                title: 'Ambiente Fechado',
-                desc: 'Acesso restrito a utilizadores autorizados pela sua gestão. Elimina o risco de vazamento de informações internas.',
-              },
-            ].map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#65a30d]/10 border border-[#65a30d]/20 flex items-center justify-center mb-6 group-hover:bg-[#65a30d]/15 transition-all duration-300">
-                  <Icon className="w-5 h-5 text-[#65a30d]" />
-                </div>
-                <h3 className="text-lg font-black text-slate-900 tracking-tight mb-3">{title}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">{desc}</p>
+            {/* LEFT — declaração principal */}
+            <div className="relative bg-slate-950 rounded-[2rem] p-10 md:p-14 overflow-hidden flex flex-col justify-between min-h-[340px]">
+              {/* Escudo decorativo de fundo */}
+              <ShieldCheck
+                className="absolute -bottom-8 -right-8 text-white/[0.03]"
+                style={{ width: 220, height: 220 }}
+                strokeWidth={1}
+              />
+
+              <div>
+                <span className="inline-flex items-center gap-2 bg-[#65a30d]/15 border border-[#65a30d]/25 rounded-full px-3 py-1 text-[10px] font-black text-[#a3e635] uppercase tracking-widest mb-6">
+                  LGPD Compliant
+                </span>
+                <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter leading-[1.1] mb-4">
+                  Plataforma<br />Segura
+                </h2>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+                  O Elevva processa a informação, extrai o essencial e descarta o documento original. Sua empresa blindada contra vazamentos e multas.
+                </p>
               </div>
-            ))}
-          </div>
 
+              <div className="mt-8 flex items-baseline gap-2">
+                <span className="text-5xl font-black text-white tracking-tighter">0</span>
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest leading-snug">dados<br />armazenados<br />sem necessidade</span>
+              </div>
+            </div>
+
+            {/* RIGHT — itens de segurança */}
+            <div className="flex flex-col gap-4">
+              {[
+                {
+                  icon: Lock,
+                  title: 'Exclusão Automática (5 Dias)',
+                  desc: 'PDF original é deletado permanentemente 5 dias após a análise. Zero passivo de dados para a sua empresa.',
+                  badge: '5 dias',
+                },
+                {
+                  icon: ShieldCheck,
+                  title: 'Proteção Legal',
+                  desc: 'Processamos apenas o essencial para o ranqueamento da vaga, blindando o seu CNPJ contra multas e sanções da LGPD.',
+                  badge: 'LGPD',
+                },
+                {
+                  icon: Server,
+                  title: 'Ambiente Fechado',
+                  desc: 'Acesso restrito a usuários autorizados pela sua gestão. Elimina o risco de vazamento de informações internas.',
+                  badge: 'Acesso restrito',
+                },
+              ].map(({ icon: Icon, title, desc, badge }) => (
+                <div
+                  key={title}
+                  className="flex items-start gap-5 bg-white border border-slate-100 rounded-2xl p-5 md:p-6 shadow-[0px_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0px_8px_32px_rgba(0,0,0,0.07)] transition-all duration-300 group"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 group-hover:bg-[#65a30d]/10 group-hover:border-[#65a30d]/20 transition-all duration-300">
+                    <Icon className="w-4 h-4 text-slate-400 group-hover:text-[#65a30d] transition-colors duration-300" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-sm font-black text-slate-900 tracking-tight">{title}</h3>
+                      <span className="text-[9px] font-black text-[#65a30d] bg-[#65a30d]/8 border border-[#65a30d]/15 rounded-full px-2 py-0.5 uppercase tracking-wider shrink-0">{badge}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+          </div>
         </div>
       </section>
 
