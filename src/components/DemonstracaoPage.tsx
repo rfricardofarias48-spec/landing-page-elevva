@@ -569,6 +569,7 @@ export function DemonstracaoPage() {
                 key={title}
                 className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group overflow-hidden"
               >
+
                 <BorderBeam size={280} duration={12} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={1.5} />
 
                 <div className="flex items-start justify-between mb-6">
@@ -601,6 +602,21 @@ export function DemonstracaoPage() {
                 )}
               </div>
             ))}
+
+            {/* 4º card — desktop only */}
+            <div className="hidden md:block relative bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300 group overflow-hidden">
+              <BorderBeam size={280} duration={12} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={1.5} />
+              <div className="flex items-start justify-between mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:bg-[#65a30d]/10 group-hover:border-[#65a30d]/20 transition-all duration-300">
+                  <BarChart2 className="w-5 h-5 text-slate-400 group-hover:text-[#65a30d] transition-colors duration-300" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest rounded-full px-3 py-1.5 text-slate-400 bg-slate-50 border border-slate-100">
+                  Custo de Ociosidade
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight mb-3 leading-snug">O Prejuízo Oculto da Vaga Aberta</h3>
+              <p className="text-sm text-slate-500 leading-relaxed mb-8">Falta de braço é perda de receita. Com o nosso agente o seu recrutamento fica até 80% mais rápido e seu faturamento é menos afetado por falta de pessoal.</p>
+            </div>
           </div>
         </div>
       </section>
