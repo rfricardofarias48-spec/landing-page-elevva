@@ -606,7 +606,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── COMO FUNCIONA ─────────────────────────────────────────────────── */}
-      <section id="como-funciona" className="py-20 bg-transparent border-b border-slate-100">
+      <section id="como-funciona" className="pt-10 pb-20 md:py-20 bg-transparent border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
           {/* Cabeçalho */}
@@ -679,7 +679,7 @@ export function DemonstracaoPage() {
       </section>
 
       {/* ── SEGURANÇA ─────────────────────────────────────────────────────── */}
-      <section id="seguranca" className="py-20 bg-transparent border-b border-slate-100">
+      <section id="seguranca" className="pt-10 pb-20 md:py-20 bg-transparent border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
