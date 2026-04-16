@@ -331,7 +331,7 @@ export function DemonstracaoPage() {
   const [visible, setVisible] = useState(false);
   const [billing, setBilling] = useState<'mensal' | 'anual'>('mensal');
   const [checkoutPlan, setCheckoutPlan] = useState<CheckoutPlan | null>(null);
-  const whatsapp = 'https://wa.me/5551999999999?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Elevva!';
+  const whatsapp = 'https://wa.me/5551943960890?text=Ol%C3%A1%2C%20quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20do%20Elevva!';
 
   const [scrolled, setScrolled] = useState(false);
 
@@ -525,7 +525,7 @@ export function DemonstracaoPage() {
                   Agendar Demonstração
                 </a>
                 <button
-                  onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
+                  onClick={() => document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' })}
                   className="inline-flex items-center justify-center gap-2.5 border-2 border-slate-200 hover:border-[#65a30d] text-slate-600 hover:text-[#65a30d] font-bold px-7 py-4 rounded-2xl text-sm transition-all duration-200"
                 >
                   <Play className="w-4 h-4" />
@@ -633,12 +633,12 @@ export function DemonstracaoPage() {
                 <span className="text-[#65a30d]">12 horas por semana?</span>
               </h2>
             </div>
-            <a
-              href={whatsapp} target="_blank" rel="noopener noreferrer"
+            <button
+              onClick={() => document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' })}
               className="shrink-0 inline-flex items-center gap-2 bg-black hover:bg-zinc-800 text-white font-bold px-7 py-3.5 rounded-2xl text-sm transition-all duration-200 self-start md:self-auto"
             >
               Começar agora <ChevronRight className="w-4 h-4" />
-            </a>
+            </button>
           </div>
 
           {/* Steps — 3 colunas divididas por linhas finas, sem fundo extra */}
