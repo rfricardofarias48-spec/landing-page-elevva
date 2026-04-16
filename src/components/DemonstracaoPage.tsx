@@ -595,8 +595,8 @@ export function DemonstracaoPage() {
 
                 {stat && (
                   <div className="pt-6 border-t border-slate-50 flex items-baseline gap-2">
-                    <span className="text-5xl font-black tracking-tighter text-slate-900">{stat}</span>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{statLabel}</span>
+                    <span className="text-3xl md:text-5xl font-black tracking-tighter text-slate-900">{stat}</span>
+                    <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">{statLabel}</span>
                   </div>
                 )}
               </div>
