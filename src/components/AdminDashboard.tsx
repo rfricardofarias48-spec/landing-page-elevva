@@ -1054,9 +1054,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           <tr>
                               <th className="p-6">Usuário</th>
                               <th className="p-6">Plano</th>
+                              <th className="p-6">Preço</th>
                               <th className="p-6">Cadastro</th>
                               <th className="p-6">Último Acesso</th>
-                              <th className="p-6">Uso</th>
+                              <th className="p-6">Currículos</th>
                               <th className="p-6">Status</th>
                               <th className="p-6 text-right">Ações</th>
                           </tr>
@@ -1066,9 +1067,28 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-6"><div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div><div className="text-xs text-zinc-500">{user.email}</div></td>
                                   <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'PRO' ? 'bg-[#65a30d] text-black' : user.plan === 'ESSENCIAL' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
+                                  <td className="p-6">
+                                      {user.plan === 'ADMIN' ? (
+                                          <span className="text-xs text-zinc-300 font-bold">—</span>
+                                      ) : user.plan === 'ENTERPRISE' && (!user.plan_price || user.plan_price === 0) ? (
+                                          <span className="text-xs text-zinc-400 font-bold italic">A consultar</span>
+                                      ) : (
+                                          <span className="text-xs font-black text-zinc-800">
+                                              R$ {(user.plan_price ?? (user.plan === 'ESSENCIAL' ? 549 : user.plan === 'PRO' ? 899 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                              <span className="text-zinc-400 font-normal">/mês</span>
+                                          </span>
+                                      )}
+                                  </td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{new Date(user.created_at).toLocaleDateString('pt-BR')}</span></td>
                                   <td className="p-6"><span className="text-xs font-bold text-zinc-500">{user.last_active ? new Date(user.last_active).toLocaleDateString('pt-BR') : '-'}</span></td>
-                                  <td className="p-6"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-black rounded-full" style={{ width: `${Math.min(100, user.resume_usage / 25 * 100)}%`}}></div></div><span className="text-xs font-bold text-zinc-600">{user.resume_usage}</span></div></td>
+                                  <td className="p-6">
+                                      <div className="flex items-center gap-2">
+                                          <span className="text-sm font-black text-zinc-800">{user.resume_usage ?? 0}</span>
+                                          {(user.resume_usage ?? 0) > 0 && (
+                                              <span className="text-[10px] font-bold text-zinc-400">CVs</span>
+                                          )}
+                                      </div>
+                                  </td>
                                   <td className="p-6">{user.status === 'BLOCKED' ? (<span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>) : (<span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>)}</td>
                                   <td className="p-6 text-right"><button onClick={() => setSelectedUser(user)} className="text-zinc-400 hover:text-black font-bold text-xs underline">Detalhes</button></td>
                               </tr>
