@@ -522,7 +522,7 @@ export function DemonstracaoPage() {
                   className="inline-flex items-center justify-center gap-2.5 bg-black hover:bg-zinc-800 text-white font-bold px-7 py-4 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  Falar com Especialista
+                  Agendar Demonstração
                 </a>
                 <button
                   onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
@@ -906,7 +906,7 @@ export function DemonstracaoPage() {
                 target="_blank" rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 font-bold py-3.5 rounded-2xl text-sm transition-all duration-200"
               >
-                Falar com Especialista
+                Agendar Demonstração
               </a>
             </div>
           </div>
