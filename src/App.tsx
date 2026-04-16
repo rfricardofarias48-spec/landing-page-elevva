@@ -23,9 +23,9 @@ import { BentoChat } from './components/BentoChat';
 import { NicheSection } from './components/NicheSection';
 import { PublicPortalScreen } from './components/PublicPortalScreen';
 import { 
-  Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
+  Plus, LogOut, Settings, LayoutDashboard, User as UserIcon,
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, Crown, Phone, Building2, Infinity
 } from 'lucide-react';
 
 const CHATWOOT_BASE_URL = (import.meta.env.VITE_CHATWOOT_URL || 'https://bot-chatwoot.5mljrq.easypanel.host').replace(/\/$/, '');
@@ -2212,7 +2212,154 @@ const App: React.FC = () => {
   );
   };
 
-  const renderBilling = () => (
+  const renderBilling = () => {
+    // ── TELA EXCLUSIVA ENTERPRISE ─────────────────────────────────────
+    if (normalizedPlan === 'ENTERPRISE') {
+      const enterpriseFeatures = [
+        { icon: <Infinity className="w-4 h-4" />, label: 'Vagas ilimitadas' },
+        { icon: <Bot className="w-4 h-4" />, label: 'Agente WhatsApp dedicado' },
+        { icon: <Calendar className="w-4 h-4" />, label: 'Agendamento autônomo' },
+        { icon: <ShieldCheck className="w-4 h-4" />, label: 'Conformidade LGPD completa' },
+        { icon: <Building2 className="w-4 h-4" />, label: 'Portal de Admissão' },
+        { icon: <Phone className="w-4 h-4" />, label: 'Atendimento prioritário' },
+      ];
+      return (
+        <div className="flex flex-col h-full gap-6 animate-fade-in font-sans">
+          {/* Header */}
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center border border-zinc-800 shrink-0">
+              <Crown className="w-7 h-7 text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Minha Assinatura</h2>
+              <p className="text-slate-500 font-medium text-sm">Plano Enterprise — acesso exclusivo.</p>
+            </div>
+          </div>
+
+          {/* Hero card */}
+          <div className="bg-[#0a0a0a] rounded-3xl p-8 relative overflow-hidden text-white shadow-2xl shrink-0">
+            {/* Glow */}
+            <div className="absolute -top-20 -right-20 w-72 h-72 bg-amber-500/10 rounded-full blur-[80px] pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-purple-600/10 rounded-full blur-[60px] pointer-events-none" />
+
+            <div className="relative z-10">
+              {/* Badge */}
+              <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-2 bg-amber-400/10 border border-amber-400/30 px-3 py-1.5 rounded-xl">
+                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-amber-400 font-black text-[11px] uppercase tracking-widest">Enterprise</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 px-3 py-1.5 rounded-xl">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-zinc-400 font-bold text-[11px] uppercase tracking-widest">Ativo</span>
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="mb-6">
+                {user?.plan_price && user.plan_price > 0 ? (
+                  <>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-zinc-400 text-sm font-bold">R$</span>
+                      <span className="text-6xl font-black tracking-tighter text-white">
+                        {user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-zinc-500 text-sm font-bold">/mês</span>
+                    </div>
+                    <span className="text-[11px] font-black bg-purple-600/20 border border-purple-500/30 text-purple-400 px-2.5 py-1 rounded-lg uppercase tracking-widest">
+                      Plano personalizado
+                    </span>
+                  </>
+                ) : (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-5xl font-black tracking-tighter text-white">Plano Personalizado</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Stats row */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                  <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest block mb-1">Vagas Ativas</span>
+                  <span className="text-2xl font-black text-white">{jobs.length}</span>
+                  <span className="text-zinc-600 text-xs font-bold"> / ∞</span>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                  <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest block mb-1">CVs Analisados</span>
+                  <span className="text-2xl font-black text-white">{user?.resume_usage ?? 0}</span>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                  <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest block mb-1">Renova em</span>
+                  <span className="text-sm font-black text-white">
+                    {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime())
+                      ? new Date(user.current_period_end).toLocaleDateString('pt-BR')
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Features + Contact grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 min-h-0">
+            {/* Features */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5" /> Recursos inclusos
+                </p>
+              </div>
+              <div className="p-6 space-y-3">
+                {enterpriseFeatures.map(({ icon, label }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0">
+                      {icon}
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Support */}
+            <div className="bg-[#0a0a0a] rounded-2xl border border-zinc-800 overflow-hidden flex flex-col">
+              <div className="px-6 py-4 border-b border-zinc-800">
+                <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5" /> Suporte Dedicado
+                </p>
+              </div>
+              <div className="p-6 flex flex-col flex-1 justify-between">
+                <div>
+                  <p className="text-white font-black text-lg tracking-tight mb-1">Precisa de algo?</p>
+                  <p className="text-zinc-400 text-sm font-medium leading-relaxed">
+                    Como cliente Enterprise você tem atendimento exclusivo. Nosso time está disponível para ajustes, novas funcionalidades e suporte em tempo real.
+                  </p>
+                </div>
+                <div className="mt-6 space-y-3">
+                  <a
+                    href="https://wa.me/5551994396089"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-[#25D366] hover:bg-[#20b858] text-white font-black py-3.5 rounded-xl text-sm transition-colors text-center flex items-center justify-center gap-2"
+                  >
+                    <Phone className="w-4 h-4" /> Falar com Consultor
+                  </a>
+                  <a
+                    href="mailto:suporte@elevva.com.br"
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold py-3.5 rounded-xl text-sm transition-colors text-center flex items-center justify-center gap-2"
+                  >
+                    <ExternalLink className="w-4 h-4" /> Enviar E-mail
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // ── FIM TELA ENTERPRISE ──────────────────────────────────────────
+
+    return (
       <div className="flex flex-col h-full gap-5 animate-fade-in font-sans">
           <div className="flex items-center gap-4 shrink-0">
               <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
@@ -2451,7 +2598,8 @@ const App: React.FC = () => {
                   </div>
               )}
           </div>
-  );
+    );
+  };
 
   const renderSettings = () => (
     <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
