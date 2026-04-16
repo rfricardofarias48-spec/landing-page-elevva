@@ -94,18 +94,6 @@ export function AnimatedBackground() {
           }}
         />
 
-        {/* ── Linha de horizonte — sutil divisor de profundidade ── */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '48%',
-            left: 0,
-            right: 0,
-            height: '1px',
-            background: 'linear-gradient(90deg, transparent 0%, rgba(101,163,13,0.12) 25%, rgba(148,163,184,0.10) 50%, rgba(101,163,13,0.08) 75%, transparent 100%)',
-          }}
-        />
-
         {/* ── Vinheta de borda — traz o conteúdo para frente ── */}
         <div
           style={{
