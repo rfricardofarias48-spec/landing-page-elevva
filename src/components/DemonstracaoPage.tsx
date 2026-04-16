@@ -626,7 +626,7 @@ export function DemonstracaoPage() {
           </div>
 
           {/* Steps — 3 colunas divididas por linhas finas, sem fundo extra */}
-          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100 border-x border-slate-100 md:border-x-0">
             {[
               {
                 n: '01',
