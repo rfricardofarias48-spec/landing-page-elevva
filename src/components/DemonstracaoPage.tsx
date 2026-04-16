@@ -51,15 +51,6 @@ const features = [
   },
 ];
 
-const testimonials = [
-  { name: 'Ana Beatriz', role: 'Diretora de RH · Grupo Meridian', initials: 'AB',
-    text: 'Contratamos 3 pessoas em 2 semanas usando o Elevva. Antes levávamos 2 meses. A diferença é absurda.' },
-  { name: 'Thiago Nunes', role: 'Head de Pessoas · Nexora Tech', initials: 'TN',
-    text: 'O agente de WhatsApp realmente funciona. Candidatos respondem muito mais do que no e-mail tradicional.' },
-  { name: 'Carla Mendes', role: 'Recrutadora Sênior · VitalCare', initials: 'CM',
-    text: 'A análise de currículos é impressionante. O sistema pontua com critérios que eu mesmo defino para cada vaga.' },
-];
-
 // ─── Dashboard Mockup ────────────────────────────────────────────────────────
 
 function DashboardMockup() {
@@ -547,16 +538,6 @@ export function DemonstracaoPage() {
         </div>
       </section>
 
-      {/* ── LOGOS / CLIENTES ──────────────────────────────────────────────── */}
-      <section className="bg-transparent border-b border-slate-100 py-10">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
-          <p className="text-center text-[11px] font-black text-slate-400 uppercase tracking-widest mb-8">
-            Empresas que confiam na Elevva
-          </p>
-          <LogosSlider />
-        </div>
-      </section>
-
       {/* ── FEATURES ──────────────────────────────────────────────────────── */}
       <section id="funcionalidades" className="bg-transparent py-16 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 md:px-6 md:border-x md:border-slate-100">
@@ -731,38 +712,12 @@ export function DemonstracaoPage() {
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-      <section className="py-16 max-w-7xl mx-auto px-4 md:px-6 bg-transparent md:border md:border-slate-100 md:border-t-0">
-        <div className="w-full mb-10 md:mb-16 text-center">
-          <h2
-            className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.05] text-slate-900"
-          >
-            Quem já usa o Elevva
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {testimonials.map(({ name, role, text, initials }) => (
-            <div
-              key={name}
-              className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-8 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] flex flex-col gap-6 overflow-hidden"
-            >
-              <BorderBeam size={200} duration={16} colorFrom="#65a30d" colorTo="#a3e635" borderWidth={1} />
-              {/* Quote mark */}
-              <span className="text-7xl font-black text-[#65a30d]/15 leading-none -mb-4 select-none">"</span>
-              <p className="text-sm text-slate-600 leading-relaxed font-medium flex-1">{text}</p>
-              <div className="flex items-center gap-3 pt-5 border-t border-slate-50">
-                <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center text-xs font-black shrink-0">
-                  {initials}
-                </div>
-                <div>
-                  <p className="text-sm font-black text-slate-900">{name}</p>
-                  <p className="text-xs text-slate-400 font-medium">{role}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* ── CLIENTES ──────────────────────────────────────────────────────── */}
+      <section className="py-14 max-w-7xl mx-auto px-4 md:px-6 bg-transparent md:border md:border-slate-100 md:border-t-0">
+        <p className="text-center text-[11px] font-black text-slate-400 uppercase tracking-widest mb-10">
+          Empresas que confiam na Elevva
+        </p>
+        <LogosSlider />
       </section>
 
       {/* ── PLANOS ────────────────────────────────────────────────────────── */}
