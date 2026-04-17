@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/sync-renewals",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/block-overdue",
+      "schedule": "0 7 * * *"
     }
   ],
   "functions": {

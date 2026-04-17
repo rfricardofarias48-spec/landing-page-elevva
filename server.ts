@@ -4219,7 +4219,52 @@ app.post("/api/webhooks/asaas", async (req, res) => {
 
   console.log(`[Asaas Webhook] Evento: ${event}, Payment: ${payment?.id}`);
 
-  // Só processa confirmações de pagamento
+  // ── PAYMENT_OVERDUE: marcar conta como inadimplente ───────────────────────
+  if (event === 'PAYMENT_OVERDUE') {
+    res.json({ ok: true, received: true });
+    (async () => {
+      try {
+        const externalRef = payment?.externalReference;
+        if (!externalRef) return;
+        const meta = decodeLinkMeta(externalRef) as any;
+        const email = meta?.clientEmail;
+        if (!email) return;
+
+        await supabaseAdmin.from('profiles').update({
+          subscription_status: 'past_due',
+        }).eq('email', email);
+
+        console.log(`[Asaas Webhook] ⚠️ OVERDUE marcado para ${email}`);
+      } catch (e: any) {
+        console.error('[Asaas Webhook] Erro ao processar OVERDUE:', e.message);
+      }
+    })();
+    return;
+  }
+
+  // ── PAYMENT_RESTORED: restaurar conta sem desbloquear (aguarda confirmação) ─
+  if (event === 'PAYMENT_RESTORED') {
+    res.json({ ok: true, received: true });
+    (async () => {
+      try {
+        const externalRef = payment?.externalReference;
+        if (!externalRef) return;
+        const meta = decodeLinkMeta(externalRef) as any;
+        const email = meta?.clientEmail;
+        if (!email) return;
+        // Apenas limpa o past_due — o desbloqueio ocorre quando CONFIRMED/RECEIVED chegar
+        await supabaseAdmin.from('profiles').update({
+          subscription_status: 'active',
+        }).eq('email', email).eq('subscription_status', 'past_due');
+        console.log(`[Asaas Webhook] 🔄 RESTORED para ${email}`);
+      } catch (e: any) {
+        console.error('[Asaas Webhook] Erro ao processar RESTORED:', e.message);
+      }
+    })();
+    return;
+  }
+
+  // Só processa confirmações de pagamento a partir daqui
   if (!['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'].includes(event || '')) {
     return res.json({ ok: true, ignored: true });
   }
@@ -4325,8 +4370,13 @@ app.post("/api/webhooks/asaas", async (req, res) => {
 
       if (result.success) {
         console.log(`[Asaas Webhook] ✅ Onboarding concluído: ${result.clientEmail}`);
-        // Garante que current_period_end fica correto mesmo após onboarding
         await syncRenewalDate(result.clientEmail, meta?.plan || '');
+        // Desbloquear conta caso estivesse bloqueada por inadimplência
+        await supabaseAdmin.from('profiles').update({
+          status: 'ACTIVE',
+          subscription_status: 'active',
+        }).eq('email', result.clientEmail).eq('status', 'BLOCKED');
+        console.log(`[Asaas Webhook] 🔓 Conta desbloqueada (se estava bloqueada): ${result.clientEmail}`);
       } else {
         console.error(`[Asaas Webhook] ❌ Onboarding falhou: ${result.error}`);
       }
@@ -4482,6 +4532,36 @@ app.post("/api/sales/:id/retry", async (req, res) => {
       console.error('[Retry] Erro:', err.message);
     }
   })();
+});
+
+// ── POST /api/cron/block-overdue — Bloqueia contas inadimplentes há 10+ dias ──
+app.post("/api/cron/block-overdue", async (req, res) => {
+  try {
+    const graceDays = 10;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - graceDays);
+
+    // Contas past_due cujo current_period_end já ultrapassou o prazo de carência
+    const { data: overdue, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, current_period_end')
+      .eq('subscription_status', 'past_due')
+      .eq('status', 'ACTIVE')
+      .not('current_period_end', 'is', null)
+      .lte('current_period_end', cutoff.toISOString());
+
+    if (error) throw error;
+    if (!overdue?.length) return res.json({ ok: true, blocked: 0 });
+
+    const ids = overdue.map(u => u.id);
+    await supabaseAdmin.from('profiles').update({ status: 'BLOCKED' }).in('id', ids);
+
+    console.log(`[BlockOverdue] 🔒 ${overdue.length} conta(s) bloqueada(s):`, overdue.map(u => u.email));
+    return res.json({ ok: true, blocked: overdue.length, accounts: overdue.map(u => u.email) });
+  } catch (err: any) {
+    console.error('[BlockOverdue] Erro:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── POST /api/admin/sync-renewals — Sincroniza current_period_end via Asaas ──
