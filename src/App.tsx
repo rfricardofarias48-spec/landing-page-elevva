@@ -2575,9 +2575,10 @@ const App: React.FC = () => {
   // --- MAIN RENDER (User Dashboard / Details) ---
 
   // Demonstration Page — public, no auth required
-  // Also served at root "/" (elevva.net.br)
+  // Served at root "/" only on elevva.net.br (main domain)
+  const isMainDomain = window.location.hostname === 'elevva.net.br' || window.location.hostname === 'www.elevva.net.br';
   if (
-    window.location.pathname === '/' ||
+    (isMainDomain && window.location.pathname === '/') ||
     decodeURIComponent(window.location.pathname).match(/^\/demon?stra[cç][aã]o\/?$/i)
   ) {
     return <DemonstracaoPage />;
