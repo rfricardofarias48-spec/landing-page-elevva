@@ -19,6 +19,14 @@
       "maxDuration": 300
     }
   },
+  "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "elevva.net.br" }],
+      "destination": "/demonstracao",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
