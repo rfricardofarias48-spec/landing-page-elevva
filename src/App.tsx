@@ -2355,13 +2355,13 @@ const App: React.FC = () => {
                                   </div>
                               ))}
                           </div>
-                          {normalizedPlan === 'ESSENCIAL' ? (
+                          {!isGhostAccount && normalizedPlan === 'ESSENCIAL' ? (
                               <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-xl text-sm text-center block cursor-not-allowed">Seu Plano Atual</button>
                           ) : (
                               <button onClick={() => handleUpgradeLink('ESSENCIAL')} disabled={upgradingPlan === 'ESSENCIAL'}
                                   className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-xl text-sm transition-colors hover:bg-slate-50 text-center flex items-center justify-center gap-2 disabled:opacity-60">
                                   {upgradingPlan === 'ESSENCIAL' ? <span className="animate-spin text-base">⏳</span> : null}
-                                  {normalizedPlan === 'PRO' || normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial'}
+                                  {isGhostAccount ? 'Assinar' : (normalizedPlan === 'PRO' || normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial')}
                               </button>
                           )}
                       </div>
@@ -2411,13 +2411,13 @@ const App: React.FC = () => {
                                   </div>
                               ))}
                           </div>
-                          {normalizedPlan === 'PRO' ? (
+                          {!isGhostAccount && normalizedPlan === 'PRO' ? (
                               <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-xl text-sm text-center block cursor-not-allowed">Seu Plano Atual</button>
                           ) : (
                               <button onClick={() => handleUpgradeLink('PRO')} disabled={upgradingPlan === 'PRO'}
                                   className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-xl text-sm transition-colors text-center flex items-center justify-center gap-2 disabled:opacity-60">
                                   {upgradingPlan === 'PRO' ? <span className="animate-spin text-base">⏳</span> : null}
-                                  {normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade'}
+                                  {isGhostAccount ? 'Assinar' : (normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade')}
                               </button>
                           )}
                       </div>
@@ -2813,14 +2813,12 @@ const App: React.FC = () => {
                 </p>
               </div>
             </div>
-            <a
-              href="https://elevva.net.br"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => setCurrentTab('BILLING')}
               className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0a] text-white font-black text-sm py-2.5 rounded-xl transition-all duration-200"
             >
               <Zap className="w-3.5 h-3.5" /> Ver planos
-            </a>
+            </button>
           </div>
         )}
 
