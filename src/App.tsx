@@ -2333,8 +2333,8 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-slate-900 mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-4xl font-black tracking-tighter">{isAnnual ? '439' : '549'}</span>
-                                      <span className="text-base font-bold">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '439' : '549'}</span>
+                                      <span className="text-lg font-bold">,{isAnnual ? '20' : '00'}</span>
                                       <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
@@ -2389,8 +2389,8 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-4xl font-black tracking-tighter">{isAnnual ? '719' : '899'}</span>
-                                      <span className="text-base font-bold">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '719' : '899'}</span>
+                                      <span className="text-lg font-bold">,{isAnnual ? '20' : '00'}</span>
                                       <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
@@ -2439,7 +2439,7 @@ const App: React.FC = () => {
                               </div>
                           ) : (
                               <div className="text-slate-900 mb-6 flex items-baseline">
-                                  <span className="text-4xl font-black tracking-tighter">A consultar</span>
+                                  <span className="text-5xl font-black tracking-tighter">A consultar</span>
                               </div>
                           )}
 
