@@ -1053,8 +1053,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   };
 
   const ADMIN_EXEMPT_EMAILS = ['rfricardofarias48@gmail.com', 'rhfarilog@gmail.com'];
-  const isGhostUser = (u: { email: string; role: string; evolution_instance?: string }) =>
-    !ADMIN_EXEMPT_EMAILS.includes(u.email) && u.role !== 'ADMIN' && !u.evolution_instance;
+  const isGhostUser = (u: { email: string; role: string; evolution_instance?: string; instancia_evolution?: string }) =>
+    !ADMIN_EXEMPT_EMAILS.includes(u.email) && u.role !== 'ADMIN' && !u.evolution_instance && !u.instancia_evolution;
 
   const renderUsersList = () => {
       const filteredUsers = users.filter(u =>

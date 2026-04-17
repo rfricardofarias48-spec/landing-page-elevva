@@ -1938,7 +1938,7 @@ const App: React.FC = () => {
   // --- RENDERING HELPERS ---
   const normalizedPlan = user?.plan && ['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'].includes(user.plan) ? 'ESSENCIAL' : (user?.plan || 'INATIVO');
   const EXEMPT_EMAILS = ['rfricardofarias48@gmail.com', 'rhfarilog@gmail.com'];
-  const isGhostAccount = !EXEMPT_EMAILS.includes(user?.email ?? '') && user?.role !== 'ADMIN' && !user?.evolution_instance;
+  const isGhostAccount = !EXEMPT_EMAILS.includes(user?.email ?? '') && user?.role !== 'ADMIN' && !user?.evolution_instance && !(user as any)?.instancia_evolution;
 
   const renderOverview = () => {
       // Filtrar Anúncios baseados no plano do usuário
