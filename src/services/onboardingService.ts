@@ -121,6 +121,11 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
 
   if (saleErr || !sale) throw new Error(`Venda não encontrada: ${saleId}`);
 
+  // PROTEÇÃO CRÍTICA: nunca provisionar sem pagamento confirmado
+  if (sale.status !== 'paid') {
+    throw new Error(`[Onboarding] BLOQUEADO — venda ${saleId} não está paga (status: ${sale.status}). Chip não será atribuído.`);
+  }
+
   const ctx: Record<string, any> = sale.onboarding_context || {};
   const step = sale.onboarding_step || 0;
   const limits = PLAN_LIMITS[sale.plan] || PLAN_LIMITS.ESSENCIAL;
@@ -254,6 +259,13 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     let chipId = ctx.chipId;
     if (!chipId) {
       console.log('[Onboarding] Etapa 6: buscar chip disponível');
+
+      // Proteção: verificar se perfil já tem agente — não atribuir segundo chip
+      const { data: existingProfile } = await supabase
+        .from('profiles').select('evolution_instance').eq('id', userId).maybeSingle();
+      if (existingProfile?.evolution_instance) {
+        throw new Error(`[Onboarding] BLOQUEADO — perfil ${userId} já possui agente (${existingProfile.evolution_instance}). Chip não será atribuído novamente.`);
+      }
       const { data: chip, error: chipErr } = await supabase
         .from('chips_pool')
         .select('id, phone_number, evolution_instance')

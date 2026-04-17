@@ -4462,9 +4462,12 @@ app.post("/api/sales/:id/retry", async (req, res) => {
   const { id } = req.params;
 
   const { data: sale } = await supabaseAdmin
-    .from('sales').select('onboarding_status').eq('id', id).single();
+    .from('sales').select('onboarding_status, status').eq('id', id).single();
 
   if (!sale) return res.status(404).json({ error: 'Venda não encontrada' });
+  if (sale.status !== 'paid') {
+    return res.status(400).json({ error: 'Onboarding bloqueado: venda não está paga' });
+  }
   if (sale.onboarding_status === 'concluido') {
     return res.status(400).json({ error: 'Onboarding já concluído' });
   }
