@@ -231,3 +231,32 @@ export function validateWebhookToken(headerToken: string | undefined): boolean {
   if (!expected) return true;
   return headerToken === expected;
 }
+
+/**
+ * Busca o pagamento mais recente confirmado vinculado a uma assinatura Asaas.
+ * Usado para descobrir o dueDate mais atual e calcular próxima renovação.
+ */
+export async function getLatestSubscriptionPayment(subscriptionId: string): Promise<any | null> {
+  try {
+    const data = await asaasRequest('GET', `/subscriptions/${subscriptionId}/payments?limit=12&offset=0`) as any;
+    const payments: any[] = data?.data || [];
+    const CONFIRMED = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'];
+    const confirmed = payments
+      .filter(p => CONFIRMED.includes(p.status))
+      .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+    return confirmed[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Busca um pagamento pelo ID.
+ */
+export async function getPaymentById(paymentId: string): Promise<any | null> {
+  try {
+    return await asaasRequest('GET', `/payments/${paymentId}`) as any;
+  } catch {
+    return null;
+  }
+}

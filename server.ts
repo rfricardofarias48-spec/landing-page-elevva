@@ -11,7 +11,7 @@ import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chat
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
-import { validateWalletId, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference } from "./src/services/asaasService.js";
+import { validateWalletId, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference, getLatestSubscriptionPayment, getPaymentById } from "./src/services/asaasService.js";
 import { provisionClient } from "./src/services/onboardingService.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
@@ -4482,6 +4482,73 @@ app.post("/api/sales/:id/retry", async (req, res) => {
       console.error('[Retry] Erro:', err.message);
     }
   })();
+});
+
+// ── POST /api/admin/sync-renewals — Sincroniza current_period_end via Asaas ──
+// Roda manualmente (admin) ou via cron diário.
+// Para cada venda paga com asaas_payment_id, busca o pagamento mais recente
+// no Asaas e calcula a próxima data de renovação.
+app.post("/api/cron/sync-renewals", async (req, res) => {
+  try {
+    // Busca todas as vendas pagas com link ao Asaas e ao perfil do usuário
+    const { data: sales, error } = await supabaseAdmin
+      .from('sales')
+      .select('id, client_user_id, plan, asaas_payment_id')
+      .eq('status', 'paid')
+      .not('asaas_payment_id', 'is', null)
+      .not('client_user_id', 'is', null);
+
+    if (error || !sales?.length) {
+      return res.json({ ok: true, synced: 0, message: 'Nenhuma venda elegível' });
+    }
+
+    const CONFIRMED = ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'];
+    let synced = 0;
+
+    for (const sale of sales) {
+      try {
+        // Busca o pagamento original para ver se tem assinatura (recorrência)
+        const payment = await getPaymentById(sale.asaas_payment_id);
+        if (!payment) continue;
+
+        let latestDueDate: string | null = null;
+
+        if (payment.subscription) {
+          // Assinatura recorrente → pega o dueDate do pagamento confirmado mais recente
+          const latest = await getLatestSubscriptionPayment(payment.subscription);
+          if (latest && CONFIRMED.includes(latest.status)) {
+            latestDueDate = latest.dueDate;
+          }
+        } else if (CONFIRMED.includes(payment.status)) {
+          // Pagamento avulso confirmado
+          latestDueDate = payment.dueDate;
+        }
+
+        if (!latestDueDate) continue;
+
+        // Calcula próxima renovação: +1 mês ou +1 ano
+        const isAnnual = (sale.plan as string).endsWith('_ANUAL');
+        const base = new Date(latestDueDate + 'T12:00:00Z');
+        if (isAnnual) base.setFullYear(base.getFullYear() + 1);
+        else base.setMonth(base.getMonth() + 1);
+
+        await supabaseAdmin.from('profiles').update({
+          current_period_end: base.toISOString(),
+          subscription_status: 'active',
+        }).eq('id', sale.client_user_id);
+
+        synced++;
+      } catch (e: any) {
+        console.warn(`[SyncRenewals] Erro na venda ${sale.id}:`, e.message);
+      }
+    }
+
+    console.log(`[SyncRenewals] ✅ ${synced}/${sales.length} perfis sincronizados`);
+    return res.json({ ok: true, synced, total: sales.length });
+  } catch (err: any) {
+    console.error('[SyncRenewals] Erro geral:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
