@@ -37,6 +37,78 @@ function normalizeName(raw: string): string {
   return capitalize(parts[0]) + ' ' + capitalize(parts[1]);
 }
 
+// ─────────────────────────── Slot Helpers ────────────────────
+
+/** Retorna true se o slot (data + hora) já passou */
+function isSlotExpired(slotDate: string, slotTime: string): boolean {
+  const now = new Date();
+  const slotDt = new Date(`${slotDate}T${slotTime}`);
+  return slotDt <= now;
+}
+
+/**
+ * Sincroniza interview_slots de um job com availability_slots do usuário.
+ * - Remove slots vencidos (is_booked=false e data/hora passada)
+ * - Adiciona slots novos que existem em availability_slots mas não em interview_slots
+ * - Preserva slots já reservados (is_booked=true)
+ */
+async function syncInterviewSlots(jobId: string, userId: string, supabase: SupabaseClient): Promise<void> {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const currentTime = now.toTimeString().slice(0, 5); // HH:MM
+
+  // 1. Deletar slots vencidos e não reservados
+  const { data: allSlots } = await supabase
+    .from('interview_slots')
+    .select('id, slot_date, slot_time, is_booked')
+    .eq('job_id', jobId)
+    .eq('is_booked', false);
+
+  const expiredIds = (allSlots || [])
+    .filter((s: any) => isSlotExpired(s.slot_date, s.slot_time))
+    .map((s: any) => s.id);
+
+  if (expiredIds.length > 0) {
+    await supabase.from('interview_slots').delete().in('id', expiredIds);
+  }
+
+  // 2. Buscar slots disponíveis do usuário (source of truth)
+  const { data: availSlots } = await supabase
+    .from('availability_slots')
+    .select('slot_date, slot_time, format, location, interviewer_name')
+    .eq('user_id', userId)
+    .or(`slot_date.gt.${today},and(slot_date.eq.${today},slot_time.gt.${currentTime})`)
+    .order('slot_date', { ascending: true })
+    .order('slot_time', { ascending: true });
+
+  if (!availSlots?.length) return;
+
+  // 3. Buscar interview_slots existentes para evitar duplicatas
+  const { data: existing } = await supabase
+    .from('interview_slots')
+    .select('slot_date, slot_time')
+    .eq('job_id', jobId);
+
+  const existingKeys = new Set((existing || []).map((s: any) => `${s.slot_date}|${s.slot_time}`));
+
+  // 4. Inserir apenas os slots que ainda não existem
+  const toInsert = availSlots
+    .filter((s: any) => !existingKeys.has(`${s.slot_date}|${s.slot_time}`))
+    .map((s: any) => ({
+      job_id: jobId,
+      format: s.format,
+      location: s.location,
+      interviewer_name: s.interviewer_name,
+      slot_date: s.slot_date,
+      slot_time: s.slot_time,
+      is_booked: false,
+    }));
+
+  if (toInsert.length > 0) {
+    await supabase.from('interview_slots').insert(toInsert);
+  }
+}
+
 // ─────────────────────────── Types ───────────────────────────
 
 interface ConversationContext {
@@ -980,15 +1052,16 @@ export async function triggerSchedulingForCandidates(
   // Get recruiter's Evolution instance
   const { data: profile } = await supabase
     .from('profiles')
-    .select('instancia_evolution, evolution_token')
+    .select('instancia_evolution, evolution_instance, evolution_token')
     .eq('id', userId)
     .single();
 
-  if (!profile?.instancia_evolution) {
+  const instanceName = profile?.evolution_instance || profile?.instancia_evolution;
+  if (!instanceName) {
     throw new Error('Instância Evolution não configurada. Configure em Configurações da conta.');
   }
 
-  const instance = profile.instancia_evolution;
+  const instance = instanceName;
   const instanceToken: string | undefined = profile.evolution_token || undefined;
 
   // Get job title
@@ -998,43 +1071,22 @@ export async function triggerSchedulingForCandidates(
     .eq('id', jobId)
     .single();
 
-  // Get available slots for this job
-  let { data: slots } = await supabase
+  // Sync interview_slots with availability_slots (removes expired, adds new)
+  await syncInterviewSlots(jobId, userId, supabase);
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const currentTime = now.toTimeString().slice(0, 5);
+
+  // Get available slots for this job (already synced, filter expired by date+time)
+  const { data: slots } = await supabase
     .from('interview_slots')
     .select('id, slot_date, slot_time, format, location, interviewer_name')
     .eq('job_id', jobId)
     .eq('is_booked', false)
+    .or(`slot_date.gt.${today},and(slot_date.eq.${today},slot_time.gt.${currentTime})`)
     .order('slot_date', { ascending: true })
     .order('slot_time', { ascending: true });
-
-  // Fallback: if no interview_slots exist for this job, copy from availability_slots
-  if (!slots || slots.length === 0) {
-    const today = new Date().toISOString().split('T')[0];
-    const { data: availSlots } = await supabase
-      .from('availability_slots')
-      .select('slot_date, slot_time, format, location, interviewer_name')
-      .eq('user_id', userId)
-      .gte('slot_date', today)
-      .order('slot_date', { ascending: true })
-      .order('slot_time', { ascending: true });
-
-    if (availSlots && availSlots.length > 0) {
-      const toInsert = availSlots.map(s => ({
-        job_id: jobId,
-        format: s.format,
-        location: s.location,
-        interviewer_name: s.interviewer_name,
-        slot_date: s.slot_date,
-        slot_time: s.slot_time,
-        is_booked: false,
-      }));
-      const { data: inserted } = await supabase
-        .from('interview_slots')
-        .insert(toInsert)
-        .select('id, slot_date, slot_time, format, location, interviewer_name');
-      slots = inserted || [];
-    }
-  }
 
   if (!slots || slots.length === 0) {
     throw new Error('Nenhum horário disponível. Cadastre horários em "Horários Disponíveis" antes de disparar o agente.');

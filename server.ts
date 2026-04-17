@@ -1401,13 +1401,32 @@ app.get("/api/agendar/:token/data", async (req, res) => {
 
     if (error || !interview) return res.status(404).json({ ok: false, error: 'Link invalido ou expirado' });
 
-    const [candidateRes, jobRes, slotsRes] = await Promise.all([
+    // Get job owner to sync slots
+    const { data: job } = await supabase.from('jobs').select('title, user_id').eq('id', interview.job_id).single();
+
+    // Delete expired unbooked slots for this job
+    const nowTs = new Date();
+    const todayStr = nowTs.toISOString().split('T')[0];
+    const currentTimeStr = nowTs.toTimeString().slice(0, 5);
+    const { data: expiredSlots } = await supabaseAdmin
+      .from('interview_slots')
+      .select('id, slot_date, slot_time')
+      .eq('job_id', interview.job_id)
+      .eq('is_booked', false);
+    const expiredIds = (expiredSlots || [])
+      .filter((s: any) => s.slot_date < todayStr || (s.slot_date === todayStr && s.slot_time <= currentTimeStr))
+      .map((s: any) => s.id);
+    if (expiredIds.length > 0) {
+      await supabaseAdmin.from('interview_slots').delete().in('id', expiredIds);
+    }
+
+    const [candidateRes, slotsRes] = await Promise.all([
       supabase.from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single(),
-      supabase.from('jobs').select('title').eq('id', interview.job_id).single(),
       supabase.from('interview_slots')
         .select('id, slot_date, slot_time, format, location, interviewer_name')
         .eq('job_id', interview.job_id)
         .eq('is_booked', false)
+        .or(`slot_date.gt.${todayStr},and(slot_date.eq.${todayStr},slot_time.gt.${currentTimeStr})`)
         .order('slot_date', { ascending: true })
         .order('slot_time', { ascending: true }),
     ]);
@@ -1416,7 +1435,7 @@ app.get("/api/agendar/:token/data", async (req, res) => {
       ok: true,
       status: interview.status,
       candidateName: (candidateRes.data as Record<string, string>)?.['Nome Completo'] || '',
-      jobTitle: jobRes.data?.title || '',
+      jobTitle: job?.title || '',
       slots: slotsRes.data || [],
     });
   } catch (err) {
@@ -4532,6 +4551,48 @@ app.post("/api/sales/:id/retry", async (req, res) => {
       console.error('[Retry] Erro:', err.message);
     }
   })();
+});
+
+// ── POST /api/cron/cleanup-slots — Remove slots de entrevista e disponibilidade vencidos ──
+app.post("/api/cron/cleanup-slots", async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentTimeStr = now.toTimeString().slice(0, 5);
+
+    // Busca todos os interview_slots não reservados
+    const { data: iSlots } = await supabaseAdmin
+      .from('interview_slots')
+      .select('id, slot_date, slot_time')
+      .eq('is_booked', false);
+
+    const expiredInterviewIds = (iSlots || [])
+      .filter((s: any) => s.slot_date < todayStr || (s.slot_date === todayStr && s.slot_time <= currentTimeStr))
+      .map((s: any) => s.id);
+
+    if (expiredInterviewIds.length > 0) {
+      await supabaseAdmin.from('interview_slots').delete().in('id', expiredInterviewIds);
+    }
+
+    // Busca todos os availability_slots vencidos
+    const { data: aSlots } = await supabaseAdmin
+      .from('availability_slots')
+      .select('id, slot_date, slot_time');
+
+    const expiredAvailIds = (aSlots || [])
+      .filter((s: any) => s.slot_date < todayStr || (s.slot_date === todayStr && s.slot_time <= currentTimeStr))
+      .map((s: any) => s.id);
+
+    if (expiredAvailIds.length > 0) {
+      await supabaseAdmin.from('availability_slots').delete().in('id', expiredAvailIds);
+    }
+
+    console.log(`[CleanupSlots] Removidos: ${expiredInterviewIds.length} interview_slots, ${expiredAvailIds.length} availability_slots`);
+    return res.json({ ok: true, interview_slots: expiredInterviewIds.length, availability_slots: expiredAvailIds.length });
+  } catch (err: any) {
+    console.error('[CleanupSlots] Erro:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── POST /api/cron/block-overdue — Bloqueia contas inadimplentes há 10+ dias ──

@@ -20,6 +20,10 @@
     {
       "path": "/api/cron/block-overdue",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-slots",
+      "schedule": "0 * * * *"
     }
   ],
   "functions": {

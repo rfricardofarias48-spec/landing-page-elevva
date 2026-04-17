@@ -37,12 +37,14 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose }) => {
 
   const fetchSlots = async () => {
     setLoading(true);
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().slice(0, 5);
     const { data } = await supabase
       .from('availability_slots')
       .select('*')
       .eq('user_id', userId)
-      .gte('slot_date', today)
+      .or(`slot_date.gt.${today},and(slot_date.eq.${today},slot_time.gt.${currentTime})`)
       .order('slot_date', { ascending: true })
       .order('slot_time', { ascending: true });
     setSlots(data || []);
