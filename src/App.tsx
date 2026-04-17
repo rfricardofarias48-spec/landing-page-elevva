@@ -2575,7 +2575,11 @@ const App: React.FC = () => {
   // --- MAIN RENDER (User Dashboard / Details) ---
 
   // Demonstration Page — public, no auth required
-  if (decodeURIComponent(window.location.pathname).match(/^\/demon?stra[cç][aã]o\/?$/i)) {
+  // Also served at root "/" (elevva.net.br)
+  if (
+    window.location.pathname === '/' ||
+    decodeURIComponent(window.location.pathname).match(/^\/demon?stra[cç][aã]o\/?$/i)
+  ) {
     return <DemonstracaoPage />;
   }
 
