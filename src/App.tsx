@@ -2802,23 +2802,44 @@ const App: React.FC = () => {
 
         {/* ── Banner conta desativada ── */}
         {isGhostAccount && (
-          <div className="fixed bottom-6 right-6 z-[200] w-[320px] bg-slate-900 text-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] p-5 border border-slate-700 animate-fade-in">
-            <div className="flex items-start gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4 text-slate-400" />
-              </div>
-              <div>
-                <p className="font-black text-sm text-white leading-snug">Conta sem plano ativo</p>
-                <p className="text-slate-400 text-xs font-medium mt-0.5 leading-relaxed">
-                  Você precisa assinar um plano para acessar os recursos da plataforma.
-                </p>
-              </div>
+          <div className="fixed bottom-6 right-6 z-[200] w-[340px] bg-slate-900 text-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] p-5 border border-slate-700/80 animate-fade-in">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse shrink-0"/>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Conta sem plano ativo</p>
             </div>
+
+            {/* Headline */}
+            <p className="font-black text-base text-white leading-tight mb-4 tracking-tight">
+              Assine agora e seu agente<br/>estará pronto em segundos.
+            </p>
+
+            {/* Steps */}
+            <div className="space-y-2 mb-4">
+              {[
+                { icon: '💳', label: 'Pagamento confirmado' },
+                { icon: '🤖', label: 'Agente configurado automaticamente' },
+                { icon: '📲', label: 'WhatsApp ativo e recrutando' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] shrink-0">{item.icon}</div>
+                  <span className="text-xs font-medium text-slate-300">{item.label}</span>
+                  {i < 2 && <div className="ml-auto w-1 h-1 rounded-full bg-slate-700"/>}
+                </div>
+              ))}
+            </div>
+
+            {/* Tempo */}
+            <div className="bg-[#65a30d]/10 border border-[#65a30d]/20 rounded-xl px-3 py-2 mb-4 flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-[#65a30d] shrink-0" />
+              <p className="text-xs font-bold text-[#84cc16]">Todo o processo leva menos de 60 segundos</p>
+            </div>
+
             <button
               onClick={() => setCurrentTab('BILLING')}
-              className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0a] text-white font-black text-sm py-2.5 rounded-xl transition-all duration-200"
+              className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0a] text-white font-black text-sm py-3 rounded-xl transition-all duration-200 shadow-lg shadow-[#65a30d]/20"
             >
-              <Zap className="w-3.5 h-3.5" /> Ver planos
+              <Zap className="w-3.5 h-3.5" /> Ver planos e assinar
             </button>
           </div>
         )}
