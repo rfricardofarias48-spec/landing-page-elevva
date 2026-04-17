@@ -100,8 +100,8 @@ export interface User {
     priority_support: boolean;
   };
   salesperson?: string; // NOVO: Nome do vendedor (apenas admin)
-  instancia_evolution?: string;
-  telefone_agente?: string;
+  instancia_evolution?: string;  // campo legado (contas antigas)
+  telefone_agente?: string;       // campo legado (contas antigas)
   status_automacao?: boolean;
   evolution_instance?: string;
   whatsapp_number?: string;

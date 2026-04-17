@@ -1938,7 +1938,7 @@ const App: React.FC = () => {
   // --- RENDERING HELPERS ---
   const normalizedPlan = user?.plan && ['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'].includes(user.plan) ? 'ESSENCIAL' : (user?.plan || 'INATIVO');
   const EXEMPT_EMAILS = ['rfricardofarias48@gmail.com', 'rhfarilog@gmail.com'];
-  const isGhostAccount = !EXEMPT_EMAILS.includes(user?.email ?? '') && user?.role !== 'ADMIN' && !user?.evolution_instance && !(user as any)?.instancia_evolution;
+  const isGhostAccount = !EXEMPT_EMAILS.includes(user?.email ?? '') && user?.role !== 'ADMIN' && !user?.evolution_instance && !user?.instancia_evolution;
 
   const renderOverview = () => {
       // Filtrar Anúncios baseados no plano do usuário
@@ -2580,13 +2580,13 @@ const App: React.FC = () => {
                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Instância</label>
                          <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700 flex items-center gap-2">
                              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"/>
-                             {user?.evolution_instance || '—'}
+                             {user?.evolution_instance || user?.instancia_evolution || '—'}
                          </div>
                      </div>
                      <div>
                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Número de Contato do Agente</label>
                          <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700">
-                             {user?.whatsapp_number || '—'}
+                             {user?.whatsapp_number || user?.telefone_agente || '—'}
                          </div>
                      </div>
                  </div>
