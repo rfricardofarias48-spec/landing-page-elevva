@@ -129,6 +129,7 @@ export interface AdminUserProfile {
   current_period_end?: string; // NOVO: Data de renovação do plano
   salesperson?: string; // NOVO: Nome do vendedor
   instancia_evolution?: string;
+  evolution_instance?: string;
   evolution_token?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
