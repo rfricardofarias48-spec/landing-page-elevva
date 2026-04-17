@@ -88,6 +88,11 @@ export const AdminDashboard: React.FC = () => {
   // Error State
   const [dataError, setDataError] = useState<string | null>(null);
 
+  // ── Helper: detectar conta sem agente (desativada) ─────────────────────────
+  const GHOST_EXEMPT_EMAILS = ['rfricardofarias48@gmail.com', 'rhfarilog@gmail.com'];
+  const isGhost = (u: { email: string; role: string; evolution_instance?: string; instancia_evolution?: string }) =>
+    !GHOST_EXEMPT_EMAILS.includes(u.email) && u.role !== 'ADMIN' && !u.evolution_instance && !u.instancia_evolution;
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -656,7 +661,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       };
 
       historicalUsers.forEach(u => {
-          if (isGhostUser(u)) return; // conta desativada — não entra no MRR
+          if (isGhost(u)) return; // conta desativada — não entra no MRR
           const defaultPrice = u.plan === 'ESSENCIAL' ? 549.00 : u.plan === 'PRO' ? 899.00 : 0;
           const userPrice = u.plan_price != null ? u.plan_price : defaultPrice;
 
@@ -725,11 +730,11 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const renderOverview = () => {
     const fin = getFinancialData();
     const totalCandidates = allJobs.reduce((acc, job) => acc + job.candidates_count, 0);
-    const activeUsers = users.filter(u => u.status !== 'BLOCKED').length;
+    const activeUsers = users.filter(u => u.status !== 'BLOCKED' && !isGhost(u) && u.role !== 'ADMIN').length;
     const blockedUsers = users.filter(u => u.status === 'BLOCKED').length;
-    const essencialCount = users.filter(u => u.plan === 'ESSENCIAL').length;
-    const proCount       = users.filter(u => u.plan === 'PRO').length;
-    const enterpriseCount= users.filter(u => u.plan === 'ENTERPRISE').length;
+    const essencialCount = users.filter(u => u.plan === 'ESSENCIAL' && !isGhost(u)).length;
+    const proCount       = users.filter(u => u.plan === 'PRO' && !isGhost(u)).length;
+    const enterpriseCount= users.filter(u => u.plan === 'ENTERPRISE' && !isGhost(u)).length;
     const arpu = fin.payingUsers > 0 ? fin.mrr / fin.payingUsers : 0;
     const arr  = fin.mrr * 12;
     const now  = new Date();
@@ -740,20 +745,20 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       return { label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.',''), year: d.getFullYear(), month: d.getMonth() };
     });
 
-    // MRR acumulado até o fim de cada mês
+    // MRR acumulado até o fim de cada mês — exclui ghost e admin
     const monthlyMRR = months.map(m => {
       const endOfMonth = new Date(m.year, m.month + 1, 0, 23, 59, 59);
       return users
-        .filter(u => new Date(u.created_at) <= endOfMonth && u.plan !== 'ADMIN')
+        .filter(u => new Date(u.created_at) <= endOfMonth && u.plan !== 'ADMIN' && !isGhost(u))
         .reduce((acc, u) => {
           const defaultPrice = u.plan === 'PRO' ? 899.00 : u.plan === 'ENTERPRISE' ? 0 : 549.00;
           return acc + (u.plan_price ?? defaultPrice);
         }, 0);
     });
 
-    // Novos clientes por mês (barras secundárias)
+    // Novos clientes por mês — exclui ghost e admin
     const monthNewUsers = months.map(m =>
-      users.filter(u => { const d = new Date(u.created_at); return d.getFullYear() === m.year && d.getMonth() === m.month && u.plan !== 'ADMIN'; }).length
+      users.filter(u => { const d = new Date(u.created_at); return d.getFullYear() === m.year && d.getMonth() === m.month && u.plan !== 'ADMIN' && !isGhost(u); }).length
     );
 
     // Vendas
@@ -1052,18 +1057,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
     );
   };
 
-  const ADMIN_EXEMPT_EMAILS = ['rfricardofarias48@gmail.com', 'rhfarilog@gmail.com'];
-  const isGhostUser = (u: { email: string; role: string; evolution_instance?: string; instancia_evolution?: string }) =>
-    !ADMIN_EXEMPT_EMAILS.includes(u.email) && u.role !== 'ADMIN' && !u.evolution_instance && !u.instancia_evolution;
-
   const renderUsersList = () => {
       const filteredUsers = users.filter(u =>
           u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           u.email.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      const totalEssencial = users.filter(u => u.plan === 'ESSENCIAL' && !isGhostUser(u)).length;
-      const totalPro = users.filter(u => u.plan === 'PRO' && !isGhostUser(u)).length;
-      const totalEnterprise = users.filter(u => u.plan === 'ENTERPRISE' && !isGhostUser(u)).length;
+      const totalEssencial = users.filter(u => u.plan === 'ESSENCIAL' && !isGhost(u)).length;
+      const totalPro = users.filter(u => u.plan === 'PRO' && !isGhost(u)).length;
+      const totalEnterprise = users.filter(u => u.plan === 'ENTERPRISE' && !isGhost(u)).length;
 
       return (
           <div className="space-y-6 animate-fade-in">
@@ -1110,13 +1111,13 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-6"><div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div><div className="text-xs text-zinc-500">{user.email}</div></td>
                                   <td className="p-6">{(() => {
-                                    const ghost = isGhostUser(user);
+                                    const ghost = isGhost(user);
                                     const displayPlan = ghost ? 'DESATIVADO' : (user.plan === 'INATIVO' ? 'DESATIVADO' : user.plan);
                                     const cls = displayPlan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : displayPlan === 'PRO' ? 'bg-[#65a30d] text-black' : displayPlan === 'ESSENCIAL' ? 'bg-zinc-100 text-zinc-500' : displayPlan === 'DESATIVADO' ? 'bg-slate-200 text-slate-400' : 'bg-black text-white';
                                     return <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${cls}`}>{displayPlan === 'DESATIVADO' ? 'Desativado' : displayPlan}</span>;
                                   })()}</td>
                                   <td className="p-6">
-                                      {user.plan === 'ADMIN' || user.plan === 'INATIVO' || isGhostUser(user) ? (
+                                      {user.plan === 'ADMIN' || user.plan === 'INATIVO' || isGhost(user) ? (
                                           <span className="text-xs text-zinc-300 font-bold">—</span>
                                       ) : user.plan === 'ENTERPRISE' && (!user.plan_price || user.plan_price === 0) ? (
                                           <span className="text-xs text-zinc-400 font-bold italic">A consultar</span>
