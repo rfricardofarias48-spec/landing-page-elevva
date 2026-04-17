@@ -2249,6 +2249,7 @@ const App: React.FC = () => {
                       <div>
                           <h3 className="text-4xl font-black tracking-tighter text-white">{isGhostAccount ? 'Desativado' : normalizedPlan}</h3>
                           {(() => {
+                              if (isGhostAccount) return <span className="text-xl font-black text-slate-500">—</span>;
                               const stdPrice = normalizedPlan === 'ESSENCIAL' ? 549 : normalizedPlan === 'PRO' ? 899 : null;
                               const activePrice = user?.plan_price && user.plan_price > 0 ? user.plan_price : stdPrice;
                               if (!activePrice) return null;
