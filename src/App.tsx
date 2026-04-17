@@ -797,9 +797,9 @@ const App: React.FC = () => {
           id: userId,
           email,
           name: googleName || 'Usuário',
-          plan: 'ESSENCIAL',
-          job_limit: 3,
-          resume_limit: 9999,
+          plan: 'INATIVO',
+          job_limit: 0,
+          resume_limit: 0,
           resume_usage: 0,
           role: 'USER',
           status: 'ACTIVE',
@@ -967,9 +967,9 @@ const App: React.FC = () => {
                  email,
                  name: name || 'Usuário',
                  phone,
-                 plan: 'ESSENCIAL',
-                 job_limit: 3,
-                 resume_limit: 9999, 
+                 plan: 'INATIVO',
+                 job_limit: 0,
+                 resume_limit: 0,
                  resume_usage: 0,
                  role: 'USER'
                }], { onConflict: 'id' });
@@ -1936,7 +1936,9 @@ const App: React.FC = () => {
   };
 
   // --- RENDERING HELPERS ---
-  const normalizedPlan = user?.plan && ['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'].includes(user.plan) ? 'ESSENCIAL' : (user?.plan || 'ESSENCIAL');
+  const normalizedPlan = user?.plan && ['FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'].includes(user.plan) ? 'ESSENCIAL' : (user?.plan || 'INATIVO');
+  const EXEMPT_EMAILS = ['rfricardofarias48@gmail.com', 'rhfarilog@gmail.com'];
+  const isGhostAccount = !EXEMPT_EMAILS.includes(user?.email ?? '') && user?.role !== 'ADMIN' && !user?.evolution_instance;
 
   const renderOverview = () => {
       // Filtrar Anúncios baseados no plano do usuário
@@ -2225,25 +2227,27 @@ const App: React.FC = () => {
           </div>
 
           {/* Current Plan Card - Black */}
-          <div className="bg-[#0a0a0a] rounded-2xl p-6 relative overflow-hidden text-white shadow-xl shrink-0">
+          <div className={`rounded-2xl p-6 relative overflow-hidden text-white shadow-xl shrink-0 ${isGhostAccount ? 'bg-slate-800' : 'bg-[#0a0a0a]'}`}>
               <div className="relative z-10">
                   <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                          <span className="text-[#65a30d] font-black text-xs uppercase tracking-widest">Plano Ativo</span>
-                          {normalizedPlan !== 'ESSENCIAL' && (
+                          <span className={`font-black text-xs uppercase tracking-widest ${isGhostAccount ? 'text-slate-400' : 'text-[#65a30d]'}`}>
+                            {isGhostAccount ? 'Sem Plano' : 'Plano Ativo'}
+                          </span>
+                          {!isGhostAccount && normalizedPlan !== 'ESSENCIAL' && (
                               <span className="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs font-bold tracking-wider">
                                   Renova em: {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) ? new Date(user.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
                               </span>
                           )}
                       </div>
                       <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center border border-zinc-800">
-                          <Zap className="w-4 h-4 text-zinc-500" />
+                          <Zap className={`w-4 h-4 ${isGhostAccount ? 'text-slate-600' : 'text-zinc-500'}`} />
                       </div>
                   </div>
 
                   <div className="flex items-end justify-between mb-3">
                       <div>
-                          <h3 className="text-4xl font-black tracking-tighter text-white">{normalizedPlan}</h3>
+                          <h3 className="text-4xl font-black tracking-tighter text-white">{isGhostAccount ? 'Desativado' : normalizedPlan}</h3>
                           {(() => {
                               const stdPrice = normalizedPlan === 'ESSENCIAL' ? 549 : normalizedPlan === 'PRO' ? 899 : null;
                               const activePrice = user?.plan_price && user.plan_price > 0 ? user.plan_price : stdPrice;
@@ -2559,6 +2563,35 @@ const App: React.FC = () => {
              </div>
          </div>
 
+         {/* Agente de Recrutamento */}
+         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+             <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter">
+                 <Bot className="w-5 h-5 text-slate-400"/> Agente de Recrutamento
+             </h3>
+             {isGhostAccount ? (
+                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                     <div className="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0"/>
+                     <p className="text-sm text-slate-400 font-medium">Nenhum agente configurado para esta conta.</p>
+                 </div>
+             ) : (
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Instância</label>
+                         <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700 flex items-center gap-2">
+                             <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"/>
+                             {user?.evolution_instance || '—'}
+                         </div>
+                     </div>
+                     <div>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Número de Contato do Agente</label>
+                         <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700">
+                             {user?.whatsapp_number || '—'}
+                         </div>
+                     </div>
+                 </div>
+             )}
+         </div>
+
          {/* Exibe apenas para ADMIN */}
          {user?.role === 'ADMIN' && (
              <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
@@ -2765,6 +2798,31 @@ const App: React.FC = () => {
 
       {/* MAIN CONTENT Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50/50 relative">
+
+        {/* ── Banner conta desativada ── */}
+        {isGhostAccount && (
+          <div className="fixed bottom-6 right-6 z-[200] w-[320px] bg-slate-900 text-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] p-5 border border-slate-700 animate-fade-in">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                <Zap className="w-4 h-4 text-slate-400" />
+              </div>
+              <div>
+                <p className="font-black text-sm text-white leading-snug">Conta sem plano ativo</p>
+                <p className="text-slate-400 text-xs font-medium mt-0.5 leading-relaxed">
+                  Você precisa assinar um plano para acessar os recursos da plataforma.
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://elevva.net.br"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0a] text-white font-black text-sm py-2.5 rounded-xl transition-all duration-200"
+            >
+              <Zap className="w-3.5 h-3.5" /> Ver planos
+            </a>
+          </div>
+        )}
 
         {/* Modal Horários Disponíveis */}
         {showAvailableSlots && (user as any)?.id && (

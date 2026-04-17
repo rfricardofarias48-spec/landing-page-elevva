@@ -103,6 +103,9 @@ export interface User {
   instancia_evolution?: string;
   telefone_agente?: string;
   status_automacao?: boolean;
+  evolution_instance?: string;
+  whatsapp_number?: string;
+  onboarded_at?: string;
   google_calendar_id?: string;
   chatwoot_account_id?: number;
   portal_code?: string;

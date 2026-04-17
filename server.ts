@@ -1831,13 +1831,29 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
       console.log(`[Cancel] ✓ WhatsApp sent successfully to ${phone}`);
     }
 
-    // 8. Update agent conversation state
+    // 8. Update agent conversation state → POS_CANCELAMENTO (aguarda escolha do candidato)
     if (phone) {
       await supabaseAdmin.from('agent_conversations').update({
         state: 'CANCELADA',
+        context: { pos_cancelamento: true },
         updated_at: new Date().toISOString(),
       }).eq('phone', phone);
-      console.log(`[Cancel] Conversation state updated to CANCELADA`);
+      console.log(`[Cancel] Conversation state updated to CANCELADA (pos_cancelamento)`);
+    }
+
+    // 9. Enviar mensagem de acompanhamento com opções ao candidato
+    if (whatsappSent && instance && cancelToken !== undefined) {
+      try {
+        await new Promise(r => setTimeout(r, 2500));
+        await sendText(
+          instance,
+          phone!,
+          `Você pode se candidatar a outras oportunidades disponíveis ou aguardar um novo convite para entrevista. O que prefere?\n\n1️⃣ Ver outras vagas disponíveis\n2️⃣ Aguardar um novo convite`,
+          cancelToken,
+        );
+      } catch (e) {
+        console.warn('[Cancel] Falha ao enviar mensagem pós-cancelamento:', e);
+      }
     }
 
     console.log(`[Cancel] ✓ Cancellation complete. WhatsApp: ${whatsappSent ? 'SENT' : 'NOT SENT'}`);

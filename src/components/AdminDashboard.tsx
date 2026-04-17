@@ -1103,9 +1103,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           {filteredUsers.map(user => (
                               <tr key={user.id} className="hover:bg-zinc-50/50 transition-colors">
                                   <td className="p-6"><div className="font-bold text-zinc-900">{user.name || 'Sem nome'}</div><div className="text-xs text-zinc-500">{user.email}</div></td>
-                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'PRO' ? 'bg-[#65a30d] text-black' : user.plan === 'ESSENCIAL' ? 'bg-zinc-100 text-zinc-500' : 'bg-black text-white'}`}>{user.plan}</span></td>
+                                  <td className="p-6"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.plan === 'ENTERPRISE' ? 'bg-purple-600 text-white' : user.plan === 'PRO' ? 'bg-[#65a30d] text-black' : user.plan === 'ESSENCIAL' ? 'bg-zinc-100 text-zinc-500' : user.plan === 'INATIVO' ? 'bg-slate-200 text-slate-400' : 'bg-black text-white'}`}>{user.plan === 'INATIVO' ? 'Desativado' : user.plan}</span></td>
                                   <td className="p-6">
-                                      {user.plan === 'ADMIN' ? (
+                                      {user.plan === 'ADMIN' || user.plan === 'INATIVO' ? (
                                           <span className="text-xs text-zinc-300 font-bold">—</span>
                                       ) : user.plan === 'ENTERPRISE' && (!user.plan_price || user.plan_price === 0) ? (
                                           <span className="text-xs text-zinc-400 font-bold italic">A consultar</span>
