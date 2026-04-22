@@ -4978,6 +4978,79 @@ app.get('/api/hermes/summary', async (req, res) => {
   });
 });
 
+// Contexto completo do recrutador pelo telefone — chamada única no início de cada conversa
+app.get('/api/hermes/context', async (req, res) => {
+  if (!validateHermesSecret(req, res)) return;
+  const { phone } = req.query;
+  if (!phone) return res.status(400).json({ error: 'phone obrigatório' });
+
+  const cleaned = String(phone).replace(/\D/g, '');
+  const variants = [
+    cleaned,
+    cleaned.startsWith('55') ? cleaned.slice(2) : `55${cleaned}`,
+    cleaned.slice(-11),
+    cleaned.slice(-10),
+  ];
+
+  const { data: profile, error: profileErr } = await supabaseAdmin
+    .from('profiles')
+    .select('id, full_name, phone, subscription_status, plan, instancia_evolution')
+    .or(variants.map(v => `phone.ilike.%${v}%`).join(','))
+    .limit(1)
+    .single();
+
+  if (profileErr || !profile) {
+    return res.status(404).json({
+      error: 'Recrutador não encontrado',
+      phone_tested: cleaned,
+      variants_tried: variants,
+    });
+  }
+
+  const [jobsRes, interviewsRes, candidatesRes] = await Promise.all([
+    supabaseAdmin
+      .from('jobs')
+      .select('id, title, status, created_at')
+      .eq('profile_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabaseAdmin
+      .from('interviews')
+      .select('id, candidate_name, scheduled_at, status, job_title')
+      .eq('recruiter_id', profile.id)
+      .gte('scheduled_at', new Date().toISOString())
+      .order('scheduled_at', { ascending: true })
+      .limit(10),
+    supabaseAdmin
+      .from('candidates')
+      .select('id, name, status, match_score, job_id')
+      .eq('recruiter_id', profile.id)
+      .order('match_score', { ascending: false })
+      .limit(10),
+  ]);
+
+  const jobs = jobsRes.data ?? [];
+  const activeJobs = jobs.filter((j: any) => j.status === 'active');
+
+  return res.json({
+    recruiter: {
+      id: profile.id,
+      name: profile.full_name,
+      phone: profile.phone,
+      plan: profile.plan,
+      status: profile.subscription_status,
+      instance: profile.instancia_evolution,
+    },
+    jobs: {
+      total: jobs.length,
+      active: activeJobs.length,
+      list: activeJobs.map((j: any) => ({ id: j.id, title: j.title })),
+    },
+    upcoming_interviews: interviewsRes.data ?? [],
+    top_candidates: candidatesRes.data ?? [],
+  });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function startServer() {
