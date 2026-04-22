@@ -2575,6 +2575,7 @@ const App: React.FC = () => {
                      <p className="text-sm text-slate-400 font-medium">Nenhum agente configurado para esta conta.</p>
                  </div>
              ) : (
+                 <>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div>
                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Instância</label>
@@ -2600,6 +2601,7 @@ const App: React.FC = () => {
                          <Save className="w-4 h-4 text-[#65a30d]" /> Salvar Número
                      </button>
                  </div>
+                 </>
              )}
          </div>
 
