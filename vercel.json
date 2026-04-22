@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/cleanup-slots",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-briefing",
+      "schedule": "0 11 * * *"
     }
   ],
   "functions": {

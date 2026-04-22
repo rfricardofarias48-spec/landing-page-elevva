@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { analyzeResume } from "./src/services/openaiService.js";
+import { analyzeResume, generateDailyBriefing, BriefingJob } from "./src/services/hermesService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates, notifyPendingReschedules } from "./src/services/agentService.js";
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
 import { cleanPhone, sendText, configureWebhookBase64 } from "./src/services/evolutionService.js";
@@ -4690,6 +4690,286 @@ app.post("/api/cron/sync-renewals", async (req, res) => {
     console.error('[SyncRenewals] Erro geral:', err.message);
     return res.status(500).json({ error: err.message });
   }
+});
+
+// ── POST /api/cron/daily-briefing — Resumo diário para cada recrutador via WhatsApp ──
+app.post("/api/cron/daily-briefing", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && req.headers['authorization'] !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const nowBRT = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const todayStr = nowBRT.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    const yesterday = new Date(nowBRT);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString(); // ISO para comparar com created_at
+
+    // Busca todos os perfis ativos com WhatsApp e Evolution configurados
+    const { data: profiles, error: profErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, phone, instancia_evolution, evolution_token, full_name, subscription_status')
+      .not('instancia_evolution', 'is', null)
+      .not('phone', 'is', null)
+      .neq('subscription_status', 'blocked');
+
+    if (profErr) {
+      console.error('[DailyBriefing] Erro ao buscar perfis:', profErr.message);
+      return res.status(500).json({ error: profErr.message });
+    }
+
+    console.log(`[DailyBriefing] Processando ${profiles?.length || 0} recrutadores`);
+
+    let sent = 0;
+    let skipped = 0;
+
+    for (const profile of profiles || []) {
+      try {
+        if (!profile.phone || !profile.instancia_evolution) { skipped++; continue; }
+
+        // Busca vagas do recrutador
+        const { data: jobs } = await supabaseAdmin
+          .from('jobs')
+          .select('id, title, created_at')
+          .eq('user_id', profile.id);
+
+        if (!jobs || jobs.length === 0) { skipped++; continue; }
+
+        const jobIds = jobs.map((j: any) => j.id);
+
+        // Busca candidatos novos (últimas 24h) por vaga
+        const { data: newCandidates } = await supabaseAdmin
+          .from('candidates')
+          .select('job_id, match_score, analysis_result')
+          .in('job_id', jobIds)
+          .gte('created_at', yesterdayStr)
+          .neq('status', 'ERROR');
+
+        // Busca entrevistas de hoje
+        const { data: todayInterviews } = await supabaseAdmin
+          .from('interviews')
+          .select('job_id, slot_time, candidate_id')
+          .in('job_id', jobIds)
+          .eq('slot_date', todayStr)
+          .in('status', ['CONFIRMADA', 'AGENDADA']);
+
+        // Busca nomes dos candidatos com entrevista hoje
+        const interviewCandidateIds = (todayInterviews || []).map((i: any) => i.candidate_id);
+        let interviewCandidateNames: Record<string, string> = {};
+        if (interviewCandidateIds.length > 0) {
+          const { data: intCands } = await supabaseAdmin
+            .from('candidates')
+            .select('id, analysis_result')
+            .in('id', interviewCandidateIds);
+          for (const c of intCands || []) {
+            try {
+              const ar = typeof c.analysis_result === 'string' ? JSON.parse(c.analysis_result) : c.analysis_result;
+              interviewCandidateNames[c.id] = ar?.candidateName || 'Candidato';
+            } catch { interviewCandidateNames[c.id] = 'Candidato'; }
+          }
+        }
+
+        // Monta dados por vaga
+        const briefingJobs: BriefingJob[] = [];
+        let totalNew = 0;
+        let totalHighlights = 0;
+        let totalInterviewsToday = 0;
+
+        for (const job of jobs) {
+          const jobNew = (newCandidates || []).filter((c: any) => c.job_id === job.id);
+          const jobInterviews = (todayInterviews || []).filter((i: any) => i.job_id === job.id);
+
+          const highlights = jobNew
+            .filter((c: any) => (c.match_score || 0) >= 8.0)
+            .map((c: any) => {
+              let name = 'Candidato';
+              try {
+                const ar = typeof c.analysis_result === 'string' ? JSON.parse(c.analysis_result) : c.analysis_result;
+                name = ar?.candidateName?.split(' ')[0] || 'Candidato';
+              } catch {}
+              return { name, score: Number((c.match_score || 0).toFixed(1)) };
+            })
+            .sort((a: any, b: any) => b.score - a.score)
+            .slice(0, 3);
+
+          const interviewsToday = jobInterviews.map((i: any) => ({
+            name: (interviewCandidateNames[i.candidate_id] || 'Candidato').split(' ')[0],
+            time: (i.slot_time || '').substring(0, 5),
+          }));
+
+          // Verifica se a vaga está sem candidatos há 5+ dias
+          const jobCreatedAt = new Date(job.created_at);
+          const daysSinceCreated = Math.floor((nowBRT.getTime() - jobCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+          const { count: totalCandidates } = await supabaseAdmin
+            .from('candidates')
+            .select('id', { count: 'exact', head: true })
+            .eq('job_id', job.id)
+            .neq('status', 'ERROR');
+
+          const daysWithoutCandidates = (totalCandidates === 0 && daysSinceCreated >= 5) ? daysSinceCreated : undefined;
+
+          if (jobNew.length > 0 || interviewsToday.length > 0 || highlights.length > 0 || daysWithoutCandidates) {
+            briefingJobs.push({
+              title: job.title,
+              newCandidates: jobNew.length,
+              highlights,
+              todayInterviews: interviewsToday,
+              daysWithoutCandidates,
+            });
+          }
+
+          totalNew += jobNew.length;
+          totalHighlights += highlights.length;
+          totalInterviewsToday += interviewsToday.length;
+        }
+
+        if (briefingJobs.length === 0) { skipped++; continue; }
+
+        const recruiterName = (profile.full_name || 'Recrutador').split(' ')[0];
+        const message = await generateDailyBriefing({
+          recruiterName,
+          jobs: briefingJobs,
+          totalNew,
+          totalHighlights,
+          totalInterviewsToday,
+        });
+
+        if (!message) { skipped++; continue; }
+
+        const phone = profile.phone.replace(/\D/g, '');
+        await sendText(
+          profile.instancia_evolution,
+          `${phone}@s.whatsapp.net`,
+          message,
+          profile.evolution_token || undefined,
+        );
+
+        console.log(`[DailyBriefing] ✅ Enviado para ${recruiterName} (${phone})`);
+        sent++;
+
+        // Pausa breve entre envios para não sobrecarregar Evolution API
+        await new Promise(r => setTimeout(r, 500));
+
+      } catch (profileErr: any) {
+        console.error(`[DailyBriefing] Erro no perfil ${profile.id}:`, profileErr.message);
+        skipped++;
+      }
+    }
+
+    console.log(`[DailyBriefing] Concluído: ${sent} enviados, ${skipped} ignorados`);
+    return res.json({ ok: true, sent, skipped });
+
+  } catch (err: any) {
+    console.error('[DailyBriefing] Erro geral:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Hermes Agent Tools — rotas consumidas pelo Hermes Agent no VPS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function validateHermesSecret(req: express.Request, res: express.Response): boolean {
+  const secret = req.headers['x-hermes-secret'];
+  if (!process.env.HERMES_SECRET || secret !== process.env.HERMES_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  return true;
+}
+
+// Identifica recrutador pelo número do WhatsApp
+app.get('/api/hermes/recruiter', async (req, res) => {
+  if (!validateHermesSecret(req, res)) return;
+  const { phone } = req.query;
+  if (!phone) return res.status(400).json({ error: 'phone obrigatório' });
+
+  const cleaned = String(phone).replace(/\D/g, '');
+
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('id, full_name, phone, subscription_status, instancia_evolution')
+    .or(`phone.ilike.%${cleaned}%,phone.ilike.%${cleaned.slice(-11)}%`)
+    .eq('subscription_status', 'active')
+    .limit(1)
+    .single();
+
+  if (error || !data) return res.status(404).json({ error: 'Recrutador não encontrado' });
+  return res.json({ recruiter_id: data.id, name: data.full_name, phone: data.phone, status: data.subscription_status });
+});
+
+// Vagas ativas de um recrutador
+app.get('/api/hermes/jobs', async (req, res) => {
+  if (!validateHermesSecret(req, res)) return;
+  const { recruiter_id } = req.query;
+  if (!recruiter_id) return res.status(400).json({ error: 'recruiter_id obrigatório' });
+
+  const { data, error } = await supabaseAdmin
+    .from('jobs')
+    .select('id, title, status, created_at')
+    .eq('profile_id', recruiter_id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ jobs: data });
+});
+
+// Candidatos de uma vaga
+app.get('/api/hermes/candidates', async (req, res) => {
+  if (!validateHermesSecret(req, res)) return;
+  const { job_id } = req.query;
+  if (!job_id) return res.status(400).json({ error: 'job_id obrigatório' });
+
+  const { data, error } = await supabaseAdmin
+    .from('candidates')
+    .select('id, name, phone, match_score, status, created_at')
+    .eq('job_id', job_id)
+    .order('match_score', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ candidates: data, total: data?.length ?? 0 });
+});
+
+// Entrevistas de uma vaga
+app.get('/api/hermes/interviews', async (req, res) => {
+  if (!validateHermesSecret(req, res)) return;
+  const { job_id, recruiter_id } = req.query;
+
+  let query = supabaseAdmin
+    .from('interviews')
+    .select('id, candidate_name, scheduled_at, status, job_title')
+    .order('scheduled_at', { ascending: true });
+
+  if (job_id) query = query.eq('job_id', job_id);
+  if (recruiter_id) query = query.eq('recruiter_id', recruiter_id);
+
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ interviews: data });
+});
+
+// Resumo geral do recrutador
+app.get('/api/hermes/summary', async (req, res) => {
+  if (!validateHermesSecret(req, res)) return;
+  const { recruiter_id } = req.query;
+  if (!recruiter_id) return res.status(400).json({ error: 'recruiter_id obrigatório' });
+
+  const [jobsRes, interviewsRes] = await Promise.all([
+    supabaseAdmin.from('jobs').select('id, title, status').eq('profile_id', recruiter_id).eq('status', 'active'),
+    supabaseAdmin.from('interviews').select('id, scheduled_at, status, candidate_name, job_title')
+      .eq('recruiter_id', recruiter_id)
+      .gte('scheduled_at', new Date().toISOString())
+      .order('scheduled_at', { ascending: true })
+      .limit(5),
+  ]);
+
+  return res.json({
+    active_jobs: jobsRes.data?.length ?? 0,
+    jobs: jobsRes.data ?? [],
+    upcoming_interviews: interviewsRes.data ?? [],
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
