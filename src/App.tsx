@@ -2584,11 +2584,21 @@ const App: React.FC = () => {
                          </div>
                      </div>
                      <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Número de Contato do Agente</label>
-                         <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700">
-                             {user?.whatsapp_number || user?.telefone_agente || '—'}
-                         </div>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Seu WhatsApp Pessoal</label>
+                         <input
+                           type="text"
+                           value={user?.phone || ''}
+                           onChange={(e) => setUser(user ? {...user, phone: e.target.value} : null)}
+                           placeholder="Ex: 5551999990000"
+                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
+                         />
+                         <p className="text-[10px] text-slate-400 ml-1 mt-1">Usado pelo assistente IA para identificar você. Formato: DDI + DDD + número (ex: 5551999990000)</p>
                      </div>
+                 </div>
+                 <div className="pt-4">
+                     <button onClick={handleUpdateProfile} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all flex items-center gap-2 shadow-sm">
+                         <Save className="w-4 h-4 text-[#65a30d]" /> Salvar Número
+                     </button>
                  </div>
              )}
          </div>
