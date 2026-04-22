@@ -4886,16 +4886,22 @@ app.get('/api/hermes/recruiter', async (req, res) => {
   if (!phone) return res.status(400).json({ error: 'phone obrigatório' });
 
   const cleaned = String(phone).replace(/\D/g, '');
+  // Gera variações do número: completo, sem DDI 55, últimos 11 dígitos, últimos 10 dígitos
+  const variants = [
+    cleaned,
+    cleaned.startsWith('55') ? cleaned.slice(2) : `55${cleaned}`,
+    cleaned.slice(-11),
+    cleaned.slice(-10),
+  ];
 
   const { data, error } = await supabaseAdmin
     .from('profiles')
     .select('id, full_name, phone, subscription_status, instancia_evolution')
-    .or(`phone.ilike.%${cleaned}%,phone.ilike.%${cleaned.slice(-11)}%`)
-    .eq('subscription_status', 'active')
+    .or(variants.map(v => `phone.ilike.%${v}%`).join(','))
     .limit(1)
     .single();
 
-  if (error || !data) return res.status(404).json({ error: 'Recrutador não encontrado' });
+  if (error || !data) return res.status(404).json({ error: 'Recrutador não encontrado', phone_tested: cleaned });
   return res.json({ recruiter_id: data.id, name: data.full_name, phone: data.phone, status: data.subscription_status });
 });
 
