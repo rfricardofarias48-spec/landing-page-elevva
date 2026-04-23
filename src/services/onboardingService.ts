@@ -346,18 +346,18 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
       if (CHATWOOT_URL && CHATWOOT_ADMIN_TOKEN) {
         await evolutionPost(`/chatwoot/set/${chipInstance}`, {
           enabled: true,
-          account_id: CHATWOOT_ACCOUNT_ID.toString(),
+          accountId: CHATWOOT_ACCOUNT_ID,
           token: CHATWOOT_ADMIN_TOKEN,
           url: CHATWOOT_URL,
-          sign_msg: false,
-          reopen_conversation: true,
-          conversation_pending: false,
-          import_contacts: true,
-          name_inbox: `${sale.client_name} — Elevva`,
-          merge_brasil_contacts: true,
-          import_messages: false,
-          days_limit_import_messages: 0,
-          auto_create: true,
+          signMsg: false,
+          reopenConversation: true,
+          conversationPending: false,
+          importContacts: true,
+          nameInbox: `${sale.client_name} — Elevva`,
+          mergeBrasilContacts: true,
+          importMessages: false,
+          daysLimitImportMessages: 0,
+          autoCreate: true,
         });
       }
       ctx.chatwootIntegrated = true;

@@ -1479,6 +1479,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [chipForm, setChipForm] = useState({ phoneNumber: '', evolutionInstance: '', displayName: '', notes: '' });
   const [chipSaving, setChipSaving] = useState(false);
   const [chipError, setChipError] = useState('');
+  const [chipStep, setChipStep] = useState<'form' | 'qr' | 'success'>('form');
+  const [chipQrCode, setChipQrCode] = useState('');
+  const chipPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchChips = async () => {
       setChipsLoading(true);
@@ -1494,21 +1497,56 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       }
   };
 
+  const stopChipPolling = () => {
+      if (chipPollRef.current) { clearInterval(chipPollRef.current); chipPollRef.current = null; }
+  };
+
+  const closeAddChip = () => {
+      stopChipPolling();
+      setShowAddChip(false);
+      setChipStep('form');
+      setChipQrCode('');
+      setChipError('');
+      setChipForm({ phoneNumber: '', evolutionInstance: '', displayName: '', notes: '' });
+  };
+
   const handleAddChip = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (!chipForm.evolutionInstance || !chipForm.phoneNumber) return;
       setChipSaving(true);
       setChipError('');
       try {
-          const res = await fetch('/api/chips-pool', {
+          const res = await fetch('/api/chips-pool/generate-qr', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(chipForm),
+              body: JSON.stringify({ evolutionInstance: chipForm.evolutionInstance }),
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar chip');
-          setShowAddChip(false);
-          setChipForm({ phoneNumber: '', evolutionInstance: '', displayName: '', notes: '' });
-          fetchChips();
+          if (!res.ok) throw new Error(data.error || 'Erro ao gerar QR Code');
+          setChipQrCode(data.qrCode);
+          setChipStep('qr');
+          // Polling para detectar conexão
+          chipPollRef.current = setInterval(async () => {
+              try {
+                  const statusRes = await fetch(`/api/chips-pool/qr-status/${chipForm.evolutionInstance}`);
+                  const statusData = await statusRes.json();
+                  if (statusData.qrCode) setChipQrCode(statusData.qrCode);
+                  if (statusData.connected) {
+                      stopChipPolling();
+                      // Salva o chip no banco
+                      const saveRes = await fetch('/api/chips-pool', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(chipForm),
+                      });
+                      if (saveRes.ok) {
+                          setChipStep('success');
+                          fetchChips();
+                          setTimeout(closeAddChip, 2500);
+                      }
+                  }
+              } catch { /* silencioso */ }
+          }, 3000);
       } catch (err: any) {
           setChipError(err.message);
       } finally {
@@ -2108,43 +2146,78 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                   <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                       <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
                           <div className="flex items-center justify-between mb-6">
-                              <h3 className="text-xl font-black text-zinc-900">Novo Chip</h3>
-                              <button onClick={() => setShowAddChip(false)} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+                              <h3 className="text-xl font-black text-zinc-900">
+                                  {chipStep === 'form' ? 'Novo Chip' : chipStep === 'qr' ? 'Escanear QR Code' : 'Chip Conectado!'}
+                              </h3>
+                              <button onClick={closeAddChip} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
                           </div>
-                          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
-                              <p className="text-xs font-bold text-amber-700">Antes de cadastrar, o chip precisa estar autenticado no Evolution API (QR Code escaneado). Só então cadastre aqui.</p>
-                          </div>
-                          <form onSubmit={handleAddChip} className="space-y-4">
-                              <div>
-                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Número do WhatsApp</label>
-                                  <input value={chipForm.phoneNumber} onChange={e => setChipForm(f => ({...f, phoneNumber: e.target.value}))}
-                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                                      placeholder="5511999999999 (com DDI e DDD, sem espaços)" required />
+
+                          {/* Etapa 1: Formulário */}
+                          {chipStep === 'form' && (
+                              <form onSubmit={handleAddChip} className="space-y-4">
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Número do WhatsApp</label>
+                                      <input value={chipForm.phoneNumber} onChange={e => setChipForm(f => ({...f, phoneNumber: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="5511999999999 (com DDI e DDD, sem espaços)" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome da Instância (Evolution)</label>
+                                      <input value={chipForm.evolutionInstance} onChange={e => setChipForm(f => ({...f, evolutionInstance: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="ex: elevva-chip-01" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Apelido (para identificação)</label>
+                                      <input value={chipForm.displayName} onChange={e => setChipForm(f => ({...f, displayName: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="ex: Chip Vivo 01" />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Observações</label>
+                                      <textarea value={chipForm.notes} onChange={e => setChipForm(f => ({...f, notes: e.target.value}))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 resize-none"
+                                          rows={2} placeholder="Observações internas (opcional)" />
+                                  </div>
+                                  {chipError && <p className="text-red-500 text-xs font-medium">{chipError}</p>}
+                                  <button type="submit" disabled={chipSaving}
+                                      className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                      {chipSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Gerando QR Code...</> : 'Gerar QR Code'}
+                                  </button>
+                              </form>
+                          )}
+
+                          {/* Etapa 2: QR Code */}
+                          {chipStep === 'qr' && (
+                              <div className="text-center space-y-4">
+                                  <p className="text-sm text-zinc-500">Abra o WhatsApp no celular → <strong>Dispositivos Conectados</strong> → <strong>Conectar Dispositivo</strong></p>
+                                  {chipQrCode ? (
+                                      <div className="flex justify-center">
+                                          <img src={chipQrCode} alt="QR Code WhatsApp" className="w-56 h-56 rounded-2xl border border-zinc-200" />
+                                      </div>
+                                  ) : (
+                                      <div className="flex justify-center items-center h-56"><Loader2 className="w-8 h-8 animate-spin text-zinc-300" /></div>
+                                  )}
+                                  <div className="flex items-center justify-center gap-2 text-xs text-zinc-400">
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      Aguardando conexão… O QR atualiza automaticamente
+                                  </div>
+                                  <p className="text-xs text-zinc-400">Instância: <span className="font-bold text-zinc-600">{chipForm.evolutionInstance}</span></p>
                               </div>
-                              <div>
-                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome da Instância (Evolution)</label>
-                                  <input value={chipForm.evolutionInstance} onChange={e => setChipForm(f => ({...f, evolutionInstance: e.target.value}))}
-                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                                      placeholder="ex: elevva-chip-01" required />
+                          )}
+
+                          {/* Etapa 3: Sucesso */}
+                          {chipStep === 'success' && (
+                              <div className="text-center space-y-4 py-4">
+                                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                                      <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                  </div>
+                                  <div>
+                                      <p className="text-lg font-black text-zinc-900">WhatsApp Conectado!</p>
+                                      <p className="text-sm text-zinc-500 mt-1">Chip <strong>{chipForm.displayName || chipForm.evolutionInstance}</strong> cadastrado e disponível no pool.</p>
+                                  </div>
                               </div>
-                              <div>
-                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Apelido (para identificação)</label>
-                                  <input value={chipForm.displayName} onChange={e => setChipForm(f => ({...f, displayName: e.target.value}))}
-                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                                      placeholder="ex: Chip Vivo 01" />
-                              </div>
-                              <div>
-                                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Observações</label>
-                                  <textarea value={chipForm.notes} onChange={e => setChipForm(f => ({...f, notes: e.target.value}))}
-                                      className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 resize-none"
-                                      rows={2} placeholder="Observações internas (opcional)" />
-                              </div>
-                              {chipError && <p className="text-red-500 text-xs font-medium">{chipError}</p>}
-                              <button type="submit" disabled={chipSaving}
-                                  className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                                  {chipSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar Chip'}
-                              </button>
-                          </form>
+                          )}
                       </div>
                   </div>
               )}

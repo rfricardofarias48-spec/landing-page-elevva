@@ -4183,6 +4183,63 @@ app.get("/api/salespeople/:id/sales", async (req, res) => {
   }
 });
 
+// ── POST /api/chips-pool/generate-qr — Cria instância Evolution e retorna QR ─
+app.post("/api/chips-pool/generate-qr", async (req, res) => {
+  const { evolutionInstance } = req.body as { evolutionInstance?: string };
+  if (!evolutionInstance) return res.status(400).json({ error: 'evolutionInstance obrigatório' });
+
+  const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
+
+  try {
+    const createRes = await fetch(`${EVOLUTION_URL}/instance/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+      body: JSON.stringify({ instanceName: evolutionInstance, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+    });
+    const createData = await createRes.json() as any;
+    let qrBase64: string | undefined = createData?.qrcode?.base64;
+
+    if (!qrBase64) {
+      const connectRes = await fetch(`${EVOLUTION_URL}/instance/connect/${evolutionInstance}`, {
+        headers: { 'apikey': EVOLUTION_KEY },
+      });
+      const connectData = await connectRes.json() as any;
+      qrBase64 = connectData?.base64;
+    }
+
+    if (!qrBase64) return res.status(400).json({ error: 'Não foi possível gerar QR Code. Verifique o nome da instância.' });
+    return res.json({ ok: true, qrCode: qrBase64 });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/chips-pool/qr-status/:instance — Verifica conexão e retorna QR ─
+app.get("/api/chips-pool/qr-status/:instance", async (req, res) => {
+  const { instance } = req.params;
+  const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
+
+  try {
+    const stateRes = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instance}`, {
+      headers: { 'apikey': EVOLUTION_KEY },
+    });
+    const stateData = await stateRes.json() as any;
+    const state = stateData?.instance?.state || stateData?.state || 'close';
+
+    if (state === 'open') return res.json({ connected: true, state });
+
+    const connectRes = await fetch(`${EVOLUTION_URL}/instance/connect/${instance}`, {
+      headers: { 'apikey': EVOLUTION_KEY },
+    });
+    const connectData = await connectRes.json() as any;
+    return res.json({ connected: false, state, qrCode: connectData?.base64 });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/chips-pool — Listar chips do pool ────────────────────────────────
 app.get("/api/chips-pool", async (_req, res) => {
   try {
@@ -4311,61 +4368,58 @@ app.post("/api/webhooks/asaas", async (req, res) => {
     return res.json({ ok: true, ignored: true });
   }
 
-  // Responde imediatamente ao Asaas (evita timeout)
-  res.json({ ok: true, received: true });
+  // Processar onboarding de forma síncrona (Vercel encerra função ao enviar resposta)
+  try {
+    // Decodificar metadata do link (novo formato: base64 JSON)
+    const meta = decodeLinkMeta(externalRef) as any;
 
-  // Processar onboarding em background
-  (async () => {
-    try {
-      // Decodificar metadata do link (novo formato: base64 JSON)
-      const meta = decodeLinkMeta(externalRef) as any;
+    // ── Helper: calcular próxima data de renovação ────────────────────────────
+    const calcPeriodEnd = (planType: string, dueDate?: string): string => {
+      const base = dueDate ? new Date(dueDate + 'T12:00:00Z') : new Date();
+      const isAnnual = planType.endsWith('_ANUAL');
+      if (isAnnual) {
+        base.setFullYear(base.getFullYear() + 1);
+      } else {
+        base.setMonth(base.getMonth() + 1);
+      }
+      return base.toISOString();
+    };
 
-      // ── Helper: calcular próxima data de renovação ────────────────────────────
-      // Usa dueDate do Asaas como base (data de vencimento deste pagamento)
-      // e avança 1 mês (mensal) ou 1 ano (anual) para obter o próximo ciclo.
-      const calcPeriodEnd = (planType: string, dueDate?: string): string => {
-        const base = dueDate ? new Date(dueDate + 'T12:00:00Z') : new Date();
-        const isAnnual = planType.endsWith('_ANUAL');
-        if (isAnnual) {
-          base.setFullYear(base.getFullYear() + 1);
-        } else {
-          base.setMonth(base.getMonth() + 1);
-        }
-        return base.toISOString();
-      };
+    // ── Helper: atualizar current_period_end no perfil pelo e-mail ───────────
+    const syncRenewalDate = async (email: string, planType: string) => {
+      const periodEnd = calcPeriodEnd(planType, payment?.dueDate);
+      const { data: profile } = await supabaseAdmin
+        .from('profiles').select('id').eq('email', email).maybeSingle();
+      if (profile) {
+        await supabaseAdmin.from('profiles').update({
+          current_period_end: periodEnd,
+          subscription_status: 'active',
+        }).eq('id', profile.id);
+        console.log(`[Asaas Webhook] ✅ Renovação sincronizada para ${email}: ${new Date(periodEnd).toLocaleDateString('pt-BR')}`);
+      }
+    };
 
-      // ── Helper: atualizar current_period_end no perfil pelo e-mail ───────────
-      const syncRenewalDate = async (email: string, planType: string) => {
-        const periodEnd = calcPeriodEnd(planType, payment?.dueDate);
-        const { data: profile } = await supabaseAdmin
-          .from('profiles').select('id').eq('email', email).maybeSingle();
-        if (profile) {
-          await supabaseAdmin.from('profiles').update({
-            current_period_end: periodEnd,
-            subscription_status: 'active',
-          }).eq('id', profile.id);
-          console.log(`[Asaas Webhook] ✅ Renovação sincronizada para ${email}: ${new Date(periodEnd).toLocaleDateString('pt-BR')}`);
-        }
-      };
+    let saleId: string;
 
-      let saleId: string;
+    if (meta?.clientEmail) {
+      // ── Novo fluxo: criar registro no banco agora que pagamento foi confirmado
+      console.log(`[Asaas Webhook] Novo fluxo — criando venda para ${meta.clientEmail}`);
 
-      if (meta?.clientEmail) {
-        // ── Novo fluxo: criar registro no banco agora que pagamento foi confirmado
-        console.log(`[Asaas Webhook] Novo fluxo — criando venda para ${meta.clientEmail}`);
+      // Evitar duplicatas: verificar se já existe sale com esse asaas_payment_id
+      const { data: existing } = await supabaseAdmin
+        .from('sales').select('id, onboarding_status').eq('asaas_payment_id', payment!.id!).maybeSingle();
 
-        // Evitar duplicatas: verificar se já existe sale com esse asaas_payment_id
-        const { data: existing } = await supabaseAdmin
-          .from('sales').select('id').eq('asaas_payment_id', payment!.id!).maybeSingle();
-
-        if (existing) {
-          // Pagamento já processado (onboarding feito) — pode ser renovação
-          // Apenas atualiza current_period_end
+      if (existing) {
+        if (existing.onboarding_status === 'concluido') {
+          // Onboarding já feito — apenas atualiza renovação
           console.log(`[Asaas Webhook] Renovação detectada para ${meta.clientEmail} — atualizando data`);
           await syncRenewalDate(meta.clientEmail, meta.plan || '');
-          return;
+          return res.json({ ok: true, received: true });
         }
-
+        // Onboarding ainda pendente — tenta novamente com o saleId existente
+        saleId = existing.id;
+        console.log(`[Asaas Webhook] Retentativa de onboarding para venda existente ${saleId}`);
+      } else {
         const { data: sale, error: saleErr } = await supabaseAdmin
           .from('sales')
           .insert({
@@ -4387,39 +4441,48 @@ app.post("/api/webhooks/asaas", async (req, res) => {
 
         if (saleErr || !sale) {
           console.error('[Asaas Webhook] Erro ao criar venda:', saleErr?.message);
-          return;
+          return res.status(500).json({ error: 'Erro ao criar venda' });
         }
-
         saleId = sale.id;
-      } else {
-        // ── Legado: externalReference é um UUID de venda pendente existente
-        saleId = externalRef;
-        await supabaseAdmin.from('sales').update({
-          status: 'paid',
-          paid_at: new Date().toISOString(),
-          asaas_payment_id: payment?.id || null,
-        }).eq('id', saleId);
+      }
+    } else {
+      // ── Legado: externalReference é um UUID de venda pendente existente
+      saleId = externalRef;
+
+      // Verificar se onboarding já foi concluído para evitar re-run
+      const { data: existingSale } = await supabaseAdmin
+        .from('sales').select('onboarding_status').eq('id', saleId).maybeSingle();
+      if (existingSale?.onboarding_status === 'concluido') {
+        console.log(`[Asaas Webhook] Onboarding já concluído para venda ${saleId} — ignorando`);
+        return res.json({ ok: true, received: true });
       }
 
-      console.log(`[Asaas Webhook] Iniciando onboarding para venda ${saleId}`);
-      const result = await provisionClient(saleId);
-
-      if (result.success) {
-        console.log(`[Asaas Webhook] ✅ Onboarding concluído: ${result.clientEmail}`);
-        await syncRenewalDate(result.clientEmail, meta?.plan || '');
-        // Desbloquear conta caso estivesse bloqueada por inadimplência
-        await supabaseAdmin.from('profiles').update({
-          status: 'ACTIVE',
-          subscription_status: 'active',
-        }).eq('email', result.clientEmail).eq('status', 'BLOCKED');
-        console.log(`[Asaas Webhook] 🔓 Conta desbloqueada (se estava bloqueada): ${result.clientEmail}`);
-      } else {
-        console.error(`[Asaas Webhook] ❌ Onboarding falhou: ${result.error}`);
-      }
-    } catch (err: any) {
-      console.error('[Asaas Webhook] Erro inesperado:', err.message);
+      await supabaseAdmin.from('sales').update({
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+        asaas_payment_id: payment?.id || null,
+      }).eq('id', saleId);
     }
-  })();
+
+    console.log(`[Asaas Webhook] Iniciando onboarding para venda ${saleId}`);
+    const result = await provisionClient(saleId);
+
+    if (result.success) {
+      console.log(`[Asaas Webhook] ✅ Onboarding concluído: ${result.clientEmail}`);
+      await syncRenewalDate(result.clientEmail, meta?.plan || '');
+      await supabaseAdmin.from('profiles').update({
+        status: 'ACTIVE',
+        subscription_status: 'active',
+      }).eq('email', result.clientEmail).eq('status', 'BLOCKED');
+      return res.json({ ok: true, received: true, onboarding: 'concluido' });
+    } else {
+      console.error(`[Asaas Webhook] ❌ Onboarding falhou: ${result.error}`);
+      return res.status(500).json({ ok: false, error: result.error });
+    }
+  } catch (err: any) {
+    console.error('[Asaas Webhook] Erro inesperado:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── GET /api/salespeople/:id/asaas — Dados reais da subconta no Asaas ─────────

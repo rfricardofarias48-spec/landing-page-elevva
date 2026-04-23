@@ -227,9 +227,14 @@ export async function syncPaymentStatus(asaasPaymentId: string): Promise<{
  * Valida a assinatura do webhook do Asaas.
  */
 export function validateWebhookToken(headerToken: string | undefined): boolean {
-  const expected = process.env.ASAAS_WEBHOOK_TOKEN || '';
+  const expected = (process.env.ASAAS_WEBHOOK_TOKEN || '').trim();
   if (!expected) return true;
-  return headerToken === expected;
+  const received = (headerToken || '').trim();
+  if (received !== expected) {
+    console.warn(`[Asaas Webhook] Token mismatch — received len=${received.length} first=${received.slice(0,4)} | expected len=${expected.length} first=${expected.slice(0,4)}`);
+    return false;
+  }
+  return true;
 }
 
 /**
