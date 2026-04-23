@@ -1515,25 +1515,63 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       if (!chipForm.evolutionInstance || !chipForm.phoneNumber) return;
       setChipSaving(true);
       setChipError('');
+
+      const evoUrl = (import.meta.env.VITE_EVOLUTION_API_URL || '').replace(/\/$/, '');
+      const evoKey = import.meta.env.VITE_EVOLUTION_API_KEY || '';
+
+      const evoSafeJson = async (res: Response) => {
+          const text = await res.text();
+          try { return JSON.parse(text); } catch { return {}; }
+      };
+
       try {
-          const res = await fetch('/api/chips-pool/generate-qr', {
+          // Tenta criar instância diretamente no Evolution API
+          const createRes = await fetch(`${evoUrl}/instance/create`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ evolutionInstance: chipForm.evolutionInstance }),
+              headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
+              body: JSON.stringify({ instanceName: chipForm.evolutionInstance, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
           });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Erro ao gerar QR Code');
-          setChipQrCode(data.qrCode);
+          const createData = await evoSafeJson(createRes);
+          let qrBase64: string = createData?.qrcode?.base64 || '';
+
+          // Se create não retornou QR (instância já existe ou endpoint diferente), busca via connect
+          if (!qrBase64) {
+              const connectRes = await fetch(`${evoUrl}/instance/connect/${chipForm.evolutionInstance}`, {
+                  headers: { 'apikey': evoKey },
+              });
+              const connectData = await evoSafeJson(connectRes);
+              qrBase64 = connectData?.base64 || connectData?.qrcode?.base64 || '';
+          }
+
+          if (!qrBase64) {
+              throw new Error('Não foi possível gerar QR Code. Verifique se a instância existe no Evolution API e se o nome está correto.');
+          }
+
+          setChipQrCode(qrBase64);
           setChipStep('qr');
-          // Polling para detectar conexão
+          setChipSaving(false);
+
+          // Polling direto no Evolution API para detectar conexão
           chipPollRef.current = setInterval(async () => {
               try {
-                  const statusRes = await fetch(`/api/chips-pool/qr-status/${chipForm.evolutionInstance}`);
-                  const statusData = await statusRes.json();
-                  if (statusData.qrCode) setChipQrCode(statusData.qrCode);
-                  if (statusData.connected) {
+                  const stateRes = await fetch(`${evoUrl}/instance/connectionState/${chipForm.evolutionInstance}`, {
+                      headers: { 'apikey': evoKey },
+                  });
+                  const stateData = await evoSafeJson(stateRes);
+                  const state = stateData?.instance?.state || stateData?.state || '';
+
+                  // Atualiza QR se ainda não conectou
+                  if (state !== 'open') {
+                      const connectRes = await fetch(`${evoUrl}/instance/connect/${chipForm.evolutionInstance}`, {
+                          headers: { 'apikey': evoKey },
+                      });
+                      const connectData = await evoSafeJson(connectRes);
+                      const newQr = connectData?.base64 || connectData?.qrcode?.base64;
+                      if (newQr) setChipQrCode(newQr);
+                  }
+
+                  if (state === 'open') {
                       stopChipPolling();
-                      // Salva o chip no banco
                       const saveRes = await fetch('/api/chips-pool', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -1549,7 +1587,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
           }, 3000);
       } catch (err: any) {
           setChipError(err.message);
-      } finally {
           setChipSaving(false);
       }
   };
@@ -2161,9 +2198,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           {/* Etapa 1: Formulário */}
                           {chipStep === 'form' && (
                               <form onSubmit={handleAddChip} className="space-y-4">
-                                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3">
-                                      <p className="text-xs font-bold text-blue-700">Pré-requisito: crie a instância no painel do Evolution API (Coolify) com o mesmo nome que vai preencher abaixo. Depois clique em Gerar QR Code.</p>
-                                  </div>
                                   <div>
                                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Número do WhatsApp</label>
                                       <input value={chipForm.phoneNumber} onChange={e => setChipForm(f => ({...f, phoneNumber: e.target.value}))}
