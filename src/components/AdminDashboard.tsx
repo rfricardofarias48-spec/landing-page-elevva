@@ -1474,6 +1474,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [chips, setChips] = useState<any[]>([]);
   const [chipsSummary, setChipsSummary] = useState<any>({});
   const [chipsLoading, setChipsLoading] = useState(false);
+  const [editingChipPhone, setEditingChipPhone] = useState<string | null>(null);
+  const [editChipPhoneVal, setEditChipPhoneVal] = useState('');
   const [chipsChecking, setChipsChecking] = useState<Record<string, 'idle' | 'checking' | 'online' | 'offline'>>({});
   const [showAddChip, setShowAddChip] = useState(false);
   const [chipForm, setChipForm] = useState({ phoneNumber: '', evolutionInstance: '', displayName: '', notes: '' });
@@ -1575,6 +1577,16 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: newStatus }),
       });
+      fetchChips();
+  };
+
+  const saveChipPhone = async (chipId: string) => {
+      await fetch(`/api/chips-pool/${chipId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: editChipPhoneVal }),
+      });
+      setEditingChipPhone(null);
       fetchChips();
   };
 
@@ -2315,8 +2327,24 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                               return (
                                   <tr key={chip.id} className="hover:bg-zinc-50/50 transition-colors">
                                       <td className="p-5">
-                                          <p className="font-bold text-zinc-900">{chip.display_name || `+${chip.phone_number}`}</p>
-                                          <p className="text-xs text-zinc-400 font-mono">+{chip.phone_number}</p>
+                                          <p className="font-bold text-zinc-900">{chip.display_name || chip.evolution_instance}</p>
+                                          {editingChipPhone === chip.id ? (
+                                              <div className="flex items-center gap-1 mt-0.5">
+                                                  <input autoFocus value={editChipPhoneVal} onChange={e => setEditChipPhoneVal(e.target.value)}
+                                                      onKeyDown={e => { if (e.key === 'Enter') saveChipPhone(chip.id); if (e.key === 'Escape') setEditingChipPhone(null); }}
+                                                      className="text-xs border border-zinc-300 rounded px-2 py-0.5 w-36 focus:outline-none focus:ring-1 focus:ring-black/20"
+                                                      placeholder="5511999999999" />
+                                                  <button onClick={() => saveChipPhone(chip.id)} className="text-xs text-emerald-600 font-bold hover:underline">Salvar</button>
+                                                  <button onClick={() => setEditingChipPhone(null)} className="text-xs text-zinc-400 hover:underline">×</button>
+                                              </div>
+                                          ) : chip.phone_number ? (
+                                              <p className="text-xs text-zinc-400 font-mono">+{chip.phone_number}</p>
+                                          ) : (
+                                              <button onClick={() => { setEditingChipPhone(chip.id); setEditChipPhoneVal(''); }}
+                                                  className="text-xs text-amber-500 hover:text-amber-700 font-medium flex items-center gap-0.5 mt-0.5">
+                                                  + adicionar número
+                                              </button>
+                                          )}
                                           {chip.notes && <p className="text-xs text-zinc-300 mt-0.5">{chip.notes}</p>}
                                       </td>
                                       <td className="p-5">

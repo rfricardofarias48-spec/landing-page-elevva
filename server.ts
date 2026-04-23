@@ -4331,14 +4331,15 @@ app.post("/api/chips-pool", async (req, res) => {
 // ── PUT /api/chips-pool/:id — Atualizar chip ─────────────────────────────────
 app.put("/api/chips-pool/:id", async (req, res) => {
   const { id } = req.params;
-  const { status, displayName, notes } = req.body as {
-    status?: string; displayName?: string; notes?: string;
+  const { status, displayName, notes, phoneNumber } = req.body as {
+    status?: string; displayName?: string; notes?: string; phoneNumber?: string;
   };
 
   const updates: Record<string, unknown> = {};
   if (status !== undefined) updates.status = status;
   if (displayName !== undefined) updates.display_name = displayName;
   if (notes !== undefined) updates.notes = notes;
+  if (phoneNumber !== undefined) updates.phone_number = phoneNumber.replace(/\D/g, '');
 
   const { data, error } = await supabaseAdmin
     .from('chips_pool').update(updates).eq('id', id).select().single();
@@ -4353,6 +4354,64 @@ app.delete("/api/chips-pool/:id", async (req, res) => {
   const { error } = await supabaseAdmin.from('chips_pool').delete().eq('id', id);
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
+});
+
+// ── POST /api/webhooks/evolution — Webhook global do Evolution API ─────────────
+// Auto-registra chips no pool quando uma instância conecta ao WhatsApp
+app.post("/api/webhooks/evolution", async (req, res) => {
+  const body = req.body as any;
+  const event = body?.event || '';
+  const instanceName = body?.instance || '';
+  const state = body?.data?.state || '';
+
+  console.log(`[Evolution Webhook] evento=${event} instancia=${instanceName} state=${state}`);
+
+  // Só processa quando uma instância conecta com sucesso
+  if (event !== 'CONNECTION_UPDATE' || state !== 'open' || !instanceName) {
+    return res.json({ ok: true, ignored: true });
+  }
+
+  // Verifica se chip já existe para essa instância
+  const { data: existing } = await supabaseAdmin
+    .from('chips_pool')
+    .select('id')
+    .eq('evolution_instance', instanceName)
+    .maybeSingle();
+
+  if (existing) {
+    // Chip existe — apenas garante que está disponível (pode ter ficado offline)
+    await supabaseAdmin
+      .from('chips_pool')
+      .update({ status: 'disponivel' })
+      .eq('evolution_instance', instanceName)
+      .eq('status', 'manutencao');
+    console.log(`[Evolution Webhook] Chip ${instanceName} já existe — status verificado`);
+    return res.json({ ok: true, updated: true });
+  }
+
+  // Extrai telefone do payload (presente em algumas versões do Evolution v2)
+  const phoneRaw = body?.data?.me?.id || body?.data?.wuid || body?.data?.number || '';
+  const phoneNumber = phoneRaw.replace(/[^0-9]/g, '').replace(/:.*$/, '');
+
+  // Cria chip automaticamente no pool
+  const { data: chip, error } = await supabaseAdmin
+    .from('chips_pool')
+    .insert({
+      phone_number: phoneNumber || null,
+      evolution_instance: instanceName,
+      display_name: instanceName,
+      status: 'disponivel',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(`[Evolution Webhook] Erro ao criar chip ${instanceName}:`, error.message);
+    return res.status(500).json({ error: error.message });
+  }
+
+  console.log(`[Evolution Webhook] ✅ Chip auto-registrado: ${instanceName} (${phoneNumber || 'sem número'})`);
+  return res.json({ ok: true, chip });
 });
 
 // ── POST /api/webhooks/asaas — Webhook de pagamento Asaas ─────────────────────
