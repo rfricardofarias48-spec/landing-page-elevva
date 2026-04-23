@@ -609,7 +609,24 @@ app.delete("/api/admin/delete-user/:id", async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "id obrigatório" });
 
-    // 1. Busca vagas do usuário para deletar candidatos relacionados
+    // 1. Busca perfil para liberar chip do pool
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('evolution_instance, instancia_evolution')
+      .eq('id', id)
+      .maybeSingle();
+
+    const instanceName = profile?.evolution_instance || profile?.instancia_evolution;
+
+    // Libera chip no pool se existir
+    if (instanceName) {
+      await supabaseAdmin
+        .from('chips_pool')
+        .update({ status: 'disponivel', assigned_to: null, assigned_at: null, assigned_sale_id: null })
+        .eq('evolution_instance', instanceName);
+    }
+
+    // 2. Busca vagas do usuário para deletar candidatos relacionados
     const { data: jobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', id);
     const jobIds = (jobs || []).map((j: { id: string }) => j.id);
 
@@ -621,20 +638,20 @@ app.delete("/api/admin/delete-user/:id", async (req, res) => {
       await supabaseAdmin.from('jobs').delete().in('id', jobIds);
     }
 
-    // 2. Deleta dados diretos do usuário
+    // 3. Deleta dados diretos do usuário
     await supabaseAdmin.from('agent_conversations').delete().eq('user_id', id);
     await supabaseAdmin.from('announcements').delete().eq('user_id', id);
     await supabaseAdmin.from('profiles').delete().eq('id', id);
 
-    // 3. Deleta do Auth
+    // 4. Deleta do Auth
     const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
     if (error) {
       console.error(`[Admin] delete-user auth error: ${error.message}`);
       return res.status(500).json({ error: error.message });
     }
 
-    console.log(`[Admin] User deleted: ${id}`);
-    return res.json({ ok: true });
+    console.log(`[Admin] User deleted: ${id}${instanceName ? ` | chip ${instanceName} liberado` : ''}`);
+    return res.json({ ok: true, chipReleased: !!instanceName });
   } catch (err) {
     console.error("[Admin] delete-user error:", err);
     return res.status(500).json({ error: String(err) });
