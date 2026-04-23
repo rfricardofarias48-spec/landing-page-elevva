@@ -70,7 +70,7 @@ app.get("/api/test-openai", async (req, res) => {
 
     const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.4-nano',
       messages: [{ role: 'user', content: 'Responda apenas: OK' }],
       max_tokens: 5,
     });
@@ -3686,7 +3686,7 @@ app.post("/api/admin/training-chat", async (req, res) => {
     ];
 
     const completion = await openaiClient.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.4-nano',
       messages,
       max_tokens: 500,
       temperature: 0.7,
