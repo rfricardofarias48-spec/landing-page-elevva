@@ -4295,6 +4295,14 @@ app.put("/api/chips-pool/:id", async (req, res) => {
   return res.json({ ok: true, chip: data });
 });
 
+// ── DELETE /api/chips-pool/:id — Remover chip do pool ────────────────────────
+app.delete("/api/chips-pool/:id", async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabaseAdmin.from('chips_pool').delete().eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ ok: true });
+});
+
 // ── POST /api/webhooks/asaas — Webhook de pagamento Asaas ─────────────────────
 // Dispara o onboarding automático quando o cliente paga
 app.post("/api/webhooks/asaas", async (req, res) => {

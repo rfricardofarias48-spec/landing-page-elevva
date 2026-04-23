@@ -1563,6 +1563,12 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       fetchChips();
   };
 
+  const handleDeleteChip = async (chipId: string, displayName: string) => {
+      if (!confirm(`Deletar chip "${displayName}"? Esta ação não pode ser desfeita.`)) return;
+      await fetch(`/api/chips-pool/${chipId}`, { method: 'DELETE' });
+      fetchChips();
+  };
+
   const checkChipOnline = async (chip: any) => {
       setChipsChecking(prev => ({ ...prev, [chip.id]: 'checking' }));
       try {
@@ -2331,6 +2337,13 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                               <option value="manutencao">Manutenção</option>
                                               <option value="cancelado">Cancelado</option>
                                           </select>
+                                          <button
+                                              onClick={() => handleDeleteChip(chip.id, chip.display_name || chip.evolution_instance)}
+                                              className="ml-2 p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                              title="Deletar chip"
+                                          >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
                                       </td>
                                   </tr>
                               );
