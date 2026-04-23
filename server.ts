@@ -4199,31 +4199,19 @@ app.post("/api/chips-pool/generate-qr", async (req, res) => {
   };
 
   try {
-    // Tenta criar instância
-    const createRes = await fetch(`${EVOLUTION_URL}/instance/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
-      body: JSON.stringify({ instanceName: evolutionInstance, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+    // Busca QR via connect (instância deve existir previamente no Evolution API)
+    const connectRes = await fetch(`${EVOLUTION_URL}/instance/connect/${evolutionInstance}`, {
+      headers: { 'apikey': EVOLUTION_KEY },
     });
-    const createData = await safeJson(createRes);
-    let qrBase64: string | undefined = createData?.qrcode?.base64;
+    const connectData = await safeJson(connectRes);
+    const qrBase64: string | undefined = connectData?.base64 || connectData?.qrcode?.base64;
 
-    // Se não veio QR no create (instância pode já existir), busca via connect
     if (!qrBase64) {
-      const connectRes = await fetch(`${EVOLUTION_URL}/instance/connect/${evolutionInstance}`, {
-        headers: { 'apikey': EVOLUTION_KEY },
+      const raw = connectData?._raw || JSON.stringify(connectData);
+      console.error('[Chips QR] Sem QR Code. Resposta Evolution:', raw.substring(0, 300));
+      return res.status(400).json({
+        error: `Instância "${evolutionInstance}" não encontrada no Evolution API. Crie a instância lá primeiro e tente novamente.`,
       });
-      const connectData = await safeJson(connectRes);
-      qrBase64 = connectData?.base64 || connectData?.qrcode?.base64;
-
-      if (!qrBase64 && connectData?._raw) {
-        console.error('[Chips QR] Resposta bruta do connect:', connectData._raw.substring(0, 300));
-      }
-    }
-
-    if (!qrBase64) {
-      const detail = createData?._raw ? createData._raw.substring(0, 200) : JSON.stringify(createData).substring(0, 200);
-      return res.status(400).json({ error: `Não foi possível gerar QR Code. Resposta: ${detail}` });
     }
 
     return res.json({ ok: true, qrCode: qrBase64 });

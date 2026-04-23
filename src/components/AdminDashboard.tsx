@@ -2161,6 +2161,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           {/* Etapa 1: Formulário */}
                           {chipStep === 'form' && (
                               <form onSubmit={handleAddChip} className="space-y-4">
+                                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3">
+                                      <p className="text-xs font-bold text-blue-700">Pré-requisito: crie a instância no painel do Evolution API (Coolify) com o mesmo nome que vai preencher abaixo. Depois clique em Gerar QR Code.</p>
+                                  </div>
                                   <div>
                                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Número do WhatsApp</label>
                                       <input value={chipForm.phoneNumber} onChange={e => setChipForm(f => ({...f, phoneNumber: e.target.value}))}
