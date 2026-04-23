@@ -4183,6 +4183,34 @@ app.get("/api/salespeople/:id/sales", async (req, res) => {
   }
 });
 
+// ── GET /api/chips-pool/evo-debug — Diagnóstico completo da Evolution API ───────
+app.get("/api/chips-pool/evo-debug", async (_req, res) => {
+  const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
+  const report: Record<string, any> = { url: EVOLUTION_URL, keySet: !!EVOLUTION_KEY };
+
+  const probe = async (method: string, path: string, body?: object) => {
+    try {
+      const r = await fetch(`${EVOLUTION_URL}${path}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await r.text();
+      return { status: r.status, body: text.substring(0, 300) };
+    } catch (e: any) {
+      return { status: 'ERROR', body: e.message };
+    }
+  };
+
+  report['GET /instance/fetchInstances'] = await probe('GET', '/instance/fetchInstances');
+  report['POST /instance/create'] = await probe('POST', '/instance/create', { instanceName: '__test_probe__', qrcode: false, integration: 'WHATSAPP-BAILEYS' });
+  report['GET /instance/connect/__test_probe__'] = await probe('GET', '/instance/connect/__test_probe__');
+  report['DELETE /instance/__test_probe__'] = await probe('DELETE', '/instance/__test_probe__');
+
+  return res.json(report);
+});
+
 // ── GET /api/chips-pool/evo-instances — Lista instâncias do Evolution API ──────
 app.get("/api/chips-pool/evo-instances", async (_req, res) => {
   const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
