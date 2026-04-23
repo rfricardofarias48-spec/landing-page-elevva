@@ -1481,6 +1481,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const [chipError, setChipError] = useState('');
   const [chipStep, setChipStep] = useState<'form' | 'qr' | 'success'>('form');
   const [chipQrCode, setChipQrCode] = useState('');
+  const [evoInstances, setEvoInstances] = useState<string[]>([]);
   const chipPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchChips = async () => {
@@ -1497,6 +1498,15 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       }
   };
 
+  const fetchEvoInstances = async () => {
+      try {
+          const res = await fetch('/api/chips-pool/evo-instances');
+          const data = await res.json();
+          const names = (data.instances || []).map((i: any) => i.instance?.instanceName || i.instanceName || '').filter(Boolean);
+          setEvoInstances(names);
+      } catch { /* silencioso */ }
+  };
+
   const stopChipPolling = () => {
       if (chipPollRef.current) { clearInterval(chipPollRef.current); chipPollRef.current = null; }
   };
@@ -1507,7 +1517,13 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       setChipStep('form');
       setChipQrCode('');
       setChipError('');
+      setEvoInstances([]);
       setChipForm({ phoneNumber: '', evolutionInstance: '', displayName: '', notes: '' });
+  };
+
+  const openAddChip = () => {
+      setShowAddChip(true);
+      fetchEvoInstances();
   };
 
   const handleAddChip = async (e: React.FormEvent) => {
@@ -1515,62 +1531,24 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       if (!chipForm.evolutionInstance || !chipForm.phoneNumber) return;
       setChipSaving(true);
       setChipError('');
-
-      const evoUrl = (import.meta.env.VITE_EVOLUTION_API_URL || '').replace(/\/$/, '');
-      const evoKey = import.meta.env.VITE_EVOLUTION_API_KEY || '';
-
-      const evoSafeJson = async (res: Response) => {
-          const text = await res.text();
-          try { return JSON.parse(text); } catch { return {}; }
-      };
-
       try {
-          // Tenta criar instância diretamente no Evolution API
-          const createRes = await fetch(`${evoUrl}/instance/create`, {
+          const res = await fetch('/api/chips-pool/generate-qr', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
-              body: JSON.stringify({ instanceName: chipForm.evolutionInstance, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ evolutionInstance: chipForm.evolutionInstance }),
           });
-          const createData = await evoSafeJson(createRes);
-          let qrBase64: string = createData?.qrcode?.base64 || '';
-
-          // Se create não retornou QR (instância já existe ou endpoint diferente), busca via connect
-          if (!qrBase64) {
-              const connectRes = await fetch(`${evoUrl}/instance/connect/${chipForm.evolutionInstance}`, {
-                  headers: { 'apikey': evoKey },
-              });
-              const connectData = await evoSafeJson(connectRes);
-              qrBase64 = connectData?.base64 || connectData?.qrcode?.base64 || '';
-          }
-
-          if (!qrBase64) {
-              throw new Error('Não foi possível gerar QR Code. Verifique se a instância existe no Evolution API e se o nome está correto.');
-          }
-
-          setChipQrCode(qrBase64);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao gerar QR Code');
+          setChipQrCode(data.qrCode);
           setChipStep('qr');
           setChipSaving(false);
-
-          // Polling direto no Evolution API para detectar conexão
+          // Polling via backend para detectar conexão
           chipPollRef.current = setInterval(async () => {
               try {
-                  const stateRes = await fetch(`${evoUrl}/instance/connectionState/${chipForm.evolutionInstance}`, {
-                      headers: { 'apikey': evoKey },
-                  });
-                  const stateData = await evoSafeJson(stateRes);
-                  const state = stateData?.instance?.state || stateData?.state || '';
-
-                  // Atualiza QR se ainda não conectou
-                  if (state !== 'open') {
-                      const connectRes = await fetch(`${evoUrl}/instance/connect/${chipForm.evolutionInstance}`, {
-                          headers: { 'apikey': evoKey },
-                      });
-                      const connectData = await evoSafeJson(connectRes);
-                      const newQr = connectData?.base64 || connectData?.qrcode?.base64;
-                      if (newQr) setChipQrCode(newQr);
-                  }
-
-                  if (state === 'open') {
+                  const statusRes = await fetch(`/api/chips-pool/qr-status/${chipForm.evolutionInstance}`);
+                  const statusData = await statusRes.json();
+                  if (statusData.qrCode) setChipQrCode(statusData.qrCode);
+                  if (statusData.connected) {
                       stopChipPolling();
                       const saveRes = await fetch('/api/chips-pool', {
                           method: 'POST',
@@ -2178,7 +2156,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                       <button onClick={fetchChips} className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors">
                           <RefreshCw className="w-4 h-4" /> Atualizar
                       </button>
-                      <button onClick={() => setShowAddChip(true)} className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors">
+                      <button onClick={openAddChip} className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors">
                           <Plus className="w-4 h-4" /> Adicionar Chip
                       </button>
                   </div>
@@ -2205,10 +2183,22 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           placeholder="5511999999999 (com DDI e DDD, sem espaços)" required />
                                   </div>
                                   <div>
-                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome da Instância (Evolution)</label>
-                                      <input value={chipForm.evolutionInstance} onChange={e => setChipForm(f => ({...f, evolutionInstance: e.target.value}))}
-                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                                          placeholder="ex: elevva-chip-01" required />
+                                      <div className="flex items-center justify-between mb-1.5">
+                                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Instância Evolution</label>
+                                          <button type="button" onClick={fetchEvoInstances} className="text-[10px] text-zinc-400 hover:text-zinc-600 flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Atualizar lista</button>
+                                      </div>
+                                      {evoInstances.length > 0 ? (
+                                          <select value={chipForm.evolutionInstance} onChange={e => setChipForm(f => ({...f, evolutionInstance: e.target.value}))}
+                                              className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white" required>
+                                              <option value="">Selecione a instância...</option>
+                                              {evoInstances.map(name => <option key={name} value={name}>{name}</option>)}
+                                          </select>
+                                      ) : (
+                                          <input value={chipForm.evolutionInstance} onChange={e => setChipForm(f => ({...f, evolutionInstance: e.target.value}))}
+                                              className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                              placeholder="ex: elevva-chip-01" required />
+                                      )}
+                                      {evoInstances.length === 0 && <p className="text-[10px] text-zinc-400 mt-1">Crie a instância no Evolution API (Coolify) e clique em Atualizar lista.</p>}
                                   </div>
                                   <div>
                                       <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Apelido (para identificação)</label>

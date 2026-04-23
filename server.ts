@@ -4183,6 +4183,22 @@ app.get("/api/salespeople/:id/sales", async (req, res) => {
   }
 });
 
+// ── GET /api/chips-pool/evo-instances — Lista instâncias do Evolution API ──────
+app.get("/api/chips-pool/evo-instances", async (_req, res) => {
+  const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
+  if (!EVOLUTION_URL) return res.status(500).json({ error: 'EVOLUTION_API_URL não configurada' });
+  try {
+    const r = await fetch(`${EVOLUTION_URL}/instance/fetchInstances`, { headers: { apikey: EVOLUTION_KEY } });
+    const text = await r.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+    return res.json({ ok: true, instances: Array.isArray(data) ? data : [], _raw: data });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/chips-pool/generate-qr — Cria instância Evolution e retorna QR ─
 app.post("/api/chips-pool/generate-qr", async (req, res) => {
   const { evolutionInstance } = req.body as { evolutionInstance?: string };
