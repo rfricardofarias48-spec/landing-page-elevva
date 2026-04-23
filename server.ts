@@ -4191,27 +4191,44 @@ app.post("/api/chips-pool/generate-qr", async (req, res) => {
   const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
   const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
 
+  if (!EVOLUTION_URL) return res.status(500).json({ error: 'EVOLUTION_API_URL não configurada no servidor.' });
+
+  const safeJson = async (r: Response) => {
+    const text = await r.text();
+    try { return JSON.parse(text); } catch { return { _raw: text }; }
+  };
+
   try {
+    // Tenta criar instância
     const createRes = await fetch(`${EVOLUTION_URL}/instance/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
       body: JSON.stringify({ instanceName: evolutionInstance, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
     });
-    const createData = await createRes.json() as any;
+    const createData = await safeJson(createRes);
     let qrBase64: string | undefined = createData?.qrcode?.base64;
 
+    // Se não veio QR no create (instância pode já existir), busca via connect
     if (!qrBase64) {
       const connectRes = await fetch(`${EVOLUTION_URL}/instance/connect/${evolutionInstance}`, {
         headers: { 'apikey': EVOLUTION_KEY },
       });
-      const connectData = await connectRes.json() as any;
-      qrBase64 = connectData?.base64;
+      const connectData = await safeJson(connectRes);
+      qrBase64 = connectData?.base64 || connectData?.qrcode?.base64;
+
+      if (!qrBase64 && connectData?._raw) {
+        console.error('[Chips QR] Resposta bruta do connect:', connectData._raw.substring(0, 300));
+      }
     }
 
-    if (!qrBase64) return res.status(400).json({ error: 'Não foi possível gerar QR Code. Verifique o nome da instância.' });
+    if (!qrBase64) {
+      const detail = createData?._raw ? createData._raw.substring(0, 200) : JSON.stringify(createData).substring(0, 200);
+      return res.status(400).json({ error: `Não foi possível gerar QR Code. Resposta: ${detail}` });
+    }
+
     return res.json({ ok: true, qrCode: qrBase64 });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: `Erro ao conectar com Evolution API: ${err.message}` });
   }
 });
 
@@ -4221,20 +4238,23 @@ app.get("/api/chips-pool/qr-status/:instance", async (req, res) => {
   const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
   const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
 
+  const safeJson = async (r: Response) => {
+    const text = await r.text();
+    try { return JSON.parse(text); } catch { return {}; }
+  };
+
   try {
-    const stateRes = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instance}`, {
+    const stateData = await safeJson(await fetch(`${EVOLUTION_URL}/instance/connectionState/${instance}`, {
       headers: { 'apikey': EVOLUTION_KEY },
-    });
-    const stateData = await stateRes.json() as any;
+    }));
     const state = stateData?.instance?.state || stateData?.state || 'close';
 
     if (state === 'open') return res.json({ connected: true, state });
 
-    const connectRes = await fetch(`${EVOLUTION_URL}/instance/connect/${instance}`, {
+    const connectData = await safeJson(await fetch(`${EVOLUTION_URL}/instance/connect/${instance}`, {
       headers: { 'apikey': EVOLUTION_KEY },
-    });
-    const connectData = await connectRes.json() as any;
-    return res.json({ connected: false, state, qrCode: connectData?.base64 });
+    }));
+    return res.json({ connected: false, state, qrCode: connectData?.base64 || connectData?.qrcode?.base64 });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
