@@ -387,13 +387,22 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
       const supportInstance = process.env.SUPPORT_EVOLUTION_INSTANCE || chipInstance;
       const supportKey = process.env.SUPPORT_EVOLUTION_KEY || EVOLUTION_KEY;
 
+      const sendWelcome = async (instance: string, key: string) =>
+        evolutionPost(`/message/sendText/${instance}`, { number: clientPhone, text: welcomeMsg }, key);
+
       try {
-        await evolutionPost(`/message/sendText/${supportInstance}`, {
-          number: clientPhone,
-          text: welcomeMsg,
-        }, supportKey);
+        await sendWelcome(supportInstance, supportKey);
       } catch (msgErr: any) {
-        console.warn(`[Onboarding] Etapa 10 mensagem boas-vindas falhou (não bloqueante): ${msgErr.message}`);
+        console.warn(`[Onboarding] Etapa 10 falhou via ${supportInstance}: ${msgErr.message}`);
+        // Tenta novamente usando o chip do cliente como remetente
+        if (supportInstance !== chipInstance) {
+          try {
+            await sendWelcome(chipInstance, EVOLUTION_KEY);
+            console.log(`[Onboarding] Etapa 10 enviada via chipInstance ${chipInstance}`);
+          } catch (fallbackErr: any) {
+            console.warn(`[Onboarding] Etapa 10 fallback também falhou (não bloqueante): ${fallbackErr.message}`);
+          }
+        }
       }
 
       ctx.welcomeSent = true;
