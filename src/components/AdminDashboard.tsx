@@ -2447,6 +2447,20 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       }
   };
 
+  const handleSyncProfile = async (id: string) => {
+      setRetryingOnboardId(id);
+      try {
+          const res = await fetch(`/api/sales/${id}/sync-profile`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao sincronizar');
+          await fetchAllSales();
+      } catch (err: any) {
+          alert(err.message);
+      } finally {
+          setRetryingOnboardId(null);
+      }
+  };
+
   const PeriodSelector = () => (
       <div className="flex items-center gap-2 bg-zinc-100 rounded-xl p-1">
           <div className="flex items-center bg-zinc-100 rounded-lg gap-0.5">
@@ -2686,16 +2700,19 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                   </td>
                                   <td className="p-5 text-center">
                                       <div className="flex flex-col items-center gap-1">
-                                      {s.status === 'paid' && s.onboarding_status !== 'concluido' && (
-                                          retryingOnboardId === s.id ? (
-                                              <span className="text-[10px] font-bold text-zinc-400">Processando...</span>
-                                          ) : (
-                                              <button onClick={() => handleRetryOnboarding(s.id)}
-                                                  className="text-[10px] font-black bg-zinc-900 text-white px-2.5 py-1 rounded-lg hover:bg-zinc-700 transition-colors">
-                                                  ↻ Reprocessar
-                                              </button>
-                                          )
-                                      )}
+                                      {s.status === 'paid' && retryingOnboardId === s.id ? (
+                                          <span className="text-[10px] font-bold text-zinc-400">Processando...</span>
+                                      ) : s.status === 'paid' && s.onboarding_status !== 'concluido' ? (
+                                          <button onClick={() => handleRetryOnboarding(s.id)}
+                                              className="text-[10px] font-black bg-zinc-900 text-white px-2.5 py-1 rounded-lg hover:bg-zinc-700 transition-colors">
+                                              ↻ Reprocessar
+                                          </button>
+                                      ) : s.status === 'paid' && s.onboarding_status === 'concluido' ? (
+                                          <button onClick={() => handleSyncProfile(s.id)}
+                                              className="text-[10px] font-bold text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 px-2.5 py-1 rounded-lg transition-colors">
+                                              ↺ Sincronizar
+                                          </button>
+                                      ) : null}
                                       {s.status === 'pending' && (
                                           confirmDeleteId === s.id ? (
                                               <div className="flex items-center gap-1.5 justify-center">

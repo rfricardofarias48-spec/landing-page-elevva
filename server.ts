@@ -4755,6 +4755,57 @@ app.get("/api/salespeople/finance", async (_req, res) => {
   }
 });
 
+// ── POST /api/sales/:id/sync-profile — Sincroniza campos do perfil a partir da venda ──
+// Útil quando o onboarding já está 'concluido' mas o perfil ficou desatualizado
+app.post("/api/sales/:id/sync-profile", async (req, res) => {
+  const { id } = req.params;
+
+  const { data: sale } = await supabaseAdmin
+    .from('sales')
+    .select('client_email, client_user_id, amount, plan, onboarding_context, status')
+    .eq('id', id).single();
+
+  if (!sale) return res.status(404).json({ error: 'Venda não encontrada' });
+  if (sale.status !== 'paid') return res.status(400).json({ error: 'Venda não está paga' });
+
+  // Encontrar userId pelo email se não tiver salvo na venda
+  let userId = sale.client_user_id;
+  if (!userId) {
+    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+    const user = users?.find((u: any) => u.email === sale.client_email);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado para esse email' });
+    userId = user.id;
+  }
+
+  const ctx = sale.onboarding_context || {};
+  const chipInstance = ctx.chipInstance || null;
+  const chipPhone    = ctx.chipPhone    || null;
+  const inboxId      = ctx.inboxId      || null;
+  const chatwootUserId   = ctx.chatwootUserId   || null;
+  const chatwootUserToken = ctx.chatwootUserToken || null;
+
+  const { error } = await supabaseAdmin.from('profiles').update({
+    ...(chipInstance ? { instancia_evolution: chipInstance, evolution_instance: chipInstance } : {}),
+    ...(chipPhone    ? { whatsapp_number: chipPhone } : {}),
+    ...(inboxId      ? { chatwoot_inbox_id: inboxId } : {}),
+    ...(chatwootUserId   ? { chatwoot_user_id: chatwootUserId } : {}),
+    ...(chatwootUserToken ? { chatwoot_user_token: chatwootUserToken } : {}),
+    plan_price: sale.amount ?? null,
+    evolution_token: process.env.EVOLUTION_API_KEY || null,
+    status_automacao: true,
+  }).eq('id', userId);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Também salva client_user_id na venda se não tinha
+  if (!sale.client_user_id) {
+    await supabaseAdmin.from('sales').update({ client_user_id: userId }).eq('id', id);
+  }
+
+  console.log(`[SyncProfile] ✅ Perfil sincronizado para userId=${userId} venda=${id}`);
+  return res.json({ ok: true });
+});
+
 // ── POST /api/sales/:id/retry — Reprocessar onboarding com falha ──────────────
 app.post("/api/sales/:id/retry", async (req, res) => {
   const { id } = req.params;
