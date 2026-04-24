@@ -144,7 +144,7 @@ REGRAS:
         model: 'gpt-5.4-nano',
         response_format: { type: 'json_object' },
         temperature: 0.1,
-        max_tokens: 1500,
+        max_completion_tokens: 1500,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `CURRÍCULO:\n\n${pdfText.substring(0, 12000)}` },
@@ -233,7 +233,7 @@ export async function classifyIntent(
       model: 'gpt-5.4-nano',
       response_format: { type: 'json_object' },
       temperature: 0,
-      max_tokens: 60,
+      max_completion_tokens: 60,
       messages: [
         { role: 'system', content: INTENT_SYSTEM },
         { role: 'user', content: userMsg },
