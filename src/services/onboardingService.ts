@@ -418,12 +418,14 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
       chatwoot_inbox_id: inboxId,
       chatwoot_user_id: chatwootUserId,
       chatwoot_user_token: chatwootUserToken,
+      chatwoot_account_id: CHATWOOT_ACCOUNT_ID,
       evolution_instance: chipInstance,
-      instancia_evolution: chipInstance,   // campo usado pelo servidor de automação
-      evolution_token: EVOLUTION_KEY,      // chave global para automação do agente
+      instancia_evolution: chipInstance,
+      evolution_token: EVOLUTION_KEY,
       whatsapp_number: chipPhone,
-      plan_price: sale.amount ?? null,     // preço real da venda
-      status_automacao: true,              // ativa automação imediatamente após onboarding
+      telefone_agente: chipPhone,          // número do agente WhatsApp visível nas configurações
+      plan_price: sale.amount ?? null,
+      status_automacao: true,
       onboarded_at: new Date().toISOString(),
     }).eq('id', userId);
 

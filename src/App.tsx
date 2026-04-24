@@ -2167,11 +2167,18 @@ const App: React.FC = () => {
                   <div className="relative z-10">
                       <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
                       <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{normalizedPlan}</h3>
-                      <p className="text-zinc-400 text-sm font-medium">Faça upgrade para liberar recursos.</p>
+                      <p className="text-zinc-400 text-sm font-medium">
+                        {normalizedPlan === 'ENTERPRISE' ? 'Acesso ilimitado a todas as funcionalidades.' :
+                         normalizedPlan === 'PRO' ? 'Até 15 vagas e 500 currículos por mês.' :
+                         normalizedPlan === 'ESSENCIAL' ? 'Até 5 vagas e 150 currículos por mês.' :
+                         'Faça upgrade para liberar recursos.'}
+                      </p>
                   </div>
+                  {normalizedPlan !== 'ENTERPRISE' && (
                   <button onClick={() => setCurrentTab('BILLING')} className="mt-8 w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 relative z-10">
                       VER PLANOS
                   </button>
+                  )}
                   <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-zinc-800 rounded-full blur-[50px] opacity-50 pointer-events-none"></div>
               </div>
           </div>

@@ -4794,13 +4794,16 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
 
   console.log(`[SyncProfile] userId=${userId} chip=${chipInstance} phone=${chipPhone} inbox=${inboxId} amount=${sale.amount}`);
 
+  const chatwootAccountId = parseInt(process.env.CHATWOOT_ACCOUNT_ID || '1', 10);
+
   const updates: Record<string, any> = {
     plan_price: sale.amount ?? null,
     evolution_token: process.env.EVOLUTION_API_KEY || null,
     status_automacao: true,
+    chatwoot_account_id: chatwootAccountId,
   };
   if (chipInstance) { updates.instancia_evolution = chipInstance; updates.evolution_instance = chipInstance; }
-  if (chipPhone)    { updates.whatsapp_number = chipPhone; }
+  if (chipPhone)    { updates.whatsapp_number = chipPhone; updates.telefone_agente = chipPhone; }
   if (inboxId)      { updates.chatwoot_inbox_id = inboxId; }
   if (chatwootUserId)    { updates.chatwoot_user_id = chatwootUserId; }
   if (chatwootUserToken) { updates.chatwoot_user_token = chatwootUserToken; }
