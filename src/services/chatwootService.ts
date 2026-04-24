@@ -252,11 +252,14 @@ export async function configureChatwootOnEvolution(
     return false;
   }
 
+  // Sanitize token — remove whitespace/newlines that cause "Invalid character in header" on Evolution side
+  const cleanToken = chatwootToken.trim().replace(/[\r\n\t"']/g, '');
+
   // Evolution API v2 uses camelCase body fields
   const body = {
     enabled: true,
     accountId: String(chatwootAccountId),
-    token: chatwootToken,
+    token: cleanToken,
     url: chatwootUrl,
     signMsg: false,
     reopenConversation: true,
@@ -269,14 +272,11 @@ export async function configureChatwootOnEvolution(
     ...(inboxName ? { nameInbox: inboxName } : {}),
   };
 
-  // Evolution API v2: POST /chatwoot/set/{instance}
-  const paths = [
-    `/chatwoot/set/${instance}`,
-    `/chatwoot/${instance}`,
-  ];
+  // Evolution API v2: POST /chatwoot/set/{instance} (único endpoint válido)
+  const paths = [`/chatwoot/set/${instance}`];
 
   for (const path of paths) {
-    for (const method of ['POST', 'PUT']) {
+    for (const method of ['POST']) {
       try {
         const res = await fetch(`${EVOLUTION_URL}${path}`, {
           method,
