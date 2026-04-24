@@ -4777,33 +4777,43 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
     userId = user.id;
   }
 
+  // Busca chip atribuído a este usuário na chips_pool (fonte de verdade)
+  const { data: chip } = await supabaseAdmin
+    .from('chips_pool')
+    .select('evolution_instance, phone_number')
+    .eq('assigned_to', userId)
+    .maybeSingle();
+
+  // Contexto salvo como fallback
   const ctx = sale.onboarding_context || {};
-  const chipInstance = ctx.chipInstance || null;
-  const chipPhone    = ctx.chipPhone    || null;
-  const inboxId      = ctx.inboxId      || null;
-  const chatwootUserId   = ctx.chatwootUserId   || null;
+  const chipInstance = chip?.evolution_instance || ctx.chipInstance || null;
+  const chipPhone    = chip?.phone_number        || ctx.chipPhone    || null;
+  const inboxId           = ctx.inboxId           || null;
+  const chatwootUserId    = ctx.chatwootUserId    || null;
   const chatwootUserToken = ctx.chatwootUserToken || null;
 
-  const { error } = await supabaseAdmin.from('profiles').update({
-    ...(chipInstance ? { instancia_evolution: chipInstance, evolution_instance: chipInstance } : {}),
-    ...(chipPhone    ? { whatsapp_number: chipPhone } : {}),
-    ...(inboxId      ? { chatwoot_inbox_id: inboxId } : {}),
-    ...(chatwootUserId   ? { chatwoot_user_id: chatwootUserId } : {}),
-    ...(chatwootUserToken ? { chatwoot_user_token: chatwootUserToken } : {}),
+  console.log(`[SyncProfile] userId=${userId} chip=${chipInstance} phone=${chipPhone} inbox=${inboxId} amount=${sale.amount}`);
+
+  const updates: Record<string, any> = {
     plan_price: sale.amount ?? null,
     evolution_token: process.env.EVOLUTION_API_KEY || null,
     status_automacao: true,
-  }).eq('id', userId);
+  };
+  if (chipInstance) { updates.instancia_evolution = chipInstance; updates.evolution_instance = chipInstance; }
+  if (chipPhone)    { updates.whatsapp_number = chipPhone; }
+  if (inboxId)      { updates.chatwoot_inbox_id = inboxId; }
+  if (chatwootUserId)    { updates.chatwoot_user_id = chatwootUserId; }
+  if (chatwootUserToken) { updates.chatwoot_user_token = chatwootUserToken; }
 
+  const { error } = await supabaseAdmin.from('profiles').update(updates).eq('id', userId);
   if (error) return res.status(500).json({ error: error.message });
 
-  // Também salva client_user_id na venda se não tinha
   if (!sale.client_user_id) {
     await supabaseAdmin.from('sales').update({ client_user_id: userId }).eq('id', id);
   }
 
-  console.log(`[SyncProfile] ✅ Perfil sincronizado para userId=${userId} venda=${id}`);
-  return res.json({ ok: true });
+  console.log(`[SyncProfile] ✅ Perfil sincronizado para userId=${userId} chip=${chipInstance}`);
+  return res.json({ ok: true, chipInstance, chipPhone });
 });
 
 // ── POST /api/sales/:id/retry — Reprocessar onboarding com falha ──────────────
