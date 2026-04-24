@@ -348,26 +348,45 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     // ── ETAPA 9: Integrar Evolution com Chatwoot ──────────────────────────────
     if (!ctx.chatwootIntegrated) {
       console.log('[Onboarding] Etapa 9: integrar Evolution com Chatwoot');
-      if (CHATWOOT_URL && CHATWOOT_ADMIN_TOKEN) {
-        try {
-          await evolutionPost(`/chatwoot/set/${chipInstance}`, {
-            enabled: true,
-            accountId: CHATWOOT_ACCOUNT_ID,
-            token: CHATWOOT_ADMIN_TOKEN,
-            url: CHATWOOT_URL,
-            signMsg: false,
-            reopenConversation: true,
-            conversationPending: false,
-            importContacts: true,
-            nameInbox: `${sale.client_name} — Elevva`,
-            mergeBrasilContacts: true,
-            importMessages: false,
-            daysLimitImportMessages: 0,
-            autoCreate: true,
-          });
-        } catch (chatwootErr: any) {
-          console.warn(`[Onboarding] Etapa 9 Chatwoot falhou (não bloqueante): ${chatwootErr.message}`);
+      if (CHATWOOT_URL && chatwootUserToken) {
+        const chatwootBody = {
+          enabled: true,
+          account_id: String(CHATWOOT_ACCOUNT_ID),
+          token: chatwootUserToken,          // token do usuário, não do admin global
+          url: CHATWOOT_URL,
+          sign_msg: false,
+          reopen_conversation: true,
+          conversation_pending: false,
+          import_contacts: true,
+          name_inbox: `${sale.client_name} — Elevva`,
+          merge_brazil_contacts: true,
+          import_messages: false,
+          days_limit_import_messages: 0,
+          auto_create: true,
+        };
+        // tenta POST /chatwoot/set/:instance e PUT /chatwoot/:instance como fallback
+        let evo9Ok = false;
+        for (const [method, path] of [['POST', `/chatwoot/set/${chipInstance}`], ['PUT', `/chatwoot/set/${chipInstance}`], ['POST', `/chatwoot/${chipInstance}`]] as [string, string][]) {
+          try {
+            const r = await fetch(`${EVOLUTION_URL}${path}`, {
+              method,
+              headers: { 'Content-Type': 'application/json', apikey: EVOLUTION_KEY },
+              body: JSON.stringify(chatwootBody),
+            });
+            if (r.ok) {
+              console.log(`[Onboarding] Etapa 9 Chatwoot OK via ${method} ${path}`);
+              evo9Ok = true;
+              break;
+            }
+            const txt = await r.text();
+            console.warn(`[Onboarding] Etapa 9 ${method} ${path} → ${r.status}: ${txt.substring(0, 150)}`);
+          } catch (e: any) {
+            console.warn(`[Onboarding] Etapa 9 ${method} ${path} exception: ${e.message}`);
+          }
         }
+        if (!evo9Ok) console.warn('[Onboarding] Etapa 9: nenhum endpoint de Chatwoot respondeu OK — verifique Evolution API');
+      } else {
+        console.warn('[Onboarding] Etapa 9 ignorada: CHATWOOT_URL ou chatwootUserToken ausente');
       }
       ctx.chatwootIntegrated = true;
       await saveContext(saleId, 9, ctx);
@@ -423,6 +442,7 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
       chatwoot_inbox_id: inboxId,
       chatwoot_user_id: chatwootUserId,
       chatwoot_user_token: chatwootUserToken,
+      chatwoot_token: chatwootUserToken,    // espelhado no campo usado pelas configurações do admin
       chatwoot_account_id: CHATWOOT_ACCOUNT_ID,
       evolution_instance: chipInstance,
       instancia_evolution: chipInstance,

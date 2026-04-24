@@ -48,6 +48,8 @@ export const AdminDashboard: React.FC = () => {
   const [tempChatwootAccountId, setTempChatwootAccountId] = useState('');
   const [tempChatwootToken, setTempChatwootToken] = useState('');
   const [tempChatwootInboxId, setTempChatwootInboxId] = useState('');
+  const [reconfigChatwootLoading, setReconfigChatwootLoading] = useState(false);
+  const [reconfigChatwootMsg, setReconfigChatwootMsg] = useState<string | null>(null);
 
   // States para Controle Agente
   const [agentSubTab, setAgentSubTab] = useState<'trabalho' | 'atendimento' | 'treinamento'>('trabalho');
@@ -451,6 +453,21 @@ export const AdminDashboard: React.FC = () => {
       } finally {
           setActionLoading(false);
       }
+  };
+
+  const handleReconfigChatwoot = async () => {
+    if (!selectedUser) return;
+    setReconfigChatwootLoading(true);
+    setReconfigChatwootMsg(null);
+    try {
+      const res = await fetch(`/api/admin/reconfigure-chatwoot/${selectedUser.id}`, { method: 'POST' });
+      const data = await res.json() as { ok: boolean; message?: string; error?: string };
+      setReconfigChatwootMsg(data.ok ? `✅ ${data.message}` : `❌ ${data.error || 'Falha'}`);
+    } catch (err) {
+      setReconfigChatwootMsg('❌ Erro de rede');
+    } finally {
+      setReconfigChatwootLoading(false);
+    }
   };
 
   const DEFAULT_RECRUITER_PROMPT = `Você é um especialista em recrutamento e seleção. Analise o currículo abaixo para a vaga indicada e retorne APENAS um JSON válido, sem markdown, sem explicações.
@@ -3655,6 +3672,19 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 </div>
                                             </div>
                                             <p className="text-[10px] text-slate-400 mt-1">Chatwoot → Configurações → Integrações → API de Acesso</p>
+                                            <div className="mt-3 flex items-center gap-3 flex-wrap">
+                                                <button
+                                                    onClick={handleReconfigChatwoot}
+                                                    disabled={reconfigChatwootLoading}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                                                >
+                                                    {reconfigChatwootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                                                    Reconfigurar no Evolution
+                                                </button>
+                                                {reconfigChatwootMsg && (
+                                                    <span className="text-xs font-medium text-slate-600">{reconfigChatwootMsg}</span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">

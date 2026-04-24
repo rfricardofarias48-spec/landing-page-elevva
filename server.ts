@@ -601,6 +601,47 @@ app.post("/api/admin/configure-chatwoot", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN: Re-configurar Chatwoot na instância Evolution de um usuário
+// POST /api/admin/reconfigure-chatwoot/:userId
+// Lê os dados salvos no perfil e refaz a integração Evolution ↔ Chatwoot.
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/admin/reconfigure-chatwoot/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data: profile, error } = await supabaseAdmin
+      .from('profiles')
+      .select('instancia_evolution, evolution_token, chatwoot_account_id, chatwoot_user_token, chatwoot_token, chatwoot_inbox_id, name')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) return res.status(404).json({ ok: false, error: 'Perfil não encontrado' });
+
+    const instance = profile.instancia_evolution;
+    const evoToken = profile.evolution_token || process.env.EVOLUTION_API_KEY || '';
+    const accountId = profile.chatwoot_account_id;
+    const userToken = profile.chatwoot_user_token || profile.chatwoot_token;
+    const inboxId = profile.chatwoot_inbox_id;
+
+    if (!instance) return res.status(400).json({ ok: false, error: 'Instância Evolution não configurada no perfil' });
+    if (!userToken) return res.status(400).json({ ok: false, error: 'Token Chatwoot não encontrado no perfil. Preencha "Token de Acesso" nas configurações.' });
+    if (!accountId) return res.status(400).json({ ok: false, error: 'Account ID Chatwoot não configurado no perfil' });
+
+    const ok = await configureChatwootOnEvolution(instance, evoToken, accountId, userToken, inboxId || 0);
+
+    if (ok) {
+      // Espelha token no campo chatwoot_token para o painel ficar preenchido
+      await supabaseAdmin.from('profiles').update({ chatwoot_token: userToken }).eq('id', userId);
+      console.log(`[Admin] Chatwoot re-configurado com sucesso para ${profile.name} / ${instance}`);
+    }
+
+    return res.json({ ok, instance, accountId, inboxId, message: ok ? 'Integração configurada com sucesso!' : 'Falha ao configurar — veja logs do servidor' });
+  } catch (err) {
+    console.error("[Admin] reconfigure-chatwoot error:", err);
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // ADMIN: Deletar usuário (profiles + Supabase Auth)
 // DELETE /api/admin/delete-user/:id
 // ─────────────────────────────────────────────────────────────────────
