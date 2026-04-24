@@ -151,25 +151,20 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
       color: var(--muted);
     }
 
-    /* ── Job pill ── */
-    .job-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    /* ── Job info ── */
+    .job-info {
       background: var(--white);
       border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 8px 16px;
+      border-radius: var(--r);
+      padding: 14px 18px;
       margin-bottom: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
-    .job-pill-dot {
-      width: 8px; height: 8px;
-      background: var(--green);
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .job-pill-text { font-size: 13px; font-weight: 600; color: var(--ink-2); }
-    .job-pill-meta { font-size: 12px; color: var(--muted); }
+    .job-info-row { display: flex; align-items: baseline; gap: 6px; }
+    .job-info-key { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; min-width: 90px; }
+    .job-info-val { font-size: 13px; font-weight: 600; color: var(--ink-2); }
 
     /* ── Rebooking notice ── */
     .rebooking-notice {
@@ -366,10 +361,13 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
     <p class="hero-sub">${isReschedule ? 'Selecione um novo horário abaixo.' : 'Selecione o melhor horário para sua entrevista.'}</p>
   </div>
 
-  <div class="job-pill">
-    <div class="job-pill-dot"></div>
-    <span class="job-pill-text">${jobTitle}</span>
-    ${metaLine ? `<span class="job-pill-meta">· ${metaLine}</span>` : ''}
+  <div class="job-info">
+    <div class="job-info-row">
+      <span class="job-info-key">Cargo</span>
+      <span class="job-info-val">${jobTitle}</span>
+    </div>
+    ${interviewerName ? `<div class="job-info-row"><span class="job-info-key">Entrevistador</span><span class="job-info-val">${interviewerName}</span></div>` : ''}
+    ${format === 'PRESENCIAL' && location ? `<div class="job-info-row"><span class="job-info-key">Local</span><span class="job-info-val">${location}</span></div>` : ''}
   </div>
 
   ${currentBookingHTML}
