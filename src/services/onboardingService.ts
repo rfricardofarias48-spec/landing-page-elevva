@@ -348,23 +348,24 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     // ── ETAPA 9: Integrar Evolution com Chatwoot ──────────────────────────────
     if (!ctx.chatwootIntegrated) {
       console.log('[Onboarding] Etapa 9: integrar Evolution com Chatwoot');
-      if (CHATWOOT_URL && chatwootUserToken) {
+      const chatwootToken9 = chatwootUserToken || CHATWOOT_ADMIN_TOKEN;
+      if (CHATWOOT_URL && chatwootToken9) {
+        // Evolution API v2 usa camelCase nos campos do body
         const chatwootBody = {
           enabled: true,
-          account_id: String(CHATWOOT_ACCOUNT_ID),
-          token: chatwootUserToken,          // token do usuário, não do admin global
+          accountId: String(CHATWOOT_ACCOUNT_ID),
+          token: chatwootToken9,
           url: CHATWOOT_URL,
-          sign_msg: false,
-          reopen_conversation: true,
-          conversation_pending: false,
-          import_contacts: true,
-          name_inbox: `${sale.client_name} — Elevva`,
-          merge_brazil_contacts: true,
-          import_messages: false,
-          days_limit_import_messages: 0,
-          auto_create: true,
+          signMsg: false,
+          reopenConversation: true,
+          conversationPending: false,
+          importContacts: true,
+          nameInbox: `${sale.client_name} — Elevva`,
+          mergeBrazilContacts: true,
+          importMessages: false,
+          daysLimitImportMessages: 0,
+          autoCreate: true,
         };
-        // tenta POST /chatwoot/set/:instance e PUT /chatwoot/:instance como fallback
         let evo9Ok = false;
         for (const [method, path] of [['POST', `/chatwoot/set/${chipInstance}`], ['PUT', `/chatwoot/set/${chipInstance}`], ['POST', `/chatwoot/${chipInstance}`]] as [string, string][]) {
           try {
@@ -384,9 +385,9 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
             console.warn(`[Onboarding] Etapa 9 ${method} ${path} exception: ${e.message}`);
           }
         }
-        if (!evo9Ok) console.warn('[Onboarding] Etapa 9: nenhum endpoint de Chatwoot respondeu OK — verifique Evolution API');
+        if (!evo9Ok) console.warn('[Onboarding] Etapa 9: nenhum endpoint de Chatwoot respondeu OK — verifique Evolution API v2');
       } else {
-        console.warn('[Onboarding] Etapa 9 ignorada: CHATWOOT_URL ou chatwootUserToken ausente');
+        console.warn('[Onboarding] Etapa 9 ignorada: CHATWOOT_URL ou token ausente');
       }
       ctx.chatwootIntegrated = true;
       await saveContext(saleId, 9, ctx);

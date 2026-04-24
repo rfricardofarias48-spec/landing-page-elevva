@@ -242,6 +242,7 @@ export async function configureChatwootOnEvolution(
   chatwootAccountId: number,
   chatwootToken: string,
   chatwootInboxId: number,
+  inboxName?: string,
 ): Promise<boolean> {
   const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
   const chatwootUrl = CHATWOOT_URL;
@@ -251,30 +252,31 @@ export async function configureChatwootOnEvolution(
     return false;
   }
 
+  // Evolution API v2 uses camelCase body fields
   const body = {
     enabled: true,
-    account_id: String(chatwootAccountId),
+    accountId: String(chatwootAccountId),
     token: chatwootToken,
     url: chatwootUrl,
-    sign_msg: false,
-    reopen_conversation: true,
-    conversation_pending: false,
-    merge_brazil_contacts: true,
-    import_contacts: false,
-    import_messages: false,
-    days_limit_import_messages: 0,
-    auto_create: false,
+    signMsg: false,
+    reopenConversation: true,
+    conversationPending: false,
+    mergeBrazilContacts: true,
+    importContacts: false,
+    importMessages: false,
+    daysLimitImportMessages: 0,
+    autoCreate: true,
+    ...(inboxName ? { nameInbox: inboxName } : {}),
   };
 
-  // Try multiple Evolution GO endpoint variants
+  // Evolution API v2: POST /chatwoot/set/{instance}
   const paths = [
     `/chatwoot/set/${instance}`,
     `/chatwoot/${instance}`,
   ];
-  const methods = ['POST', 'PUT'];
 
-  for (const method of methods) {
-    for (const path of paths) {
+  for (const path of paths) {
+    for (const method of ['POST', 'PUT']) {
       try {
         const res = await fetch(`${EVOLUTION_URL}${path}`, {
           method,
@@ -285,17 +287,17 @@ export async function configureChatwootOnEvolution(
           body: JSON.stringify(body),
         });
         if (res.ok) {
-          console.log(`[Chatwoot] Evolution GO configured via ${method} ${path}`);
+          console.log(`[Chatwoot] Evolution v2 configured via ${method} ${path}`);
           return true;
         }
         const text = await res.text();
-        console.log(`[Chatwoot] ${method} ${path} → ${res.status}: ${text.substring(0, 150)}`);
+        console.log(`[Chatwoot] ${method} ${path} → ${res.status}: ${text.substring(0, 200)}`);
       } catch (err) {
         console.log(`[Chatwoot] ${method} ${path} failed:`, err);
       }
     }
   }
 
-  console.error(`[Chatwoot] Failed to configure Evolution GO instance: ${instance}`);
+  console.error(`[Chatwoot] Failed to configure Evolution v2 instance: ${instance}`);
   return false;
 }
