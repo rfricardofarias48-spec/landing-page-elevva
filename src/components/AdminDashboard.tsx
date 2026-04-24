@@ -97,6 +97,11 @@ export const AdminDashboard: React.FC = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (currentView === 'CHIPS') fetchChips();
+    if (currentView === 'OVERVIEW') fetchAllSales();
+  }, [currentView]);
+
   // Sempre que o usuário selecionado muda, reinicia os campos do agente com os dados DESSE usuário
   useEffect(() => {
     if (selectedUser) {
@@ -2133,7 +2138,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
   // ── Render Chips ──────────────────────────────────────────────────────────────
   const renderChips = () => {
-      if (chips.length === 0 && !chipsLoading) fetchChips();
 
       const disponivel = chipsSummary.disponivel || 0;
       const emUso = chipsSummary.em_uso || 0;
@@ -3190,7 +3194,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                 </div>
             )}
 
-            {currentView === 'OVERVIEW' && (() => { if (allSales.length === 0 && !allSalesLoading) fetchAllSales(); return renderOverview(); })()}
+            {currentView === 'OVERVIEW' && renderOverview()}
             {currentView === 'USERS' && renderUsersList()}
             {currentView === 'ADS' && renderAdsManager()}
             {currentView === 'FINANCE' && renderFinance()} 

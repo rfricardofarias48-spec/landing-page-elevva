@@ -4294,6 +4294,7 @@ app.get("/api/chips-pool/qr-status/:instance", async (req, res) => {
 
 // ── GET /api/chips-pool — Listar chips do pool ────────────────────────────────
 app.get("/api/chips-pool", async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   try {
     const { data: chips } = await supabaseAdmin
       .from('chips_pool').select('*').order('created_at', { ascending: false });
