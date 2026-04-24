@@ -78,20 +78,21 @@ async function sendTypingPresence(instance: string, jid: string, durationMs: num
 
 async function post(path: string, body: Record<string, unknown>, apiKey?: string): Promise<{ ok: boolean; data: unknown }> {
   const key = apiKey || API_KEY;
+  const fullUrl = `${BASE_URL}${path}`;
   try {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const res = await fetch(fullUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: key },
       body: JSON.stringify(body),
     });
     const text = await res.text();
     if (!res.ok) {
-      console.error(`[Evolution] ${path} → HTTP ${res.status}: ${text}`);
+      console.error(`[Evolution] POST ${fullUrl} → HTTP ${res.status}: ${text.substring(0, 200)}`);
       return { ok: false, data: null };
     }
     try { return { ok: true, data: JSON.parse(text) }; } catch { return { ok: true, data: null }; }
   } catch (err) {
-    console.error(`[Evolution] fetch error on ${path}:`, err);
+    console.error(`[Evolution] fetch error on ${fullUrl}:`, err);
     return { ok: false, data: null };
   }
 }
