@@ -53,9 +53,11 @@ function isSlotExpired(slotDate: string, slotTime: string): boolean {
  * - Preserva slots já reservados (is_booked=true)
  */
 async function syncInterviewSlots(jobId: string, userId: string, supabase: SupabaseClient): Promise<void> {
+  // Usar horário de Brasília (UTC-3) para comparação de datas/horas
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
-  const currentTime = now.toTimeString().slice(0, 5); // HH:MM
+  const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+  const today = brNow.toISOString().split('T')[0];
+  const currentTime = brNow.toISOString().split('T')[1].slice(0, 5); // HH:MM em BR
 
   // 1. Deletar slots vencidos e não reservados
   const { data: allSlots } = await supabase
@@ -72,16 +74,22 @@ async function syncInterviewSlots(jobId: string, userId: string, supabase: Supab
     await supabase.from('interview_slots').delete().in('id', expiredIds);
   }
 
-  // 2. Buscar slots disponíveis do usuário (source of truth)
-  const { data: availSlots } = await supabase
+  // 2. Buscar slots disponíveis do usuário — filtra datas passadas no JS (evita .or aninhado)
+  const { data: rawAvailSlots } = await supabase
     .from('availability_slots')
     .select('slot_date, slot_time, format, location, interviewer_name')
     .eq('user_id', userId)
-    .or(`slot_date.gt.${today},and(slot_date.eq.${today},slot_time.gt.${currentTime})`)
+    .gte('slot_date', today)
     .order('slot_date', { ascending: true })
     .order('slot_time', { ascending: true });
 
-  if (!availSlots?.length) return;
+  const availSlots = (rawAvailSlots || []).filter((s: any) =>
+    s.slot_date > today || (s.slot_date === today && s.slot_time > currentTime)
+  );
+
+  console.log(`[Agent] syncInterviewSlots: ${rawAvailSlots?.length ?? 0} slots brutos, ${availSlots.length} válidos para job ${jobId}`);
+
+  if (!availSlots.length) return;
 
   // 3. Buscar interview_slots existentes para evitar duplicatas
   const { data: existing } = await supabase
@@ -1075,21 +1083,29 @@ export async function triggerSchedulingForCandidates(
   // Sync interview_slots with availability_slots (removes expired, adds new)
   await syncInterviewSlots(jobId, userId, supabase);
 
+  // Usar horário de Brasília (UTC-3)
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
-  const currentTime = now.toTimeString().slice(0, 5);
+  const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+  const today = brNow.toISOString().split('T')[0];
+  const currentTime = brNow.toISOString().split('T')[1].slice(0, 5);
 
-  // Get available slots for this job (already synced, filter expired by date+time)
-  const { data: slots } = await supabase
+  // Get available slots for this job — filtra no JS para evitar .or aninhado
+  const { data: rawSlots } = await supabase
     .from('interview_slots')
     .select('id, slot_date, slot_time, format, location, interviewer_name')
     .eq('job_id', jobId)
     .eq('is_booked', false)
-    .or(`slot_date.gt.${today},and(slot_date.eq.${today},slot_time.gt.${currentTime})`)
+    .gte('slot_date', today)
     .order('slot_date', { ascending: true })
     .order('slot_time', { ascending: true });
 
-  if (!slots || slots.length === 0) {
+  const slots = (rawSlots || []).filter((s: any) =>
+    s.slot_date > today || (s.slot_date === today && s.slot_time > currentTime)
+  );
+
+  console.log(`[Agent] triggerScheduling: ${rawSlots?.length ?? 0} slots brutos, ${slots.length} válidos para job ${jobId}`);
+
+  if (slots.length === 0) {
     throw new Error('Nenhum horário disponível. Cadastre horários em "Horários Disponíveis" antes de disparar o agente.');
   }
 
