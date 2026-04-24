@@ -4413,8 +4413,12 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (r
           }
 
           console.log(`[EvoWH] → agente instance=${instanceName} phone=${phone} type=${messageType}`);
-          processIncomingMessage(instanceName, phone, pushName, messageType, textContent, null, null, supabaseAdmin, undefined)
-            .catch((e: any) => console.error(`[EvoWH] processIncomingMessage error: ${e.message}`));
+          // AWAIT: no Vercel o processo termina após res.json(), fire-and-forget não funciona
+          try {
+            await processIncomingMessage(instanceName, phone, pushName, messageType, textContent, null, null, supabaseAdmin, undefined);
+          } catch (e: any) {
+            console.error(`[EvoWH] processIncomingMessage error: ${e.message}`);
+          }
         }
       }
       return res.json({ ok: true });
