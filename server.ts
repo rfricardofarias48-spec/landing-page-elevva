@@ -4380,64 +4380,68 @@ app.delete("/api/chips-pool/:id", async (req, res) => {
 //   /api/webhooks/evolution/connection-update, /api/webhooks/evolution/messages-set, etc.
 // Auto-registra chips no pool quando uma instância conecta ao WhatsApp
 app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (req, res) => {
-  const body = req.body as any;
-  // Com WEBHOOK_BY_EVENTS=true o evento vem no path param e/ou em body.event
-  const eventFromPath = ((req.params as any).event || '').toUpperCase().replace(/-/g, '_');
-  const event = (body?.event || eventFromPath || '').toUpperCase().replace(/-/g, '_');
-  const instanceName = body?.instance || '';
-  const state = body?.data?.state || '';
+  try {
+    const body = req.body as any;
+    const eventFromPath = ((req.params as any).event || '').toUpperCase().replace(/-/g, '_');
+    const event = (body?.event || eventFromPath || '').toUpperCase().replace(/[-\.]/g, '_');
+    const instanceName = body?.instance || body?.data?.instance || '';
+    const state = body?.data?.state || body?.data?.connection || '';
 
-  console.log(`[Evolution Webhook] path=${req.path} evento=${event} instancia=${instanceName} state=${state}`);
+    // Log completo para debug
+    console.log(`[EvoWH] path=${req.path} event=${event} instance=${instanceName} state=${state} bodyKeys=${Object.keys(body||{}).join(',')} dataKeys=${Object.keys(body?.data||{}).join(',')}`);
 
-  // Só processa quando uma instância conecta com sucesso
-  const isConnectionUpdate = event === 'CONNECTION_UPDATE';
-  if (!isConnectionUpdate || state !== 'open' || !instanceName) {
-    return res.json({ ok: true, ignored: true });
-  }
+    if (event !== 'CONNECTION_UPDATE' || state !== 'open' || !instanceName) {
+      console.log(`[EvoWH] ignored: event=${event} state=${state} instance=${!!instanceName}`);
+      return res.json({ ok: true, ignored: true });
+    }
 
-  // Verifica se chip já existe para essa instância
-  const { data: existing, error: existErr } = await supabaseAdmin
-    .from('chips_pool')
-    .select('id')
-    .eq('evolution_instance', instanceName)
-    .maybeSingle();
+    console.log(`[EvoWH] processando conexao aberta para instancia=${instanceName}`);
 
-  console.log(`[Evolution Webhook] existing=${JSON.stringify(existing)} existErr=${existErr?.message}`);
-
-  if (existing) {
-    await supabaseAdmin
+    const { data: existing, error: existErr } = await supabaseAdmin
       .from('chips_pool')
-      .update({ status: 'disponivel' })
+      .select('id')
       .eq('evolution_instance', instanceName)
-      .eq('status', 'manutencao');
-    console.log(`[Evolution Webhook] Chip ${instanceName} já existe id=${existing.id}`);
-    return res.json({ ok: true, updated: true, id: existing.id });
+      .maybeSingle();
+
+    console.log(`[EvoWH] existing=${JSON.stringify(existing)} existErr=${existErr?.message}`);
+
+    if (existing) {
+      await supabaseAdmin
+        .from('chips_pool')
+        .update({ status: 'disponivel' })
+        .eq('evolution_instance', instanceName)
+        .eq('status', 'manutencao');
+      console.log(`[EvoWH] chip ja existe id=${existing.id} — status verificado`);
+      return res.json({ ok: true, updated: true, id: existing.id });
+    }
+
+    const phoneRaw = body?.data?.me?.id || body?.data?.wuid || body?.data?.number || '';
+    const phoneNumber = phoneRaw.replace(/[^0-9]/g, '').replace(/:.*$/, '');
+
+    console.log(`[EvoWH] inserindo chip instance=${instanceName} phone=${phoneNumber || 'null'}`);
+
+    const { data: chip, error } = await supabaseAdmin
+      .from('chips_pool')
+      .insert({
+        phone_number: phoneNumber || null,
+        evolution_instance: instanceName,
+        display_name: instanceName,
+        status: 'disponivel',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error(`[EvoWH] ERRO INSERT instance=${instanceName} code=${error.code} msg=${error.message} details=${error.details}`);
+      return res.status(500).json({ error: error.message, code: error.code });
+    }
+
+    console.log(`[EvoWH] ✅ chip criado id=${chip?.id} instance=${instanceName} phone=${phoneNumber || 'sem numero'}`);
+    return res.json({ ok: true, chip });
+  } catch (err: any) {
+    console.error(`[EvoWH] EXCECAO nao capturada: ${err.message}`);
+    return res.status(500).json({ error: err.message });
   }
-
-  // Extrai telefone do payload
-  const phoneRaw = body?.data?.me?.id || body?.data?.wuid || body?.data?.number || '';
-  const phoneNumber = phoneRaw.replace(/[^0-9]/g, '').replace(/:.*$/, '');
-
-  console.log(`[Evolution Webhook] Inserindo chip instanceName=${instanceName} phone=${phoneNumber || 'null'}`);
-
-  const { data: chip, error } = await supabaseAdmin
-    .from('chips_pool')
-    .insert({
-      phone_number: phoneNumber || null,
-      evolution_instance: instanceName,
-      display_name: instanceName,
-      status: 'disponivel',
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error(`[Evolution Webhook] ERRO INSERT chip ${instanceName}: code=${error.code} msg=${error.message} details=${error.details}`);
-    return res.status(500).json({ error: error.message, code: error.code });
-  }
-
-  console.log(`[Evolution Webhook] ✅ Chip auto-registrado id=${chip?.id} instancia=${instanceName} phone=${phoneNumber || 'sem número'}`);
-  return res.json({ ok: true, chip });
 });
 
 // ── POST /api/webhooks/asaas — Webhook de pagamento Asaas ─────────────────────
