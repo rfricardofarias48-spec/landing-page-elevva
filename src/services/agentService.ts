@@ -769,7 +769,7 @@ async function handleReschedule(
   }, supabase);
 
   const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-  const link = `${baseUrl}/agendar/${token}`;
+  const link = `${baseUrl}/api/agendar/${token}`;
 
   await send(phone, `Sem problemas, *${conv.context.candidate_name || 'candidato'}*! Vamos reagendar.\n\nEscolha um novo horário no link abaixo:\n\n${link}\n\n_Clique no link para selecionar seu novo horário._`);
 }
@@ -789,7 +789,7 @@ async function handleAguardandoEscolhaSlot(
   if (token) {
     const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
 
-    const link = `${baseUrl}/agendar/${token}`;
+    const link = `${baseUrl}/api/agendar/${token}`;
     await send(phone, `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`);
   } else {
     await send(phone, 'Sua entrevista está sendo agendada. Em breve você receberá o link para escolher o horário.');
@@ -1170,7 +1170,7 @@ export async function triggerSchedulingForCandidates(
           .eq('id', interview.id);
       }
 
-      const schedulingLink = `${baseUrl}/agendar/${token}`;
+      const schedulingLink = `${baseUrl}/api/agendar/${token}`;
 
       // Upsert conversation state → AGUARDANDO_ESCOLHA_SLOT
       await supabase
@@ -1298,7 +1298,7 @@ export async function notifyPendingReschedules(
           .eq('id', iv.id);
       }
 
-      const link = `${baseUrl}/agendar/${token}`;
+      const link = `${baseUrl}/api/agendar/${token}`;
 
       // Update interview status back to REMARCADA
       await supabase.from('interviews')
