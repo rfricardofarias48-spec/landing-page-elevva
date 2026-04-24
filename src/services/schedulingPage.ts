@@ -7,7 +7,7 @@ export interface SchedulingPageData {
   candidateName: string;
   jobTitle: string;
   interviewerName: string | null;
-  format: string; // ONLINE | PRESENCIAL
+  format: string;
   location: string | null;
   currentBooking: {
     slotId: string;
@@ -36,51 +36,37 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
   const firstName = candidateName?.split(' ')[0] || 'Candidato';
   const isReschedule = !!currentBooking;
 
-  const formatBadge = format === 'ONLINE'
-    ? '<span class="badge badge-online">💻 Online</span>'
-    : '<span class="badge badge-presencial">🏢 Presencial</span>';
-
-  const locationLine = format === 'PRESENCIAL' && location
-    ? `<div class="info-row"><span class="info-icon">📍</span><span>${location}</span></div>`
-    : '';
-
-  const interviewerLine = interviewerName
-    ? `<div class="info-row"><span class="info-icon">👤</span><span>Entrevistador(a): <strong>${interviewerName}</strong></span></div>`
-    : '';
+  const metaLine = [
+    format === 'ONLINE' ? 'Online' : 'Presencial',
+    interviewerName ? interviewerName : null,
+    format === 'PRESENCIAL' && location ? location : null,
+  ].filter(Boolean).join(' · ');
 
   const currentBookingHTML = currentBooking
-    ? `<div class="current-booking">
-        <div class="current-booking-icon">✅</div>
-        <div>
-          <p class="current-booking-label">Entrevista agendada</p>
-          <p class="current-booking-time">${formatDatePTBR(currentBooking.date)} às ${currentBooking.time}</p>
-          <p class="current-booking-hint">Deseja reagendar? Escolha um novo horário abaixo.</p>
-        </div>
+    ? `<div class="rebooking-notice">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7.25" stroke="#5a7a2e" stroke-width="1.5"/><path d="M5 8l2 2 4-4" stroke="#5a7a2e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Agendada para <strong>${formatDatePTBR(currentBooking.date)} às ${currentBooking.time}</strong> — escolha outro horário para reagendar.
       </div>`
     : '';
 
   let slotsHTML = '';
   for (const [date, dateSlots] of Object.entries(slotsByDate)) {
-    const availableSlots = dateSlots.filter(s => !s.isBooked || s.id === currentBooking?.slotId);
-    if (availableSlots.length === 0) continue;
+    const available = dateSlots.filter(s => !s.isBooked || s.id === currentBooking?.slotId);
+    if (available.length === 0) continue;
 
     slotsHTML += `<div class="date-group">
-      <div class="date-label">
-        <span class="date-icon">📅</span>
-        <span>${formatDatePTBR(date).toUpperCase()}</span>
-      </div>
+      <p class="date-label">${formatDatePTBR(date)}</p>
       <div class="slots-grid">`;
 
-    for (const slot of availableSlots) {
-      const isCurrent = slot.id === currentBooking?.slotId;
+    for (const slot of available) {
+      const active = slot.id === currentBooking?.slotId;
       slotsHTML += `<button
-        class="slot-btn${isCurrent ? ' slot-btn--active' : ''}"
+        class="slot${active ? ' slot--active' : ''}"
         data-slot-id="${slot.id}"
         data-date="${slot.date}"
         data-time="${slot.time}"
-        ${isCurrent ? 'disabled' : ''}>
-        <span class="slot-time">${slot.timeLabel}</span>
-        ${isCurrent ? '<span class="slot-check">✓</span>' : ''}
+        ${active ? 'disabled' : ''}>
+        ${slot.timeLabel}${active ? ' ✓' : ''}
       </button>`;
     }
 
@@ -88,10 +74,9 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
   }
 
   if (!slotsHTML) {
-    slotsHTML = `<div class="empty-state">
-      <div class="empty-icon">😔</div>
-      <p class="empty-title">Todos os horários foram preenchidos</p>
-      <p class="empty-subtitle">Aguarde contato do recrutador com novas opções.</p>
+    slotsHTML = `<div class="empty">
+      <p class="empty-title">Sem horários disponíveis</p>
+      <p class="empty-sub">Aguarde contato do recrutador com novas opções.</p>
     </div>`;
   }
 
@@ -100,429 +85,331 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agendar Entrevista — ${jobTitle}</title>
+  <title>${isReschedule ? 'Reagendar' : 'Agendar'} Entrevista — ${jobTitle}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --brand: hsl(82, 84%, 35%);
-      --brand-light: hsl(82, 84%, 45%);
-      --brand-pale: hsl(82, 80%, 95%);
-      --brand-border: hsl(82, 60%, 75%);
-      --navy: #0f172a;
-      --navy-mid: #1e293b;
-      --slate: #334155;
-      --muted: #64748b;
-      --border: #e2e8f0;
-      --bg: #f1f5f9;
+      --green: #6aa017;
+      --green-dim: #f4f9ec;
+      --green-border: #c9e08a;
+      --ink: #111827;
+      --ink-2: #374151;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --bg: #fafafa;
       --white: #ffffff;
-      --success: #16a34a;
-      --success-pale: #f0fdf4;
-      --radius: 16px;
-      --shadow: 0 4px 24px rgba(15,23,42,0.08);
-      --shadow-sm: 0 1px 4px rgba(15,23,42,0.06);
+      --r: 10px;
     }
 
     body {
       font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
       background: var(--bg);
+      color: var(--ink);
       min-height: 100vh;
-      color: var(--navy);
     }
 
-    /* ── Header ── */
-    .header {
-      background: linear-gradient(135deg, var(--navy-mid) 0%, var(--navy) 100%);
-      padding: 20px 24px 24px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-    .header::before {
-      content: '';
-      position: absolute;
-      top: -60px; right: -60px;
-      width: 200px; height: 200px;
-      background: var(--brand);
-      border-radius: 50%;
-      opacity: 0.07;
-    }
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: -40px; left: -40px;
-      width: 150px; height: 150px;
-      background: var(--brand-light);
-      border-radius: 50%;
-      opacity: 0.06;
-    }
-    .header-logo {
-      font-size: 22px;
-      font-weight: 900;
-      color: var(--white);
-      letter-spacing: -0.5px;
-      position: relative;
-    }
-    .header-logo span {
-      color: var(--brand-light);
-    }
-    .header-tagline {
-      font-size: 10px;
-      color: #94a3b8;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-top: 2px;
-      position: relative;
-    }
-
-    /* ── Main ── */
-    .main {
-      max-width: 480px;
-      margin: 0 auto;
-      padding: 24px 16px 48px;
-    }
-
-    /* ── Greeting ── */
-    .greeting {
-      text-align: center;
-      margin-bottom: 24px;
-      animation: slideUp 0.4s ease-out;
-    }
-    .greeting-hi {
-      font-size: 14px;
-      color: var(--muted);
-      font-weight: 500;
-      margin-bottom: 4px;
-    }
-    .greeting-hi strong { color: var(--slate); }
-    .greeting-title {
-      font-size: 24px;
-      font-weight: 900;
-      color: var(--navy);
-      line-height: 1.2;
-    }
-    .greeting-title span { color: var(--brand); }
-
-    /* ── Job card ── */
-    .job-card {
+    /* ── Top bar ── */
+    .topbar {
       background: var(--white);
-      border-radius: var(--radius);
-      padding: 18px 20px;
-      margin-bottom: 20px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-      animation: slideUp 0.4s ease-out 0.05s both;
-    }
-    .job-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: var(--navy);
-      margin-bottom: 10px;
-    }
-    .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-    .badge {
-      padding: 4px 12px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-    }
-    .badge-online { background: #dbeafe; color: #1d4ed8; }
-    .badge-presencial { background: #fef3c7; color: #92400e; }
-    .info-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 4px;
-    }
-    .info-icon { font-size: 14px; }
-
-    /* ── Current booking ── */
-    .current-booking {
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-      background: var(--success-pale);
-      border: 2px solid var(--brand-border);
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 20px;
-      animation: slideUp 0.4s ease-out 0.1s both;
-    }
-    .current-booking-icon { font-size: 22px; flex-shrink: 0; }
-    .current-booking-label { font-size: 11px; font-weight: 700; color: var(--success); text-transform: uppercase; letter-spacing: 0.5px; }
-    .current-booking-time { font-size: 16px; font-weight: 800; color: #14532d; margin-top: 2px; }
-    .current-booking-hint { font-size: 12px; color: var(--success); margin-top: 4px; }
-
-    /* ── Slots section ── */
-    .slots-heading {
-      font-size: 13px;
-      font-weight: 800;
-      color: var(--slate);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      animation: slideUp 0.4s ease-out 0.1s both;
-    }
-    .slots-heading::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    .date-group { margin-bottom: 20px; animation: slideUp 0.4s ease-out 0.15s both; }
-    .date-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 800;
-      color: var(--brand);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 10px;
-      background: var(--brand-pale);
-      padding: 6px 12px;
-      border-radius: 8px;
-      width: fit-content;
-    }
-    .date-icon { font-size: 13px; }
-
-    .slots-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-      gap: 10px;
-    }
-
-    .slot-btn {
-      position: relative;
-      background: var(--white);
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 8px;
-      cursor: pointer;
-      transition: all 0.18s ease;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      box-shadow: var(--shadow-sm);
-    }
-    .slot-btn:hover {
-      border-color: var(--brand);
-      background: var(--brand-pale);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(100,163,13,0.15);
-    }
-    .slot-btn:active { transform: scale(0.96); }
-    .slot-btn--active {
-      background: var(--brand);
-      border-color: var(--brand);
-      box-shadow: 0 4px 16px rgba(100,163,13,0.3);
-    }
-    .slot-btn--active .slot-time { color: var(--white); }
-    .slot-time {
-      font-size: 16px;
-      font-weight: 800;
-      color: var(--navy);
-      font-variant-numeric: tabular-nums;
-    }
-    .slot-check { font-size: 11px; color: var(--white); font-weight: 700; }
-
-    /* ── Empty state ── */
-    .empty-state {
-      text-align: center;
-      padding: 48px 24px;
-      background: var(--white);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-    }
-    .empty-icon { font-size: 48px; margin-bottom: 12px; }
-    .empty-title { font-size: 16px; font-weight: 700; color: var(--slate); margin-bottom: 6px; }
-    .empty-subtitle { font-size: 13px; color: var(--muted); }
-
-    /* ── Confirmation ── */
-    #confirmation {
-      display: none;
-      text-align: center;
-      animation: slideUp 0.45s ease-out;
-    }
-    .conf-check {
-      width: 88px; height: 88px;
-      background: var(--brand);
-      border-radius: 50%;
+      border-bottom: 1px solid var(--line);
+      padding: 16px 24px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 40px auto 24px;
-      font-size: 40px;
-      box-shadow: 0 8px 32px rgba(100,163,13,0.35);
-      animation: pop 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
     }
-    @keyframes pop {
-      0% { transform: scale(0.5); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
+    .topbar img { height: 28px; width: auto; }
+
+    /* ── Page ── */
+    .page {
+      max-width: 440px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
     }
-    .conf-title {
-      font-size: 26px;
-      font-weight: 900;
-      color: var(--navy);
+
+    /* ── Hero text ── */
+    .hero { margin-bottom: 32px; }
+    .hero-eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.5px;
       margin-bottom: 6px;
     }
-    .conf-subtitle {
-      font-size: 15px;
+    .hero-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--ink);
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+    .hero-sub {
+      font-size: 14px;
       color: var(--muted);
-      font-weight: 600;
+    }
+
+    /* ── Job pill ── */
+    .job-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 16px;
       margin-bottom: 28px;
     }
-    .conf-card {
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 20px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
-      text-align: left;
-      margin-bottom: 20px;
+    .job-pill-dot {
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      flex-shrink: 0;
     }
-    .conf-row { margin-bottom: 14px; }
-    .conf-row:last-child { margin-bottom: 0; }
-    .conf-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; }
-    .conf-value { font-size: 15px; font-weight: 700; color: var(--navy); }
-    .conf-value--date { font-size: 17px; color: var(--brand); }
+    .job-pill-text { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+    .job-pill-meta { font-size: 12px; color: var(--muted); }
 
-    .btn-cal {
+    /* ── Rebooking notice ── */
+    .rebooking-notice {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--green-dim);
+      border: 1px solid var(--green-border);
+      border-radius: var(--r);
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #3d5a10;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+    .rebooking-notice svg { flex-shrink: 0; }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+    }
+
+    /* ── Date group ── */
+    .date-group { margin-bottom: 24px; }
+    .date-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-2);
+      margin-bottom: 10px;
+    }
+    .slots-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    /* ── Slot button ── */
+    .slot {
+      background: var(--white);
+      border: 1.5px solid var(--line);
+      border-radius: var(--r);
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      color: var(--ink);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.12s;
+      letter-spacing: -0.2px;
+    }
+    .slot:hover {
+      border-color: var(--green);
+      background: var(--green-dim);
+      color: var(--green);
+      transform: translateY(-1px);
+    }
+    .slot:active { transform: scale(0.97); }
+    .slot--active {
+      background: var(--green);
+      border-color: var(--green);
+      color: var(--white);
+      cursor: default;
+    }
+
+    /* ── Empty ── */
+    .empty {
+      padding: 40px 0;
+      text-align: center;
+    }
+    .empty-title { font-size: 15px; font-weight: 700; color: var(--ink-2); margin-bottom: 4px; }
+    .empty-sub { font-size: 13px; color: var(--muted); }
+
+    /* ── Divider ── */
+    .divider { height: 1px; background: var(--line); margin: 28px 0; }
+
+    /* ── Confirmation ── */
+    #confirmation { display: none; }
+    .conf-icon {
+      width: 56px; height: 56px;
+      background: var(--green);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+      animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .conf-icon svg { width: 26px; height: 26px; }
+    .conf-title { font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+    .conf-sub { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+    .conf-table {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .conf-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      gap: 16px;
+    }
+    .conf-row:last-child { border-bottom: none; }
+    .conf-key { font-size: 12px; color: var(--muted); font-weight: 500; white-space: nowrap; }
+    .conf-val { font-size: 13px; font-weight: 700; color: var(--ink-2); text-align: right; }
+    .conf-val--date { color: var(--green); font-size: 14px; }
+
+    .btn-primary {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      background: var(--navy);
+      width: 100%;
+      padding: 13px;
+      background: var(--ink);
       color: var(--white);
-      padding: 14px 28px;
-      border-radius: 12px;
-      font-weight: 700;
+      border-radius: var(--r);
       font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
       text-decoration: none;
-      margin-bottom: 12px;
-      transition: background 0.2s;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      margin-bottom: 10px;
     }
-    .btn-cal:hover { background: var(--navy-mid); }
-    .btn-reschedule {
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-ghost {
+      width: 100%;
+      padding: 10px;
       background: none;
       border: none;
       color: var(--muted);
       font-size: 13px;
       font-weight: 600;
-      cursor: pointer;
-      padding: 8px;
       font-family: inherit;
+      cursor: pointer;
       text-decoration: underline;
     }
 
-    /* ── Loading overlay ── */
+    /* ── Loading ── */
     #loading {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(15,23,42,0.4);
-      backdrop-filter: blur(4px);
+      background: rgba(250,250,250,0.75);
+      backdrop-filter: blur(6px);
       z-index: 100;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
     }
     #loading.active { display: flex; }
-    .spinner-wrap {
-      background: var(--white);
-      border-radius: 20px;
-      padding: 28px 36px;
-      text-align: center;
-      box-shadow: var(--shadow);
-    }
     .spinner {
-      width: 44px; height: 44px;
-      border: 4px solid var(--border);
-      border-top-color: var(--brand);
+      width: 36px; height: 36px;
+      border: 3px solid var(--line);
+      border-top-color: var(--green);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
-      margin: 0 auto 12px;
     }
-    .spinner-text { font-size: 13px; font-weight: 600; color: var(--slate); }
+
     @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(16px); }
+    @keyframes pop {
+      from { transform: scale(0.6); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    @keyframes up {
+      from { opacity: 0; transform: translateY(12px); }
       to   { opacity: 1; transform: translateY(0); }
     }
+    .page { animation: up 0.35s ease-out; }
   </style>
 </head>
 <body>
 
-<div id="loading">
-  <div class="spinner-wrap">
-    <div class="spinner"></div>
-    <p class="spinner-text">Confirmando horário…</p>
-  </div>
-</div>
+<div id="loading"><div class="spinner"></div></div>
 
-<!-- HEADER -->
-<div class="header">
-  <p class="header-logo">Ele<span>vva</span></p>
-  <p class="header-tagline">Recrutamento Inteligente</p>
+<!-- TOP BAR -->
+<div class="topbar">
+  <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva">
 </div>
 
 <!-- SLOT SELECTION -->
-<div id="slot-selection" class="main">
-  <div class="greeting">
-    <p class="greeting-hi">Olá, <strong>${firstName}</strong>! 👋</p>
-    <h1 class="greeting-title">${isReschedule ? 'Reagendar <span>Entrevista</span>' : 'Agendar <span>Entrevista</span>'}</h1>
+<div id="slot-selection" class="page">
+
+  <div class="hero">
+    <p class="hero-eyebrow">Olá, ${firstName} 👋</p>
+    <h1 class="hero-title">${isReschedule ? 'Reagendar sua entrevista' : 'Escolha seu horário'}</h1>
+    <p class="hero-sub">${isReschedule ? 'Selecione um novo horário abaixo.' : 'Selecione o melhor horário para sua entrevista.'}</p>
   </div>
 
-  <div class="job-card">
-    <p class="job-title">${jobTitle}</p>
-    <div class="badges">${formatBadge}</div>
-    ${interviewerLine}
-    ${locationLine}
+  <div class="job-pill">
+    <div class="job-pill-dot"></div>
+    <span class="job-pill-text">${jobTitle}</span>
+    ${metaLine ? `<span class="job-pill-meta">· ${metaLine}</span>` : ''}
   </div>
 
   ${currentBookingHTML}
 
-  <div class="slots-heading">Horários disponíveis</div>
+  <p class="section-label">Horários disponíveis</p>
   ${slotsHTML}
+
 </div>
 
 <!-- CONFIRMATION -->
-<div id="confirmation" class="main">
-  <div class="conf-check">✅</div>
-  <h1 class="conf-title">Tudo certo!</h1>
-  <p id="conf-details" class="conf-subtitle"></p>
+<div id="confirmation" class="page">
+  <div class="conf-icon">
+    <svg viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 13l5 5L21 7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <h1 class="conf-title">Entrevista confirmada!</h1>
+  <p class="conf-sub">Você receberá uma mensagem de confirmação em breve.</p>
 
-  <div class="conf-card">
+  <div class="conf-table">
     <div class="conf-row">
-      <p class="conf-label">📅 Data e Horário</p>
-      <p class="conf-value conf-value--date" id="conf-datetime"></p>
+      <span class="conf-key">Data e horário</span>
+      <span class="conf-val conf-val--date" id="conf-datetime">—</span>
     </div>
     <div class="conf-row">
-      <p class="conf-label">💼 Vaga</p>
-      <p class="conf-value">${jobTitle}</p>
+      <span class="conf-key">Vaga</span>
+      <span class="conf-val">${jobTitle}</span>
     </div>
-    ${interviewerName ? `<div class="conf-row"><p class="conf-label">👤 Entrevistador(a)</p><p class="conf-value">${interviewerName}</p></div>` : ''}
+    ${interviewerName ? `<div class="conf-row"><span class="conf-key">Entrevistador(a)</span><span class="conf-val">${interviewerName}</span></div>` : ''}
     <div class="conf-row">
-      <p class="conf-label">📡 Formato</p>
-      <p class="conf-value">${format === 'ONLINE' ? '💻 Online' : '🏢 Presencial'}${location ? ' — ' + location : ''}</p>
+      <span class="conf-key">Formato</span>
+      <span class="conf-val">${format === 'ONLINE' ? 'Online' : 'Presencial'}${location ? ' · ' + location : ''}</span>
     </div>
   </div>
 
-  <a id="cal-link" href="#" target="_blank" class="btn-cal">🗓️ Adicionar ao Google Agenda</a>
-  <br>
-  <button onclick="showReschedule()" class="btn-reschedule">Preciso reagendar</button>
+  <a id="cal-link" href="#" target="_blank" class="btn-primary">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2.5" width="14" height="12.5" rx="2" stroke="white" stroke-width="1.4"/><path d="M1 6h14M5 1v3M11 1v3" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+    Adicionar ao Google Agenda
+  </a>
+  <button onclick="showReschedule()" class="btn-ghost">Preciso reagendar</button>
 </div>
 
 <script>
@@ -534,58 +421,40 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
   const LOCATION = ${JSON.stringify(location || '')};
   const INTERVIEWER = ${JSON.stringify(interviewerName || '')};
 
-  document.querySelectorAll('.slot-btn:not([disabled])').forEach(btn => {
+  document.querySelectorAll('.slot:not([disabled])').forEach(btn => {
     btn.addEventListener('click', () => bookSlot(btn.dataset.slotId, btn.dataset.date, btn.dataset.time));
   });
 
   async function bookSlot(slotId, date, time) {
-    const endpoint = IS_RESCHEDULE ? 'reschedule' : 'book';
     document.getElementById('loading').classList.add('active');
     try {
-      const res = await fetch(BASE + '/api/agendar/' + TOKEN + '/' + endpoint, {
+      const res = await fetch(BASE + '/api/agendar/' + TOKEN + '/' + (IS_RESCHEDULE ? 'reschedule' : 'book'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slot_id: slotId })
       });
       const data = await res.json();
-      if (!data.ok) {
-        alert(data.error || 'Erro ao agendar. Tente novamente.');
-        window.location.reload();
-        return;
-      }
+      if (!data.ok) { alert(data.error || 'Erro ao agendar. Tente novamente.'); window.location.reload(); return; }
 
       document.getElementById('slot-selection').style.display = 'none';
       document.getElementById('confirmation').style.display = 'block';
 
-      const dateObj = new Date(date + 'T12:00:00');
-      const dateStr = dateObj.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
-      const capitalised = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
-      document.getElementById('conf-datetime').textContent = capitalised + ' às ' + time;
-      document.getElementById('conf-details').textContent = 'Sua entrevista está confirmada!';
+      const d = new Date(date + 'T12:00:00');
+      const label = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+      document.getElementById('conf-datetime').textContent = label.charAt(0).toUpperCase() + label.slice(1) + ' às ' + time;
 
-      const startDate = date.replace(/-/g, '') + 'T' + time.replace(':', '') + '00';
+      const start = date.replace(/-/g,'') + 'T' + time.replace(':','') + '00';
       const [h, m] = time.split(':').map(Number);
-      const endH = String(h + 1).padStart(2, '0');
-      const endDate = date.replace(/-/g, '') + 'T' + endH + m.toString().padStart(2, '0') + '00';
-      const calParams = new URLSearchParams({
-        action: 'TEMPLATE',
-        text: 'Entrevista - ' + JOB_TITLE,
-        dates: startDate + '/' + endDate,
-        details: INTERVIEWER ? 'Entrevistador(a): ' + INTERVIEWER : 'Entrevista para ' + JOB_TITLE,
-        location: FORMAT === 'ONLINE' ? 'Online' : LOCATION
-      });
-      document.getElementById('cal-link').href = 'https://calendar.google.com/calendar/event?' + calParams.toString();
-
-    } catch (err) {
-      alert('Erro de conexão. Verifique sua internet e tente novamente.');
-    } finally {
-      document.getElementById('loading').classList.remove('active');
-    }
+      const end = date.replace(/-/g,'') + 'T' + String(h+1).padStart(2,'0') + String(m).padStart(2,'0') + '00';
+      const p = new URLSearchParams({ action:'TEMPLATE', text:'Entrevista - '+JOB_TITLE, dates:start+'/'+end,
+        details: INTERVIEWER ? 'Entrevistador(a): '+INTERVIEWER : 'Entrevista para '+JOB_TITLE,
+        location: FORMAT==='ONLINE' ? 'Online' : LOCATION });
+      document.getElementById('cal-link').href = 'https://calendar.google.com/calendar/event?' + p;
+    } catch { alert('Erro de conexão. Verifique sua internet.'); }
+    finally { document.getElementById('loading').classList.remove('active'); }
   }
 
-  function showReschedule() {
-    window.location.reload();
-  }
+  function showReschedule() { window.location.reload(); }
 </script>
 </body>
 </html>`;
@@ -594,8 +463,6 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
 function formatDatePTBR(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
+    weekday: 'long', day: '2-digit', month: 'long',
   });
 }
