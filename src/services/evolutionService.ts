@@ -112,8 +112,8 @@ export async function sendText(instance: string, jid: string, text: string, toke
     sleep(delay),
   ]);
 
-  // Evolution API v2: POST /message/sendText/{instance}
-  const { ok } = await post(`/message/sendText/${instance}`, { number: phone, text }, apiKey);
+  // Evolution API v2: POST /message/sendText/{instance} — body uses textMessage wrapper
+  const { ok } = await post(`/message/sendText/${instance}`, { number: phone, textMessage: { text } }, apiKey);
   return ok;
 }
 
@@ -127,10 +127,11 @@ export async function sendList(
   sections: ListSection[],
   tokenOverride?: string,
 ): Promise<void> {
-  // Evolution API v2: POST /message/sendText/{instance}
+  // Evolution API v2: POST /message/sendText/{instance} — body uses textMessage wrapper
+  const listText = `${title}\n\n${description}\n\n${sections.map(s => s.rows.map(r => `• ${r.title}`).join('\n')).join('\n')}`;
   await post(`/message/sendText/${instance}`, {
     number: cleanPhone(jid),
-    text: `${title}\n\n${description}\n\n${sections.map(s => s.rows.map(r => `• ${r.title}`).join('\n')).join('\n')}`,
+    textMessage: { text: listText },
   }, tokenOverride || getApiKey(instance));
 }
 
