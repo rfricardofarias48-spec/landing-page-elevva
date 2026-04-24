@@ -100,7 +100,7 @@ async function post(path: string, body: Record<string, unknown>, apiKey?: string
 /** Send a plain text message with human-like typing simulation.
  *  Sends a "composing" presence, waits proportionally to text length, then sends.
  *  Returns true if the message was accepted by the API, false otherwise. */
-export async function sendText(instance: string, jid: string, text: string, tokenOverride?: string): Promise<boolean> {
+export async function sendText(instance: string, jid: string, text: string, tokenOverride?: string, linkPreview = false): Promise<boolean> {
   const phone  = cleanPhone(jid);
   const apiKey = tokenOverride || getApiKey(instance);
   const delay  = humanDelay(text);
@@ -114,7 +114,7 @@ export async function sendText(instance: string, jid: string, text: string, toke
   ]);
 
   // Evolution API v2.3.x: body usa { number, text } diretamente
-  const { ok } = await post(`/message/sendText/${instance}`, { number: phone, text }, apiKey);
+  const { ok } = await post(`/message/sendText/${instance}`, { number: phone, text, linkPreview }, apiKey);
   return ok;
 }
 
