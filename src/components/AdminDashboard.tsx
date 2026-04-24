@@ -2416,6 +2416,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
   const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [retryingOnboardId, setRetryingOnboardId] = useState<string | null>(null);
 
   const handleDeleteSale = async (id: string) => {
       setDeletingSaleId(id);
@@ -2429,6 +2430,20 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
           alert(err.message);
       } finally {
           setDeletingSaleId(null);
+      }
+  };
+
+  const handleRetryOnboarding = async (id: string) => {
+      setRetryingOnboardId(id);
+      try {
+          const res = await fetch(`/api/sales/${id}/retry`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Erro ao reprocessar');
+          await fetchAllSales();
+      } catch (err: any) {
+          alert(err.message);
+      } finally {
+          setRetryingOnboardId(null);
       }
   };
 
@@ -2670,6 +2685,17 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                       {s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : '—'}
                                   </td>
                                   <td className="p-5 text-center">
+                                      <div className="flex flex-col items-center gap-1">
+                                      {s.status === 'paid' && s.onboarding_status !== 'concluido' && (
+                                          retryingOnboardId === s.id ? (
+                                              <span className="text-[10px] font-bold text-zinc-400">Processando...</span>
+                                          ) : (
+                                              <button onClick={() => handleRetryOnboarding(s.id)}
+                                                  className="text-[10px] font-black bg-zinc-900 text-white px-2.5 py-1 rounded-lg hover:bg-zinc-700 transition-colors">
+                                                  ↻ Reprocessar
+                                              </button>
+                                          )
+                                      )}
                                       {s.status === 'pending' && (
                                           confirmDeleteId === s.id ? (
                                               <div className="flex items-center gap-1.5 justify-center">
@@ -2689,6 +2715,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                               </button>
                                           )
                                       )}
+                                      </div>
                                   </td>
                               </tr>
                           ))}

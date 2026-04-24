@@ -4770,16 +4770,18 @@ app.post("/api/sales/:id/retry", async (req, res) => {
     return res.status(400).json({ error: 'Onboarding já concluído' });
   }
 
-  res.json({ ok: true, message: 'Retry iniciado em background' });
-
-  (async () => {
-    try {
-      const result = await provisionClient(id);
-      console.log(`[Retry] ${result.success ? '✅' : '❌'} ${id}: ${result.error || 'OK'}`);
-    } catch (err: any) {
-      console.error('[Retry] Erro:', err.message);
+  try {
+    const result = await provisionClient(id);
+    console.log(`[Retry] ${result.success ? '✅' : '❌'} ${id}: ${result.error || 'OK'}`);
+    if (result.success) {
+      return res.json({ ok: true });
+    } else {
+      return res.status(500).json({ ok: false, error: result.error });
     }
-  })();
+  } catch (err: any) {
+    console.error('[Retry] Erro:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── POST /api/cron/cleanup-slots — Remove slots de entrevista e disponibilidade vencidos ──
