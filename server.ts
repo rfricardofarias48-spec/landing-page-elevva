@@ -4387,11 +4387,40 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (r
     const instanceName = body?.instance || body?.data?.instance || '';
     const state = body?.data?.state || body?.data?.connection || '';
 
-    // Log completo para debug
-    console.log(`[EvoWH] path=${req.path} event=${event} instance=${instanceName} state=${state} bodyKeys=${Object.keys(body||{}).join(',')} dataKeys=${Object.keys(body?.data||{}).join(',')}`);
+    console.log(`[EvoWH] path=${req.path} event=${event} instance=${instanceName} state=${state}`);
+
+    // ── MESSAGES_UPSERT: encaminhar para processamento do agente ─────────────
+    if (event === 'MESSAGES_UPSERT' && instanceName) {
+      // Reutiliza exatamente a mesma lógica do /api/webhooks/agent/whatsapp
+      // O payload do webhook global tem o mesmo formato do por-instância
+      const data = body?.data as Record<string, unknown> | undefined;
+      if (data) {
+        const key = data.key as Record<string, unknown> | undefined;
+        const remoteJid  = String(key?.remoteJid || '');
+        const fromMe     = key?.fromMe === true;
+        const pushName   = String(data.pushName || '');
+        const messageType = String(data.messageType || '');
+        const message    = (data.message as Record<string, unknown>) || {};
+
+        if (remoteJid && !fromMe && !remoteJid.endsWith('@g.us')) {
+          const phone = cleanPhone(remoteJid);
+          let textContent: string | null = null;
+          if (messageType === 'conversation') {
+            textContent = String(message.conversation || '');
+          } else if (messageType === 'extendedTextMessage') {
+            const ext = message.extendedTextMessage as Record<string, unknown> | undefined;
+            textContent = String(ext?.text || '');
+          }
+
+          console.log(`[EvoWH] → agente instance=${instanceName} phone=${phone} type=${messageType}`);
+          processIncomingMessage(instanceName, phone, pushName, messageType, textContent, null, null, supabaseAdmin, undefined)
+            .catch((e: any) => console.error(`[EvoWH] processIncomingMessage error: ${e.message}`));
+        }
+      }
+      return res.json({ ok: true });
+    }
 
     if (event !== 'CONNECTION_UPDATE' || state !== 'open' || !instanceName) {
-      console.log(`[EvoWH] ignored: event=${event} state=${state} instance=${!!instanceName}`);
       return res.json({ ok: true, ignored: true });
     }
 
