@@ -557,7 +557,7 @@ app.post("/api/admin/configure-evolution-webhook", async (req, res) => {
     if (!instance || !token) {
       return res.status(400).json({ error: "instance e token são obrigatórios" });
     }
-    const webhookUrl = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/agent/whatsapp`;
+    const webhookUrl = `${process.env.SERVER_URL || process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/evolution`;
     const ok = await configureWebhookBase64(instance, webhookUrl, token);
     return res.json({ success: ok, webhookUrl });
   } catch (err) {
@@ -4860,17 +4860,24 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
   const serverUrl   = (process.env.SERVER_URL || process.env.BASE_URL || 'https://app.elevva.net.br').replace(/\/$/, '');
   if (chipInstance && evolutionUrl && evolutionKey) {
     try {
-      await fetch(`${evolutionUrl}/webhook/set/${chipInstance}`, {
+      const webhookUrl = `${serverUrl}/api/webhooks/evolution`;
+      const webhookBody = {
+        url: webhookUrl,
+        webhook_by_events: true,
+        webhook_base64: false,
+        events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+      };
+      const wRes = await fetch(`${evolutionUrl}/webhook/set/${chipInstance}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': evolutionKey },
-        body: JSON.stringify({
-          url: `${serverUrl}/api/webhooks/agent/whatsapp`,
-          webhook_by_events: false,
-          webhook_base64: false,
-          events: ['MESSAGES_UPSERT'],
-        }),
+        body: JSON.stringify(webhookBody),
       });
-      console.log(`[SyncProfile] webhook Evolution configurado para ${chipInstance}`);
+      const wText = await wRes.text();
+      if (wRes.ok) {
+        console.log(`[SyncProfile] webhook Evolution configurado → ${webhookUrl}`);
+      } else {
+        console.warn(`[SyncProfile] webhook set retornou ${wRes.status}: ${wText.substring(0, 300)}`);
+      }
     } catch (wErr: any) {
       console.warn(`[SyncProfile] webhook Evolution falhou (não bloqueante): ${wErr.message}`);
     }

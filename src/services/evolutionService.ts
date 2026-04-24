@@ -273,9 +273,9 @@ export async function configureWebhookBase64(
   const body = {
     enabled: true,
     url: webhookUrl,
-    webhook_base64: true,
-    webhook_by_events: false,
-    events: ['MESSAGE', 'CONNECTION'],
+    webhook_base64: false,
+    webhook_by_events: true,
+    events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
   };
 
   // Tenta PUT e POST em endpoints comuns do Evolution GO / v2
