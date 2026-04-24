@@ -384,15 +384,17 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
         `*${sale.client_email}*\n\n` +
         `Em caso de dúvidas, fale conosco. Sucesso! 🚀`;
 
-      // Envia via Evolution usando o chip do pool (ou qualquer instância disponível)
-      // Como o chip do cliente acabou de ser configurado, usamos uma instância de suporte
       const supportInstance = process.env.SUPPORT_EVOLUTION_INSTANCE || chipInstance;
       const supportKey = process.env.SUPPORT_EVOLUTION_KEY || EVOLUTION_KEY;
 
-      await evolutionPost(`/message/sendText/${supportInstance}`, {
-        number: clientPhone,
-        text: welcomeMsg,
-      }, supportKey);
+      try {
+        await evolutionPost(`/message/sendText/${supportInstance}`, {
+          number: clientPhone,
+          text: welcomeMsg,
+        }, supportKey);
+      } catch (msgErr: any) {
+        console.warn(`[Onboarding] Etapa 10 mensagem boas-vindas falhou (não bloqueante): ${msgErr.message}`);
+      }
 
       ctx.welcomeSent = true;
       await saveContext(saleId, 10, ctx);
