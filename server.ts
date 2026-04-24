@@ -4356,18 +4356,24 @@ app.delete("/api/chips-pool/:id", async (req, res) => {
   return res.json({ ok: true });
 });
 
-// ── POST /api/webhooks/evolution — Webhook global do Evolution API ─────────────
+// ── POST /api/webhooks/evolution/* — Webhook global do Evolution API ──────────
+// Evolution API v2 com WEBHOOK_BY_EVENTS=true envia para subpaths:
+//   /api/webhooks/evolution/connection-update, /api/webhooks/evolution/messages-set, etc.
 // Auto-registra chips no pool quando uma instância conecta ao WhatsApp
-app.post("/api/webhooks/evolution", async (req, res) => {
+app.post("/api/webhooks/evolution/*", async (req, res) => {
   const body = req.body as any;
-  const event = body?.event || '';
+  // Com WEBHOOK_BY_EVENTS=true o evento vem no path e/ou em body.event
+  const urlPath = req.path; // ex: /api/webhooks/evolution/connection-update
+  const eventFromPath = urlPath.split('/').pop()?.toUpperCase().replace(/-/g, '_') || '';
+  const event = (body?.event || eventFromPath || '').toUpperCase().replace(/-/g, '_');
   const instanceName = body?.instance || '';
   const state = body?.data?.state || '';
 
-  console.log(`[Evolution Webhook] evento=${event} instancia=${instanceName} state=${state}`);
+  console.log(`[Evolution Webhook] path=${urlPath} evento=${event} instancia=${instanceName} state=${state}`);
 
   // Só processa quando uma instância conecta com sucesso
-  if (event !== 'CONNECTION_UPDATE' || state !== 'open' || !instanceName) {
+  const isConnectionUpdate = event === 'CONNECTION_UPDATE';
+  if (!isConnectionUpdate || state !== 'open' || !instanceName) {
     return res.json({ ok: true, ignored: true });
   }
 
