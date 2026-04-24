@@ -1468,7 +1468,7 @@ app.get("/api/agendar/:token", async (req, res) => {
     // Find interview by scheduling_token (supabaseAdmin ignora RLS — rota pública)
     const { data: interview, error } = await supabaseAdmin
       .from('interviews')
-      .select('id, job_id, candidate_id, status, slot_id, scheduled_date, scheduled_time, interviewer_name, scheduling_token')
+      .select('id, job_id, candidate_id, status, slot_id, interviewer_name, scheduling_token')
       .eq('scheduling_token', token)
       .single();
 
@@ -1501,16 +1501,19 @@ app.get("/api/agendar/:token", async (req, res) => {
         time: s.slot_time,
         dateLabel,
         timeLabel: s.slot_time.substring(0, 5),
-        isBooked: s.is_booked && s.id !== interview.slot_id, // Show own booked slot as available
+        isBooked: s.is_booked && s.id !== interview.slot_id,
       };
     });
 
-    // Determine format/location from the first slot
+    // Busca data/hora do slot já reservado (se houver) direto de interview_slots
     const firstSlot = allSlots?.[0];
-    const currentBooking = interview.slot_id ? {
-      slotId: interview.slot_id,
-      date: interview.scheduled_date,
-      time: interview.scheduled_time?.substring(0, 5) || '',
+    const bookedSlot = interview.slot_id
+      ? (allSlots || []).find((s: any) => s.id === interview.slot_id) || null
+      : null;
+    const currentBooking = bookedSlot ? {
+      slotId: bookedSlot.id,
+      date: bookedSlot.slot_date,
+      time: bookedSlot.slot_time.substring(0, 5),
     } : null;
 
     const pageData: SchedulingPageData = {
