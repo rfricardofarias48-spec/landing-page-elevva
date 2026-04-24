@@ -327,14 +327,17 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     // ── ETAPA 8: Configurar webhook da instância ──────────────────────────────
     if (!ctx.webhookSet) {
       console.log('[Onboarding] Etapa 8: configurar webhook Evolution');
-      const webhookBase = process.env.SERVER_URL || '';
+      const webhookBase = (process.env.SERVER_URL || '').replace(/\/$/, '');
       if (webhookBase) {
-        await evolutionPost(`/webhook/set/${chipInstance}`, {
-          url: `${webhookBase}/api/webhooks/agent/whatsapp`,
-          webhook_by_events: false,
+        const wRes = await evolutionPost(`/webhook/set/${chipInstance}`, {
+          url: `${webhookBase}/api/webhooks/evolution`,
+          webhook_by_events: true,
           webhook_base64: false,
-          events: ['MESSAGES_UPSERT'],
+          events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
         });
+        console.log(`[Onboarding] webhook Evolution → ${webhookBase}/api/webhooks/evolution`);
+      } else {
+        console.warn('[Onboarding] SERVER_URL não definido, webhook não configurado');
       }
       ctx.webhookSet = true;
       await saveContext(saleId, 8, ctx);
