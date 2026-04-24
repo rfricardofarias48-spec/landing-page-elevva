@@ -113,8 +113,8 @@ export async function sendText(instance: string, jid: string, text: string, toke
     sleep(delay),
   ]);
 
-  // Evolution API v2: POST /message/sendText/{instance} — body uses textMessage wrapper
-  const { ok } = await post(`/message/sendText/${instance}`, { number: phone, textMessage: { text } }, apiKey);
+  // Evolution API v2.3.x: body usa { number, text } diretamente
+  const { ok } = await post(`/message/sendText/${instance}`, { number: phone, text }, apiKey);
   return ok;
 }
 
@@ -128,11 +128,10 @@ export async function sendList(
   sections: ListSection[],
   tokenOverride?: string,
 ): Promise<void> {
-  // Evolution API v2: POST /message/sendText/{instance} — body uses textMessage wrapper
   const listText = `${title}\n\n${description}\n\n${sections.map(s => s.rows.map(r => `• ${r.title}`).join('\n')).join('\n')}`;
   await post(`/message/sendText/${instance}`, {
     number: cleanPhone(jid),
-    textMessage: { text: listText },
+    text: listText,
   }, tokenOverride || getApiKey(instance));
 }
 
@@ -271,15 +270,17 @@ export async function configureWebhookBase64(
   tokenOverride?: string,
 ): Promise<boolean> {
   const key = tokenOverride || getApiKey(instance);
+  // Evolution API v2.3.x: body deve ser { webhook: { ... } }
   const body = {
-    enabled: true,
-    url: webhookUrl,
-    webhook_base64: false,
-    webhook_by_events: true,
-    events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+    webhook: {
+      enabled: true,
+      url: webhookUrl,
+      webhook_base64: false,
+      webhook_by_events: true,
+      events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+    },
   };
 
-  // Tenta PUT e POST em endpoints comuns do Evolution GO / v2
   const paths = [`/webhook/set/${instance}`, `/webhook/${instance}`, `/webhook/set`, `/instance/webhook/${instance}`];
   const methods = ['PUT', 'POST'];
 

@@ -4865,11 +4865,14 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
   if (chipInstance && evolutionUrl && evolutionKey) {
     try {
       const webhookUrl = `${serverUrl}/api/webhooks/evolution`;
+      // Evolution API v2.3.x: body deve ser { webhook: { ... } }
       const webhookBody = {
-        url: webhookUrl,
-        webhook_by_events: true,
-        webhook_base64: false,
-        events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+        webhook: {
+          url: webhookUrl,
+          webhook_by_events: true,
+          webhook_base64: false,
+          events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+        },
       };
       const wRes = await fetch(`${evolutionUrl}/webhook/set/${chipInstance}`, {
         method: 'POST',

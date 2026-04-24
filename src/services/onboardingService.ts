@@ -330,10 +330,12 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
       const webhookBase = (process.env.SERVER_URL || '').replace(/\/$/, '');
       if (webhookBase) {
         const wRes = await evolutionPost(`/webhook/set/${chipInstance}`, {
-          url: `${webhookBase}/api/webhooks/evolution`,
-          webhook_by_events: true,
-          webhook_base64: false,
-          events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+          webhook: {
+            url: `${webhookBase}/api/webhooks/evolution`,
+            webhook_by_events: true,
+            webhook_base64: false,
+            events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+          },
         });
         console.log(`[Onboarding] webhook Evolution → ${webhookBase}/api/webhooks/evolution`);
       } else {
