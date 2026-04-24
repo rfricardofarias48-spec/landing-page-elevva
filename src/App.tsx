@@ -2592,6 +2592,17 @@ const App: React.FC = () => {
                          </div>
                      </div>
                      <div>
+                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">WhatsApp do Agente</label>
+                         <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700 flex items-center gap-2">
+                             {(user as any)?.telefone_agente || (user as any)?.whatsapp_number
+                               ? <><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"/>+{((user as any)?.telefone_agente || (user as any)?.whatsapp_number)}</>
+                               : <span className="text-slate-400">Número do agente não configurado</span>}
+                         </div>
+                         <p className="text-[10px] text-slate-400 ml-1 mt-1">Número WhatsApp do seu assistente de recrutamento</p>
+                     </div>
+                 </div>
+                 <div className="grid grid-cols-1 gap-4 mt-4">
+                     <div>
                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Seu WhatsApp Pessoal</label>
                          <input
                            type="text"
@@ -2600,7 +2611,7 @@ const App: React.FC = () => {
                            placeholder="Ex: 5551999990000"
                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
                          />
-                         <p className="text-[10px] text-slate-400 ml-1 mt-1">Usado pelo assistente IA para identificar você. Formato: DDI + DDD + número (ex: 5551999990000)</p>
+                         <p className="text-[10px] text-slate-400 ml-1 mt-1">Usado pelo assistente IA para identificar você como responsável. Formato: DDI + DDD + número (ex: 5551999990000)</p>
                      </div>
                  </div>
                  <div className="pt-4">

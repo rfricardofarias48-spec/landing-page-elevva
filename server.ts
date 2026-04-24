@@ -4792,7 +4792,7 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
   const chatwootUserId    = ctx.chatwootUserId    || null;
   const chatwootUserToken = ctx.chatwootUserToken || null;
 
-  console.log(`[SyncProfile] userId=${userId} chip=${chipInstance} phone=${chipPhone} inbox=${inboxId} amount=${sale.amount}`);
+  console.log(`[SyncProfile] userId=${userId} chip=${chipInstance} phone=${chipPhone} inbox=${inboxId} ctx_keys=${Object.keys(ctx).join(',')} amount=${sale.amount}`);
 
   const chatwootAccountId = parseInt(process.env.CHATWOOT_ACCOUNT_ID || '1', 10);
 
@@ -4815,7 +4815,39 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
     await supabaseAdmin.from('sales').update({ client_user_id: userId }).eq('id', id);
   }
 
-  console.log(`[SyncProfile] ✅ Perfil sincronizado para userId=${userId} chip=${chipInstance}`);
+  // Marca chip como em_uso no pool
+  if (chipInstance) {
+    await supabaseAdmin.from('chips_pool').update({
+      status: 'em_uso',
+      assigned_to: userId,
+      assigned_at: new Date().toISOString(),
+      assigned_sale_id: id,
+    }).eq('evolution_instance', chipInstance);
+  }
+
+  // Reconfigura webhook Evolution para enviar mensagens ao agente
+  const evolutionUrl = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const evolutionKey = process.env.EVOLUTION_API_KEY || '';
+  const serverUrl   = (process.env.SERVER_URL || process.env.BASE_URL || 'https://app.elevva.net.br').replace(/\/$/, '');
+  if (chipInstance && evolutionUrl && evolutionKey) {
+    try {
+      await fetch(`${evolutionUrl}/webhook/set/${chipInstance}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': evolutionKey },
+        body: JSON.stringify({
+          url: `${serverUrl}/api/webhooks/agent/whatsapp`,
+          webhook_by_events: false,
+          webhook_base64: false,
+          events: ['MESSAGES_UPSERT'],
+        }),
+      });
+      console.log(`[SyncProfile] webhook Evolution configurado para ${chipInstance}`);
+    } catch (wErr: any) {
+      console.warn(`[SyncProfile] webhook Evolution falhou (não bloqueante): ${wErr.message}`);
+    }
+  }
+
+  console.log(`[SyncProfile] ✅ Perfil sincronizado userId=${userId} chip=${chipInstance}`);
   return res.json({ ok: true, chipInstance, chipPhone });
 });
 
