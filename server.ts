@@ -1465,26 +1465,27 @@ app.get("/api/agendar/:token", async (req, res) => {
   try {
     const { token } = req.params;
 
-    // Find interview by scheduling_token
-    const { data: interview, error } = await supabase
+    // Find interview by scheduling_token (supabaseAdmin ignora RLS — rota pública)
+    const { data: interview, error } = await supabaseAdmin
       .from('interviews')
       .select('id, job_id, candidate_id, status, slot_id, scheduled_date, scheduled_time, interviewer_name, scheduling_token')
       .eq('scheduling_token', token)
       .single();
 
     if (error || !interview) {
+      console.error('[Scheduling Page] token não encontrado:', token, error?.message);
       return res.status(404).send('<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h1>Link invalido ou expirado</h1><p>Entre em contato com o recrutador.</p></body></html>');
     }
 
     // Get job details
-    const { data: job } = await supabase.from('jobs').select('title').eq('id', interview.job_id).single();
+    const { data: job } = await supabaseAdmin.from('jobs').select('title').eq('id', interview.job_id).single();
 
     // Get candidate name
-    const { data: candidate } = await supabase.from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single();
+    const { data: candidate } = await supabaseAdmin.from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single();
     const candidateName = (candidate as Record<string, string>)?.['Nome Completo'] || 'Candidato';
 
     // Get available slots for this job
-    const { data: allSlots } = await supabase
+    const { data: allSlots } = await supabaseAdmin
       .from('interview_slots')
       .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
       .eq('job_id', interview.job_id)
