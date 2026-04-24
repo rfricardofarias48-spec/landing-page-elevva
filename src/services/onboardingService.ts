@@ -413,12 +413,17 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     console.log('[Onboarding] Concluído com sucesso!');
 
     // Atualizar profiles com todos os dados provisionados
+    // instancia_evolution e evolution_token são os campos usados pelo servidor de automação
     await supabase.from('profiles').update({
       chatwoot_inbox_id: inboxId,
       chatwoot_user_id: chatwootUserId,
       chatwoot_user_token: chatwootUserToken,
       evolution_instance: chipInstance,
+      instancia_evolution: chipInstance,   // campo usado pelo servidor de automação
+      evolution_token: EVOLUTION_KEY,      // chave global para automação do agente
       whatsapp_number: chipPhone,
+      plan_price: sale.amount ?? null,     // preço real da venda
+      status_automacao: true,              // ativa automação imediatamente após onboarding
       onboarded_at: new Date().toISOString(),
     }).eq('id', userId);
 
