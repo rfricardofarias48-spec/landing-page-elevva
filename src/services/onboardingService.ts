@@ -344,21 +344,25 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     if (!ctx.chatwootIntegrated) {
       console.log('[Onboarding] Etapa 9: integrar Evolution com Chatwoot');
       if (CHATWOOT_URL && CHATWOOT_ADMIN_TOKEN) {
-        await evolutionPost(`/chatwoot/set/${chipInstance}`, {
-          enabled: true,
-          accountId: CHATWOOT_ACCOUNT_ID,
-          token: CHATWOOT_ADMIN_TOKEN,
-          url: CHATWOOT_URL,
-          signMsg: false,
-          reopenConversation: true,
-          conversationPending: false,
-          importContacts: true,
-          nameInbox: `${sale.client_name} — Elevva`,
-          mergeBrasilContacts: true,
-          importMessages: false,
-          daysLimitImportMessages: 0,
-          autoCreate: true,
-        });
+        try {
+          await evolutionPost(`/chatwoot/set/${chipInstance}`, {
+            enabled: true,
+            accountId: CHATWOOT_ACCOUNT_ID,
+            token: CHATWOOT_ADMIN_TOKEN,
+            url: CHATWOOT_URL,
+            signMsg: false,
+            reopenConversation: true,
+            conversationPending: false,
+            importContacts: true,
+            nameInbox: `${sale.client_name} — Elevva`,
+            mergeBrasilContacts: true,
+            importMessages: false,
+            daysLimitImportMessages: 0,
+            autoCreate: true,
+          });
+        } catch (chatwootErr: any) {
+          console.warn(`[Onboarding] Etapa 9 Chatwoot falhou (não bloqueante): ${chatwootErr.message}`);
+        }
       }
       ctx.chatwootIntegrated = true;
       await saveContext(saleId, 9, ctx);
