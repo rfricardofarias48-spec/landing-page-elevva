@@ -118,7 +118,7 @@ REGRAS DE PONTUAÇÃO (matchScore):
 Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
     const completion = await client.chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5.4-nano',
       response_format: { type: 'json_object' },
       temperature: 0.1,
       max_tokens: 800,
