@@ -123,6 +123,7 @@ interface ConversationContext {
   interview_id?: string;
   scheduling_token?: string;
   reminder_interview_id?: string;
+  pos_cancelamento?: boolean;
 }
 
 interface Conversation {

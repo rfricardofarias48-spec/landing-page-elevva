@@ -333,7 +333,7 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
           webhook: {
             url: `${webhookBase}/api/webhooks/evolution`,
             webhook_by_events: true,
-            webhook_base64: false,
+            webhook_base64: true,
             events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
           },
         });

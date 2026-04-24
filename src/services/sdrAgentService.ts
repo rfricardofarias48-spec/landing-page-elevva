@@ -18,6 +18,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import * as evo from './evolutionService.js';
 import { createMeetingEvent, deleteCalendarEvent } from './googleCalendarService.js';
 import { SdrConversationContext } from '../types.js';
+import { classifyIntent } from './openaiService.js';
 import crypto from 'crypto';
 
 // ─────────────────────────── Knowledge Base (inline) ───────────────────────────
@@ -129,7 +130,7 @@ async function loadSdrTexts(): Promise<void> {
 
 type Intent = 'GREETING' | 'PRICE' | 'DISCOUNT' | 'HOW_IT_WORKS' | 'INTEGRATION' | 'DEMO_REQUEST' | 'OBJECTION_EXPENSIVE' | 'OBJECTION_SMALL_COMPANY' | 'OBJECTION_AI_TRUST' | 'OBJECTION_COMPETITOR' | 'LGPD' | 'TALK_TO_HUMAN' | 'YES' | 'NO' | 'RESCHEDULE' | 'UNKNOWN';
 
-function detectIntent(text: string): Intent {
+function detectIntentRegex(text: string): Intent {
   const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   // Talk to human
@@ -170,6 +171,16 @@ function detectIntent(text: string): Intent {
   // Greeting
   if (/^(oi|ola|bom dia|boa tarde|boa noite|hey|hello|e ai|eai|fala)/.test(t)) return 'GREETING';
 
+  return 'UNKNOWN';
+}
+
+async function detectIntent(text: string, context?: string): Promise<Intent> {
+  const fast = detectIntentRegex(text);
+  if (fast !== 'UNKNOWN') return fast;
+  try {
+    const { intent, confidence } = await classifyIntent(text, context);
+    if (confidence >= 0.7) return intent as Intent;
+  } catch { /* keep UNKNOWN on AI failure */ }
   return 'UNKNOWN';
 }
 
@@ -411,7 +422,7 @@ async function handleSaudacaoEnviada(
   text: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const intent = detectIntent(text);
+  const intent = await detectIntent(text);
 
   if (intent === 'TALK_TO_HUMAN') {
     await escalateToHuman(conv, instance, phone, supabase);
@@ -503,7 +514,7 @@ async function handleQualificando(
   text: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const intent = detectIntent(text);
+  const intent = await detectIntent(text);
 
   // Priority intents override qualification
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
@@ -601,7 +612,7 @@ async function handleTirandoDuvidas(
   text: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const intent = detectIntent(text);
+  const intent = await detectIntent(text);
   const firstName = conv.context.name?.split(' ')[0] || '';
   const ctx = { ...conv.context };
 
@@ -797,7 +808,7 @@ async function handleOferecendoDemo(
   text: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const intent = detectIntent(text);
+  const intent = await detectIntent(text);
   const firstName = conv.context.name?.split(' ')[0] || '';
 
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
@@ -928,7 +939,7 @@ async function handleNegociandoHorario(
   text: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const intent = detectIntent(text);
+  const intent = await detectIntent(text);
   const firstName = conv.context.name?.split(' ')[0] || '';
   const proposedDate = conv.context.proposed_date || '';
   const proposedTime = conv.context.proposed_time || '';
@@ -1006,7 +1017,7 @@ async function handleAguardandoSlot(
   text: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const intent = detectIntent(text);
+  const intent = await detectIntent(text);
 
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
   if (intent === 'RESCHEDULE') { await handleReschedule(conv, instance, phone, supabase); return; }
@@ -1049,7 +1060,7 @@ async function handleDemoAgendada(
   text: string,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const intent = detectIntent(text);
+  const intent = await detectIntent(text);
 
   if (intent === 'TALK_TO_HUMAN') { await escalateToHuman(conv, instance, phone, supabase); return; }
 

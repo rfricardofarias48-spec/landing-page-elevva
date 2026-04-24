@@ -248,11 +248,12 @@ export async function downloadMediaBase64(
     const result = await post(endpoint, {
       message: sanitizedData,
       convertToMp4: false,
-    }, key) as { base64?: string; mimetype?: string } | null;
+    }, key);
 
-    if (result?.base64) {
+    const data = result.data as { base64?: string; mimetype?: string } | null;
+    if (data?.base64) {
       console.log(`[Evolution] Media downloaded via ${endpoint}`);
-      return { base64: result.base64, mimetype: result.mimetype || 'application/pdf' };
+      return { base64: data.base64, mimetype: data.mimetype || 'application/pdf' };
     }
   }
 
@@ -275,7 +276,7 @@ export async function configureWebhookBase64(
     webhook: {
       enabled: true,
       url: webhookUrl,
-      webhook_base64: false,
+      webhook_base64: true,
       webhook_by_events: true,
       events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
     },

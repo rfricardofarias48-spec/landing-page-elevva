@@ -80,79 +80,90 @@ export const analyzeResume = async (
     };
   }
 
-  // 2. Chamar Hermes 3 70B via Groq
-  try {
-    const client = new Groq({ apiKey });
-
-    const customPrompt = await fetchRecruiterPrompt(jobTitle, criteria);
-    const systemPrompt = customPrompt || `Você é um especialista em recrutamento e seleção. Analise o currículo abaixo para a vaga indicada e retorne APENAS um JSON válido, sem markdown, sem explicações.
+  // 2. Chamar LLaMA 4 Scout via Groq
+  const customPrompt = await fetchRecruiterPrompt(jobTitle, criteria);
+  const systemPrompt = customPrompt || `Você é um especialista sênior em recrutamento e seleção com 15 anos de experiência. Analise o currículo abaixo para a vaga indicada e retorne SOMENTE um JSON válido, sem markdown, sem texto adicional.
 
 VAGA: ${jobTitle}
-REQUISITOS DA VAGA: ${criteria || 'Não especificados'}
+REQUISITOS: ${criteria || 'Não especificados'}
 
-Estrutura JSON obrigatória:
+JSON de saída (todos os campos obrigatórios):
 {
-  "candidateName": "nome completo do candidato",
-  "matchScore": <número de 0.0 a 10.0>,
-  "yearsExperience": "tempo total de experiência exata no cargo (ex: '2 anos e 3 meses' ou 'Sem experiência')",
+  "candidateName": "Nome Sobrenome do candidato extraído do currículo",
+  "matchScore": <número decimal de 0.0 a 10.0>,
+  "yearsExperience": "tempo EXATO de experiência no cargo solicitado (ex: '3 anos e 2 meses' ou 'Sem experiência direta')",
   "city": "cidade de residência ou 'Não informado'",
   "neighborhood": "bairro ou 'Não informado'",
-  "phoneNumbers": ["telefone1", "telefone2"],
-  "summary": "análise técnica de aproximadamente 400 caracteres justificando a nota",
-  "pros": ["ponto forte 1", "ponto forte 2", "ponto forte 3"],
+  "phoneNumbers": ["telefone com DDD"],
+  "summary": "análise objetiva em ~400 caracteres: justifique a nota, destaque o mais relevante para a vaga",
+  "pros": ["hard skill ou experiência positiva 1", "ponto forte 2", "ponto forte 3"],
   "cons": ["ponto de atenção 1", "ponto de atenção 2", "ponto de atenção 3"],
   "workHistory": [
-    { "company": "nome da empresa", "role": "cargo", "duration": "duração calculada (ex: '1 ano e 5 meses')" }
+    { "company": "empresa", "role": "cargo exato", "duration": "duração calculada ex: '1 ano e 5 meses'" }
   ]
 }
 
-REGRAS DE PONTUAÇÃO (matchScore):
-- 9.0 a 10.0: Experiência EXATA no cargo + todos os requisitos atendidos
-- 7.0 a 8.9: Experiência exata no cargo, mas falta algum requisito
-- 4.0 a 6.9: Experiência correlata, mas não exata no cargo solicitado
+CRITÉRIO DE PONTUAÇÃO (matchScore):
+- 9.0 a 10.0: Cargo EXATO na vaga + todos os requisitos atendidos + experiência sólida
+- 7.0 a 8.9: Cargo exato na vaga, mas falta 1 ou 2 requisitos secundários
+- 4.0 a 6.9: Experiência correlata ao cargo (similar, mas não idêntico)
 - 0.0 a 3.9: Sem experiência relevante para a vaga
 
-Inclua as 3 experiências profissionais mais recentes em workHistory.`;
+REGRAS:
+- candidateName: extraia do cabeçalho do currículo, jamais invente
+- workHistory: inclua as 3 experiências mais recentes
+- phoneNumbers: inclua todos os telefones encontrados`;
 
-    const completion = await client.chat.completions.create({
-      model: process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
-      response_format: { type: 'json_object' },
-      temperature: 0.1,
-      max_tokens: 1024,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `CURRÍCULO:\n\n${pdfText.substring(0, 12000)}` },
-      ],
-    });
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const client = new Groq({ apiKey });
+      const completion = await client.chat.completions.create({
+        model: process.env.GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 1500,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `CURRÍCULO:\n\n${pdfText.substring(0, 20000)}` },
+        ],
+      });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) throw new Error('Resposta vazia do Hermes');
+      const content = completion.choices[0]?.message?.content;
+      if (!content) throw new Error('Resposta vazia do Hermes');
 
-    const result = JSON.parse(content) as AnalysisResult;
+      const result = JSON.parse(content) as AnalysisResult;
 
-    // Sanitização
-    if (!result.candidateName) result.candidateName = 'Candidato (Nome não identificado)';
-    if (typeof result.matchScore !== 'number' || result.matchScore < 0 || result.matchScore > 10) {
-      result.matchScore = 0;
+      // Sanitização
+      if (!result.candidateName || result.candidateName.length < 2) result.candidateName = 'Candidato (Nome não identificado)';
+      if (typeof result.matchScore !== 'number' || result.matchScore < 0 || result.matchScore > 10) result.matchScore = 0;
+      if (!Array.isArray(result.pros)) result.pros = [];
+      if (!Array.isArray(result.cons)) result.cons = [];
+      if (!Array.isArray(result.workHistory)) result.workHistory = [];
+      if (!Array.isArray(result.phoneNumbers)) result.phoneNumbers = [];
+      if (!result.yearsExperience) result.yearsExperience = '-';
+      if (!result.city) result.city = '-';
+      if (!result.neighborhood) result.neighborhood = '-';
+
+      console.log('[Hermes] Análise concluída:', result.candidateName, '| Score:', result.matchScore);
+      return result;
+
+    } catch (err: unknown) {
+      lastErr = err;
+      const e = err as Error;
+      console.warn(`[Hermes] tentativa ${attempt}/3 falhou: ${e.message}`);
+      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1500));
     }
-    if (!Array.isArray(result.pros)) result.pros = [];
-    if (!Array.isArray(result.cons)) result.cons = [];
-    if (!Array.isArray(result.workHistory)) result.workHistory = [];
-    if (!Array.isArray(result.phoneNumbers)) result.phoneNumbers = [];
-
-    console.log('[Hermes] Análise concluída:', result.candidateName, '| Score:', result.matchScore);
-    return result;
-
-  } catch (err: unknown) {
-    const e = err as Error & { status?: number; code?: string };
-    console.error('[Hermes] Erro na chamada da API:', e.message, e.status, e.code);
-    return {
-      ...ERROR_BASE,
-      candidateName: 'Erro na Análise',
-      summary: `Erro ao processar com Hermes: ${e.message || 'Erro desconhecido'}. Verifique os logs da Vercel.`,
-      cons: ['Falha na API Groq/Hermes', e.message || 'Erro desconhecido'],
-    };
   }
+
+  const e = lastErr as Error & { status?: number; code?: string };
+  console.error('[Hermes] Erro após 3 tentativas:', e.message);
+  return {
+    ...ERROR_BASE,
+    candidateName: 'Erro na Análise',
+    summary: `Erro ao processar: ${e.message || 'Erro desconhecido'}.`,
+    cons: ['Falha na API Groq após 3 tentativas', e.message || ''],
+  };
 };
 
 // ── Tipos para o briefing diário ──────────────────────────────────────
