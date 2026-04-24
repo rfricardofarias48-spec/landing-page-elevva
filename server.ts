@@ -4375,10 +4375,14 @@ app.delete("/api/chips-pool/:id", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// Deduplicação: Evolution v2 com webhook_by_events=true envia para base path E subpath
+const _evoProcessed = new Map<string, number>();
+setInterval(() => {
+  const cutoff = Date.now() - 30_000;
+  for (const [k, t] of _evoProcessed) if (t < cutoff) _evoProcessed.delete(k);
+}, 60_000);
+
 // ── POST /api/webhooks/evolution[/:event] — Webhook global do Evolution API ───
-// Evolution API v2 com WEBHOOK_BY_EVENTS=true envia para subpaths:
-//   /api/webhooks/evolution/connection-update, /api/webhooks/evolution/messages-set, etc.
-// Auto-registra chips no pool quando uma instância conecta ao WhatsApp
 app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (req, res) => {
   try {
     const body = req.body as any;
@@ -4391,31 +4395,66 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (r
 
     // ── MESSAGES_UPSERT: encaminhar para processamento do agente ─────────────
     if (event === 'MESSAGES_UPSERT' && instanceName) {
-      // Reutiliza exatamente a mesma lógica do /api/webhooks/agent/whatsapp
-      // O payload do webhook global tem o mesmo formato do por-instância
       const data = body?.data as Record<string, unknown> | undefined;
       if (data) {
         const key = data.key as Record<string, unknown> | undefined;
-        const remoteJid  = String(key?.remoteJid || '');
-        const fromMe     = key?.fromMe === true;
-        const pushName   = String(data.pushName || '');
+        const remoteJid   = String(key?.remoteJid || '');
+        const fromMe      = key?.fromMe === true;
+        const msgId       = String(key?.id || '');
+        const pushName    = String(data.pushName || '');
         const messageType = String(data.messageType || '');
-        const message    = (data.message as Record<string, unknown>) || {};
+        const message     = (data.message as Record<string, unknown>) || {};
+
+        // Deduplicação: ignora se já processamos este ID nos últimos 30s
+        const dedupKey = `${instanceName}:${msgId}`;
+        if (msgId && _evoProcessed.has(dedupKey)) {
+          console.log(`[EvoWH] duplicata ignorada msgId=${msgId}`);
+          return res.json({ ok: true, duplicate: true });
+        }
+        if (msgId) _evoProcessed.set(dedupKey, Date.now());
 
         if (remoteJid && !fromMe && !remoteJid.endsWith('@g.us')) {
           const phone = cleanPhone(remoteJid);
+
           let textContent: string | null = null;
           if (messageType === 'conversation') {
             textContent = String(message.conversation || '');
           } else if (messageType === 'extendedTextMessage') {
             const ext = message.extendedTextMessage as Record<string, unknown> | undefined;
             textContent = String(ext?.text || '');
+          } else if (messageType === 'listResponseMessage') {
+            const lr = message.listResponseMessage as Record<string, unknown> | undefined;
+            textContent = String(lr?.title || '');
+          }
+
+          let selectedRowId: string | null = null;
+          if (messageType === 'listResponseMessage') {
+            const lr  = message.listResponseMessage as Record<string, unknown> | undefined;
+            const ssr = lr?.singleSelectReply as Record<string, unknown> | undefined;
+            selectedRowId = ssr?.selectedRowId ? String(ssr.selectedRowId) : null;
+          }
+
+          // Extração de mídia para documentos (currículos em PDF)
+          let mediaData: { key: Record<string, unknown>; message: Record<string, unknown>; embeddedBase64?: string; embeddedMimetype?: string; } | null = null;
+          if (['documentMessage', 'documentWithCaptionMessage'].includes(messageType)) {
+            let docMsg = message.documentMessage as Record<string, unknown> | undefined;
+            if (!docMsg && message.documentWithCaptionMessage) {
+              const wrapper = message.documentWithCaptionMessage as Record<string, unknown>;
+              const innerMsg = wrapper.message as Record<string, unknown> | undefined;
+              docMsg = (innerMsg?.documentMessage as Record<string, unknown> | undefined) ?? wrapper;
+            }
+            console.log(`[EvoWH] Document fields: ${docMsg ? Object.keys(docMsg).join(', ') : 'none'}, hasBase64: ${!!docMsg?.base64}`);
+            mediaData = {
+              key: key || {},
+              message,
+              embeddedBase64: docMsg?.base64 ? String(docMsg.base64) : undefined,
+              embeddedMimetype: docMsg?.mimetype ? String(docMsg.mimetype) : 'application/pdf',
+            };
           }
 
           console.log(`[EvoWH] → agente instance=${instanceName} phone=${phone} type=${messageType}`);
-          // AWAIT: no Vercel o processo termina após res.json(), fire-and-forget não funciona
           try {
-            await processIncomingMessage(instanceName, phone, pushName, messageType, textContent, null, null, supabaseAdmin, undefined);
+            await processIncomingMessage(instanceName, phone, pushName, messageType, textContent, mediaData, selectedRowId, supabaseAdmin, undefined);
           } catch (e: any) {
             console.error(`[EvoWH] processIncomingMessage error: ${e.message}`);
           }
