@@ -4292,14 +4292,32 @@ app.get("/api/chips-pool/qr-status/:instance", async (req, res) => {
   }
 });
 
+// ── GET /api/chips-pool/debug — Diagnóstico da tabela chips_pool ─────────────
+app.get("/api/chips-pool/debug", async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const { data: chips, error: chipsErr } = await supabaseAdmin
+    .from('chips_pool').select('*').order('created_at', { ascending: false });
+  const { data: summary, error: summErr } = await supabaseAdmin
+    .from('chips_pool_summary').select('*').single();
+  return res.json({
+    chips_count: chips?.length ?? null,
+    chips,
+    chips_error: chipsErr ? chipsErr.message : null,
+    summary,
+    summary_error: summErr ? summErr.message : null,
+  });
+});
+
 // ── GET /api/chips-pool — Listar chips do pool ────────────────────────────────
 app.get("/api/chips-pool", async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   try {
-    const { data: chips } = await supabaseAdmin
+    const { data: chips, error: chipsErr } = await supabaseAdmin
       .from('chips_pool').select('*').order('created_at', { ascending: false });
-    const { data: summary } = await supabaseAdmin
+    if (chipsErr) console.error('[chips-pool GET] erro chips_pool:', chipsErr.message);
+    const { data: summary, error: summErr } = await supabaseAdmin
       .from('chips_pool_summary').select('*').single();
+    if (summErr) console.error('[chips-pool GET] erro chips_pool_summary:', summErr.message);
     return res.json({ chips: chips || [], summary: summary || {} });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -4378,28 +4396,30 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (r
   }
 
   // Verifica se chip já existe para essa instância
-  const { data: existing } = await supabaseAdmin
+  const { data: existing, error: existErr } = await supabaseAdmin
     .from('chips_pool')
     .select('id')
     .eq('evolution_instance', instanceName)
     .maybeSingle();
 
+  console.log(`[Evolution Webhook] existing=${JSON.stringify(existing)} existErr=${existErr?.message}`);
+
   if (existing) {
-    // Chip existe — apenas garante que está disponível (pode ter ficado offline)
     await supabaseAdmin
       .from('chips_pool')
       .update({ status: 'disponivel' })
       .eq('evolution_instance', instanceName)
       .eq('status', 'manutencao');
-    console.log(`[Evolution Webhook] Chip ${instanceName} já existe — status verificado`);
-    return res.json({ ok: true, updated: true });
+    console.log(`[Evolution Webhook] Chip ${instanceName} já existe id=${existing.id}`);
+    return res.json({ ok: true, updated: true, id: existing.id });
   }
 
-  // Extrai telefone do payload (presente em algumas versões do Evolution v2)
+  // Extrai telefone do payload
   const phoneRaw = body?.data?.me?.id || body?.data?.wuid || body?.data?.number || '';
   const phoneNumber = phoneRaw.replace(/[^0-9]/g, '').replace(/:.*$/, '');
 
-  // Cria chip automaticamente no pool
+  console.log(`[Evolution Webhook] Inserindo chip instanceName=${instanceName} phone=${phoneNumber || 'null'}`);
+
   const { data: chip, error } = await supabaseAdmin
     .from('chips_pool')
     .insert({
@@ -4412,11 +4432,11 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (r
     .single();
 
   if (error) {
-    console.error(`[Evolution Webhook] Erro ao criar chip ${instanceName}:`, error.message);
-    return res.status(500).json({ error: error.message });
+    console.error(`[Evolution Webhook] ERRO INSERT chip ${instanceName}: code=${error.code} msg=${error.message} details=${error.details}`);
+    return res.status(500).json({ error: error.message, code: error.code });
   }
 
-  console.log(`[Evolution Webhook] ✅ Chip auto-registrado: ${instanceName} (${phoneNumber || 'sem número'})`);
+  console.log(`[Evolution Webhook] ✅ Chip auto-registrado id=${chip?.id} instancia=${instanceName} phone=${phoneNumber || 'sem número'}`);
   return res.json({ ok: true, chip });
 });
 
