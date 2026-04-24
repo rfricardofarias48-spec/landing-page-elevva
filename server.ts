@@ -610,7 +610,7 @@ app.post("/api/admin/reconfigure-chatwoot/:userId", async (req, res) => {
     const { userId } = req.params;
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')
-      .select('instancia_evolution, evolution_token, chatwoot_account_id, chatwoot_user_token, chatwoot_token, chatwoot_inbox_id, name')
+      .select('instancia_evolution, evolution_token, chatwoot_account_id, chatwoot_user_id, chatwoot_user_token, chatwoot_token, chatwoot_inbox_id, name')
       .eq('id', userId)
       .single();
 
@@ -618,19 +618,56 @@ app.post("/api/admin/reconfigure-chatwoot/:userId", async (req, res) => {
 
     const instance = profile.instancia_evolution;
     const evoToken = profile.evolution_token || process.env.EVOLUTION_API_KEY || '';
-    const accountId = profile.chatwoot_account_id;
-    const userToken = profile.chatwoot_user_token || profile.chatwoot_token;
+    const accountId = Number(profile.chatwoot_account_id) || Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
     const inboxId = profile.chatwoot_inbox_id;
 
     if (!instance) return res.status(400).json({ ok: false, error: 'Instância Evolution não configurada no perfil' });
-    if (!userToken) return res.status(400).json({ ok: false, error: 'Token Chatwoot não encontrado no perfil. Preencha "Token de Acesso" nas configurações.' });
-    if (!accountId) return res.status(400).json({ ok: false, error: 'Account ID Chatwoot não configurado no perfil' });
+
+    // 1. Token salvo no perfil
+    let userToken: string = profile.chatwoot_user_token || profile.chatwoot_token || '';
+
+    // 2. Se não tiver, tenta buscar via Chatwoot API usando o chatwoot_user_id
+    const chatwootUrl = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+    const adminToken = process.env.CHATWOOT_ADMIN_TOKEN || '';
+    if (!userToken && profile.chatwoot_user_id && chatwootUrl && adminToken) {
+      try {
+        const r = await fetch(`${chatwootUrl}/api/v1/profile`, {
+          headers: { api_access_token: adminToken },
+        });
+        // Tenta obter o token do agente pelo ID
+        const agentRes = await fetch(`${chatwootUrl}/api/v1/accounts/${accountId}/agents/${profile.chatwoot_user_id}`, {
+          headers: { api_access_token: adminToken },
+        });
+        if (agentRes.ok) {
+          const agent = await agentRes.json() as { access_token?: string };
+          if (agent.access_token) {
+            userToken = agent.access_token;
+            console.log(`[Admin] Token recuperado do Chatwoot para agente ${profile.chatwoot_user_id}`);
+          }
+        }
+      } catch (e: any) {
+        console.warn('[Admin] Não conseguiu buscar token do Chatwoot:', e.message);
+      }
+    }
+
+    // 3. Último fallback: usa token admin (tem acesso à conta)
+    if (!userToken && adminToken) {
+      userToken = adminToken;
+      console.log('[Admin] Usando CHATWOOT_ADMIN_TOKEN como fallback para configurar Evolution');
+    }
+
+    if (!userToken) {
+      return res.status(400).json({ ok: false, error: 'Token Chatwoot não encontrado. Preencha "Token de Acesso" nas configurações do usuário.' });
+    }
 
     const ok = await configureChatwootOnEvolution(instance, evoToken, accountId, userToken, inboxId || 0);
 
     if (ok) {
-      // Espelha token no campo chatwoot_token para o painel ficar preenchido
-      await supabaseAdmin.from('profiles').update({ chatwoot_token: userToken }).eq('id', userId);
+      await supabaseAdmin.from('profiles').update({
+        chatwoot_token: userToken,
+        chatwoot_user_token: userToken,
+        chatwoot_account_id: accountId,
+      }).eq('id', userId);
       console.log(`[Admin] Chatwoot re-configurado com sucesso para ${profile.name} / ${instance}`);
     }
 
