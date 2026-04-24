@@ -112,7 +112,8 @@ export async function sendText(instance: string, jid: string, text: string, toke
     sleep(delay),
   ]);
 
-  const { ok } = await post('/send/text', { number: phone, text }, apiKey);
+  // Evolution API v2: POST /message/sendText/{instance}
+  const { ok } = await post(`/message/sendText/${instance}`, { number: phone, text }, apiKey);
   return ok;
 }
 
@@ -126,7 +127,8 @@ export async function sendList(
   sections: ListSection[],
   tokenOverride?: string,
 ): Promise<void> {
-  await post('/send/text', {
+  // Evolution API v2: POST /message/sendText/{instance}
+  await post(`/message/sendText/${instance}`, {
     number: cleanPhone(jid),
     text: `${title}\n\n${description}\n\n${sections.map(s => s.rows.map(r => `• ${r.title}`).join('\n')).join('\n')}`,
   }, tokenOverride || getApiKey(instance));
