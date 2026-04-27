@@ -79,9 +79,10 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
 
   const formatPhone = (phone: string) => {
     if (!phone) return '—';
-    const clean = phone.replace(/\D/g, '');
-    if (clean.length >= 12) return `+${clean.slice(0, 2)} (${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
+    let clean = phone.replace(/\D/g, '');
+    if (clean.startsWith('55') && (clean.length === 12 || clean.length === 13)) clean = clean.slice(2);
     if (clean.length === 11) return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
+    if (clean.length === 10) return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
     return phone;
   };
 
