@@ -16,6 +16,8 @@ interface Props {
 export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, chatwootAccountId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [jobFilter, setJobFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [finalizingId, setFinalizingId] = useState<string | null>(null);
   const [confirmFinalize, setConfirmFinalize] = useState<{ id: string; name: string } | null>(null);
 
@@ -68,9 +70,19 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
     return approvedCandidates.filter(c => {
       if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       if (jobFilter && c.jobId !== jobFilter) return false;
+      if (dateFrom && c.approvedAt) {
+        const d = new Date(c.approvedAt); d.setHours(0, 0, 0, 0);
+        const from = new Date(dateFrom); from.setHours(0, 0, 0, 0);
+        if (d < from) return false;
+      }
+      if (dateTo && c.approvedAt) {
+        const d = new Date(c.approvedAt); d.setHours(23, 59, 59, 999);
+        const to = new Date(dateTo); to.setHours(23, 59, 59, 999);
+        if (d > to) return false;
+      }
       return true;
     });
-  }, [approvedCandidates, searchTerm, jobFilter]);
+  }, [approvedCandidates, searchTerm, jobFilter, dateFrom, dateTo]);
 
   const formatApprovalDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
@@ -156,8 +168,24 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
           <option value="">Todas as vagas</option>
           {uniqueJobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
         </select>
-        {(searchTerm || jobFilter) && (
-          <button onClick={() => { setSearchTerm(''); setJobFilter(''); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-400 whitespace-nowrap">Aprovação:</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d] focus:border-transparent shadow-sm"
+          />
+          <span className="text-xs text-slate-400">até</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d] focus:border-transparent shadow-sm"
+          />
+        </div>
+        {(searchTerm || jobFilter || dateFrom || dateTo) && (
+          <button onClick={() => { setSearchTerm(''); setJobFilter(''); setDateFrom(''); setDateTo(''); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors">
             Limpar
           </button>
         )}
