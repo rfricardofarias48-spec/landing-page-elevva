@@ -91,9 +91,19 @@ export const AdminDashboard: React.FC = () => {
   const [dataError, setDataError] = useState<string | null>(null);
 
   // ── Helper: detectar conta sem agente (desativada) ─────────────────────────
+  // Regra: só é ghost se NÃO tem instância Evolution E NÃO tem plano pago ativo.
+  // Um usuário com plano ENTERPRISE/PRO/ESSENCIAL e subscription_status active NUNCA
+  // é ghost — pode ter perdido a instância por erro de sync mas o plano está ativo.
   const GHOST_EXEMPT_EMAILS = ['rfricardofarias48@gmail.com', 'rhfarilog@gmail.com'];
-  const isGhost = (u: { email: string; role: string; evolution_instance?: string; instancia_evolution?: string }) =>
-    !GHOST_EXEMPT_EMAILS.includes(u.email) && u.role !== 'ADMIN' && !u.evolution_instance && !u.instancia_evolution;
+  const PAID_PLANS = ['ENTERPRISE', 'PRO', 'ESSENCIAL', 'FREE', 'MENSAL', 'TRIMESTRAL', 'ANUAL'];
+  const isGhost = (u: { email: string; role: string; plan?: string; evolution_instance?: string; instancia_evolution?: string; subscription_status?: string }) => {
+    if (GHOST_EXEMPT_EMAILS.includes(u.email)) return false;
+    if (u.role === 'ADMIN') return false;
+    if (u.evolution_instance || u.instancia_evolution) return false;
+    // Se tem plano pago ativo, não é ghost — só não tem instância configurada ainda
+    if (PAID_PLANS.includes(u.plan || '') && u.subscription_status === 'active') return false;
+    return true;
+  };
 
   useEffect(() => {
     fetchData();
@@ -1160,7 +1170,12 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           )}
                                       </div>
                                   </td>
-                                  <td className="p-6">{user.status === 'BLOCKED' ? (<span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>) : (<span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>)}</td>
+                                  <td className="p-6">{(() => {
+                                    if (user.status === 'BLOCKED') return <span className="flex items-center gap-1 text-red-500 font-bold text-xs"><Ban className="w-3 h-3"/> Bloqueado</span>;
+                                    if (user.subscription_status === 'past_due') return <span className="flex items-center gap-1 text-amber-500 font-bold text-xs"><AlertTriangle className="w-3 h-3"/> Inadimplente</span>;
+                                    if (isGhost(user)) return <span className="flex items-center gap-1 text-slate-400 font-bold text-xs"><Ban className="w-3 h-3"/> Sem plano</span>;
+                                    return <span className="flex items-center gap-1 text-emerald-500 font-bold text-xs"><CheckCircle2 className="w-3 h-3"/> Ativo</span>;
+                                  })()}</td>
                                   <td className="p-6 text-right"><button onClick={() => setSelectedUser(user)} className="text-zinc-400 hover:text-black font-bold text-xs underline">Detalhes</button></td>
                               </tr>
                           ))}

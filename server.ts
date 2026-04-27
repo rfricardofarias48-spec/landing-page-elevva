@@ -4950,17 +4950,26 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
 
   const chatwootAccountId = parseInt(process.env.CHATWOOT_ACCOUNT_ID || '1', 10);
 
+  // Normaliza o plano da venda para o campo plan do perfil
+  const rawPlan = (sale.plan as string || '').toUpperCase();
+  const normalizedPlan = rawPlan.includes('ENTERPRISE') ? 'ENTERPRISE'
+    : rawPlan.includes('PRO') ? 'PRO'
+    : rawPlan.includes('ESSENCIAL') || rawPlan.includes('MENSAL') || rawPlan.includes('ANUAL') || rawPlan.includes('FREE') ? 'ESSENCIAL'
+    : null;
+
   const updates: Record<string, any> = {
     plan_price: sale.amount ?? null,
     evolution_token: process.env.EVOLUTION_API_KEY || null,
     status_automacao: true,
+    subscription_status: 'active',
     chatwoot_account_id: chatwootAccountId,
   };
+  if (normalizedPlan) updates.plan = normalizedPlan;
   if (chipInstance) { updates.instancia_evolution = chipInstance; updates.evolution_instance = chipInstance; }
   if (chipPhone)    { updates.whatsapp_number = chipPhone; updates.telefone_agente = chipPhone; }
   if (inboxId)      { updates.chatwoot_inbox_id = inboxId; }
   if (chatwootUserId)    { updates.chatwoot_user_id = chatwootUserId; }
-  if (chatwootUserToken) { updates.chatwoot_user_token = chatwootUserToken; }
+  if (chatwootUserToken) { updates.chatwoot_user_token = chatwootUserToken; updates.chatwoot_token = chatwootUserToken; }
 
   const { error } = await supabaseAdmin.from('profiles').update(updates).eq('id', userId);
   if (error) return res.status(500).json({ error: error.message });
@@ -4991,7 +5000,7 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
         webhook: {
           url: webhookUrl,
           webhook_by_events: true,
-          webhook_base64: false,
+          webhook_base64: true,
           events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
         },
       };
