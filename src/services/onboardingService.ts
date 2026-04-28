@@ -348,7 +348,8 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     // ── ETAPA 9: Integrar Evolution com Chatwoot ──────────────────────────────
     if (!ctx.chatwootIntegrated) {
       console.log('[Onboarding] Etapa 9: integrar Evolution com Chatwoot');
-      const chatwootToken9 = chatwootUserToken || CHATWOOT_ADMIN_TOKEN;
+      const rawToken9 = chatwootUserToken || CHATWOOT_ADMIN_TOKEN;
+      const chatwootToken9 = rawToken9.trim().replace(/[\r\n\t"']/g, '');
       if (CHATWOOT_URL && chatwootToken9) {
         // Evolution API v2 usa camelCase nos campos do body
         const chatwootBody = {
@@ -366,28 +367,23 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
           daysLimitImportMessages: 0,
           autoCreate: true,
         };
-        let evo9Ok = false;
-        for (const [method, path] of [['POST', `/chatwoot/set/${chipInstance}`], ['PUT', `/chatwoot/set/${chipInstance}`], ['POST', `/chatwoot/${chipInstance}`]] as [string, string][]) {
-          try {
-            const r = await fetch(`${EVOLUTION_URL}${path}`, {
-              method,
-              headers: { 'Content-Type': 'application/json', apikey: EVOLUTION_KEY },
-              body: JSON.stringify(chatwootBody),
-            });
-            if (r.ok) {
-              console.log(`[Onboarding] Etapa 9 Chatwoot OK via ${method} ${path}`);
-              evo9Ok = true;
-              break;
-            }
+        try {
+          const r = await fetch(`${EVOLUTION_URL}/chatwoot/set/${chipInstance}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: EVOLUTION_KEY },
+            body: JSON.stringify(chatwootBody),
+          });
+          if (r.ok) {
+            console.log(`[Onboarding] Etapa 9 Chatwoot OK`);
+          } else {
             const txt = await r.text();
-            console.warn(`[Onboarding] Etapa 9 ${method} ${path} → ${r.status}: ${txt.substring(0, 150)}`);
-          } catch (e: any) {
-            console.warn(`[Onboarding] Etapa 9 ${method} ${path} exception: ${e.message}`);
+            console.warn(`[Onboarding] Etapa 9 falhou → HTTP ${r.status}: ${txt.substring(0, 200)}`);
           }
+        } catch (e: any) {
+          console.warn(`[Onboarding] Etapa 9 exception: ${e.message}`);
         }
-        if (!evo9Ok) console.warn('[Onboarding] Etapa 9: nenhum endpoint de Chatwoot respondeu OK — verifique Evolution API v2');
       } else {
-        console.warn('[Onboarding] Etapa 9 ignorada: CHATWOOT_URL ou token ausente');
+        console.warn('[Onboarding] Etapa 9 ignorada: CHATWOOT_URL ou CHATWOOT_ADMIN_TOKEN ausente nas variáveis de ambiente');
       }
       ctx.chatwootIntegrated = true;
       await saveContext(saleId, 9, ctx);

@@ -679,6 +679,93 @@ app.post("/api/admin/reconfigure-chatwoot/:userId", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN: Diagnóstico Chatwoot — mostra estado atual da integração
+// GET /api/admin/diagnose-chatwoot/:userId
+// ─────────────────────────────────────────────────────────────────────
+app.get("/api/admin/diagnose-chatwoot/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('name, instancia_evolution, evolution_token, chatwoot_account_id, chatwoot_inbox_id, chatwoot_user_token, chatwoot_token')
+      .eq('id', userId)
+      .single();
+
+    const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+    const CHATWOOT_URL_ENV = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+    const adminToken = process.env.CHATWOOT_ADMIN_TOKEN || '';
+    const accountId = Number(profile?.chatwoot_account_id) || Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
+
+    const diag: Record<string, unknown> = {
+      env: {
+        EVOLUTION_API_URL: EVOLUTION_URL ? '✅ definida' : '❌ ausente',
+        CHATWOOT_URL: CHATWOOT_URL_ENV ? '✅ ' + CHATWOOT_URL_ENV : '❌ ausente',
+        CHATWOOT_ADMIN_TOKEN: adminToken ? '✅ definido (' + adminToken.slice(0, 6) + '...)' : '❌ ausente — necessário para onboarding e reconfiguração',
+        CHATWOOT_ACCOUNT_ID: process.env.CHATWOOT_ACCOUNT_ID ? '✅ ' + process.env.CHATWOOT_ACCOUNT_ID : '⚠️ não definido (usando padrão: 1)',
+      },
+      profile: profile ? {
+        instancia: profile.instancia_evolution || '❌ ausente',
+        chatwoot_account_id: profile.chatwoot_account_id || '❌ ausente',
+        chatwoot_inbox_id: profile.chatwoot_inbox_id || '❌ ausente',
+        chatwoot_token: profile.chatwoot_token ? '✅ salvo' : '❌ ausente',
+        chatwoot_user_token: profile.chatwoot_user_token ? '✅ salvo' : '❌ ausente',
+      } : '❌ perfil não encontrado',
+    };
+
+    // Verificar config atual do Chatwoot na Evolution
+    if (EVOLUTION_URL && profile?.instancia_evolution) {
+      try {
+        const evoKey = profile.evolution_token || process.env.EVOLUTION_API_KEY || '';
+        const r = await fetch(`${EVOLUTION_URL}/chatwoot/find/${profile.instancia_evolution}`, {
+          headers: { apikey: evoKey },
+        });
+        if (r.ok) {
+          const cfg = await r.json() as Record<string, unknown>;
+          diag.evolution_chatwoot_config = {
+            enabled: cfg.enabled,
+            accountId: cfg.accountId,
+            url: cfg.url,
+            token: cfg.token ? '✅ configurado (' + String(cfg.token).slice(0, 6) + '...)' : '❌ ausente',
+            nameInbox: cfg.nameInbox,
+            inboxId: cfg.inboxId,
+          };
+        } else {
+          diag.evolution_chatwoot_config = `❌ Evolution respondeu HTTP ${r.status}`;
+        }
+      } catch (e: any) {
+        diag.evolution_chatwoot_config = `❌ Erro ao consultar Evolution: ${e.message}`;
+      }
+    } else {
+      diag.evolution_chatwoot_config = '⚠️ Pulado — EVOLUTION_API_URL ou instância ausente';
+    }
+
+    // Testar token Chatwoot
+    const tokenToTest = profile?.chatwoot_user_token || profile?.chatwoot_token || adminToken;
+    if (CHATWOOT_URL_ENV && tokenToTest) {
+      try {
+        const r = await fetch(`${CHATWOOT_URL_ENV}/api/v1/profile`, {
+          headers: { api_access_token: tokenToTest },
+        });
+        if (r.ok) {
+          const p = await r.json() as { name?: string; email?: string; role?: string };
+          diag.chatwoot_token_test = `✅ válido — usuário: ${p.name} (${p.role})`;
+        } else {
+          diag.chatwoot_token_test = `❌ inválido — HTTP ${r.status}`;
+        }
+      } catch (e: any) {
+        diag.chatwoot_token_test = `❌ Erro: ${e.message}`;
+      }
+    } else {
+      diag.chatwoot_token_test = '⚠️ Sem token para testar';
+    }
+
+    return res.json(diag);
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // ADMIN: Deletar usuário (profiles + Supabase Auth)
 // DELETE /api/admin/delete-user/:id
 // ─────────────────────────────────────────────────────────────────────

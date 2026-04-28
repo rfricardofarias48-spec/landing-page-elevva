@@ -50,6 +50,8 @@ export const AdminDashboard: React.FC = () => {
   const [tempChatwootInboxId, setTempChatwootInboxId] = useState('');
   const [reconfigChatwootLoading, setReconfigChatwootLoading] = useState(false);
   const [reconfigChatwootMsg, setReconfigChatwootMsg] = useState<string | null>(null);
+  const [diagChatwootLoading, setDiagChatwootLoading] = useState(false);
+  const [diagChatwootResult, setDiagChatwootResult] = useState<string | null>(null);
 
   // States para Controle Agente
   const [agentSubTab, setAgentSubTab] = useState<'trabalho' | 'atendimento' | 'treinamento'>('trabalho');
@@ -477,6 +479,21 @@ export const AdminDashboard: React.FC = () => {
       setReconfigChatwootMsg('❌ Erro de rede');
     } finally {
       setReconfigChatwootLoading(false);
+    }
+  };
+
+  const handleDiagChatwoot = async () => {
+    if (!selectedUser) return;
+    setDiagChatwootLoading(true);
+    setDiagChatwootResult(null);
+    try {
+      const res = await fetch(`/api/admin/diagnose-chatwoot/${selectedUser.id}`);
+      const data = await res.json();
+      setDiagChatwootResult(JSON.stringify(data, null, 2));
+    } catch (err) {
+      setDiagChatwootResult('❌ Erro de rede');
+    } finally {
+      setDiagChatwootLoading(false);
     }
   };
 
@@ -3696,10 +3713,21 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                     {reconfigChatwootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                                                     Reconfigurar no Evolution
                                                 </button>
+                                                <button
+                                                    onClick={handleDiagChatwoot}
+                                                    disabled={diagChatwootLoading}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                                                >
+                                                    {diagChatwootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>🔍</span>}
+                                                    Diagnosticar
+                                                </button>
                                                 {reconfigChatwootMsg && (
                                                     <span className="text-xs font-medium text-slate-600">{reconfigChatwootMsg}</span>
                                                 )}
                                             </div>
+                                            {diagChatwootResult && (
+                                                <pre className="mt-3 p-3 bg-slate-900 text-green-400 rounded-xl text-[10px] overflow-x-auto whitespace-pre-wrap max-h-64">{diagChatwootResult}</pre>
+                                            )}
                                         </div>
 
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
