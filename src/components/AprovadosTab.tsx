@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserCheck, Search, MessageSquare, ExternalLink, CheckCircle2, Loader2, Phone, X, AlertTriangle } from 'lucide-react';
 import { Job, Interview } from '../types';
-import { supabase } from '../services/supabaseClient';
 
 const CHATWOOT_BASE_URL = (import.meta.env.VITE_CHATWOOT_URL || 'https://bot-chatwoot.5mljrq.easypanel.host').replace(/\/$/, '');
 
@@ -89,25 +88,14 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
   useEffect(() => {
     const phones = approvedCandidates.map(c => c.phone).filter(Boolean);
     if (phones.length === 0) return;
-    // Also include variants with 55 prefix
-    const variants = Array.from(new Set(phones.flatMap(p => {
-      const clean = p.replace(/\D/g, '');
-      return [clean, `55${clean}`, `+55${clean}`];
-    })));
-    supabase
-      .from('agent_conversations')
-      .select('phone, chatwoot_conversation_id')
-      .in('phone', variants)
-      .not('chatwoot_conversation_id', 'is', null)
-      .then(({ data }) => {
-        if (!data) return;
-        const map: Record<string, number> = {};
-        data.forEach((row: { phone: string; chatwoot_conversation_id: number }) => {
-          const clean = row.phone.replace(/\D/g, '').replace(/^55/, '');
-          map[clean] = row.chatwoot_conversation_id;
-        });
-        setChatwootMap(map);
-      });
+    fetch('/api/chatwoot-map', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phones }),
+    })
+      .then(r => r.json())
+      .then(({ map }) => { if (map) setChatwootMap(map); })
+      .catch(() => {});
   }, [approvedCandidates]);
 
   const formatApprovalDate = (dateStr: string | null) => {
@@ -127,12 +115,11 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
   };
 
   const buildChatwootUrl = (phone: string, conversationId?: string) => {
-    if (!chatwootAccountId) return null;
-    // Prefer ID from agent_conversations map (most reliable), fallback to candidate field
+    const accountId = chatwootAccountId || 1;
     const cleanPhone = phone.replace(/\D/g, '').replace(/^55/, '');
     const convId = chatwootMap[cleanPhone] ?? (conversationId ? Number(conversationId) : null);
     if (!convId) return null;
-    return `${CHATWOOT_BASE_URL}/app/accounts/${chatwootAccountId}/conversations/${convId}`;
+    return `${CHATWOOT_BASE_URL}/app/accounts/${accountId}/conversations/${convId}`;
   };
 
   const handleFinalize = async () => {

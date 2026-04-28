@@ -57,6 +57,36 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Returns chatwoot_conversation_id for a list of phones (uses admin client to bypass RLS)
+app.post("/api/chatwoot-map", async (req, res) => {
+  try {
+    const { phones } = req.body as { phones?: string[] };
+    if (!phones || phones.length === 0) return res.json({ map: {} });
+
+    // Build all phone variants (with/without 55 prefix)
+    const variants = Array.from(new Set(phones.flatMap(p => {
+      const clean = p.replace(/\D/g, '');
+      return [clean, `55${clean}`, `+55${clean}`];
+    })));
+
+    const { data } = await supabaseAdmin
+      .from('agent_conversations')
+      .select('phone, chatwoot_conversation_id')
+      .in('phone', variants)
+      .not('chatwoot_conversation_id', 'is', null);
+
+    const map: Record<string, number> = {};
+    (data || []).forEach((row: { phone: string; chatwoot_conversation_id: number }) => {
+      const clean = row.phone.replace(/\D/g, '').replace(/^55/, '');
+      map[clean] = row.chatwoot_conversation_id;
+    });
+
+    return res.json({ map });
+  } catch (err) {
+    return res.json({ map: {} });
+  }
+});
+
 // Diagnóstico da API OpenAI
 app.get("/api/test-openai", async (req, res) => {
   try {
