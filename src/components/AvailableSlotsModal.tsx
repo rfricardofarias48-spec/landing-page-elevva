@@ -40,11 +40,19 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose }) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const currentTime = now.toTimeString().slice(0, 5);
+
+    // Delete expired slots from DB (past dates + past times on today)
+    await Promise.all([
+      supabase.from('availability_slots').delete()
+        .eq('user_id', userId).lt('slot_date', today),
+      supabase.from('availability_slots').delete()
+        .eq('user_id', userId).eq('slot_date', today).lte('slot_time', currentTime),
+    ]);
+
     const { data } = await supabase
       .from('availability_slots')
       .select('*')
       .eq('user_id', userId)
-      .or(`slot_date.gt.${today},and(slot_date.eq.${today},slot_time.gt.${currentTime})`)
       .order('slot_date', { ascending: true })
       .order('slot_time', { ascending: true });
     setSlots(data || []);

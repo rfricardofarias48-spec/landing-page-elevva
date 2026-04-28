@@ -23,9 +23,9 @@ import { BentoChat } from './components/BentoChat';
 import { NicheSection } from './components/NicheSection';
 import { PublicPortalScreen } from './components/PublicPortalScreen';
 import { 
-  Plus, LogOut, Settings, LayoutDashboard, User as UserIcon, 
+  Plus, LogOut, Settings, LayoutDashboard, User as UserIcon,
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, AlertTriangle, CalendarPlus
 } from 'lucide-react';
 
 const CHATWOOT_BASE_URL = (import.meta.env.VITE_CHATWOOT_URL || 'https://bot-chatwoot.5mljrq.easypanel.host').replace(/\/$/, '');
@@ -210,6 +210,11 @@ const App: React.FC = () => {
   const [initialSelectedInterview, setInitialSelectedInterview] = useState<Record<string, unknown> | null>(null);
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   
+  // Slot requests (candidates waiting for new interview slots)
+  const [slotRequests, setSlotRequests] = useState<Array<{
+    id: string; candidate_name: string; job_title: string; created_at: string; job_id: string;
+  }>>([]);
+
   // Billing Period
   const [isAnnual, setIsAnnual] = useState(false);
   const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
@@ -377,6 +382,28 @@ const App: React.FC = () => {
       supabase.removeChannel(candidateChannel);
     };
   }, [user]);
+
+  // --- SLOT REQUESTS POLLING ---
+  useEffect(() => {
+    if (!user?.id) return;
+    const fetchSlotRequests = async () => {
+      const { data } = await supabase
+        .from('slot_requests')
+        .select('id, candidate_name, job_title, created_at, job_id')
+        .eq('profile_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      setSlotRequests(data || []);
+    };
+    fetchSlotRequests();
+    const interval = setInterval(fetchSlotRequests, 60000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
+  const dismissSlotRequest = async (id: string) => {
+    await supabase.from('slot_requests').update({ status: 'handled' }).eq('id', id);
+    setSlotRequests(prev => prev.filter(r => r.id !== id));
+  };
 
   // --- REALTIME PROFILE SUBSCRIPTION (AUTOMATIC PLAN UPDATE) ---
   useEffect(() => {
@@ -3553,6 +3580,70 @@ const App: React.FC = () => {
               </div>
               <p className="text-xs text-slate-500 mb-1">De: <span className="font-semibold text-slate-700">{chatNotification.candidateName}</span></p>
               <p className="text-sm text-slate-800 line-clamp-2">{chatNotification.message}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SLOT REQUEST NOTIFICATION CARD */}
+      {slotRequests.length > 0 && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none">
+          <div className="pointer-events-auto w-full max-w-md animate-slide-up">
+            {/* Backdrop blur pill */}
+            <div className="bg-white rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.18)] border border-amber-100 overflow-hidden">
+
+              {/* Header */}
+              <div className="bg-amber-50 border-b border-amber-100 px-6 py-4 flex items-center gap-3">
+                <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-slate-900 text-sm">Candidato sem horários disponíveis</p>
+                  <p className="text-xs text-amber-700 font-medium mt-0.5">
+                    {slotRequests.length === 1 ? '1 candidato aguardando' : `${slotRequests.length} candidatos aguardando`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Requests list */}
+              <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                {slotRequests.map(req => (
+                  <div key={req.id} className="flex items-center gap-3 px-6 py-4">
+                    <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <CalendarPlus className="w-4 h-4 text-slate-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{req.candidate_name}</p>
+                      <p className="text-xs text-slate-500 truncate">{req.job_title}</p>
+                    </div>
+                    <button
+                      onClick={() => dismissSlotRequest(req.id)}
+                      className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all flex-shrink-0"
+                      title="Marcar como resolvido"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Footer CTA */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+                <button
+                  onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); setSlotRequests([]); }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-black text-white text-sm font-bold py-2.5 px-4 rounded-xl hover:bg-zinc-800 transition-all"
+                >
+                  <CalendarPlus className="w-4 h-4" />
+                  Adicionar horários
+                </button>
+                <button
+                  onClick={() => setSlotRequests([])}
+                  className="px-4 py-2.5 text-slate-500 text-sm font-medium hover:bg-slate-200 rounded-xl transition-all"
+                >
+                  Fechar
+                </button>
+              </div>
+
             </div>
           </div>
         </div>

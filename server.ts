@@ -1938,6 +1938,60 @@ app.get("/api/agendar/:token", async (req, res) => {
       time: bookedSlot.slot_time.substring(0, 5),
     } : null;
 
+    // Detect if no available (non-expired, non-booked) slots exist
+    const nowCheck = new Date();
+    const hasAvailableSlots = slots.some(s => {
+      if (s.isBooked) return false;
+      const [h, m] = s.time.substring(0, 5).split(':').map(Number);
+      const dt = new Date(s.date);
+      dt.setHours(h, m, 0, 0);
+      return dt >= nowCheck;
+    });
+
+    if (!hasAvailableSlots) {
+      // Update interview status so notifyPendingReschedules picks it up later
+      await supabaseAdmin.from('interviews')
+        .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
+        .eq('id', interview.id)
+        .in('status', ['AGUARDANDO_ESCOLHA_SLOT', 'AGUARDANDO_RESPOSTA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA']);
+
+      // Upsert slot_request (dedup by interview_id — only notify recruiter once)
+      const { data: existing } = await supabaseAdmin
+        .from('slot_requests').select('id').eq('interview_id', interview.id).maybeSingle();
+
+      if (!existing) {
+        const { data: jobOwner } = await supabaseAdmin
+          .from('jobs').select('user_id').eq('id', interview.job_id).single();
+
+        if (jobOwner?.user_id) {
+          await supabaseAdmin.from('slot_requests').insert({
+            interview_id: interview.id,
+            job_id: interview.job_id,
+            candidate_name: candidateName,
+            job_title: job?.title || 'Vaga',
+            profile_id: jobOwner.user_id,
+            status: 'pending',
+          });
+
+          // Fire-and-forget WhatsApp notification to recruiter
+          supabaseAdmin.from('profiles')
+            .select('phone, instancia_evolution, evolution_token')
+            .eq('id', jobOwner.user_id).single()
+            .then(({ data: prof }) => {
+              if (prof?.phone && prof?.instancia_evolution) {
+                const phone = prof.phone.replace(/\D/g, '');
+                const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+                const evoToken = prof.evolution_token || process.env.EVOLUTION_API_KEY || '';
+                sendText(prof.instancia_evolution, jid,
+                  `⚠️ *Atenção!*\n\nO candidato *${candidateName}* tentou acessar o link de agendamento para a vaga *${job?.title || 'Vaga'}*, mas não encontrou horários disponíveis.\n\nPor favor, adicione novos horários no Elevva para que ele possa agendar a entrevista.`,
+                  evoToken
+                ).catch((e: unknown) => console.warn('[SlotRequest] WhatsApp to recruiter failed:', e));
+              }
+            }).catch((e: unknown) => console.warn('[SlotRequest] Profile lookup failed:', e));
+        }
+      }
+    }
+
     const pageData: SchedulingPageData = {
       token,
       candidateName,
@@ -1947,6 +2001,7 @@ app.get("/api/agendar/:token", async (req, res) => {
       location: firstSlot?.location || null,
       currentBooking,
       slots,
+      noSlotsAvailable: !hasAvailableSlots,
     };
 
     const html = renderSchedulingPage(pageData);
@@ -2267,59 +2322,59 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
     // 6. Delete free (unbooked) slots for this job
     await supabaseAdmin.from('interview_slots').delete().eq('job_id', interview.job_id).eq('is_booked', false);
 
-    // 7. Send WhatsApp cancellation message
-    let whatsappSent = false;
-    if (!phone) {
-      console.warn(`[Cancel] SKIP WhatsApp: no phone number for candidate ${interview.candidate_id}`);
-    } else if (!instance) {
-      console.warn(`[Cancel] SKIP WhatsApp: no Evolution instance for job owner`);
-    } else {
-      let dateInfo = '';
-      if (interview.slot_date && interview.slot_time) {
-        const [year, month, day] = interview.slot_date.split('-').map(Number);
-        const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
-        const timeLabel = interview.slot_time.substring(0, 5);
-        dateInfo = `\n\n📅 ${dateLabel} às ${timeLabel}`;
+    // Respond immediately — DB work is done. WhatsApp + conversation update run async.
+    res.json({ ok: true });
+
+    // 7 + 8 + 9. Fire-and-forget: WhatsApp notification + agent state update
+    (async () => {
+      let whatsappSent = false;
+      if (!phone) {
+        console.warn(`[Cancel] SKIP WhatsApp: no phone number for candidate ${interview.candidate_id}`);
+      } else if (!instance) {
+        console.warn(`[Cancel] SKIP WhatsApp: no Evolution instance for job owner`);
+      } else {
+        let dateInfo = '';
+        if (interview.slot_date && interview.slot_time) {
+          const [year, month, day] = interview.slot_date.split('-').map(Number);
+          const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+          const timeLabel = interview.slot_time.substring(0, 5);
+          dateInfo = `\n\n📅 ${dateLabel} às ${timeLabel}`;
+        }
+        try {
+          await sendText(
+            instance, phone,
+            `Olá, *${firstName}*.\n\nInformamos que, infelizmente, sua entrevista foi cancelada.${dateInfo}\n\nPedimos desculpas pelo inconveniente.\n\nAtenciosamente,\nEquipe de Recrutamento`,
+            cancelToken,
+          );
+          whatsappSent = true;
+          console.log(`[Cancel] ✓ WhatsApp 1 sent to ${phone}`);
+        } catch (e) {
+          console.warn('[Cancel] WhatsApp 1 failed:', e);
+        }
       }
 
-      console.log(`[Cancel] Sending WhatsApp to ${phone} via instance ${instance}`);
-      await sendText(
-        instance,
-        phone,
-        `Olá, *${firstName}*.\n\nInformamos que, infelizmente, sua entrevista foi cancelada.${dateInfo}\n\nPedimos desculpas pelo inconveniente.\n\nAtenciosamente,\nEquipe de Recrutamento`,
-        cancelToken,
-      );
-      whatsappSent = true;
-      console.log(`[Cancel] ✓ WhatsApp sent successfully to ${phone}`);
-    }
-
-    // 8. Update agent conversation state → POS_CANCELAMENTO (aguarda escolha do candidato)
-    if (phone) {
-      await supabaseAdmin.from('agent_conversations').update({
-        state: 'CANCELADA',
-        context: { pos_cancelamento: true },
-        updated_at: new Date().toISOString(),
-      }).eq('phone', phone);
-      console.log(`[Cancel] Conversation state updated to CANCELADA (pos_cancelamento)`);
-    }
-
-    // 9. Enviar mensagem de acompanhamento com opções ao candidato
-    if (whatsappSent && instance && cancelToken !== undefined) {
-      try {
-        await new Promise(r => setTimeout(r, 2500));
-        await sendText(
-          instance,
-          phone!,
-          `Você pode se candidatar a outras oportunidades disponíveis ou aguardar um novo convite para entrevista. O que prefere?\n\n1️⃣ Ver outras vagas disponíveis\n2️⃣ Aguardar um novo convite`,
-          cancelToken,
-        );
-      } catch (e) {
-        console.warn('[Cancel] Falha ao enviar mensagem pós-cancelamento:', e);
+      if (phone) {
+        await supabaseAdmin.from('agent_conversations').update({
+          state: 'CANCELADA',
+          context: { pos_cancelamento: true },
+          updated_at: new Date().toISOString(),
+        }).eq('phone', phone);
       }
-    }
 
-    console.log(`[Cancel] ✓ Cancellation complete. WhatsApp: ${whatsappSent ? 'SENT' : 'NOT SENT'}`);
-    return res.json({ ok: true, whatsapp_sent: whatsappSent });
+      if (whatsappSent && instance && cancelToken !== undefined) {
+        try {
+          await new Promise(r => setTimeout(r, 2500));
+          await sendText(
+            instance, phone!,
+            `Você pode se candidatar a outras oportunidades disponíveis ou aguardar um novo convite para entrevista. O que prefere?\n\n1️⃣ Ver outras vagas disponíveis\n2️⃣ Aguardar um novo convite`,
+            cancelToken,
+          );
+        } catch (e) {
+          console.warn('[Cancel] WhatsApp 2 failed:', e);
+        }
+      }
+      console.log(`[Cancel] ✓ Async cleanup complete. WhatsApp: ${whatsappSent ? 'SENT' : 'NOT SENT'}`);
+    })().catch(e => console.error('[Cancel] Async error:', e));
   } catch (err) {
     console.error('[Cancel] ✗ FATAL ERROR:', err);
     return res.status(500).json({ ok: false, error: 'Erro interno: ' + (err instanceof Error ? err.message : String(err)) });

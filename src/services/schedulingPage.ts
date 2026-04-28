@@ -22,13 +22,23 @@ export interface SchedulingPageData {
     timeLabel: string;
     isBooked: boolean;
   }>;
+  noSlotsAvailable?: boolean;
 }
 
 export function renderSchedulingPage(data: SchedulingPageData): string {
-  const { token, candidateName, jobTitle, interviewerName, format, location, currentBooking, slots } = data;
+  const { token, candidateName, jobTitle, interviewerName, format, location, currentBooking, slots, noSlotsAvailable } = data;
+
+  const now = new Date();
+  const isExpired = (date: string, time: string): boolean => {
+    const [h, m] = time.split(':').map(Number);
+    const dt = new Date(date);
+    dt.setHours(h, m, 0, 0);
+    return dt < now;
+  };
 
   const slotsByDate: Record<string, typeof slots> = {};
   for (const slot of slots) {
+    if (isExpired(slot.date, slot.time) && slot.id !== currentBooking?.slotId) continue;
     if (!slotsByDate[slot.date]) slotsByDate[slot.date] = [];
     slotsByDate[slot.date].push(slot);
   }
@@ -286,6 +296,40 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
       cursor: default;
     }
 
+    /* ─── Waiting (no slots) ─── */
+    .waiting-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: var(--g-pale);
+      border: 1px solid var(--g-mid);
+      border-radius: var(--radius);
+      padding: 18px 18px;
+      margin-top: 4px;
+    }
+    .waiting-icon {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      background: #fff;
+      border: 1px solid var(--g-mid);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .waiting-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #2d4d06;
+      margin-bottom: 5px;
+    }
+    .waiting-body {
+      font-size: 13px;
+      color: #3a5f0b;
+      line-height: 1.6;
+    }
+
     /* ─── Empty ─── */
     .empty { padding: 48px 0; text-align: center; }
     .empty-title { font-size: 15px; font-weight: 600; color: var(--ink2); margin-bottom: 5px; }
@@ -380,16 +424,30 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
 <!-- SLOT SELECTION -->
 <div id="slot-selection" class="wrap">
   <p class="eyebrow">Olá, ${firstName} 👋</p>
-  <h1>${isReschedule ? 'Reagende sua entrevista' : 'Escolha seu horário'}</h1>
+  <h1>${noSlotsAvailable ? 'Em breve novos horários' : isReschedule ? 'Reagende sua entrevista' : 'Escolha seu horário'}</h1>
 
   <div class="info-card">${infoHTML}</div>
 
+  ${noSlotsAvailable ? `
+  <div class="waiting-card">
+    <div class="waiting-icon">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="11" r="9.25" stroke="#5c8f0e" stroke-width="1.5"/>
+        <path d="M11 6.5v5l3 2" stroke="#5c8f0e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <p class="waiting-title">Aguardando novos horários</p>
+      <p class="waiting-body">Avisamos o recrutador e assim que novos horários forem disponibilizados, você receberá uma mensagem com o link para agendar.</p>
+    </div>
+  </div>
+  ` : `
   ${currentBookingHTML}
-
   <div class="slots-section">
     <p class="slots-heading">Horários disponíveis</p>
     ${slotsHTML}
   </div>
+  `}
 </div>
 
 <!-- CONFIRMATION -->
@@ -432,14 +490,17 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
   const TOKEN = '${token}';
   const BASE = window.location.origin;
   const IS_RESCHEDULE = ${isReschedule};
+  const NO_SLOTS = ${noSlotsAvailable ? 'true' : 'false'};
   const JOB_TITLE = ${JSON.stringify(jobTitle)};
   const FORMAT = ${JSON.stringify(format)};
   const LOCATION = ${JSON.stringify(location || '')};
   const INTERVIEWER = ${JSON.stringify(interviewerName || '')};
 
-  document.querySelectorAll('.slot:not([disabled])').forEach(b =>
-    b.addEventListener('click', () => book(b.dataset.slotId, b.dataset.date, b.dataset.time))
-  );
+  if (!NO_SLOTS) {
+    document.querySelectorAll('.slot:not([disabled])').forEach(b =>
+      b.addEventListener('click', () => book(b.dataset.slotId, b.dataset.date, b.dataset.time))
+    );
+  }
 
   async function book(slotId, date, time) {
     document.getElementById('loading').classList.add('on');
@@ -473,6 +534,37 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
   }
 
   function showReschedule() { window.location.reload(); }
+
+  // Hide slots that expire while the page is open
+  function pruneExpiredSlots() {
+    let anyRemoved = false;
+    document.querySelectorAll('.slot[data-date][data-time]:not([disabled])').forEach(btn => {
+      const d = btn.dataset.date;
+      const t = btn.dataset.time;
+      if (!d || !t) return;
+      const [h, m] = t.split(':').map(Number);
+      const dt = new Date(d);
+      dt.setHours(h, m, 0, 0);
+      if (dt < new Date()) {
+        const row = btn.closest('.slots-row');
+        btn.remove();
+        anyRemoved = true;
+        if (row && row.querySelectorAll('.slot').length === 0) {
+          row.closest('.date-group')?.remove();
+        }
+      }
+    });
+    if (anyRemoved) {
+      const section = document.querySelector('.slots-section');
+      if (section && section.querySelectorAll('.slot').length === 0) {
+        section.innerHTML = '<div class="empty"><p class="empty-title">Nenhum horário disponível</p><p class="empty-sub">Aguarde contato do recrutador com novas opções.</p></div>';
+      }
+    }
+  }
+  if (!NO_SLOTS) {
+    pruneExpiredSlots();
+    setInterval(pruneExpiredSlots, 30000);
+  }
 </script>
 </body>
 </html>`;

@@ -31,12 +31,22 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
     const fetchSlots = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().slice(0, 5);
+
+      // Delete expired slots from DB before fetching
+      await Promise.all([
+        supabase.from('availability_slots').delete()
+          .eq('user_id', authUser.id).lt('slot_date', today),
+        supabase.from('availability_slots').delete()
+          .eq('user_id', authUser.id).eq('slot_date', today).lte('slot_time', currentTime),
+      ]);
+
       const { data } = await supabase
         .from('availability_slots')
         .select('*')
         .eq('user_id', authUser.id)
-        .gte('slot_date', today)
         .order('slot_date', { ascending: true })
         .order('slot_time', { ascending: true });
       const fetched = data || [];
