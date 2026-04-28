@@ -2406,13 +2406,13 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
         try {
           await sendText(
             instance, phone,
-            `Olá, *${firstName}*.\n\nInformamos que, infelizmente, sua entrevista foi cancelada.${dateInfo}\n\nPedimos desculpas pelo inconveniente.\n\nAtenciosamente,\nEquipe de Recrutamento`,
+            `Olá, *${firstName}*.\n\nInformamos que, infelizmente, sua entrevista foi cancelada. Você pode se candidatar a outras oportunidades disponíveis ou aguardar um novo convite para entrevista.${dateInfo}\n\nPedimos desculpas pelo inconveniente.\n\nAtenciosamente,\nEquipe de Recrutamento`,
             cancelToken,
           );
           whatsappSent = true;
-          console.log(`[Cancel] ✓ WhatsApp 1 sent to ${phone}`);
+          console.log(`[Cancel] ✓ WhatsApp sent to ${phone}`);
         } catch (e) {
-          console.warn('[Cancel] WhatsApp 1 failed:', e);
+          console.warn('[Cancel] WhatsApp failed:', e);
         }
       }
 
@@ -2422,19 +2422,6 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
           context: { pos_cancelamento: true },
           updated_at: new Date().toISOString(),
         }).eq('phone', phone);
-      }
-
-      if (whatsappSent && instance && cancelToken !== undefined) {
-        try {
-          await new Promise(r => setTimeout(r, 2500));
-          await sendText(
-            instance, phone!,
-            `Você pode se candidatar a outras oportunidades disponíveis ou aguardar um novo convite para entrevista. O que prefere?\n\n1️⃣ Ver outras vagas disponíveis\n2️⃣ Aguardar um novo convite`,
-            cancelToken,
-          );
-        } catch (e) {
-          console.warn('[Cancel] WhatsApp 2 failed:', e);
-        }
       }
       console.log(`[Cancel] ✓ Async cleanup complete. WhatsApp: ${whatsappSent ? 'SENT' : 'NOT SENT'}`);
     })().catch(e => console.error('[Cancel] Async error:', e));
