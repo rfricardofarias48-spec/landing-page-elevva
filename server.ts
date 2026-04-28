@@ -69,20 +69,27 @@ app.post("/api/chatwoot-map", async (req, res) => {
       return [clean, `55${clean}`, `+55${clean}`];
     })));
 
-    const { data } = await supabaseAdmin
+    console.log(`[chatwoot-map] searching variants:`, variants);
+
+    const { data, error } = await supabaseAdmin
       .from('agent_conversations')
       .select('phone, chatwoot_conversation_id')
-      .in('phone', variants)
-      .not('chatwoot_conversation_id', 'is', null);
+      .in('phone', variants);
+
+    console.log(`[chatwoot-map] found ${(data || []).length} rows, error:`, error?.message);
+    console.log(`[chatwoot-map] rows:`, JSON.stringify(data?.slice(0, 5)));
 
     const map: Record<string, number> = {};
-    (data || []).forEach((row: { phone: string; chatwoot_conversation_id: number }) => {
+    (data || []).forEach((row: { phone: string; chatwoot_conversation_id: number | null }) => {
+      if (row.chatwoot_conversation_id == null) return;
       const clean = row.phone.replace(/\D/g, '').replace(/^55/, '');
       map[clean] = row.chatwoot_conversation_id;
     });
 
+    console.log(`[chatwoot-map] map:`, map);
     return res.json({ map });
   } catch (err) {
+    console.error(`[chatwoot-map] exception:`, err);
     return res.json({ map: {} });
   }
 });
