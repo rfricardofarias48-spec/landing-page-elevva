@@ -187,11 +187,13 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
               <div className="w-6 h-6 border-2 border-[#84cc16] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : slots.length === 0 ? (
-            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <AlertCircle className="w-4 h-4 text-slate-400" />
+              </div>
               <div>
-                <p className="text-xs font-black text-amber-700">Nenhum horário disponível</p>
-                <p className="text-xs text-amber-500 mt-0.5">Cadastre horários em "Horários Disponíveis" antes de agendar entrevistas.</p>
+                <p className="text-xs font-black text-slate-700">Nenhum horário disponível</p>
+                <p className="text-xs text-slate-400 mt-0.5">Cadastre horários em "Horários Disponíveis" antes de agendar entrevistas.</p>
               </div>
             </div>
           ) : (
