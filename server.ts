@@ -1057,44 +1057,47 @@ app.get("/api/admin/accounts-health", async (_req, res) => {
     const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
     const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
 
-    // Buscar status das instâncias Evolution em paralelo (máx 5 ao mesmo tempo)
-    const results = [];
-    for (const p of (profiles || [])) {
-      const instance = (p as any).instancia_evolution;
-      let chipStatus: 'connected' | 'disconnected' | 'unknown' = 'unknown';
-
-      if (EVOLUTION_URL && EVOLUTION_KEY && instance) {
-        try {
-          const r = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instance}`, {
-            headers: { apikey: EVOLUTION_KEY },
-          });
-          if (r.ok) {
-            const data = await r.json() as { instance?: { state?: string } };
-            chipStatus = data?.instance?.state === 'open' ? 'connected' : 'disconnected';
-          } else {
-            chipStatus = 'disconnected';
-          }
-        } catch {
-          chipStatus = 'unknown';
-        }
+    // Busca chip status de todas as instâncias em paralelo, com timeout de 4s por requisição
+    const checkChip = async (instance: string): Promise<'connected' | 'disconnected' | 'unknown'> => {
+      if (!EVOLUTION_URL || !EVOLUTION_KEY) return 'unknown';
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        const r = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instance}`, {
+          headers: { apikey: EVOLUTION_KEY },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (!r.ok) return 'disconnected';
+        const data = await r.json() as { instance?: { state?: string } };
+        return data?.instance?.state === 'open' ? 'connected' : 'disconnected';
+      } catch {
+        return 'unknown';
       }
+    };
 
-      results.push({
-        id: (p as any).id,
-        name: (p as any).name,
-        email: (p as any).email,
-        plan: (p as any).plan,
-        subscription_status: (p as any).subscription_status,
-        account_status: (p as any).status,
-        status_automacao: (p as any).status_automacao,
-        evolution_instance: instance,
-        chatwoot_inbox_id: (p as any).chatwoot_inbox_id,
-        chip_status: chipStatus,
-        created_at: (p as any).created_at,
-        current_period_end: (p as any).current_period_end,
-        last_active: (p as any).updated_at,
-      });
-    }
+    // Monta resultados base sem chip status (instantâneo)
+    const profileList = (profiles || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      plan: p.plan,
+      subscription_status: p.subscription_status,
+      account_status: p.status,
+      status_automacao: p.status_automacao,
+      evolution_instance: p.instancia_evolution,
+      chatwoot_inbox_id: p.chatwoot_inbox_id,
+      created_at: p.created_at,
+      current_period_end: p.current_period_end,
+      last_active: p.updated_at,
+    }));
+
+    // Busca chips em paralelo para todas as contas com instância
+    const chipStatuses = await Promise.all(
+      profileList.map(p => p.evolution_instance ? checkChip(p.evolution_instance) : Promise.resolve<'unknown'>('unknown'))
+    );
+
+    const results = profileList.map((p, i) => ({ ...p, chip_status: chipStatuses[i] }));
 
     return res.json({ accounts: results, checkedAt: new Date().toISOString() });
   } catch (err: any) {

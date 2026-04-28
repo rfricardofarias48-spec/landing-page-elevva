@@ -62,6 +62,7 @@ export const AdminDashboard: React.FC = () => {
   const [setupCheckResult, setSetupCheckResult] = useState<{ results: Record<string, { ok: boolean; label: string; detail: string }>; checkedAt: string } | null>(null);
   const [accountsHealthLoading, setAccountsHealthLoading] = useState(false);
   const [accountsHealth, setAccountsHealth] = useState<{ accounts: any[]; checkedAt: string } | null>(null);
+  const [accountsHealthError, setAccountsHealthError] = useState<string | null>(null);
 
   // Prompt Trabalho (análise de currículo)
   const [recruiterPrompt, setRecruiterPrompt] = useState('');
@@ -3286,11 +3287,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
   const loadAccountsHealth = async () => {
     setAccountsHealthLoading(true);
+    setAccountsHealthError(null);
     try {
       const res = await fetch('/api/admin/accounts-health');
-      if (res.ok) setAccountsHealth(await res.json());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setAccountsHealth(data);
     } catch (e: any) {
-      alert('Erro ao carregar contas: ' + e.message);
+      setAccountsHealthError(e.message);
     } finally {
       setAccountsHealthLoading(false);
     }
@@ -3323,7 +3327,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                 key={tab.key}
                 onClick={() => {
                   setControleSubTab(tab.key);
-                  if (tab.key === 'contas' && !accountsHealth) loadAccountsHealth();
+                  if (tab.key === 'contas') loadAccountsHealth();
                 }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${controleSubTab === tab.key ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
               >
@@ -3411,13 +3415,25 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
               </button>
             </div>
 
-            {accountsHealthLoading && !accountsHealth && (
-              <div className="flex items-center justify-center py-16">
+            {accountsHealthLoading && (
+              <div className="flex items-center justify-center py-16 gap-3">
                 <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+                <span className="text-sm text-zinc-400">Verificando status dos chips…</span>
               </div>
             )}
 
-            {accountsHealth && (
+            {accountsHealthError && !accountsHealthLoading && (
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-5 py-4">
+                <XCircle className="w-5 h-5 text-red-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-red-900">Erro ao carregar contas</p>
+                  <p className="text-xs text-red-700 mt-0.5">{accountsHealthError}</p>
+                </div>
+                <button onClick={loadAccountsHealth} className="ml-auto text-xs font-bold text-red-600 hover:text-red-800 underline">Tentar novamente</button>
+              </div>
+            )}
+
+            {accountsHealth && !accountsHealthLoading && (
               <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
