@@ -14,8 +14,8 @@ export const PLAN_PRICES: Record<string, number> = {
   // Empresas normais — 20% off no anual
   ESSENCIAL:         49990,   // R$ 499,90/mês
   ESSENCIAL_ANUAL:   479904,  // R$ 4.799,04/ano (399,92 × 12)
-  PRO:               149900,  // R$ 1.499,00/mês
-  PRO_ANUAL:         1439040, // R$ 14.390,40/ano (1199,20 × 12)
+  PRO:               129990,  // R$ 1.299,90/mês
+  PRO_ANUAL:         1247904, // R$ 12.479,04/ano (1039,92 × 12)
   // Agências de emprego (Enterprise) — 30% off no anual
   MAX:               249900,  // R$ 2.499,00/mês — 25 vagas
   MAX_ANUAL:         2099160, // R$ 20.991,60/ano (1749,30 × 12)

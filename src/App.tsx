@@ -2385,7 +2385,7 @@ const App: React.FC = () => {
                           </div>
                           <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-5">Tração total para seu RH com mais vagas.</p>
-                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 1499 ? (
+                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 1299.90 ? (
                               <div className="mb-6">
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
@@ -2398,14 +2398,14 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '1.199' : '1.499'}</span>
-                                      <span className="text-lg font-bold">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '1.039' : '1.299'}</span>
+                                      <span className="text-lg font-bold">,{isAnnual ? '92' : '90'}</span>
                                       <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
                                       <div className="mb-5">
-                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 17.988,00</span>
-                                          <span className="text-sm font-bold text-[#65a30d]">R$ 14.390,40/ano</span>
+                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 15.598,80</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 12.479,04/ano</span>
                                       </div>
                                   ) : (<div className="mb-5 h-4"></div>)}
                               </>
