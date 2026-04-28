@@ -60,55 +60,70 @@ app.get("/api/health", (req, res) => {
 // Backfill: popula chatwoot_conversation_id nos registros agent_conversations que estão null
 app.post("/api/admin/backfill-chatwoot-ids", async (req, res) => {
   try {
-    // Busca todos os perfis com Chatwoot configurado
+    const chatwootBase = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+    const adminToken = process.env.CHATWOOT_ADMIN_TOKEN || '';
+
+    if (!chatwootBase) return res.json({ ok: false, error: 'CHATWOOT_URL não configurada' });
+
+    // Busca todos os perfis com chatwoot_account_id (token pode ser null — usamos adminToken como fallback)
     const { data: profiles } = await supabaseAdmin
       .from('profiles')
-      .select('id, chatwoot_account_id, chatwoot_token')
-      .not('chatwoot_account_id', 'is', null)
-      .not('chatwoot_token', 'is', null);
+      .select('id, chatwoot_account_id, chatwoot_token, chatwoot_user_token')
+      .not('chatwoot_account_id', 'is', null);
 
-    const chatwootBase = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+    const log: string[] = [];
     let totalUpdated = 0;
 
     for (const profile of (profiles || [])) {
+      const token = profile.chatwoot_user_token || profile.chatwoot_token || adminToken;
+      const accountId = profile.chatwoot_account_id;
+      if (!token) { log.push(`profile ${profile.id}: sem token`); continue; }
+
       const { data: convs } = await supabaseAdmin
         .from('agent_conversations')
         .select('id, phone')
         .eq('user_id', profile.id)
         .is('chatwoot_conversation_id', null);
 
+      log.push(`profile ${profile.id}: ${(convs||[]).length} convs null`);
+
       for (const conv of (convs || [])) {
-        const normalized = `+55${conv.phone.replace(/\D/g, '').replace(/^55/, '')}`;
+        const clean = conv.phone.replace(/\D/g, '');
+        const normalized = `+55${clean.replace(/^55/, '')}`;
         try {
           const searchRes = await fetch(
-            `${chatwootBase}/api/v1/accounts/${profile.chatwoot_account_id}/contacts/search?q=${encodeURIComponent(normalized)}&page=1`,
-            { headers: { 'api_access_token': profile.chatwoot_token } }
+            `${chatwootBase}/api/v1/accounts/${accountId}/contacts/search?q=${encodeURIComponent(normalized)}&page=1`,
+            { headers: { 'api_access_token': token } }
           );
           const searchData = await searchRes.json() as { payload?: { id: number; phone_number?: string }[] };
           const contact = searchData?.payload?.find((c: { id: number; phone_number?: string }) =>
-            c.phone_number === normalized || c.phone_number?.replace(/^\+/, '') === conv.phone.replace(/\D/g, '')
+            c.phone_number === normalized ||
+            c.phone_number?.replace(/\D/g, '') === clean ||
+            c.phone_number?.replace(/\D/g, '') === `55${clean.replace(/^55/, '')}`
           );
-          if (!contact?.id) continue;
+          if (!contact?.id) { log.push(`  ${conv.phone}: contato não encontrado no Chatwoot`); continue; }
 
           const convsRes = await fetch(
-            `${chatwootBase}/api/v1/accounts/${profile.chatwoot_account_id}/contacts/${contact.id}/conversations`,
-            { headers: { 'api_access_token': profile.chatwoot_token } }
+            `${chatwootBase}/api/v1/accounts/${accountId}/contacts/${contact.id}/conversations`,
+            { headers: { 'api_access_token': token } }
           );
           const convsData = await convsRes.json() as { payload?: { id: number }[] };
           const latest = convsData?.payload?.sort((a: { id: number }, b: { id: number }) => b.id - a.id)[0];
-          if (!latest?.id) continue;
+          if (!latest?.id) { log.push(`  ${conv.phone}: sem conversas no Chatwoot`); continue; }
 
           await supabaseAdmin
             .from('agent_conversations')
             .update({ chatwoot_conversation_id: latest.id })
             .eq('id', conv.id);
           totalUpdated++;
-          console.log(`[Backfill] ${conv.phone} → chatwoot conv ${latest.id}`);
-        } catch (_) { /* skip on error */ }
+          log.push(`  ${conv.phone} → conv_id=${latest.id} ✅`);
+        } catch (e: any) {
+          log.push(`  ${conv.phone}: erro — ${e.message}`);
+        }
       }
     }
 
-    return res.json({ ok: true, updated: totalUpdated });
+    return res.json({ ok: true, updated: totalUpdated, log });
   } catch (err) {
     return res.status(500).json({ error: String(err) });
   }
@@ -1162,7 +1177,7 @@ app.get("/api/admin/accounts-health", async (_req, res) => {
   try {
     const { data: profiles, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, name, email, plan, subscription_status, status, instancia_evolution, chatwoot_inbox_id, status_automacao, created_at, current_period_end, updated_at')
+      .select('id, name, email, plan, subscription_status, status, instancia_evolution, chatwoot_inbox_id, status_automacao, created_at, current_period_end')
       .neq('role', 'ADMIN')
       .order('created_at', { ascending: false });
 
@@ -1203,7 +1218,6 @@ app.get("/api/admin/accounts-health", async (_req, res) => {
       chatwoot_inbox_id: p.chatwoot_inbox_id,
       created_at: p.created_at,
       current_period_end: p.current_period_end,
-      last_active: p.updated_at,
     }));
 
     // Busca chips em paralelo para todas as contas com instância
