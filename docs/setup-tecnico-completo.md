@@ -121,7 +121,143 @@ GOOGLE_CALENDAR_ID=<calendar-id>              ← ID do calendário para agendam
 
 ---
 
-## 5. Onboarding Automático (10 Etapas)
+## 5. Fluxo Completo de Venda → Acesso Liberado
+
+### 5.1 Visão Geral
+
+```
+Admin preenche "Venda Direta"
+        ↓
+POST /api/sales/direct-link
+        ↓
+Cria registro em sales (status: pending)
+        ↓
+Gera link Asaas (sem comissão, sem split)
+        ↓
+Admin envia link ao cliente
+        ↓
+Cliente paga via Asaas (PIX / cartão / boleto)
+        ↓
+Asaas dispara webhook → POST /api/webhooks/asaas
+        ↓
+Atualiza sales (status: paid)
+        ↓
+provisionClient() — 10 etapas
+        ↓
+Cliente recebe WhatsApp de boas-vindas
+        ↓
+Cliente loga com Google → acesso completo
+```
+
+---
+
+### 5.2 Formulário "Venda Direta" (AdminDashboard)
+
+**Campos:**
+
+| Campo | Obrigatório | Descrição |
+|---|---|---|
+| Nome do Cliente | ✅ | Nome completo |
+| E-mail Google | ✅ | Usado para criar conta no Supabase Auth — deve ser um Gmail |
+| WhatsApp | ✅ | Número com DDD — recebe boas-vindas e é o contato do cliente |
+| Plano | ✅ | ESSENCIAL / PRO / ENTERPRISE |
+| Período | ✅ (exceto Enterprise) | Mensal ou Anual (20% de desconto) |
+| Valor customizado | Só ENTERPRISE | Digitado manualmente pelo admin |
+
+**Preços padrão (em centavos internamente):**
+
+| Plano | Mensal | Anual |
+|---|---|---|
+| ESSENCIAL | R$ 549,00/mês | R$ 5.270,40/ano |
+| PRO | R$ 899,00/mês | R$ 8.630,40/ano |
+| ENTERPRISE | Customizado | Customizado |
+
+---
+
+### 5.3 Endpoint POST /api/sales/direct-link
+
+1. Valida campos obrigatórios e plano
+2. Cria registro em `sales`:
+   - `status: 'pending'`
+   - `commission_amount: 0` (sem comissão — venda direta)
+   - `salesperson_id: null`
+3. Chama `generatePaymentLink` no Asaas:
+   - `commissionPct: 0`
+   - `walletId: ''` (sem split de pagamento)
+   - `salespersonName: 'Elevva'`
+   - `chargeType: 'RECURRENT'` (assinatura recorrente)
+   - `billingType: 'UNDEFINED'` (aceita PIX, cartão ou boleto)
+   - `externalReference: saleId` (UUID da venda — usado para rastrear no webhook)
+4. Salva `asaas_link_url` no registro da venda
+5. Retorna o link para o admin copiar e enviar ao cliente
+
+---
+
+### 5.4 Webhook Asaas → POST /api/webhooks/asaas
+
+**Header obrigatório:** `asaas-access-token: ${ASAAS_WEBHOOK_TOKEN}`
+
+**Eventos que disparam onboarding:**
+- `PAYMENT_CONFIRMED`
+- `PAYMENT_RECEIVED`
+
+**Fluxo ao receber evento:**
+1. Valida token do header
+2. Extrai `payment.externalReference` (= saleId)
+3. Verifica se já existe registro com esse `asaas_payment_id`:
+   - **Já existe + onboarding concluído** → apenas atualiza data de renovação, retorna
+   - **Já existe + pendente** → reutiliza saleId e tenta onboarding novamente
+   - **Não existe** → cria novo registro `sales` com `status: 'paid'`
+4. Atualiza `sales`: `status: 'paid'`, `paid_at: now`, `asaas_payment_id`
+5. Chama `provisionClient(saleId)` — onboarding completo
+6. Atualiza `profiles`: `subscription_status: 'active'`, `current_period_end`
+
+> ⚠️ O webhook **deve** estar configurado no painel Asaas apontando para `https://app.elevva.net.br/api/webhooks/asaas`
+> ⚠️ O token `ASAAS_WEBHOOK_TOKEN` deve ser o mesmo que está no painel Asaas → Configurações → Webhooks
+
+---
+
+### 5.5 Tabelas do Banco de Dados
+
+**Tabela `sales`:**
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | UUID | Chave primária |
+| `client_name` | text | Nome do cliente |
+| `client_email` | text | Email Google |
+| `client_phone` | text | WhatsApp |
+| `plan` | text | ESSENCIAL / PRO / ENTERPRISE / *_ANUAL |
+| `billing` | text | 'mensal' ou 'anual' |
+| `amount` | numeric | Valor em reais |
+| `commission_amount` | numeric | 0 para venda direta |
+| `salesperson_id` | UUID | NULL para venda direta |
+| `status` | text | pending → paid |
+| `asaas_payment_id` | text | ID do pagamento no Asaas |
+| `asaas_link_url` | text | URL do link de pagamento |
+| `paid_at` | timestamp | Quando o pagamento foi confirmado |
+| `onboarding_status` | text | aguardando → concluido / erro |
+| `onboarding_step` | int | 0–10 (para retry) |
+| `onboarding_context` | JSONB | Dados de cada etapa (para retry) |
+| `client_user_id` | UUID | ID do usuário Supabase criado |
+
+**Tabela `profiles` (após onboarding concluído):**
+
+| Campo | Origem |
+|---|---|
+| `plan` | Normalizado (sem _ANUAL) |
+| `job_limit` / `resume_limit` | ESSENCIAL: 5/150 · PRO: 15/500 · ENTERPRISE: 9999/9999 |
+| `subscription_status` | 'active' |
+| `chatwoot_inbox_id` | ID do inbox criado na etapa 3 |
+| `chatwoot_user_token` | Token do agente criado na etapa 4 |
+| `evolution_instance` / `instancia_evolution` | Chip alocado na etapa 6 |
+| `whatsapp_number` / `telefone_agente` | Número do chip |
+| `status_automacao` | true |
+| `onboarded_at` | Timestamp de conclusão |
+
+---
+
+## 6. Onboarding Automático (10 Etapas)
 
 Disparado quando um pagamento Asaas é confirmado. Cada etapa salva progresso em `sales.onboarding_context` para retry seguro.
 
@@ -165,7 +301,7 @@ Body enviado para Evolution (`POST /chatwoot/set/{instance}`):
 
 ---
 
-## 6. Problema: Dois Inboxes no Chatwoot
+## 7. Problema: Dois Inboxes no Chatwoot
 
 **Causa**: O onboarding cria inbox "Nome — Elevva" (etapa 3). A Evolution cria outro inbox "Nome" via `autoCreate: true` (etapa 9). Resultado: dois inboxes distintos.
 
@@ -179,7 +315,7 @@ Body enviado para Evolution (`POST /chatwoot/set/{instance}`):
 
 ---
 
-## 7. Configuração Chatwoot na Evolution — Valores Corretos
+## 8. Configuração Chatwoot na Evolution — Valores Corretos
 
 | Campo | Valor correto | Erro comum |
 |---|---|---|
@@ -195,7 +331,7 @@ Body enviado para Evolution (`POST /chatwoot/set/{instance}`):
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 ### Chatwoot não aparece configurado na Evolution
 1. Verificar `CHATWOOT_ADMIN_TOKEN` e `CHATWOOT_URL` na Vercel
@@ -228,19 +364,6 @@ Body enviado para Evolution (`POST /chatwoot/set/{instance}`):
 
 ---
 
-## 9. Webhook Asaas → Elevva
-
-- **URL**: `https://app.elevva.net.br/api/webhooks/asaas`
-- **Token**: configurar `ASAAS_WEBHOOK_TOKEN` na Vercel e no painel Asaas
-- **Eventos relevantes**: `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED`, `SUBSCRIPTION_RENEWED`
-
-Quando um pagamento é confirmado:
-1. Asaas chama o webhook com o ID do pagamento
-2. Elevva busca a venda (`sales`) pelo `asaas_payment_id`
-3. Dispara `provisionClient()` — onboarding das 10 etapas
-
----
-
 ## 10. Chips Pool (WhatsApp)
 
 Os chips são números WhatsApp pré-autenticados na Evolution, armazenados em `chips_pool`:
@@ -259,18 +382,41 @@ chips_pool (
 
 ---
 
-## 11. Checklist Pós-Deploy
+## 11. Checklist de Setup Completo
 
-- [ ] Todas as variáveis de ambiente configuradas na Vercel
+**Infraestrutura:**
+- [ ] Vercel: todas as variáveis de ambiente configuradas (ver seção 2)
 - [ ] Vercel → Deployments → último deploy com status ✅
-- [ ] Chatwoot: webhook configurado apontando para o app
-- [ ] Evolution: webhook configurado com `webhook_base64: true`
-- [ ] Pelo menos 1 chip disponível em `chips_pool`
-- [ ] Asaas: webhook configurado com o token correto
-- [ ] Painel admin → usuário de teste → **Diagnosticar** → todos os campos ✅
-- [ ] Painel admin → usuário de teste → **Reconfigurar no Evolution** → ✅
-- [ ] Chatwoot: inbox do cliente tem o agente como Collaborator
-- [ ] Teste end-to-end: enviar WhatsApp → mensagem aparece no Chatwoot
+
+**Chatwoot:**
+- [ ] Conta administrator criada, `CHATWOOT_ADMIN_TOKEN` copiado para Vercel
+- [ ] `CHATWOOT_ACCOUNT_ID` copiado da URL para Vercel
+- [ ] Webhook criado: `https://app.elevva.net.br/api/webhooks/chatwoot` com eventos `conversation_status_changed` e `message_created`
+
+**Evolution API:**
+- [ ] `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` configurados na Vercel
+- [ ] Webhook padrão: `https://app.elevva.net.br/api/webhooks/evolution` com `webhook_base64: true`
+
+**Asaas:**
+- [ ] `ASAAS_API_KEY` configurado na Vercel
+- [ ] Webhook criado no Asaas: `https://app.elevva.net.br/api/webhooks/asaas`
+- [ ] `ASAAS_WEBHOOK_TOKEN` igual nos dois lugares (Vercel e Asaas)
+
+**Chips:**
+- [ ] Pelo menos 1 chip com QR escaneado e status **conectado** na Evolution
+- [ ] Chip cadastrado em `chips_pool` com `status = 'disponivel'`
+
+**Fluxo de venda:**
+- [ ] Admin cria venda direta → link de pagamento gerado com sucesso
+- [ ] Pagamento confirmado → webhook Asaas recebido → `sales.status = 'paid'`
+- [ ] Onboarding 10 etapas concluído → `onboarding_status = 'concluido'`
+- [ ] Cliente recebe WhatsApp de boas-vindas
+- [ ] Cliente loga com Google → acesso funcional
+
+**Chatwoot por cliente:**
+- [ ] Painel admin → usuário → **Diagnosticar** → todos ✅
+- [ ] Inbox do cliente tem agente como **Collaborator**
+- [ ] Teste: enviar WhatsApp → conversa aparece no Chatwoot
 
 ---
 
