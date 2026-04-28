@@ -759,6 +759,26 @@ app.get("/api/admin/diagnose-chatwoot/:userId", async (req, res) => {
       diag.chatwoot_token_test = '⚠️ Sem token para testar';
     }
 
+    // Listar inboxes do Chatwoot para identificar qual o Evolution está usando
+    if (CHATWOOT_URL_ENV && adminToken) {
+      try {
+        const r = await fetch(`${CHATWOOT_URL_ENV}/api/v1/accounts/${accountId}/inboxes`, {
+          headers: { api_access_token: adminToken },
+        });
+        if (r.ok) {
+          const data = await r.json() as { payload?: { id: number; name: string; channel_type: string }[] };
+          diag.chatwoot_inboxes = (data.payload || []).map(i => ({
+            id: i.id,
+            name: i.name,
+            type: i.channel_type,
+            profile_inbox_id: i.id === profile?.chatwoot_inbox_id ? '← perfil aponta aqui' : '',
+          }));
+        }
+      } catch (e: any) {
+        diag.chatwoot_inboxes = `❌ Erro: ${e.message}`;
+      }
+    }
+
     return res.json(diag);
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });

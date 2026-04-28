@@ -256,7 +256,9 @@ export async function configureChatwootOnEvolution(
   const cleanToken = chatwootToken.trim().replace(/[\r\n\t"']/g, '');
 
   // Evolution API v2 uses camelCase body fields
-  const body = {
+  // When inboxId is known, pass it explicitly so Evolution uses the correct inbox
+  // instead of creating a duplicate via autoCreate
+  const body: Record<string, unknown> = {
     enabled: true,
     accountId: String(chatwootAccountId),
     token: cleanToken,
@@ -268,9 +270,10 @@ export async function configureChatwootOnEvolution(
     importContacts: false,
     importMessages: false,
     daysLimitImportMessages: 0,
-    autoCreate: true,
-    ...(inboxName ? { nameInbox: inboxName } : {}),
+    autoCreate: chatwootInboxId ? false : true,
   };
+  if (chatwootInboxId) body.inboxId = String(chatwootInboxId);
+  if (inboxName) body.nameInbox = inboxName;
 
   // Evolution API v2: POST /chatwoot/set/{instance} (único endpoint válido)
   const paths = [`/chatwoot/set/${instance}`];
