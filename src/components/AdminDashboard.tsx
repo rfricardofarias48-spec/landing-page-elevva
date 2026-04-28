@@ -4,11 +4,11 @@ import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import {
   Users, Calendar, CreditCard, Search, Activity,
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap, Plus, Link as LinkIcon
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap, Plus, Link as LinkIcon, Shield, Wifi, WifiOff, XCircle, ServerCrash
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
-type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS' | 'VENDEDORES' | 'CHIPS' | 'VENDAS';
+type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS' | 'VENDEDORES' | 'CHIPS' | 'VENDAS' | 'CONTROLE';
 
 interface AdminJob {
   id: string;
@@ -55,6 +55,13 @@ export const AdminDashboard: React.FC = () => {
 
   // States para Controle Agente
   const [agentSubTab, setAgentSubTab] = useState<'trabalho' | 'atendimento' | 'treinamento'>('trabalho');
+
+  // States para Controle (Setup + Contas)
+  const [controleSubTab, setControleSubTab] = useState<'setup' | 'contas'>('setup');
+  const [setupCheckLoading, setSetupCheckLoading] = useState(false);
+  const [setupCheckResult, setSetupCheckResult] = useState<{ results: Record<string, { ok: boolean; label: string; detail: string }>; checkedAt: string } | null>(null);
+  const [accountsHealthLoading, setAccountsHealthLoading] = useState(false);
+  const [accountsHealth, setAccountsHealth] = useState<{ accounts: any[]; checkedAt: string } | null>(null);
 
   // Prompt Trabalho (análise de currículo)
   const [recruiterPrompt, setRecruiterPrompt] = useState('');
@@ -765,6 +772,12 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             </button>
             <button onClick={() => { setCurrentView('CHIPS'); fetchChips(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CHIPS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Bot className="w-5 h-5" /> Chips WhatsApp
+            </button>
+            <div className="pt-2 pb-1 px-4">
+                <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">Sistema</p>
+            </div>
+            <button onClick={() => setCurrentView('CONTROLE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CONTROLE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <Shield className="w-5 h-5" /> Controle
             </button>
         </nav>
 
@@ -3262,6 +3275,222 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       );
   };
 
+  const runSetupCheck = async () => {
+    setSetupCheckLoading(true);
+    try {
+      const res = await fetch('/api/admin/setup-check');
+      if (res.ok) setSetupCheckResult(await res.json());
+    } catch (e: any) {
+      alert('Erro ao verificar setup: ' + e.message);
+    } finally {
+      setSetupCheckLoading(false);
+    }
+  };
+
+  const loadAccountsHealth = async () => {
+    setAccountsHealthLoading(true);
+    try {
+      const res = await fetch('/api/admin/accounts-health');
+      if (res.ok) setAccountsHealth(await res.json());
+    } catch (e: any) {
+      alert('Erro ao carregar contas: ' + e.message);
+    } finally {
+      setAccountsHealthLoading(false);
+    }
+  };
+
+  const renderControle = () => {
+    type CheckItem = { ok: boolean; label: string; detail: string };
+    const checkItems: CheckItem[] = setupCheckResult ? Object.values(setupCheckResult.results) as CheckItem[] : [];
+    const allOk = checkItems.length > 0 && checkItems.every(r => r.ok);
+
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-zinc-900">Controle</h1>
+              <p className="text-xs text-zinc-400">Caixa preta do sistema — infraestrutura e contas</p>
+            </div>
+          </div>
+          <div className="flex gap-1 bg-zinc-100 p-1 rounded-xl w-fit mt-4">
+            {([
+              { key: 'setup', label: 'Verificação do Setup', icon: <ServerCrash className="w-4 h-4" /> },
+              { key: 'contas', label: 'Contas', icon: <Users className="w-4 h-4" /> },
+            ] as const).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  setControleSubTab(tab.key);
+                  if (tab.key === 'contas' && !accountsHealth) loadAccountsHealth();
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${controleSubTab === tab.key ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Sub-tab: Verificação do Setup ── */}
+        {controleSubTab === 'setup' && (
+          <div className="max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-zinc-500">Testa cada integração em tempo real. Execute antes de fechar qualquer venda.</p>
+              <button
+                onClick={runSetupCheck}
+                disabled={setupCheckLoading}
+                className="flex items-center gap-2 bg-zinc-900 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                {setupCheckLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {setupCheckLoading ? 'Verificando…' : 'Verificar Agora'}
+              </button>
+            </div>
+
+            {!setupCheckResult && !setupCheckLoading && (
+              <div className="bg-white border border-zinc-200 rounded-2xl p-8 text-center">
+                <ServerCrash className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+                <p className="text-sm font-bold text-zinc-500">Clique em "Verificar Agora" para testar a infraestrutura</p>
+                <p className="text-xs text-zinc-400 mt-1">Testa Supabase, Evolution, Chatwoot, Asaas e variáveis de ambiente</p>
+              </div>
+            )}
+
+            {setupCheckResult && (
+              <>
+                {/* Status geral */}
+                <div className={`flex items-center gap-3 px-5 py-4 rounded-2xl mb-4 ${allOk ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
+                  {allOk
+                    ? <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+                    : <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />}
+                  <div>
+                    <p className={`font-black text-sm ${allOk ? 'text-emerald-900' : 'text-amber-900'}`}>
+                      {allOk ? 'Pronto para vender ✓' : 'Atenção: corrija os itens em vermelho antes de vender'}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      Verificado em {new Date(setupCheckResult.checkedAt).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Cards de cada check */}
+                <div className="space-y-2">
+                  {checkItems.map(item => (
+                    <div key={item.label} className={`flex items-start gap-4 px-5 py-4 rounded-xl border ${item.ok ? 'bg-white border-zinc-200' : 'bg-red-50 border-red-200'}`}>
+                      <div className={`mt-0.5 shrink-0 ${item.ok ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {item.ok ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-bold ${item.ok ? 'text-zinc-900' : 'text-red-900'}`}>{item.label}</p>
+                        <p className={`text-xs mt-0.5 ${item.ok ? 'text-zinc-500' : 'text-red-700'}`}>{item.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Sub-tab: Contas ── */}
+        {controleSubTab === 'contas' && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-zinc-500">
+                {accountsHealth
+                  ? `${accountsHealth.accounts.length} contas — atualizado em ${new Date(accountsHealth.checkedAt).toLocaleString('pt-BR')}`
+                  : 'Status de cada conta de cliente em tempo real.'}
+              </p>
+              <button
+                onClick={loadAccountsHealth}
+                disabled={accountsHealthLoading}
+                className="flex items-center gap-2 bg-zinc-900 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              >
+                {accountsHealthLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {accountsHealthLoading ? 'Carregando…' : 'Atualizar'}
+              </button>
+            </div>
+
+            {accountsHealthLoading && !accountsHealth && (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+              </div>
+            )}
+
+            {accountsHealth && (
+              <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-100">
+                        <th className="text-left px-5 py-3 text-xs font-black text-zinc-400 uppercase tracking-widest">Cliente</th>
+                        <th className="text-left px-4 py-3 text-xs font-black text-zinc-400 uppercase tracking-widest">Plano</th>
+                        <th className="text-left px-4 py-3 text-xs font-black text-zinc-400 uppercase tracking-widest">Assinatura</th>
+                        <th className="text-left px-4 py-3 text-xs font-black text-zinc-400 uppercase tracking-widest">Chip</th>
+                        <th className="text-left px-4 py-3 text-xs font-black text-zinc-400 uppercase tracking-widest">Agente</th>
+                        <th className="text-left px-4 py-3 text-xs font-black text-zinc-400 uppercase tracking-widest">Renovação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accountsHealth.accounts.map((acc: any) => {
+                        const isActive = acc.subscription_status === 'active' && acc.account_status !== 'BLOCKED';
+                        const chipOk = acc.chip_status === 'connected';
+                        const chipUnknown = acc.chip_status === 'unknown';
+                        return (
+                          <tr key={acc.id} className="border-b border-zinc-50 hover:bg-zinc-50 transition-colors">
+                            <td className="px-5 py-3">
+                              <p className="font-bold text-zinc-900">{acc.name || '—'}</p>
+                              <p className="text-xs text-zinc-400">{acc.email}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${acc.plan === 'ENTERPRISE' ? 'bg-zinc-900 text-white' : acc.plan === 'PRO' ? 'bg-blue-100 text-blue-800' : 'bg-zinc-100 text-zinc-600'}`}>
+                                {acc.plan || '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className={`flex items-center gap-1.5 ${isActive ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {isActive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                                <span className="text-xs font-bold">{acc.account_status === 'BLOCKED' ? 'Bloqueada' : acc.subscription_status === 'active' ? 'Ativa' : acc.subscription_status || '—'}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {acc.evolution_instance ? (
+                                <div className={`flex items-center gap-1.5 ${chipOk ? 'text-emerald-600' : chipUnknown ? 'text-zinc-400' : 'text-red-500'}`}>
+                                  {chipOk ? <Wifi className="w-3.5 h-3.5" /> : chipUnknown ? <Activity className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+                                  <span className="text-xs font-bold">{chipOk ? 'Conectado' : chipUnknown ? 'N/A' : 'Desconectado'}</span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-zinc-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className={`flex items-center gap-1.5 ${acc.status_automacao ? 'text-emerald-600' : 'text-zinc-400'}`}>
+                                <Bot className="w-3.5 h-3.5" />
+                                <span className="text-xs font-bold">{acc.status_automacao ? 'Ativo' : 'Inativo'}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-zinc-500">
+                              {acc.current_period_end
+                                ? new Date(acc.current_period_end).toLocaleDateString('pt-BR')
+                                : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) return <div className="h-screen flex items-center justify-center bg-zinc-50"><Loader2 className="w-10 h-10 animate-spin text-black" /></div>;
 
   return (
@@ -3463,6 +3692,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             {currentView === 'VENDAS' && renderVendas()}
             {currentView === 'VENDEDORES' && renderVendedores()}
             {currentView === 'CHIPS' && renderChips()}
+            {currentView === 'CONTROLE' && renderControle()}
             {currentView === 'CANCELLATIONS' && (
                 <div className="text-center py-20">
                     <UserX className="w-16 h-16 text-zinc-300 mx-auto mb-4" />

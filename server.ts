@@ -869,6 +869,174 @@ app.get("/api/admin/cv-counts", async (_req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN: Setup Check — testa todas as integrações do sistema
+// GET /api/admin/setup-check
+// ─────────────────────────────────────────────────────────────────────
+app.get("/api/admin/setup-check", async (_req, res) => {
+  const results: Record<string, { ok: boolean; label: string; detail: string }> = {};
+
+  // 1. Supabase
+  try {
+    const { error } = await supabaseAdmin.from('profiles').select('id').limit(1);
+    results.supabase = error
+      ? { ok: false, label: 'Supabase', detail: error.message }
+      : { ok: true, label: 'Supabase', detail: 'Conexão OK' };
+  } catch (e: any) {
+    results.supabase = { ok: false, label: 'Supabase', detail: e.message };
+  }
+
+  // 2. Chips disponíveis
+  try {
+    const { data, error } = await supabaseAdmin.from('chips_pool').select('id').eq('status', 'disponivel');
+    if (error) throw error;
+    const count = data?.length || 0;
+    results.chips = count > 0
+      ? { ok: true, label: 'Chips WhatsApp', detail: `${count} chip(s) disponível(is)` }
+      : { ok: false, label: 'Chips WhatsApp', detail: 'Nenhum chip disponível — onboarding irá falhar' };
+  } catch (e: any) {
+    results.chips = { ok: false, label: 'Chips WhatsApp', detail: e.message };
+  }
+
+  // 3. Evolution API
+  const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+  const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
+  if (!EVOLUTION_URL || !EVOLUTION_KEY) {
+    results.evolution = { ok: false, label: 'Evolution API', detail: 'EVOLUTION_API_URL ou EVOLUTION_API_KEY ausente' };
+  } else {
+    try {
+      const r = await fetch(`${EVOLUTION_URL}/instance/fetchInstances`, { headers: { apikey: EVOLUTION_KEY } });
+      results.evolution = r.ok
+        ? { ok: true, label: 'Evolution API', detail: `HTTP ${r.status} — acessível` }
+        : { ok: false, label: 'Evolution API', detail: `HTTP ${r.status}` };
+    } catch (e: any) {
+      results.evolution = { ok: false, label: 'Evolution API', detail: e.message };
+    }
+  }
+
+  // 4. Chatwoot admin token
+  const CHATWOOT_URL_ENV = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+  const CHATWOOT_ADMIN_TOKEN_ENV = process.env.CHATWOOT_ADMIN_TOKEN || '';
+  if (!CHATWOOT_URL_ENV || !CHATWOOT_ADMIN_TOKEN_ENV) {
+    results.chatwoot = { ok: false, label: 'Chatwoot', detail: 'CHATWOOT_URL ou CHATWOOT_ADMIN_TOKEN ausente' };
+  } else {
+    try {
+      const r = await fetch(`${CHATWOOT_URL_ENV}/api/v1/profile`, {
+        headers: { api_access_token: CHATWOOT_ADMIN_TOKEN_ENV },
+      });
+      if (r.ok) {
+        const p = await r.json() as { name?: string; role?: string };
+        results.chatwoot = { ok: true, label: 'Chatwoot', detail: `Token válido — ${p.name} (${p.role})` };
+      } else {
+        results.chatwoot = { ok: false, label: 'Chatwoot', detail: `Token inválido — HTTP ${r.status}` };
+      }
+    } catch (e: any) {
+      results.chatwoot = { ok: false, label: 'Chatwoot', detail: e.message };
+    }
+  }
+
+  // 5. Asaas API
+  const ASAAS_API_KEY_ENV = process.env.ASAAS_API_KEY || '';
+  const ASAAS_URL_CHECK = (process.env.ASAAS_API_URL || 'https://api.asaas.com/v3').replace(/\/$/, '');
+  if (!ASAAS_API_KEY_ENV) {
+    results.asaas = { ok: false, label: 'Asaas', detail: 'ASAAS_API_KEY ausente' };
+  } else {
+    try {
+      const r = await fetch(`${ASAAS_URL_CHECK}/myAccount`, {
+        headers: { 'access_token': ASAAS_API_KEY_ENV },
+      });
+      if (r.ok) {
+        const data = await r.json() as { name?: string };
+        results.asaas = { ok: true, label: 'Asaas', detail: `Conta: ${data.name || 'OK'}` };
+      } else {
+        results.asaas = { ok: false, label: 'Asaas', detail: `HTTP ${r.status} — verifique ASAAS_API_KEY` };
+      }
+    } catch (e: any) {
+      results.asaas = { ok: false, label: 'Asaas', detail: e.message };
+    }
+  }
+
+  // 6. Webhook tokens configurados
+  const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN || '';
+  const serverUrl = process.env.SERVER_URL || '';
+  const openaiKey = process.env.OPENAI_API_KEY || '';
+  const cronSecret = process.env.CRON_SECRET || '';
+  results.env_vars = {
+    ok: !!(webhookToken && serverUrl && openaiKey && cronSecret),
+    label: 'Variáveis de Ambiente',
+    detail: [
+      webhookToken ? '✓ ASAAS_WEBHOOK_TOKEN' : '✗ ASAAS_WEBHOOK_TOKEN',
+      serverUrl ? '✓ SERVER_URL' : '✗ SERVER_URL',
+      openaiKey ? '✓ OPENAI_API_KEY' : '✗ OPENAI_API_KEY',
+      cronSecret ? '✓ CRON_SECRET' : '✗ CRON_SECRET',
+    ].join(' · '),
+  };
+
+  return res.json({ results, checkedAt: new Date().toISOString() });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN: Contas — lista clientes com status de saúde
+// GET /api/admin/accounts-health
+// ─────────────────────────────────────────────────────────────────────
+app.get("/api/admin/accounts-health", async (_req, res) => {
+  try {
+    const { data: profiles, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, name, email, plan, subscription_status, status, instancia_evolution, chatwoot_inbox_id, status_automacao, created_at, current_period_end, updated_at')
+      .neq('role', 'ADMIN')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+    const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
+
+    // Buscar status das instâncias Evolution em paralelo (máx 5 ao mesmo tempo)
+    const results = [];
+    for (const p of (profiles || [])) {
+      const instance = (p as any).instancia_evolution;
+      let chipStatus: 'connected' | 'disconnected' | 'unknown' = 'unknown';
+
+      if (EVOLUTION_URL && EVOLUTION_KEY && instance) {
+        try {
+          const r = await fetch(`${EVOLUTION_URL}/instance/connectionState/${instance}`, {
+            headers: { apikey: EVOLUTION_KEY },
+          });
+          if (r.ok) {
+            const data = await r.json() as { instance?: { state?: string } };
+            chipStatus = data?.instance?.state === 'open' ? 'connected' : 'disconnected';
+          } else {
+            chipStatus = 'disconnected';
+          }
+        } catch {
+          chipStatus = 'unknown';
+        }
+      }
+
+      results.push({
+        id: (p as any).id,
+        name: (p as any).name,
+        email: (p as any).email,
+        plan: (p as any).plan,
+        subscription_status: (p as any).subscription_status,
+        account_status: (p as any).status,
+        status_automacao: (p as any).status_automacao,
+        evolution_instance: instance,
+        chatwoot_inbox_id: (p as any).chatwoot_inbox_id,
+        chip_status: chipStatus,
+        created_at: (p as any).created_at,
+        current_period_end: (p as any).current_period_end,
+        last_active: (p as any).updated_at,
+      });
+    }
+
+    return res.json({ accounts: results, checkedAt: new Date().toISOString() });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // CHATWOOT: Webhook de eventos (mensagens humanas → WhatsApp)
 // Configure este URL no Chatwoot: Settings → Integrations → Webhooks
 // POST /api/webhooks/chatwoot
