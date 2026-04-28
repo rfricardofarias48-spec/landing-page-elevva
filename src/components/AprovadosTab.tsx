@@ -94,8 +94,8 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
       body: JSON.stringify({ phones }),
     })
       .then(r => r.json())
-      .then(({ map }) => { if (map) setChatwootMap(map); })
-      .catch(() => {});
+      .then((result) => { console.log('[chatwoot-map result]', result); if (result.map) setChatwootMap(result.map); })
+      .catch((e) => console.error('[chatwoot-map error]', e));
   }, [approvedCandidates]);
 
   const formatApprovalDate = (dateStr: string | null) => {

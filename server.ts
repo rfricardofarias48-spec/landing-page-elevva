@@ -86,11 +86,9 @@ app.post("/api/chatwoot-map", async (req, res) => {
       map[clean] = row.chatwoot_conversation_id;
     });
 
-    console.log(`[chatwoot-map] map:`, map);
-    return res.json({ map });
+    return res.json({ map, _debug: { variants, rows: data || [], rowCount: (data||[]).length } });
   } catch (err) {
-    console.error(`[chatwoot-map] exception:`, err);
-    return res.json({ map: {} });
+    return res.json({ map: {}, _error: String(err) });
   }
 });
 
