@@ -13,6 +13,21 @@ interface Props {
   onGoToInterview?: (interview: Interview) => void;
 }
 
+function formatExperience(raw: string | undefined): string {
+  if (!raw) return 'Exp. N/A';
+  const lower = raw.toLowerCase();
+  if (lower.startsWith('sem experiência direta') || lower.startsWith('sem experiencia direta')) {
+    if (lower.includes('indireta') || lower.includes('correlata') || lower.includes('similar') || lower.includes('relacionad')) {
+      return 'Experiência indireta';
+    }
+    return 'Sem experiência direta';
+  }
+  if (lower.startsWith('sem experiência') || lower.startsWith('sem experiencia')) {
+    return 'Sem experiência';
+  }
+  return raw;
+}
+
 export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelection, onDelete, index = 0, activeInterview, onGoToInterview }) => {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -226,7 +241,7 @@ export const AnalysisResultCard: React.FC<Props> = ({ candidate, onToggleSelecti
                     )}
                   </div>
                   <div className="flex flex-wrap items-center text-[11px] text-slate-500 font-bold mt-1 gap-3 uppercase tracking-wide">
-                    <span className="flex items-center bg-slate-50 px-2 py-1 rounded border border-slate-200 text-slate-700"><Briefcase className="w-3 h-3 mr-1.5 text-slate-400" />{candidate.result?.yearsExperience || 'Exp. N/A'}</span>
+                    <span className="flex items-center bg-slate-50 px-2 py-1 rounded border border-slate-200 text-slate-700"><Briefcase className="w-3 h-3 mr-1.5 text-slate-400" />{formatExperience(candidate.result?.yearsExperience)}</span>
                     <span className="flex items-center text-slate-400"><MapPin className="w-3 h-3 mr-1 text-slate-300" />{result.city}</span>
                   </div>
               </div>
