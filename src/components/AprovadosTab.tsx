@@ -10,9 +10,10 @@ interface Props {
   interviews: Interview[];
   onRefresh: () => void;
   chatwootAccountId?: number;
+  userId?: string;
 }
 
-export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, chatwootAccountId }) => {
+export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, chatwootAccountId, userId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [jobFilter, setJobFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -91,7 +92,7 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
     fetch('/api/chatwoot-map', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phones }),
+      body: JSON.stringify({ phones, user_id: userId }),
     })
       .then(r => r.json())
       .then((result) => { console.log('[chatwoot-map result]', result); if (result.map) setChatwootMap(result.map); })

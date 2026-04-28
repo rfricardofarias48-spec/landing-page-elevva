@@ -57,38 +57,60 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Returns chatwoot_conversation_id for a list of phones (uses admin client to bypass RLS)
+// Returns chatwoot conversation IDs for a list of phones.
+// Searches Chatwoot contacts API directly since chatwoot_conversation_id is not stored in agent_conversations.
 app.post("/api/chatwoot-map", async (req, res) => {
   try {
-    const { phones } = req.body as { phones?: string[] };
+    const { phones, user_id } = req.body as { phones?: string[]; user_id?: string };
     if (!phones || phones.length === 0) return res.json({ map: {} });
 
-    // Build all phone variants (with/without 55 prefix)
-    const variants = Array.from(new Set(phones.flatMap(p => {
-      const clean = p.replace(/\D/g, '');
-      return [clean, `55${clean}`, `+55${clean}`];
-    })));
+    // Get recruiter's Chatwoot config
+    const { data: profile } = user_id ? await supabaseAdmin
+      .from('profiles')
+      .select('chatwoot_account_id, chatwoot_token')
+      .eq('id', user_id)
+      .single() : { data: null };
 
-    console.log(`[chatwoot-map] searching variants:`, variants);
-
-    const { data, error } = await supabaseAdmin
-      .from('agent_conversations')
-      .select('phone, chatwoot_conversation_id')
-      .in('phone', variants);
-
-    console.log(`[chatwoot-map] found ${(data || []).length} rows, error:`, error?.message);
-    console.log(`[chatwoot-map] rows:`, JSON.stringify(data?.slice(0, 5)));
+    const accountId = profile?.chatwoot_account_id || Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
+    const token = profile?.chatwoot_token || process.env.CHATWOOT_USER_TOKEN || '';
+    const chatwootBase = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
 
     const map: Record<string, number> = {};
-    (data || []).forEach((row: { phone: string; chatwoot_conversation_id: number | null }) => {
-      if (row.chatwoot_conversation_id == null) return;
-      const clean = row.phone.replace(/\D/g, '').replace(/^55/, '');
-      map[clean] = row.chatwoot_conversation_id;
-    });
 
-    return res.json({ map, _debug: { variants, rows: data || [], rowCount: (data||[]).length } });
+    if (!token || !chatwootBase) return res.json({ map });
+
+    for (const rawPhone of phones) {
+      const clean = rawPhone.replace(/\D/g, '');
+      const normalized = `+55${clean.replace(/^55/, '')}`;
+      try {
+        const searchRes = await fetch(
+          `${chatwootBase}/api/v1/accounts/${accountId}/contacts/search?q=${encodeURIComponent(normalized)}&page=1`,
+          { headers: { 'api_access_token': token } }
+        );
+        const searchData = await searchRes.json() as { payload?: { id: number; phone_number?: string }[] };
+        const contact = searchData?.payload?.find(c =>
+          c.phone_number === normalized || c.phone_number === clean || c.phone_number === `+${clean}`
+        );
+        if (contact?.id) {
+          const convsRes = await fetch(
+            `${chatwootBase}/api/v1/accounts/${accountId}/contacts/${contact.id}/conversations`,
+            { headers: { 'api_access_token': token } }
+          );
+          const convsData = await convsRes.json() as { payload?: { id: number }[] };
+          const conv = convsData?.payload?.sort((a, b) => b.id - a.id)[0];
+          if (conv?.id) {
+            const key = clean.replace(/^55/, '');
+            map[key] = conv.id;
+          }
+        }
+      } catch (e) {
+        console.warn(`[chatwoot-map] failed for ${rawPhone}:`, e);
+      }
+    }
+
+    return res.json({ map });
   } catch (err) {
-    return res.json({ map: {}, _error: String(err) });
+    return res.json({ map: {} });
   }
 });
 
