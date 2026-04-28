@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { UserCheck, Search, MessageSquare, ExternalLink, CheckCircle2, Loader2, Phone, X, AlertTriangle } from 'lucide-react';
 import { Job, Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -20,6 +20,8 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
   const [dateTo, setDateTo] = useState('');
   const [finalizingId, setFinalizingId] = useState<string | null>(null);
   const [confirmFinalize, setConfirmFinalize] = useState<{ id: string; name: string } | null>(null);
+  // phone → chatwoot_conversation_id
+  const [chatwootMap, setChatwootMap] = useState<Record<string, number>>({});
 
   const approvedCandidates = useMemo(() => {
     const approvedInterviews = interviews.filter(i => i.status === 'APROVADO');
@@ -84,6 +86,30 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
     });
   }, [approvedCandidates, searchTerm, jobFilter, dateFrom, dateTo]);
 
+  useEffect(() => {
+    const phones = approvedCandidates.map(c => c.phone).filter(Boolean);
+    if (phones.length === 0) return;
+    // Also include variants with 55 prefix
+    const variants = Array.from(new Set(phones.flatMap(p => {
+      const clean = p.replace(/\D/g, '');
+      return [clean, `55${clean}`, `+55${clean}`];
+    })));
+    supabase
+      .from('agent_conversations')
+      .select('phone, chatwoot_conversation_id')
+      .in('phone', variants)
+      .not('chatwoot_conversation_id', 'is', null)
+      .then(({ data }) => {
+        if (!data) return;
+        const map: Record<string, number> = {};
+        data.forEach((row: { phone: string; chatwoot_conversation_id: number }) => {
+          const clean = row.phone.replace(/\D/g, '').replace(/^55/, '');
+          map[clean] = row.chatwoot_conversation_id;
+        });
+        setChatwootMap(map);
+      });
+  }, [approvedCandidates]);
+
   const formatApprovalDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -100,9 +126,13 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
     return phone;
   };
 
-  const buildChatwootUrl = (conversationId?: string) => {
-    if (!conversationId || !chatwootAccountId) return null;
-    return `${CHATWOOT_BASE_URL}/app/accounts/${chatwootAccountId}/conversations/${conversationId}`;
+  const buildChatwootUrl = (phone: string, conversationId?: string) => {
+    if (!chatwootAccountId) return null;
+    // Prefer ID from agent_conversations map (most reliable), fallback to candidate field
+    const cleanPhone = phone.replace(/\D/g, '').replace(/^55/, '');
+    const convId = chatwootMap[cleanPhone] ?? (conversationId ? Number(conversationId) : null);
+    if (!convId) return null;
+    return `${CHATWOOT_BASE_URL}/app/accounts/${chatwootAccountId}/conversations/${convId}`;
   };
 
   const handleFinalize = async () => {
@@ -216,7 +246,7 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
 
             {/* Rows */}
             {filteredCandidates.map(candidate => {
-              const chatwootUrl = buildChatwootUrl(candidate.chatwootConversationId);
+              const chatwootUrl = buildChatwootUrl(candidate.phone, candidate.chatwootConversationId);
               return (
                 <div
                   key={candidate.id}
