@@ -882,6 +882,55 @@ export async function processIncomingMessage(
 
   const conv = await getOrCreateConversation(phone, profile.id, supabase);
 
+  // ── Sincronizar estado da conversa com o estado real da entrevista no banco ──
+  // Isso corrige estados obsoletos (ex: CANCELADA) quando uma nova entrevista foi criada.
+  const staleStates = ['CANCELADA', 'NOVO', 'REPROVADO', 'CURRICULO_RECEBIDO', 'EM_ANALISE'];
+  if (staleStates.includes(conv.state)) {
+    // Busca candidato pelo telefone para encontrar entrevista ativa
+    const phoneVariantsSync = [phone, `55${phone.replace(/^55/, '')}`, phone.replace(/^55/, '')];
+    const { data: candidateByPhone } = await supabase
+      .from('candidates')
+      .select('id')
+      .in('"WhatsApp com DDD"', phoneVariantsSync.map(p => p.replace(/\D/g, '')))
+      .limit(1)
+      .maybeSingle();
+
+    if (candidateByPhone?.id) {
+      const { data: activeInterview } = await supabase
+        .from('interviews')
+        .select('id, status, scheduling_token, job_id')
+        .eq('candidate_id', candidateByPhone.id)
+        .in('status', ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'REMARCADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeInterview) {
+        const syncedState =
+          activeInterview.status === 'CONFIRMADA' || activeInterview.status === 'AGENDADA' ? 'ENTREVISTA_CONFIRMADA' :
+          activeInterview.status === 'REMARCADA' ? 'AGUARDANDO_ESCOLHA_SLOT' :
+          activeInterview.status === 'AGUARDANDO_ESCOLHA_SLOT' || activeInterview.status === 'AGUARDANDO_RESPOSTA' ? 'AGUARDANDO_ESCOLHA_SLOT' :
+          activeInterview.status === 'AGUARDANDO_NOVOS_HORARIOS' ? 'AGUARDANDO_NOVOS_HORARIOS' :
+          conv.state;
+
+        if (syncedState !== conv.state) {
+          console.log(`[Agent] Syncing conv state: ${conv.state} → ${syncedState} (interview ${activeInterview.id} status=${activeInterview.status})`);
+          conv.state = syncedState;
+          await updateConversation(conv.id, {
+            state: syncedState,
+            job_id: activeInterview.job_id,
+            context: {
+              ...conv.context,
+              interview_id: activeInterview.id,
+              scheduling_token: activeInterview.scheduling_token || undefined,
+              pos_cancelamento: undefined,
+            },
+          }, supabase);
+        }
+      }
+    }
+  }
+
   // ── Chatwoot: mirror candidate message (incoming) ──
   const chatwootConfig = profile.chatwoot_account_id && profile.chatwoot_token && profile.chatwoot_inbox_id
     ? {
