@@ -11,10 +11,16 @@ const ASAAS_KEY = process.env.ASAAS_API_KEY || '';
 
 // Valores por plano em centavos (para referência interna)
 export const PLAN_PRICES: Record<string, number> = {
-  ESSENCIAL:         54900,   // R$ 549,00/mês
-  ESSENCIAL_ANUAL:   527040,  // R$ 5.270,40/ano (20% off)
-  PRO:               89900,   // R$ 899,00/mês
-  PRO_ANUAL:         863040,  // R$ 8.630,40/ano (20% off)
+  // Empresas normais — 20% off no anual
+  ESSENCIAL:         49990,   // R$ 499,90/mês
+  ESSENCIAL_ANUAL:   479904,  // R$ 4.799,04/ano (399,92 × 12)
+  PRO:               149900,  // R$ 1.499,00/mês
+  PRO_ANUAL:         1439040, // R$ 14.390,40/ano (1199,20 × 12)
+  // Agências de emprego (Enterprise) — 30% off no anual
+  MAX:               249900,  // R$ 2.499,00/mês — 25 vagas
+  MAX_ANUAL:         2099160, // R$ 20.991,60/ano (1749,30 × 12)
+  ULTRA:             449900,  // R$ 4.499,00/mês — 50 vagas
+  ULTRA_ANUAL:       3779160, // R$ 37.791,60/ano (3149,30 × 12)
   ENTERPRISE:        0,       // A consultar — gerado manualmente
 };
 

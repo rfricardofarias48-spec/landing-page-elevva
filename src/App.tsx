@@ -2168,9 +2168,11 @@ const App: React.FC = () => {
                       <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
                       <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{normalizedPlan}</h3>
                       <p className="text-zinc-400 text-sm font-medium">
-                        {normalizedPlan === 'ENTERPRISE' ? 'Acesso ilimitado a todas as funcionalidades.' :
-                         normalizedPlan === 'PRO' ? 'Até 15 vagas e 500 currículos por mês.' :
-                         normalizedPlan === 'ESSENCIAL' ? 'Até 5 vagas e 150 currículos por mês.' :
+                        {normalizedPlan === 'ULTRA' ? 'Até 50 vagas — plano Agência Ultra.' :
+                         normalizedPlan === 'MAX' ? 'Até 25 vagas — plano Agência Max.' :
+                         normalizedPlan === 'ENTERPRISE' ? 'Vagas personalizadas — Enterprise.' :
+                         normalizedPlan === 'PRO' ? 'Até 10 vagas e currículos ilimitados.' :
+                         normalizedPlan === 'ESSENCIAL' ? 'Até 3 vagas e currículos ilimitados.' :
                          'Faça upgrade para liberar recursos.'}
                       </p>
                   </div>
@@ -2303,31 +2305,36 @@ const App: React.FC = () => {
           </div>
 
           {/* Upgrade Options */}
-          <div className="flex flex-col flex-1 min-h-0">
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                  <h3 className="text-base font-black text-slate-900 tracking-tighter flex items-center gap-2">
-                      <ArrowUpRight className="w-4 h-4" /> Planos Disponíveis
-                  </h3>
-                  <div className="flex items-center gap-3">
-                      <span className={`text-xs font-bold ${!isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Mensal</span>
-                      <button
-                          onClick={() => setIsAnnual(!isAnnual)}
-                          className={`relative w-12 h-6 rounded-full transition-colors duration-300 flex-shrink-0 ${isAnnual ? 'bg-[#65a30d]' : 'bg-slate-200'}`}
-                      >
-                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-300 ${isAnnual ? 'left-7' : 'left-1'}`} />
-                      </button>
-                      <span className={`text-xs font-bold ${isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Anual</span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${isAnnual ? 'text-[#65a30d] bg-[#65a30d]/10' : 'text-slate-300 bg-slate-100'}`}>20% off</span>
+          {(() => {
+              const isAgency = ['ENTERPRISE', 'MAX', 'ULTRA'].includes(normalizedPlan);
+              const discountPct = isAgency ? '30%' : '20%';
+              return (
+              <div className="flex flex-col flex-1 min-h-0">
+                  <div className="flex items-center justify-between mb-4 shrink-0">
+                      <h3 className="text-base font-black text-slate-900 tracking-tighter flex items-center gap-2">
+                          <ArrowUpRight className="w-4 h-4" /> Planos Disponíveis
+                      </h3>
+                      <div className="flex items-center gap-3">
+                          <span className={`text-xs font-bold ${!isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Mensal</span>
+                          <button
+                              onClick={() => setIsAnnual(!isAnnual)}
+                              className={`relative w-12 h-6 rounded-full transition-colors duration-300 flex-shrink-0 ${isAnnual ? 'bg-[#65a30d]' : 'bg-slate-200'}`}
+                          >
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-300 ${isAnnual ? 'left-7' : 'left-1'}`} />
+                          </button>
+                          <span className={`text-xs font-bold ${isAnnual ? 'text-slate-900' : 'text-slate-400'}`}>Anual</span>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${isAnnual ? 'text-[#65a30d] bg-[#65a30d]/10' : 'text-slate-300 bg-slate-100'}`}>{discountPct} off</span>
+                      </div>
                   </div>
-              </div>
 
+                  {/* ── Empresas Normais: Essencial · Pro · Enterprise a consultar ── */}
+                  {!isAgency && (
                   <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-1 gap-6 flex-1 min-h-0">
                       {/* Plano Essencial */}
                       <div className="bg-white rounded-2xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
                           <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Essencial</h4>
                           <p className="text-sm text-slate-500 font-medium mb-5">Para equipes enxutas e recrutamento ágil.</p>
-
-                          {normalizedPlan === 'ESSENCIAL' && user?.plan_price != null && user.plan_price !== 549 ? (
+                          {normalizedPlan === 'ESSENCIAL' && user?.plan_price != null && user.plan_price !== 499.90 ? (
                               <div className="mb-6">
                                   <div className="text-slate-900 mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
@@ -2340,21 +2347,18 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-slate-900 mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '439' : '549'}</span>
-                                      <span className="text-lg font-bold">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '399' : '499'}</span>
+                                      <span className="text-lg font-bold">,{isAnnual ? '92' : '90'}</span>
                                       <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
                                       <div className="mb-5">
-                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 6.588,00</span>
-                                          <span className="text-sm font-bold text-[#65a30d]">R$ 5.270,40/ano</span>
+                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 5.998,80</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 4.799,04/ano</span>
                                       </div>
-                                  ) : (
-                                      <div className="mb-5 h-4"></div>
-                                  )}
+                                  ) : (<div className="mb-5 h-4"></div>)}
                               </>
                           )}
-
                           <div className="space-y-3 mb-6 text-sm font-medium text-slate-600 flex-1">
                               {['Até 3 vagas em simultâneo', 'Triagem e ranking', 'Relatórios individuais automáticos', 'Agendamento autônomo (WhatsApp)', 'Integração Google Calendar e Meet'].map(f => (
                                   <div key={f} className="flex items-center gap-3">
@@ -2369,7 +2373,7 @@ const App: React.FC = () => {
                               <button onClick={() => handleUpgradeLink('ESSENCIAL')} disabled={upgradingPlan === 'ESSENCIAL'}
                                   className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-xl text-sm transition-colors hover:bg-slate-50 text-center flex items-center justify-center gap-2 disabled:opacity-60">
                                   {upgradingPlan === 'ESSENCIAL' ? <span className="animate-spin text-base">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar' : (normalizedPlan === 'PRO' || normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Assinar Essencial')}
+                                  {isGhostAccount ? 'Assinar' : (normalizedPlan === 'PRO' ? 'Fazer Downgrade' : 'Assinar Essencial')}
                               </button>
                           )}
                       </div>
@@ -2379,11 +2383,9 @@ const App: React.FC = () => {
                           <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
                               <Star className="w-3 h-3 fill-black" /> Mais Popular
                           </div>
-
                           <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-5">Tração total para seu RH com mais vagas.</p>
-
-                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 899 ? (
+                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 1499 ? (
                               <div className="mb-6">
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
@@ -2396,21 +2398,18 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '719' : '899'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '1.199' : '1.499'}</span>
                                       <span className="text-lg font-bold">,{isAnnual ? '20' : '00'}</span>
                                       <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
                                       <div className="mb-5">
-                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 10.788,00</span>
-                                          <span className="text-sm font-bold text-[#65a30d]">R$ 8.630,40/ano</span>
+                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 17.988,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 14.390,40/ano</span>
                                       </div>
-                                  ) : (
-                                      <div className="mb-5 h-4"></div>
-                                  )}
+                                  ) : (<div className="mb-5 h-4"></div>)}
                               </>
                           )}
-
                           <div className="space-y-3 mb-6 text-sm font-medium text-zinc-300 flex-1">
                               {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão', 'Conformidade LGPD (Exclusão em 5 dias)'].map(f => (
                                   <div key={f} className="flex items-center gap-3">
@@ -2425,49 +2424,145 @@ const App: React.FC = () => {
                               <button onClick={() => handleUpgradeLink('PRO')} disabled={upgradingPlan === 'PRO'}
                                   className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-xl text-sm transition-colors text-center flex items-center justify-center gap-2 disabled:opacity-60">
                                   {upgradingPlan === 'PRO' ? <span className="animate-spin text-base">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar' : (normalizedPlan === 'ENTERPRISE' ? 'Fazer Downgrade' : 'Fazer Upgrade')}
+                                  {isGhostAccount ? 'Assinar' : 'Fazer Upgrade'}
                               </button>
                           )}
                       </div>
 
-                      {/* Enterprise */}
+                      {/* Enterprise a consultar */}
                       <div className="bg-white rounded-2xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-slate-100">
                           <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Enterprise</h4>
                           <p className="text-sm text-slate-500 font-medium mb-5">Solução sob medida para grandes operações.</p>
-
-                          {normalizedPlan === 'ENTERPRISE' && user?.plan_price && user.plan_price > 0 ? (
-                              <div className="mb-6">
-                                  <div className="text-slate-900 mb-1 flex items-baseline">
-                                      <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-5xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
-                                  </div>
-                                  <span className="text-xs font-black bg-purple-100 text-purple-600 px-2 py-0.5 rounded-md">Plano personalizado</span>
-                              </div>
-                          ) : (
-                              <div className="text-slate-900 mb-6 flex items-baseline">
-                                  <span className="text-5xl font-black tracking-tighter">A consultar</span>
-                              </div>
-                          )}
-
+                          <div className="text-slate-900 mb-6 flex items-baseline">
+                              <span className="text-3xl font-black tracking-tighter">A consultar</span>
+                          </div>
                           <div className="space-y-3 mb-6 text-sm font-medium text-slate-600 flex-1">
-                              {['Vagas Ilimitadas', 'Atendimento Prioritário'].map(f => (
+                              {['Vagas personalizadas', 'Atendimento prioritário', 'Acesso a planos de Agência (Max / Ultra)'].map(f => (
                                   <div key={f} className="flex items-center gap-3">
                                       <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
                                       <span>{f}</span>
                                   </div>
                               ))}
                           </div>
-                          {normalizedPlan === 'ENTERPRISE' ? (
+                          <a href="https://wa.me/5551994396089" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-xl text-sm transition-colors hover:bg-slate-50 text-center block">
+                              Falar com Consultor
+                          </a>
+                      </div>
+                  </div>
+                  )}
+
+                  {/* ── Agências de Emprego (Enterprise): Max · Ultra ── */}
+                  {isAgency && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0">
+                      {/* Plano Max */}
+                      <div className="bg-white rounded-2xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
+                          <div className="inline-flex items-center gap-1.5 mb-3">
+                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest bg-blue-100 text-blue-700">Agência</span>
+                          </div>
+                          <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Max</h4>
+                          <p className="text-sm text-slate-500 font-medium mb-5">Para agências em crescimento com múltiplos clientes.</p>
+                          {normalizedPlan === 'MAX' && user?.plan_price != null && user.plan_price !== 2499 ? (
+                              <div className="mb-6">
+                                  <div className="text-slate-900 mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-5xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
+                                  </div>
+                                  <span className="text-xs font-black bg-[#65a30d]/10 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
+                              </div>
+                          ) : (
+                              <>
+                                  <div className="text-slate-900 mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '1.749' : '2.499'}</span>
+                                      <span className="text-lg font-bold">,{isAnnual ? '30' : '00'}</span>
+                                      <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
+                                  </div>
+                                  {isAnnual ? (
+                                      <div className="mb-5">
+                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 29.988,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 20.991,60/ano</span>
+                                      </div>
+                                  ) : (<div className="mb-5 h-4"></div>)}
+                              </>
+                          )}
+                          <div className="space-y-3 mb-6 text-sm font-medium text-slate-600 flex-1">
+                              {['Até 25 vagas em simultâneo', 'Todas as funções do Pro', 'Múltiplos clientes / operações', 'Relatórios avançados'].map(f => (
+                                  <div key={f} className="flex items-center gap-3">
+                                      <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                      <span>{f}</span>
+                                  </div>
+                              ))}
+                          </div>
+                          {!isGhostAccount && normalizedPlan === 'MAX' ? (
                               <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-xl text-sm text-center block cursor-not-allowed">Seu Plano Atual</button>
                           ) : (
-                              <a href="https://wa.me/5551994396089" target="_blank" rel="noopener noreferrer" className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-xl text-sm transition-colors hover:bg-slate-50 text-center block">
-                                  Falar com Consultor
-                              </a>
+                              <button onClick={() => handleUpgradeLink('MAX')} disabled={upgradingPlan === 'MAX'}
+                                  className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-4 rounded-xl text-sm transition-colors hover:bg-slate-50 text-center flex items-center justify-center gap-2 disabled:opacity-60">
+                                  {upgradingPlan === 'MAX' ? <span className="animate-spin text-base">⏳</span> : null}
+                                  {normalizedPlan === 'ULTRA' ? 'Fazer Downgrade' : 'Assinar Max'}
+                              </button>
+                          )}
+                      </div>
+
+                      {/* Plano Ultra */}
+                      <div className="bg-[#0a0a0a] rounded-2xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800">
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
+                              <Star className="w-3 h-3 fill-black" /> Máxima Capacidade
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 mb-3">
+                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest bg-violet-900/50 text-violet-300">Agência</span>
+                          </div>
+                          <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter">Ultra <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
+                          <p className="text-sm text-zinc-400 font-medium mb-5">Para grandes agências com alta demanda de vagas.</p>
+                          {normalizedPlan === 'ULTRA' && user?.plan_price != null && user.plan_price !== 4499 ? (
+                              <div className="mb-6">
+                                  <div className="text-white mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-5xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
+                                  </div>
+                                  <span className="text-xs font-black bg-[#65a30d]/20 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
+                              </div>
+                          ) : (
+                              <>
+                                  <div className="text-white mb-1 flex items-baseline">
+                                      <span className="text-sm font-bold mr-1">R$</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '3.149' : '4.499'}</span>
+                                      <span className="text-lg font-bold">,{isAnnual ? '30' : '00'}</span>
+                                      <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
+                                  </div>
+                                  {isAnnual ? (
+                                      <div className="mb-5">
+                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 53.988,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 37.791,60/ano</span>
+                                      </div>
+                                  ) : (<div className="mb-5 h-4"></div>)}
+                              </>
+                          )}
+                          <div className="space-y-3 mb-6 text-sm font-medium text-zinc-300 flex-1">
+                              {['Até 50 vagas em simultâneo', 'Todas as funções do Max', 'Prioridade máxima no suporte', 'SLA garantido'].map(f => (
+                                  <div key={f} className="flex items-center gap-3">
+                                      <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
+                                      <span>{f}</span>
+                                  </div>
+                              ))}
+                          </div>
+                          {!isGhostAccount && normalizedPlan === 'ULTRA' ? (
+                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-xl text-sm text-center block cursor-not-allowed">Seu Plano Atual</button>
+                          ) : (
+                              <button onClick={() => handleUpgradeLink('ULTRA')} disabled={upgradingPlan === 'ULTRA'}
+                                  className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-xl text-sm transition-colors text-center flex items-center justify-center gap-2 disabled:opacity-60">
+                                  {upgradingPlan === 'ULTRA' ? <span className="animate-spin text-base">⏳</span> : null}
+                                  Assinar Ultra
+                              </button>
                           )}
                       </div>
                   </div>
+                  )}
               </div>
+              );
+          })()}
               {upgradeError && (
                   <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600 font-medium flex items-center justify-between">
                       <span>{upgradeError}</span>

@@ -33,8 +33,10 @@ const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
 
 // Plano → limites de vagas e currículos
 const PLAN_LIMITS: Record<string, { jobLimit: number; resumeLimit: number }> = {
-  ESSENCIAL:  { jobLimit: 5,    resumeLimit: 150  },
-  PRO:        { jobLimit: 15,   resumeLimit: 500  },
+  ESSENCIAL:  { jobLimit: 3,    resumeLimit: 150  },
+  PRO:        { jobLimit: 10,   resumeLimit: 500  },
+  MAX:        { jobLimit: 25,   resumeLimit: 9999 },
+  ULTRA:      { jobLimit: 50,   resumeLimit: 9999 },
   ENTERPRISE: { jobLimit: 9999, resumeLimit: 9999 },
 };
 

@@ -67,7 +67,7 @@ export interface Job {
   niche_id?: string | null; // NOVO: Nicho ao qual a vaga pertence
 }
 
-export type PlanType = 'ESSENCIAL' | 'PRO' | 'ENTERPRISE' | 'ADMIN';
+export type PlanType = 'ESSENCIAL' | 'PRO' | 'ENTERPRISE' | 'MAX' | 'ULTRA' | 'ADMIN';
 
 export interface Announcement {
   id: string;

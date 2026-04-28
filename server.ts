@@ -4262,7 +4262,7 @@ app.post("/api/subscription/upgrade-link", async (req, res) => {
     userId?: string; plan?: string; billing?: 'mensal' | 'anual';
   };
 
-  const VALID = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL'];
+  const VALID = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'MAX', 'MAX_ANUAL', 'ULTRA', 'ULTRA_ANUAL'];
   if (!userId || !plan || !VALID.includes(plan)) {
     return res.status(400).json({ error: 'userId e plan são obrigatórios' });
   }
@@ -4394,7 +4394,7 @@ app.post("/api/sales/direct-link", async (req, res) => {
     return res.status(400).json({ error: 'clientName, clientEmail, clientPhone e plan são obrigatórios' });
   }
 
-  const VALID_PLANS = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'ENTERPRISE'];
+  const VALID_PLANS = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'MAX', 'MAX_ANUAL', 'ULTRA', 'ULTRA_ANUAL', 'ENTERPRISE'];
   if (!VALID_PLANS.includes(plan)) {
     return res.status(400).json({ error: `plan inválido: ${plan}` });
   }
@@ -4457,7 +4457,7 @@ app.post("/api/salespeople/:id/link", async (req, res) => {
     return res.status(400).json({ error: 'clientName, clientEmail, clientPhone e plan são obrigatórios' });
   }
 
-  const VALID_PLANS_SP = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'ENTERPRISE'];
+  const VALID_PLANS_SP = ['ESSENCIAL', 'ESSENCIAL_ANUAL', 'PRO', 'PRO_ANUAL', 'MAX', 'MAX_ANUAL', 'ULTRA', 'ULTRA_ANUAL', 'ENTERPRISE'];
   if (!VALID_PLANS_SP.includes(plan)) {
     return res.status(400).json({ error: `plan inválido: ${plan}` });
   }
@@ -5228,6 +5228,8 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
   // Normaliza o plano da venda para o campo plan do perfil
   const rawPlan = (sale.plan as string || '').toUpperCase();
   const normalizedPlan = rawPlan.includes('ENTERPRISE') ? 'ENTERPRISE'
+    : rawPlan.startsWith('ULTRA') ? 'ULTRA'
+    : rawPlan.startsWith('MAX') ? 'MAX'
     : rawPlan.includes('PRO') ? 'PRO'
     : rawPlan.includes('ESSENCIAL') || rawPlan.includes('MENSAL') || rawPlan.includes('ANUAL') || rawPlan.includes('FREE') ? 'ESSENCIAL'
     : null;
