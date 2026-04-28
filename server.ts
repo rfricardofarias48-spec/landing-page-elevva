@@ -2068,6 +2068,39 @@ app.get("/api/agendar/:token", async (req, res) => {
     // Get available slots for this job
     const nowCheck = new Date();
 
+    // Step 1: Delete expired unbooked interview_slots for this job (keeps DB clean)
+    const { data: expiredSlots } = await supabaseAdmin
+      .from('interview_slots')
+      .select('id, slot_date, slot_time')
+      .eq('job_id', interview.job_id)
+      .eq('is_booked', false);
+
+    const expiredIds = (expiredSlots || [])
+      .filter((s: any) => isSlotExpired(s.slot_date, s.slot_time, nowCheck))
+      .map((s: any) => s.id);
+
+    if (expiredIds.length > 0) {
+      await supabaseAdmin.from('interview_slots').delete().in('id', expiredIds);
+      console.log(`[Scheduling] Deleted ${expiredIds.length} expired interview_slots for job=${interview.job_id}`);
+    }
+
+    // Step 2: Also delete expired availability_slots for this recruiter
+    const { data: jobOwnerData } = await supabaseAdmin
+      .from('jobs').select('user_id').eq('id', interview.job_id).single();
+    if (jobOwnerData?.user_id) {
+      const { data: expiredAvail } = await supabaseAdmin
+        .from('availability_slots')
+        .select('id, slot_date, slot_time')
+        .eq('user_id', jobOwnerData.user_id);
+      const expiredAvailIds = (expiredAvail || [])
+        .filter((s: any) => isSlotExpired(s.slot_date, s.slot_time, nowCheck))
+        .map((s: any) => s.id);
+      if (expiredAvailIds.length > 0) {
+        await supabaseAdmin.from('availability_slots').delete().in('id', expiredAvailIds);
+        console.log(`[Scheduling] Deleted ${expiredAvailIds.length} expired availability_slots`);
+      }
+    }
+
     let { data: allSlots } = await supabaseAdmin
       .from('interview_slots')
       .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')

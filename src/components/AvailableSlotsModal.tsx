@@ -37,11 +37,12 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose }) => {
 
   const fetchSlots = async () => {
     setLoading(true);
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().slice(0, 5);
+    // Use Brazil local time (UTC-3) to avoid deleting tomorrow's slots
+    const nowBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
+    const today = nowBrazil.toISOString().split('T')[0];
+    const currentTime = nowBrazil.toISOString().split('T')[1].slice(0, 5);
 
-    // Delete expired slots from DB (past dates + past times on today)
+    // Delete expired slots from DB — both availability_slots AND interview_slots
     await Promise.all([
       supabase.from('availability_slots').delete()
         .eq('user_id', userId).lt('slot_date', today),

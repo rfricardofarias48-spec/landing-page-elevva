@@ -7,7 +7,34 @@ interface Props {
 
 export const SqlSetupModal: React.FC<Props> = ({ onClose }) => {
   // Define FIX_ADMIN (V43) como padrão para resolver o erro atual
-  const [activeTab, setActiveTab] = useState<'FIX_ADMIN' | 'FIX_ACCESS' | 'CRON' | 'V51' | 'V52' | 'V53' | 'V54'>('FIX_ADMIN');
+  const [activeTab, setActiveTab] = useState<'FIX_ADMIN' | 'FIX_ACCESS' | 'CRON' | 'V51' | 'V52' | 'V53' | 'V54' | 'V55'>('V55');
+
+  // SCRIPT V55: SLOT REQUESTS — notificação ao recrutador quando candidato não encontra horários
+  const v55Sql = `
+-- SCRIPT V55: TABELA slot_requests
+-- Notifica recrutador quando candidato acessa link de agendamento sem horários disponíveis
+
+CREATE TABLE IF NOT EXISTS public.slot_requests (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  interview_id UUID        UNIQUE REFERENCES public.interviews(id) ON DELETE CASCADE,
+  job_id       UUID        REFERENCES public.jobs(id) ON DELETE CASCADE,
+  candidate_name TEXT,
+  job_title    TEXT,
+  profile_id   UUID        REFERENCES public.profiles(id) ON DELETE CASCADE,
+  status       TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'handled'))
+);
+
+ALTER TABLE public.slot_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Recrutadores veem seus próprios slot_requests" ON public.slot_requests;
+CREATE POLICY "Recrutadores veem seus próprios slot_requests"
+  ON public.slot_requests FOR ALL
+  USING (profile_id = auth.uid())
+  WITH CHECK (profile_id = auth.uid());
+
+GRANT ALL ON public.slot_requests TO authenticated, anon;
+`;
 
   // SCRIPT V54: SISTEMA DE VENDAS E ONBOARDING AUTOMÁTICO
   const v54Sql = `
@@ -387,6 +414,7 @@ SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHE
           case 'V52': return v52Sql;
           case 'V53': return v53Sql;
           case 'V54': return v54Sql;
+          case 'V55': return v55Sql;
           default: return fixAdminSql;
       }
   };
@@ -456,6 +484,12 @@ SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHE
               className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'V54' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
             >
               <ShieldCheck className="w-4 h-4" /> V54 (Vendas + Onboarding)
+            </button>
+            <button
+              onClick={() => setActiveTab('V55')}
+              className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'V55' ? 'border-emerald-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <Clock className="w-4 h-4" /> V55 (Slot Requests) ⚠️
             </button>
           </div>
         </div>
