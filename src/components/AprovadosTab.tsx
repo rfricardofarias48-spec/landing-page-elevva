@@ -87,6 +87,12 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
   }, [approvedCandidates, searchTerm, jobFilter, dateFrom, dateTo]);
 
   useEffect(() => {
+    if (!userId) return;
+    // Backfill silencioso: preenche chatwoot_conversation_id null no banco
+    fetch('/api/admin/backfill-chatwoot-ids', { method: 'POST' }).catch(() => {});
+  }, [userId]);
+
+  useEffect(() => {
     const phones = approvedCandidates.map(c => c.phone).filter(Boolean);
     if (phones.length === 0) return;
     fetch('/api/chatwoot-map', {
@@ -95,8 +101,8 @@ export const AprovadosTab: React.FC<Props> = ({ jobs, interviews, onRefresh, cha
       body: JSON.stringify({ phones, user_id: userId }),
     })
       .then(r => r.json())
-      .then((result) => { console.log('[chatwoot-map result]', result); if (result.map) setChatwootMap(result.map); })
-      .catch((e) => console.error('[chatwoot-map error]', e));
+      .then((result) => { if (result.map) setChatwootMap(result.map); })
+      .catch(() => {});
   }, [approvedCandidates]);
 
   const formatApprovalDate = (dateStr: string | null) => {
