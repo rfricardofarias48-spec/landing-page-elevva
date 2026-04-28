@@ -1843,38 +1843,58 @@ app.get("/api/agendar/:token/data", async (req, res) => {
     // Get job owner to sync slots
     const { data: job } = await supabase.from('jobs').select('title, user_id').eq('id', interview.job_id).single();
 
-    // Delete expired unbooked slots for this job
-    // Slot times are stored as Brazil local time (UTC-3) — compare with explicit offset
-    const nowTs = new Date();
-    const { data: expiredSlots } = await supabaseAdmin
+    const nowData = new Date();
+    const slotExpired = (date: string, time: string) =>
+      new Date(`${date}T${String(time).substring(0, 5)}:00-03:00`) < nowData;
+
+    // Fetch all unbooked slots, delete expired ones, repopulate from availability_slots if empty
+    const { data: allUnbooked } = await supabaseAdmin
       .from('interview_slots')
-      .select('id, slot_date, slot_time')
+      .select('id, slot_date, slot_time, format, location, interviewer_name')
       .eq('job_id', interview.job_id)
       .eq('is_booked', false);
-    const expiredIds = (expiredSlots || [])
-      .filter((s: any) => new Date(`${s.slot_date}T${String(s.slot_time).substring(0,5)}:00-03:00`) < nowTs)
+
+    const expiredIds = (allUnbooked || [])
+      .filter((s: any) => slotExpired(s.slot_date, s.slot_time))
       .map((s: any) => s.id);
     if (expiredIds.length > 0) {
       await supabaseAdmin.from('interview_slots').delete().in('id', expiredIds);
     }
 
-    const [candidateRes, slotsRes] = await Promise.all([
-      supabase.from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single(),
-      supabase.from('interview_slots')
-        .select('id, slot_date, slot_time, format, location, interviewer_name')
-        .eq('job_id', interview.job_id)
-        .eq('is_booked', false)
-        .or(`slot_date.gt.${todayStr},and(slot_date.eq.${todayStr},slot_time.gt.${currentTimeStr})`)
-        .order('slot_date', { ascending: true })
-        .order('slot_time', { ascending: true }),
-    ]);
+    let validSlots = (allUnbooked || []).filter((s: any) => !slotExpired(s.slot_date, s.slot_time));
+
+    // Auto-repopulate from availability_slots if no valid interview_slots exist
+    if (validSlots.length === 0 && !interview.slot_id && job?.user_id) {
+      const { data: availSlots } = await supabaseAdmin
+        .from('availability_slots').select('*').eq('user_id', job.user_id);
+      const freshAvail = (availSlots || []).filter((s: any) => !slotExpired(s.slot_date, s.slot_time));
+      if (freshAvail.length > 0) {
+        const { data: inserted } = await supabaseAdmin
+          .from('interview_slots')
+          .insert(freshAvail.map((s: any) => ({
+            job_id: interview.job_id,
+            slot_date: s.slot_date, slot_time: s.slot_time,
+            format: s.format, location: s.location,
+            interviewer_name: s.interviewer_name, is_booked: false,
+          })))
+          .select('id, slot_date, slot_time, format, location, interviewer_name');
+        if (inserted) validSlots = inserted;
+      }
+    }
+
+    validSlots.sort((a: any, b: any) =>
+      `${a.slot_date}${a.slot_time}`.localeCompare(`${b.slot_date}${b.slot_time}`)
+    );
+
+    const candidateRes = await supabase
+      .from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single();
 
     return res.json({
       ok: true,
       status: interview.status,
       candidateName: (candidateRes.data as Record<string, string>)?.['Nome Completo'] || '',
       jobTitle: job?.title || '',
-      slots: slotsRes.data || [],
+      slots: validSlots,
     });
   } catch (err) {
     console.error('[Scheduling Data] Error:', err);
@@ -1906,14 +1926,57 @@ app.get("/api/agendar/:token", async (req, res) => {
     const candidateName = (candidate as Record<string, string>)?.['Nome Completo'] || 'Candidato';
 
     // Get available slots for this job
-    const { data: allSlots } = await supabaseAdmin
+    const nowCheck = new Date();
+    const slotIsExpired = (date: string, time: string) =>
+      new Date(`${date}T${String(time).substring(0, 5)}:00-03:00`) < nowCheck;
+
+    let { data: allSlots } = await supabaseAdmin
       .from('interview_slots')
       .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
       .eq('job_id', interview.job_id)
       .order('slot_date', { ascending: true })
       .order('slot_time', { ascending: true });
 
-    const slots = (allSlots || []).map(s => {
+    // If no valid unbooked slots exist, auto-repopulate from recruiter's availability_slots.
+    // This self-heals the table if slots were lost due to a previous bug or manual deletion.
+    const hasValidInInterviewSlots = (allSlots || []).some(
+      (s: any) => !s.is_booked && !slotIsExpired(s.slot_date, s.slot_time)
+    );
+
+    if (!hasValidInInterviewSlots && !interview.slot_id) {
+      const { data: jobData } = await supabaseAdmin
+        .from('jobs').select('user_id').eq('id', interview.job_id).single();
+
+      if (jobData?.user_id) {
+        const { data: availSlots } = await supabaseAdmin
+          .from('availability_slots').select('*').eq('user_id', jobData.user_id);
+
+        const validAvail = (availSlots || []).filter(
+          (s: any) => !slotIsExpired(s.slot_date, s.slot_time)
+        );
+
+        if (validAvail.length > 0) {
+          const toInsert = validAvail.map((s: any) => ({
+            job_id: interview.job_id,
+            slot_date: s.slot_date,
+            slot_time: s.slot_time,
+            format: s.format,
+            location: s.location,
+            interviewer_name: s.interviewer_name,
+            is_booked: false,
+          }));
+          const { data: inserted } = await supabaseAdmin
+            .from('interview_slots').insert(toInsert)
+            .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked');
+          if (inserted && inserted.length > 0) {
+            allSlots = inserted;
+            console.log(`[Scheduling] Auto-repopulated ${inserted.length} interview_slots from availability_slots for job ${interview.job_id}`);
+          }
+        }
+      }
+    }
+
+    const slots = (allSlots || []).map((s: any) => {
       const [year, month, day] = s.slot_date.split('-').map(Number);
       const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
       return {
@@ -1938,12 +2001,9 @@ app.get("/api/agendar/:token", async (req, res) => {
     } : null;
 
     // Detect if no available (non-expired, non-booked) slots exist
-    // Slot times are stored as Brazil local time (UTC-3) — parse with explicit offset
-    const nowCheck = new Date();
     const hasAvailableSlots = slots.some(s => {
       if (s.isBooked) return false;
-      const dt = new Date(`${s.date}T${s.time.substring(0, 5)}:00-03:00`);
-      return dt >= nowCheck;
+      return !slotIsExpired(s.date, s.time);
     });
 
     if (!hasAvailableSlots) {
