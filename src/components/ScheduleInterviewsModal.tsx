@@ -128,23 +128,22 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         .select();
       if (insertError) throw insertError;
 
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+      // Close modal immediately — DB work is done. Agent calls (WhatsApp) run in background.
+      onSuccess();
+
+      supabase.auth.getUser().then(({ data: { user: authUser } }) => {
         const userId = authUser?.id;
-        if (!userId) throw new Error('Usuário não autenticado.');
+        if (!userId) return;
         const interviewIds = insertedInterviews?.map(i => i.id) || [];
-        const agentRes = await fetch('/api/agent/start-scheduling', {
+        fetch('/api/agent/start-scheduling', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId, job_id: job.id, interview_ids: interviewIds }),
-        });
-        if (!agentRes.ok) console.warn('Aviso agente:', await agentRes.json().catch(() => ({})));
-        await fetch('/api/agent/notify-pending-reschedules', {
+        }).catch(e => console.warn('Aviso agente start-scheduling:', e));
+        fetch('/api/agent/notify-pending-reschedules', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId, job_id: job.id }),
         }).catch(() => {});
-      } catch (agentError) { console.error('Erro ao disparar agente:', agentError); }
-
-      onSuccess();
+      }).catch(e => console.error('Erro ao disparar agente:', e));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao agendar entrevistas.';
       setError(message);
