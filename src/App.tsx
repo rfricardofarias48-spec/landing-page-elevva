@@ -2455,10 +2455,7 @@ const App: React.FC = () => {
                   {isAgency && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-0">
                       {/* Plano Max */}
-                      <div className="bg-white rounded-2xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
-                          <div className="inline-flex items-center gap-1.5 mb-3">
-                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest bg-blue-100 text-blue-700">Agência</span>
-                          </div>
+                      <div className="bg-white rounded-2xl p-6 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
                           <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Max</h4>
                           <p className="text-sm text-slate-500 font-medium mb-5">Para agências em crescimento com múltiplos clientes.</p>
                           {normalizedPlan === 'MAX' && user?.plan_price != null && user.plan_price !== 2499 ? (
@@ -2506,14 +2503,11 @@ const App: React.FC = () => {
                       </div>
 
                       {/* Plano Ultra */}
-                      <div className="bg-[#0a0a0a] rounded-2xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800">
+                      <div className="bg-[#0a0a0a] rounded-2xl p-6 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800">
                           <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
                               <Star className="w-3 h-3 fill-black" /> Máxima Capacidade
                           </div>
-                          <div className="inline-flex items-center gap-1.5 mb-3">
-                              <span className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest bg-violet-900/50 text-violet-300">Agência</span>
-                          </div>
-                          <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter">Ultra <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
+                          <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter mt-3">Ultra <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-5">Para grandes agências com alta demanda de vagas.</p>
                           {normalizedPlan === 'ULTRA' && user?.plan_price != null && user.plan_price !== 4499 ? (
                               <div className="mb-6">
