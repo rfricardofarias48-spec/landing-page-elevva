@@ -790,28 +790,91 @@ app.get("/api/admin/diagnose-chatwoot/:userId", async (req, res) => {
 // DELETE /api/admin/delete-user/:id
 // ─────────────────────────────────────────────────────────────────────
 app.delete("/api/admin/delete-user/:id", async (req, res) => {
+  const log: string[] = [];
+
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "id obrigatório" });
 
-    // 1. Busca perfil para liberar chip do pool
+    // 1. Busca perfil completo
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('evolution_instance, instancia_evolution')
+      .select('evolution_instance, instancia_evolution, chatwoot_inbox_id, chatwoot_user_id, chatwoot_account_id')
       .eq('id', id)
       .maybeSingle();
 
-    const instanceName = profile?.evolution_instance || profile?.instancia_evolution;
+    const instanceName     = profile?.evolution_instance || profile?.instancia_evolution;
+    const chatwootInboxId  = profile?.chatwoot_inbox_id;
+    const chatwootUserId   = profile?.chatwoot_user_id;
+    const chatwootAccId    = profile?.chatwoot_account_id || Number(process.env.CHATWOOT_ACCOUNT_ID || '1');
 
-    // Libera chip no pool se existir
+    const EVOLUTION_URL  = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+    const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY || '';
+    const CHATWOOT_URL   = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+    const CHATWOOT_TOKEN = process.env.CHATWOOT_ADMIN_TOKEN || '';
+
+    // 2. Deletar instância na Evolution API
+    if (instanceName && EVOLUTION_URL && EVOLUTION_KEY) {
+      try {
+        const r = await fetch(`${EVOLUTION_URL}/instance/delete/${instanceName}`, {
+          method: 'DELETE',
+          headers: { apikey: EVOLUTION_KEY },
+        });
+        if (r.ok) {
+          log.push(`✅ Evolution: instância ${instanceName} deletada`);
+        } else {
+          const t = await r.text();
+          log.push(`⚠️ Evolution: HTTP ${r.status} ao deletar ${instanceName} — ${t.substring(0, 100)}`);
+        }
+      } catch (e: any) {
+        log.push(`⚠️ Evolution: erro ao deletar instância — ${e.message}`);
+      }
+    }
+
+    // 3. Liberar chip no pool
     if (instanceName) {
       await supabaseAdmin
         .from('chips_pool')
         .update({ status: 'disponivel', assigned_to: null, assigned_at: null, assigned_sale_id: null })
         .eq('evolution_instance', instanceName);
+      log.push(`✅ Chip ${instanceName} liberado no pool`);
     }
 
-    // 2. Busca vagas do usuário para deletar candidatos relacionados
+    // 4. Deletar inbox no Chatwoot
+    if (chatwootInboxId && CHATWOOT_URL && CHATWOOT_TOKEN) {
+      try {
+        const r = await fetch(`${CHATWOOT_URL}/api/v1/accounts/${chatwootAccId}/inboxes/${chatwootInboxId}`, {
+          method: 'DELETE',
+          headers: { api_access_token: CHATWOOT_TOKEN },
+        });
+        if (r.ok || r.status === 404) {
+          log.push(`✅ Chatwoot: inbox ${chatwootInboxId} deletada`);
+        } else {
+          log.push(`⚠️ Chatwoot: HTTP ${r.status} ao deletar inbox ${chatwootInboxId}`);
+        }
+      } catch (e: any) {
+        log.push(`⚠️ Chatwoot: erro ao deletar inbox — ${e.message}`);
+      }
+    }
+
+    // 5. Deletar agente no Chatwoot
+    if (chatwootUserId && CHATWOOT_URL && CHATWOOT_TOKEN) {
+      try {
+        const r = await fetch(`${CHATWOOT_URL}/api/v1/accounts/${chatwootAccId}/agents/${chatwootUserId}`, {
+          method: 'DELETE',
+          headers: { api_access_token: CHATWOOT_TOKEN },
+        });
+        if (r.ok || r.status === 404) {
+          log.push(`✅ Chatwoot: agente ${chatwootUserId} deletado`);
+        } else {
+          log.push(`⚠️ Chatwoot: HTTP ${r.status} ao deletar agente ${chatwootUserId}`);
+        }
+      } catch (e: any) {
+        log.push(`⚠️ Chatwoot: erro ao deletar agente — ${e.message}`);
+      }
+    }
+
+    // 6. Busca vagas do usuário para deletar candidatos relacionados
     const { data: jobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', id);
     const jobIds = (jobs || []).map((j: { id: string }) => j.id);
 
@@ -821,25 +884,28 @@ app.delete("/api/admin/delete-user/:id", async (req, res) => {
       await supabaseAdmin.from('interviews').delete().in('job_id', jobIds);
       await supabaseAdmin.from('admissions').delete().in('job_id', jobIds);
       await supabaseAdmin.from('jobs').delete().in('id', jobIds);
+      log.push(`✅ Supabase: ${jobIds.length} vaga(s) e candidatos deletados`);
     }
 
-    // 3. Deleta dados diretos do usuário
+    // 7. Deleta dados diretos do usuário
     await supabaseAdmin.from('agent_conversations').delete().eq('user_id', id);
     await supabaseAdmin.from('announcements').delete().eq('user_id', id);
     await supabaseAdmin.from('profiles').delete().eq('id', id);
+    log.push(`✅ Supabase: perfil e dados deletados`);
 
-    // 4. Deleta do Auth
+    // 8. Deleta do Auth
     const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
     if (error) {
       console.error(`[Admin] delete-user auth error: ${error.message}`);
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message, log });
     }
+    log.push(`✅ Auth: usuário removido`);
 
-    console.log(`[Admin] User deleted: ${id}${instanceName ? ` | chip ${instanceName} liberado` : ''}`);
-    return res.json({ ok: true, chipReleased: !!instanceName });
+    console.log(`[Admin] User ${id} fully deleted:\n${log.join('\n')}`);
+    return res.json({ ok: true, log });
   } catch (err) {
     console.error("[Admin] delete-user error:", err);
-    return res.status(500).json({ error: String(err) });
+    return res.status(500).json({ error: String(err), log });
   }
 });
 
