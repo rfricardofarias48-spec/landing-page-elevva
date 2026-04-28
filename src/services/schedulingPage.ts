@@ -128,17 +128,16 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ─── Header ─── */
-    header {
-      background: var(--card);
-      border-bottom: 1px solid var(--line);
-      padding: 0 24px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    /* ─── Logo watermark ─── */
+    .logo-mark {
+      position: fixed;
+      bottom: 18px;
+      right: 20px;
+      opacity: 0.18;
+      pointer-events: none;
+      z-index: 10;
     }
-    header img { height: 24px; width: auto; display: block; }
+    .logo-mark img { height: 18px; width: auto; display: block; }
 
     /* ─── Layout ─── */
     .wrap {
@@ -374,9 +373,9 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
 
 <div id="loading"><div class="spin"></div></div>
 
-<header>
+<div class="logo-mark">
   <img src="https://ik.imagekit.io/xsbrdnr0y/Elevva_Logo_Black.png" alt="Elevva">
-</header>
+</div>
 
 <!-- SLOT SELECTION -->
 <div id="slot-selection" class="wrap">
