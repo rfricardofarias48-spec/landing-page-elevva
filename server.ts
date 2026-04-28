@@ -57,6 +57,63 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Backfill: popula chatwoot_conversation_id nos registros agent_conversations que estão null
+app.post("/api/admin/backfill-chatwoot-ids", async (req, res) => {
+  try {
+    // Busca todos os perfis com Chatwoot configurado
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, chatwoot_account_id, chatwoot_token')
+      .not('chatwoot_account_id', 'is', null)
+      .not('chatwoot_token', 'is', null);
+
+    const chatwootBase = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+    let totalUpdated = 0;
+
+    for (const profile of (profiles || [])) {
+      const { data: convs } = await supabaseAdmin
+        .from('agent_conversations')
+        .select('id, phone')
+        .eq('user_id', profile.id)
+        .is('chatwoot_conversation_id', null);
+
+      for (const conv of (convs || [])) {
+        const normalized = `+55${conv.phone.replace(/\D/g, '').replace(/^55/, '')}`;
+        try {
+          const searchRes = await fetch(
+            `${chatwootBase}/api/v1/accounts/${profile.chatwoot_account_id}/contacts/search?q=${encodeURIComponent(normalized)}&page=1`,
+            { headers: { 'api_access_token': profile.chatwoot_token } }
+          );
+          const searchData = await searchRes.json() as { payload?: { id: number; phone_number?: string }[] };
+          const contact = searchData?.payload?.find((c: { id: number; phone_number?: string }) =>
+            c.phone_number === normalized || c.phone_number?.replace(/^\+/, '') === conv.phone.replace(/\D/g, '')
+          );
+          if (!contact?.id) continue;
+
+          const convsRes = await fetch(
+            `${chatwootBase}/api/v1/accounts/${profile.chatwoot_account_id}/contacts/${contact.id}/conversations`,
+            { headers: { 'api_access_token': profile.chatwoot_token } }
+          );
+          const convsData = await convsRes.json() as { payload?: { id: number }[] };
+          const latest = convsData?.payload?.sort((a: { id: number }, b: { id: number }) => b.id - a.id)[0];
+          if (!latest?.id) continue;
+
+          await supabaseAdmin
+            .from('agent_conversations')
+            .update({ chatwoot_conversation_id: latest.id })
+            .eq('id', conv.id);
+          totalUpdated++;
+          console.log(`[Backfill] ${conv.phone} → chatwoot conv ${latest.id}`);
+        } catch (_) { /* skip on error */ }
+      }
+    }
+
+    return res.json({ ok: true, updated: totalUpdated });
+  } catch (err) {
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
 // Returns chatwoot conversation IDs for a list of phones.
 // Searches Chatwoot contacts API directly since chatwoot_conversation_id is not stored in agent_conversations.
 app.post("/api/chatwoot-map", async (req, res) => {
@@ -1225,6 +1282,18 @@ app.post("/api/webhooks/chatwoot", async (req, res) => {
     if (!profile) {
       console.warn(`[Chatwoot Webhook] No profile found for account_id=${accountId}`);
       return res.json({ ok: true, skipped: 'no profile' });
+    }
+
+    // ── Sempre que temos phone + conversationId: salvar chatwoot_conversation_id ──
+    if (phone && conversationId) {
+      const phoneVariants = [phone, `55${phone.replace(/^55/, '')}`, phone.replace(/^55/, '')];
+      const uniqueVariants = [...new Set(phoneVariants)];
+      await supabaseAdmin
+        .from('agent_conversations')
+        .update({ chatwoot_conversation_id: conversationId })
+        .eq('user_id', profile.id)
+        .in('phone', uniqueVariants);
+      console.log(`[Chatwoot Webhook] Saved chatwoot_conversation_id=${conversationId} for phone=${phone}`);
     }
 
     // ── Humano assumiu: ativa flag e envia para WhatsApp ──
