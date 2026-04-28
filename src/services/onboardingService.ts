@@ -134,32 +134,50 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
 
   try {
     // ── ETAPA 1: Preparar perfil — Google Login (sem senha) ───────────────────
-    // O cliente fará login via Google OAuth — não criamos senha.
-    // Se já existe um usuário Supabase com esse email (login Google prévio), reutilizamos.
-    // Se não existe ainda, criamos o registro em profiles sem auth user —
-    // o Supabase Auth user será criado automaticamente no primeiro login Google.
     let userId = ctx.userId;
     if (!userId) {
       console.log('[Onboarding] Etapa 1: verificar/preparar usuário Supabase');
 
-      // Tenta encontrar usuário existente pelo email
-      const { data: existingUsers } = await supabase.auth.admin.listUsers();
-      const existing = existingUsers?.users?.find((u: any) => u.email === sale.client_email);
+      // 1ª tentativa: buscar pelo perfil existente (não tem limite de paginação)
+      const { data: existingProfile } = await supabase
+        .from('profiles').select('id').eq('email', sale.client_email).maybeSingle();
 
-      if (existing) {
-        userId = existing.id;
-        console.log(`[Onboarding] Usuário Google já existente: ${userId}`);
+      if (existingProfile?.id) {
+        userId = existingProfile.id;
+        console.log(`[Onboarding] Perfil existente encontrado: ${userId}`);
       } else {
-        // Cria registro de auth sem senha — o usuário será "upgradeado" para Google
-        // quando fizer o primeiro login OAuth
+        // Tenta criar o usuário no Supabase Auth (sem senha — Google OAuth)
         const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
           email: sale.client_email,
           email_confirm: true,
           user_metadata: { name: sale.client_name },
         });
-        if (authErr) throw new Error(`Etapa 1 falhou: ${authErr.message}`);
-        userId = authData.user.id;
-        console.log(`[Onboarding] Usuário criado (aguardando Google Login): ${userId}`);
+
+        if (authErr) {
+          // Se o email já está registrado no Auth mas sem perfil, busca pelo listUsers paginado
+          if (authErr.message.toLowerCase().includes('already') || authErr.message.toLowerCase().includes('registered')) {
+            let found: any = null;
+            let page = 1;
+            while (!found) {
+              const { data: page_data } = await supabase.auth.admin.listUsers({ page, perPage: 50 });
+              if (!page_data?.users?.length) break;
+              found = page_data.users.find((u: any) => u.email === sale.client_email);
+              if (found || page_data.users.length < 50) break;
+              page++;
+            }
+            if (found) {
+              userId = found.id;
+              console.log(`[Onboarding] Usuário Auth encontrado via paginação: ${userId}`);
+            } else {
+              throw new Error(`Etapa 1 falhou: email já registrado mas não localizado — ${authErr.message}`);
+            }
+          } else {
+            throw new Error(`Etapa 1 falhou: ${authErr.message}`);
+          }
+        } else {
+          userId = authData.user.id;
+          console.log(`[Onboarding] Usuário Auth criado (aguardando Google Login): ${userId}`);
+        }
       }
 
       ctx.userId = userId;
@@ -220,20 +238,32 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
     let chatwootUserToken = ctx.chatwootUserToken;
     if (!chatwootUserId) {
       console.log('[Onboarding] Etapa 4: criar usuário Chatwoot');
-      // Chatwoot exige senha — geramos uma aleatória só para criação da conta.
-      // O cliente não usa essa senha; o acesso ao Chatwoot é pelo painel Elevva via iframe/link.
       const chatwootPwd = generatePassword();
-      const agent = await chatwootPost(
-        `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/agents`,
-        {
-          name: sale.client_name,
-          email: sale.client_email,
-          role: 'agent',
-          password: chatwootPwd,
+      try {
+        const agent = await chatwootPost(
+          `/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/agents`,
+          { name: sale.client_name, email: sale.client_email, role: 'agent', password: chatwootPwd }
+        );
+        chatwootUserId = agent.id;
+        chatwootUserToken = agent.access_token;
+      } catch (e: any) {
+        // Email já existe no Chatwoot — busca o agente existente
+        if (e.message.includes('422') || e.message.toLowerCase().includes('email')) {
+          console.warn('[Onboarding] Email já existe no Chatwoot — buscando agente existente');
+          const agents = await chatwootGet(`/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/agents`);
+          const found = Array.isArray(agents) ? agents.find((a: any) => a.email === sale.client_email) : null;
+          if (found) {
+            chatwootUserId = found.id;
+            // access_token não é retornado na listagem — usará CHATWOOT_ADMIN_TOKEN como fallback na etapa 9
+            chatwootUserToken = null;
+            console.log(`[Onboarding] Agente Chatwoot existente reutilizado: ${chatwootUserId}`);
+          } else {
+            throw new Error(`Etapa 4 falhou: email já registrado mas agente não encontrado — ${e.message}`);
+          }
+        } else {
+          throw e;
         }
-      );
-      chatwootUserId = agent.id;
-      chatwootUserToken = agent.access_token;
+      }
       ctx.chatwootUserId = chatwootUserId;
       ctx.chatwootUserToken = chatwootUserToken;
       await saveContext(saleId, 4, ctx);

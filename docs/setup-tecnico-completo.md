@@ -1,423 +1,306 @@
-# Elevva — Setup Técnico Completo
+# Elevva — Manual de Setup Completo
 
-> Guia interno de infraestrutura, variáveis de ambiente, integrações e troubleshooting.
-> Atualizado com todos os problemas identificados e corrigidos em produção.
+> Este documento é o guia único para quem vai configurar o Elevva do zero.
+> Siga na ordem. Não pule etapas. Cada seção tem um checklist de verificação.
 
 ---
 
-## 1. Infraestrutura
+## PRÉ-REQUISITOS
 
-| Serviço | Função | URL de Referência |
+Antes de começar, você precisa ter acesso a:
+
+| Conta | Para quê | Onde criar |
 |---|---|---|
-| **Vercel** | Frontend (React/Vite) + Serverless (Express) | app.elevva.net.br |
-| **Supabase** | Banco de dados PostgreSQL + Auth | dashboard.supabase.com |
-| **Evolution API v2** | Instâncias WhatsApp (chips) | VPS própria |
-| **Chatwoot** | Caixa de conversas para atendimento humano | VPS própria |
-| **Asaas** | Pagamentos / assinaturas / webhooks | asaas.com |
-| **Google Calendar** | Agendamento de entrevistas | console.cloud.google.com |
+| **Vercel** | Hospedagem do app | vercel.com |
+| **Supabase** | Banco de dados | supabase.com |
+| **Evolution API v2** | Instâncias WhatsApp | VPS própria |
+| **Chatwoot** | Caixa de conversas | VPS própria |
+| **Asaas** | Cobranças e assinaturas | asaas.com.br |
+| **Google Cloud** | Login dos clientes (OAuth) | console.cloud.google.com |
 
 ---
 
-## 2. Variáveis de Ambiente (Vercel)
+## PASSO 1 — Configurar o Supabase
 
-Acesse: **Vercel → projeto Elevva → Settings → Environment Variables**
+### 1.1 Criar projeto
+1. Acesse supabase.com → New Project
+2. Anote a **Project URL** e a **anon key** (Settings → API)
+3. Anote também a **service_role key** (Settings → API → Service Role)
+
+> ⚠️ A `service_role key` tem acesso total ao banco. Nunca expor no frontend.
+
+### 1.2 Verificar tabelas
+As tabelas `profiles`, `sales`, `chips_pool`, `jobs`, `candidates`, `interviews` devem existir.
+Se não existirem, rode as migrations do projeto.
+
+**Checklist:**
+- [ ] `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` anotados
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` anotado (nunca vai para o frontend)
+
+---
+
+## PASSO 2 — Configurar o Chatwoot
+
+### 2.1 Criar conta administrator
+1. Acesse seu Chatwoot
+2. Crie (ou use) uma conta com papel **administrator**
+3. Anote o ID da conta na URL: `.../app/accounts/**1**/...` → esse número é o `CHATWOOT_ACCOUNT_ID`
+
+### 2.2 Obter o token de admin
+1. Login como administrator
+2. Clique no nome (canto inferior esquerdo) → **Profile Settings**
+3. Role até **Access Token** → copie
+
+> ⚠️ Esse token (`CHATWOOT_ADMIN_TOKEN`) é crítico. Sem ele o onboarding automático falha silenciosamente.
+
+### 2.3 Configurar webhook Chatwoot → Elevva
+1. Chatwoot → Settings → Integrations → **Webhooks** → Add new webhook
+2. Preencha:
+   - **URL**: `https://app.elevva.net.br/api/webhooks/chatwoot`
+   - **Name**: Elevva
+   - **Events**: marque `Conversation Status Changed` ✅ e `Message Created` ✅
+3. Salve e copie o secret gerado
+
+**Checklist:**
+- [ ] `CHATWOOT_ACCOUNT_ID` anotado (número da URL)
+- [ ] `CHATWOOT_ADMIN_TOKEN` anotado
+- [ ] Webhook criado com os 2 eventos marcados
+
+---
+
+## PASSO 3 — Configurar a Evolution API
+
+### 3.1 Obter o Global API Key
+1. Acesse o painel da Evolution
+2. Settings → Global API Key → copie
+
+### 3.2 Configurar webhook Evolution → Elevva
+Em cada instância (chip) que for usar:
+1. Evolution → instância → Events → **Webhook**
+2. Configure:
+   - **URL**: `https://app.elevva.net.br/api/webhooks/evolution`
+   - **Webhook by Events**: ✅ ON
+   - **Webhook Base64**: ✅ ON ← **obrigatório** para áudio e arquivos
+   - **Eventos**: marque `MESSAGES_UPSERT` ✅ e `CONNECTION_UPDATE` ✅
+3. Salve
+
+> ⚠️ `Webhook Base64 OFF` faz o agente não processar arquivos/áudios enviados pelos candidatos.
+
+**Checklist:**
+- [ ] `EVOLUTION_API_URL` anotado (URL da sua VPS Evolution)
+- [ ] `EVOLUTION_API_KEY` anotado (Global API Key)
+- [ ] Webhook configurado com Base64 ON em todas as instâncias
+
+---
+
+## PASSO 4 — Configurar o Asaas
+
+### 4.1 Obter API Key
+1. Asaas → Configurações → Integrações → API
+2. Copie a chave de produção
+
+### 4.2 Configurar webhook Asaas → Elevva
+1. Asaas → Configurações → Notificações → Webhooks → Novo webhook
+2. Preencha:
+   - **URL**: `https://app.elevva.net.br/api/webhooks/asaas`
+   - **Token de autenticação**: crie uma string aleatória segura (ex: `elevva_webhook_2026_xK9m`)
+3. Salve
+
+> ⚠️ O token que você colocar aqui DEVE ser o mesmo que será configurado na Vercel como `ASAAS_WEBHOOK_TOKEN`.
+> ⚠️ Se `ASAAS_WEBHOOK_TOKEN` não estiver configurado na Vercel, o webhook será **bloqueado por segurança**.
+
+**Checklist:**
+- [ ] `ASAAS_API_KEY` anotado
+- [ ] `ASAAS_WEBHOOK_TOKEN` criado e anotado (mesmo valor aqui e na Vercel)
+
+---
+
+## PASSO 5 — Preparar os Chips (WhatsApp)
+
+Os chips são números WhatsApp que serão atribuídos automaticamente a cada novo cliente.
+
+### 5.1 Pré-autenticar o chip na Evolution
+1. Crie uma instância na Evolution com o nome do chip (ex: `Farilog`)
+2. Escaneie o QR Code com o celular do chip
+3. Aguarde a instância ficar verde (conectada)
+
+### 5.2 Cadastrar no banco
+Insira um registro em `chips_pool`:
+
+```sql
+INSERT INTO chips_pool (phone_number, evolution_instance, status)
+VALUES ('5551999990000', 'Farilog', 'disponivel');
+```
+
+> ⚠️ Se não houver nenhum chip com `status = 'disponivel'`, o onboarding para no passo 6 e o cliente não recebe acesso.
+
+**Checklist:**
+- [ ] Chip autenticado na Evolution (status verde/conectado)
+- [ ] Chip cadastrado em `chips_pool` com `status = 'disponivel'`
+
+---
+
+## PASSO 6 — Configurar Variáveis na Vercel
+
+Acesse: **vercel.com → projeto Elevva → Settings → Environment Variables**
+
+Adicione todas as variáveis abaixo. Após salvar, **faça um novo deploy** (Deployments → Redeploy).
 
 ### Supabase
-```
-VITE_SUPABASE_URL=https://<id>.supabase.co
-VITE_SUPABASE_ANON_KEY=<anon key>
-SUPABASE_SERVICE_ROLE_KEY=<service role key>   ← obrigatório no servidor
-```
-> `VITE_` = disponível no frontend E no servidor.
-> `SUPABASE_SERVICE_ROLE_KEY` = nunca expor no frontend, apenas servidor.
+| Variável | Valor |
+|---|---|
+| `VITE_SUPABASE_URL` | URL do projeto Supabase |
+| `VITE_SUPABASE_ANON_KEY` | Anon key do Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (só servidor) |
 
 ### Evolution API
-```
-EVOLUTION_API_URL=https://<sua-vps>/          ← URL da sua instância Evolution v2
-EVOLUTION_API_KEY=<global apikey>              ← Settings → Global API Key
-SUPPORT_EVOLUTION_INSTANCE=<instancia-suporte> ← instância que envia mensagens de boas-vindas
-SUPPORT_EVOLUTION_KEY=<token-instancia-suporte>← token da instância de suporte
-```
-> ⚠️ Evolution v2 usa **camelCase** nos campos do body (ex: `accountId`, `signMsg`).
-> ⚠️ Nunca usar snake_case — causa erro silencioso (request aceito mas não aplicado).
+| Variável | Valor |
+|---|---|
+| `EVOLUTION_API_URL` | URL da sua VPS Evolution (ex: `https://evolution.seudominio.com`) |
+| `EVOLUTION_API_KEY` | Global API Key da Evolution |
+| `SUPPORT_EVOLUTION_INSTANCE` | Nome da instância que envia a mensagem de boas-vindas |
+| `SUPPORT_EVOLUTION_KEY` | Token dessa instância (opcional, usa EVOLUTION_API_KEY se omitido) |
 
 ### Chatwoot
-```
-VITE_CHATWOOT_URL=https://<chatwoot-url>       ← URL pública do Chatwoot (frontend)
-CHATWOOT_URL=https://<chatwoot-url>            ← mesma URL, para o servidor
-CHATWOOT_ACCOUNT_ID=1                          ← ID da conta principal (veja na URL do Chatwoot)
-CHATWOOT_ADMIN_TOKEN=<token-admin>             ← Profile → Access Token (conta administrator)
-CHATWOOT_WEBHOOK_SECRET=<segredo>              ← opcional, valida webhooks do Chatwoot
-```
-> ⚠️ `CHATWOOT_ADMIN_TOKEN` é **crítico**. Sem ele, o onboarding (etapa 9) falha silenciosamente.
-> ⚠️ `CHATWOOT_ACCOUNT_ID` deve ser o número que aparece na URL: `.../app/accounts/**1**/...`
-
-### Asaas (Pagamentos)
-```
-ASAAS_API_KEY=<chave-api-asaas>               ← Asaas → Configurações → API
-ASAAS_API_URL=https://api.asaas.com/v3        ← padrão produção
-ASAAS_WEBHOOK_TOKEN=<token-webhook>           ← token para validar webhooks Asaas
-```
-
-### URLs e Segredos Internos
-```
-SERVER_URL=https://app.elevva.net.br          ← URL pública do app (webhooks Evolution apontam aqui)
-BASE_URL=https://app.elevva.net.br            ← alias de SERVER_URL
-APP_URL=https://app.elevva.net.br             ← usado em mensagens de boas-vindas
-CRON_SECRET=<segredo>                         ← protege rotas de cron do Vercel
-API_KEY=<chave-interna>                       ← autenticação de chamadas internas
-ENTERPRISE_API_KEY=<chave-enterprise>         ← acesso a features enterprise
-```
-
-### OpenAI / Hermes
-```
-OPENAI_API_KEY=<chave-openai>
-HERMES_SECRET=<segredo>                       ← autenticação entre server e serviço Hermes
-```
-
-### Google Calendar
-```
-GOOGLE_CALENDAR_ID=<calendar-id>              ← ID do calendário para agendamentos
-```
-
----
-
-## 3. Configuração Inicial do Chatwoot (Uma vez por instalação)
-
-### 3.1 Instalar Chatwoot na VPS
-- Deploy via Docker ou Easypanel
-- Criar conta **administrator** (ex: rh@elevva.com.br)
-- Anotar o ID da conta na URL: `.../app/accounts/**1**/...`
-
-### 3.2 Obter CHATWOOT_ADMIN_TOKEN
-1. Login com a conta administrator
-2. Menu inferior esquerdo → clique no nome → **Profile Settings**
-3. Role até **Access Token** → copiar
-4. Colar na Vercel como `CHATWOOT_ADMIN_TOKEN`
-
-### 3.3 Configurar Webhook do Chatwoot → Elevva
-1. Chatwoot → Settings → Integrations → **Webhooks**
-2. Criar webhook:
-   - **URL**: `https://app.elevva.net.br/api/webhooks/chatwoot`
-   - **Nome**: Elevva
-   - **Eventos marcados**: `conversation_status_changed` ✅ e `message_created` ✅
-3. O secret gerado pode ser salvo como `CHATWOOT_WEBHOOK_SECRET` na Vercel
-
----
-
-## 4. Configuração Inicial da Evolution API (Uma vez por instalação)
-
-### 4.1 Instalar Evolution API v2 na VPS
-- Versão recomendada: v2.3.x ou superior
-- Anotar o **Global API Key** em Settings
-
-### 4.2 Configurar Webhook da Evolution → Elevva
-1. Evolution Manager → instância → Events → Webhook
-2. Configurar:
-   - **URL**: `https://app.elevva.net.br/api/webhooks/evolution`
-   - **Webhook by Events**: ON ✅
-   - **Webhook Base64**: ON ✅ (⚠️ obrigatório para receber arquivos/áudio)
-   - **Eventos**: `MESSAGES_UPSERT` ✅ e `CONNECTION_UPDATE` ✅
-
----
-
-## 5. Fluxo Completo de Venda → Acesso Liberado
-
-### 5.1 Visão Geral
-
-```
-Admin preenche "Venda Direta"
-        ↓
-POST /api/sales/direct-link
-        ↓
-Cria registro em sales (status: pending)
-        ↓
-Gera link Asaas (sem comissão, sem split)
-        ↓
-Admin envia link ao cliente
-        ↓
-Cliente paga via Asaas (PIX / cartão / boleto)
-        ↓
-Asaas dispara webhook → POST /api/webhooks/asaas
-        ↓
-Atualiza sales (status: paid)
-        ↓
-provisionClient() — 10 etapas
-        ↓
-Cliente recebe WhatsApp de boas-vindas
-        ↓
-Cliente loga com Google → acesso completo
-```
-
----
-
-### 5.2 Formulário "Venda Direta" (AdminDashboard)
-
-**Campos:**
-
-| Campo | Obrigatório | Descrição |
-|---|---|---|
-| Nome do Cliente | ✅ | Nome completo |
-| E-mail Google | ✅ | Usado para criar conta no Supabase Auth — deve ser um Gmail |
-| WhatsApp | ✅ | Número com DDD — recebe boas-vindas e é o contato do cliente |
-| Plano | ✅ | ESSENCIAL / PRO / ENTERPRISE |
-| Período | ✅ (exceto Enterprise) | Mensal ou Anual (20% de desconto) |
-| Valor customizado | Só ENTERPRISE | Digitado manualmente pelo admin |
-
-**Preços padrão (em centavos internamente):**
-
-| Plano | Mensal | Anual |
-|---|---|---|
-| ESSENCIAL | R$ 549,00/mês | R$ 5.270,40/ano |
-| PRO | R$ 899,00/mês | R$ 8.630,40/ano |
-| ENTERPRISE | Customizado | Customizado |
-
----
-
-### 5.3 Endpoint POST /api/sales/direct-link
-
-1. Valida campos obrigatórios e plano
-2. Cria registro em `sales`:
-   - `status: 'pending'`
-   - `commission_amount: 0` (sem comissão — venda direta)
-   - `salesperson_id: null`
-3. Chama `generatePaymentLink` no Asaas:
-   - `commissionPct: 0`
-   - `walletId: ''` (sem split de pagamento)
-   - `salespersonName: 'Elevva'`
-   - `chargeType: 'RECURRENT'` (assinatura recorrente)
-   - `billingType: 'UNDEFINED'` (aceita PIX, cartão ou boleto)
-   - `externalReference: saleId` (UUID da venda — usado para rastrear no webhook)
-4. Salva `asaas_link_url` no registro da venda
-5. Retorna o link para o admin copiar e enviar ao cliente
-
----
-
-### 5.4 Webhook Asaas → POST /api/webhooks/asaas
-
-**Header obrigatório:** `asaas-access-token: ${ASAAS_WEBHOOK_TOKEN}`
-
-**Eventos que disparam onboarding:**
-- `PAYMENT_CONFIRMED`
-- `PAYMENT_RECEIVED`
-
-**Fluxo ao receber evento:**
-1. Valida token do header
-2. Extrai `payment.externalReference` (= saleId)
-3. Verifica se já existe registro com esse `asaas_payment_id`:
-   - **Já existe + onboarding concluído** → apenas atualiza data de renovação, retorna
-   - **Já existe + pendente** → reutiliza saleId e tenta onboarding novamente
-   - **Não existe** → cria novo registro `sales` com `status: 'paid'`
-4. Atualiza `sales`: `status: 'paid'`, `paid_at: now`, `asaas_payment_id`
-5. Chama `provisionClient(saleId)` — onboarding completo
-6. Atualiza `profiles`: `subscription_status: 'active'`, `current_period_end`
-
-> ⚠️ O webhook **deve** estar configurado no painel Asaas apontando para `https://app.elevva.net.br/api/webhooks/asaas`
-> ⚠️ O token `ASAAS_WEBHOOK_TOKEN` deve ser o mesmo que está no painel Asaas → Configurações → Webhooks
-
----
-
-### 5.5 Tabelas do Banco de Dados
-
-**Tabela `sales`:**
-
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `id` | UUID | Chave primária |
-| `client_name` | text | Nome do cliente |
-| `client_email` | text | Email Google |
-| `client_phone` | text | WhatsApp |
-| `plan` | text | ESSENCIAL / PRO / ENTERPRISE / *_ANUAL |
-| `billing` | text | 'mensal' ou 'anual' |
-| `amount` | numeric | Valor em reais |
-| `commission_amount` | numeric | 0 para venda direta |
-| `salesperson_id` | UUID | NULL para venda direta |
-| `status` | text | pending → paid |
-| `asaas_payment_id` | text | ID do pagamento no Asaas |
-| `asaas_link_url` | text | URL do link de pagamento |
-| `paid_at` | timestamp | Quando o pagamento foi confirmado |
-| `onboarding_status` | text | aguardando → concluido / erro |
-| `onboarding_step` | int | 0–10 (para retry) |
-| `onboarding_context` | JSONB | Dados de cada etapa (para retry) |
-| `client_user_id` | UUID | ID do usuário Supabase criado |
-
-**Tabela `profiles` (após onboarding concluído):**
-
-| Campo | Origem |
+| Variável | Valor |
 |---|---|
-| `plan` | Normalizado (sem _ANUAL) |
-| `job_limit` / `resume_limit` | ESSENCIAL: 5/150 · PRO: 15/500 · ENTERPRISE: 9999/9999 |
-| `subscription_status` | 'active' |
-| `chatwoot_inbox_id` | ID do inbox criado na etapa 3 |
-| `chatwoot_user_token` | Token do agente criado na etapa 4 |
-| `evolution_instance` / `instancia_evolution` | Chip alocado na etapa 6 |
-| `whatsapp_number` / `telefone_agente` | Número do chip |
-| `status_automacao` | true |
-| `onboarded_at` | Timestamp de conclusão |
+| `VITE_CHATWOOT_URL` | URL do Chatwoot (ex: `https://chatwoot.seudominio.com`) |
+| `CHATWOOT_URL` | Mesma URL (necessária no servidor) |
+| `CHATWOOT_ACCOUNT_ID` | Número da conta (da URL) |
+| `CHATWOOT_ADMIN_TOKEN` | Token do administrator |
+
+### Asaas
+| Variável | Valor |
+|---|---|
+| `ASAAS_API_KEY` | Chave de produção do Asaas |
+| `ASAAS_WEBHOOK_TOKEN` | O token que você criou no passo 4.2 |
+
+### URLs e Segredos
+| Variável | Valor |
+|---|---|
+| `SERVER_URL` | `https://app.elevva.net.br` |
+| `APP_URL` | `https://app.elevva.net.br` |
+| `CRON_SECRET` | String aleatória para proteger os crons |
+| `OPENAI_API_KEY` | Chave da OpenAI para análise de currículos |
+
+**Checklist:**
+- [ ] Todas as variáveis salvas na Vercel
+- [ ] Novo deploy realizado com sucesso (status verde)
+- [ ] Acesse `https://app.elevva.net.br/api/health` → deve retornar `{"status":"ok"}`
 
 ---
 
-## 6. Onboarding Automático (10 Etapas)
+## PASSO 7 — Verificar uma Venda Completa (Teste)
 
-Disparado quando um pagamento Asaas é confirmado. Cada etapa salva progresso em `sales.onboarding_context` para retry seguro.
+Antes de abrir para clientes reais, faça um teste completo:
 
-| Etapa | O que faz | Problemas conhecidos |
+### 7.1 Gerar link de pagamento
+1. Painel admin → aba **Vendas** → **Venda Direta**
+2. Preencha com dados reais de teste
+3. Clique **Gerar Link de Pagamento**
+4. O link Asaas deve aparecer
+
+### 7.2 Simular pagamento
+1. Abra o link gerado
+2. Pague com PIX (pode usar valor real ou o modo sandbox do Asaas)
+3. Asaas deve disparar o webhook em até 1 minuto
+
+### 7.3 Verificar o onboarding
+No Supabase → tabela `sales`:
+- `status` deve virar `paid`
+- `onboarding_status` deve virar `concluido`
+- `onboarding_step` deve ser `10`
+
+No Supabase → tabela `profiles`:
+- Registro do cliente deve existir com `evolution_instance`, `chatwoot_inbox_id` e `status_automacao = true`
+
+### 7.4 Verificar Chatwoot
+1. Chatwoot → Settings → Inboxes → deve existir inbox `[Nome do cliente] — Elevva`
+2. Inbox → Collaborators → o agente do cliente deve estar listado
+
+### 7.5 Verificar acesso do cliente
+1. Cliente tenta logar em `https://app.elevva.net.br` com Google usando o email cadastrado
+2. Deve entrar normalmente com o plano ativo
+
+**Checklist:**
+- [ ] Link de pagamento gerado com sucesso
+- [ ] Pagamento confirmado → webhook recebido
+- [ ] `onboarding_status = 'concluido'` no banco
+- [ ] Inbox criado no Chatwoot com agente vinculado
+- [ ] Cliente recebeu WhatsApp de boas-vindas
+- [ ] Cliente consegue logar no app
+
+---
+
+## COMO FUNCIONA O ONBOARDING (10 ETAPAS)
+
+Após o pagamento ser confirmado pelo Asaas, o sistema executa automaticamente:
+
+| # | O que acontece | Falha se... |
 |---|---|---|
-| **1** | Cria usuário no Supabase Auth | Email duplicado: ignora erro e continua |
-| **2** | Cria/atualiza perfil em `profiles` | — |
-| **3** | Cria inbox no Chatwoot (`type: api`) | Cria inbox "Nome — Elevva"; Evolution vai criar um segundo inbox "Nome" via autoCreate |
-| **4** | Cria agente do cliente no Chatwoot | Gera senha aleatória; salva `chatwoot_user_id` e `chatwoot_user_token` |
-| **5** | Vincula agente ao inbox | Usa `inbox_members` API |
-| **6** | Busca chip disponível do pool | Falha se nenhum chip `status=disponivel` no `chips_pool` |
-| **7** | Verifica/cria instância na Evolution | Chip já deve estar autenticado (QR escaneado previamente) |
-| **8** | Configura webhook Evolution → Elevva | `webhook_base64: true` obrigatório |
-| **9** | Configura Chatwoot na Evolution | Usa `POST /chatwoot/set/{instance}` com campos camelCase |
-| **10** | Envia WhatsApp de boas-vindas | Usa `SUPPORT_EVOLUTION_INSTANCE` ou o chip do cliente |
+| 1 | Cria (ou localiza) usuário no Supabase Auth | Supabase fora do ar |
+| 2 | Cria perfil com limites do plano | Erro no banco |
+| 3 | Cria inbox no Chatwoot (`[Nome] — Elevva`) | `CHATWOOT_ADMIN_TOKEN` inválido ou ausente |
+| 4 | Cria agente do cliente no Chatwoot | Email já existe mas não é idempotente (tratado com fallback) |
+| 5 | Vincula agente ao inbox | Erro na API Chatwoot |
+| 6 | Aloca chip do pool | **Nenhum chip disponível** ← causa mais comum de falha |
+| 7 | Verifica/cria instância na Evolution | `EVOLUTION_API_URL` errado |
+| 8 | Configura webhook Evolution → Elevva | `SERVER_URL` não definido |
+| 9 | Integra Evolution com Chatwoot | Token inválido ou malformado |
+| 10 | Envia WhatsApp de boas-vindas | Chip desconectado |
 
-### Etapa 9 — Detalhes Críticos
+### Retry automático
+Se qualquer etapa falhar, o contexto é salvo. O botão **"Reprocessar Onboarding"** no painel admin retoma do ponto de falha sem repetir etapas já concluídas.
 
-Body enviado para Evolution (`POST /chatwoot/set/{instance}`):
-```json
-{
-  "enabled": true,
-  "accountId": "1",
-  "token": "<chatwoot_user_token sanitizado>",
-  "url": "https://<chatwoot-url>",
-  "signMsg": false,
-  "reopenConversation": true,
-  "conversationPending": false,
-  "importContacts": true,
-  "nameInbox": "Nome do Cliente — Elevva",
-  "mergeBrazilContacts": true,
-  "importMessages": false,
-  "daysLimitImportMessages": 0,
-  "autoCreate": true
-}
-```
-
-> ⚠️ Token deve ser sanitizado antes de enviar: `.trim().replace(/[\r\n\t"']/g, '')`
-> ⚠️ Apenas o endpoint `POST /chatwoot/set/{instance}` existe no Evolution v2
-> ⚠️ `PUT` e outros métodos retornam 404 — não tentar
+### Verificar falha
+Painel admin → aba Vendas → clique na venda → coluna `onboarding_status`:
+- `concluido` ✅ — tudo OK
+- `em_progresso` ⏳ — ainda rodando (aguarde)
+- `erro` ❌ — falhou; verifique os logs da Vercel e use o botão Reprocessar
 
 ---
 
-## 7. Problema: Dois Inboxes no Chatwoot
+## TROUBLESHOOTING
 
-**Causa**: O onboarding cria inbox "Nome — Elevva" (etapa 3). A Evolution cria outro inbox "Nome" via `autoCreate: true` (etapa 9). Resultado: dois inboxes distintos.
+### Onboarding ficou em `erro`
+1. Vercel → projeto → Deployments → último deploy → **Functions** → ver logs
+2. Procure por `[Onboarding]` para ver em qual etapa parou
+3. Corrija a causa (chip sem disponibilidade, token errado, etc.)
+4. Painel admin → venda → **Reprocessar Onboarding**
 
-**Sintoma**: O agente do cliente não vê as conversas porque está vinculado ao inbox errado.
+### Webhook Asaas não chegou
+1. Confirme que `ASAAS_WEBHOOK_TOKEN` está configurado na Vercel E no painel Asaas (mesmo valor)
+2. Asaas → Configurações → Notificações → Webhooks → ver log de envios
+3. Se falhou, clique em **Reenviar** no Asaas
+4. Se o problema persistir, use o botão **Reprocessar Onboarding** no painel admin
 
-**Solução**:
-1. Chatwoot → Settings → Inboxes → inbox criado pelo Evolution ("Nome")
-2. Aba **Collaborators** → adicionar o agente do cliente
+### Conversas não aparecem no Chatwoot
+1. Painel admin → usuário → **Diagnosticar** → verifique se todos os campos estão ✅
+2. Clique **Reconfigurar no Evolution**
+3. Chatwoot → Settings → Inboxes → inbox do cliente → Collaborators → adicionar o agente
 
-**Solução definitiva no código**: Quando `chatwoot_inbox_id` está salvo no perfil, passá-lo explicitamente para a Evolution com `inboxId` e `autoCreate: false`, evitando a criação do inbox duplicado.
+### Usuário não consegue logar
+- O login é exclusivamente por **Google** com o email cadastrado na venda
+- Se o cliente usa Gmail diferente do cadastrado, é preciso atualizar o email no Supabase Auth
+
+### Chip desconectado (cliente sem agente funcionando)
+1. Evolution → instância do cliente → reconectar (novo QR Code se necessário)
+2. Após reconectar, o webhook volta a funcionar automaticamente
 
 ---
 
-## 8. Configuração Chatwoot na Evolution — Valores Corretos
+## CONFIGURAÇÃO CHATWOOT NA EVOLUTION — VALORES CORRETOS
 
 | Campo | Valor correto | Erro comum |
 |---|---|---|
-| `enabled` | `true` | — |
-| `accountId` | `"1"` (string) | Passar como number `1` pode falhar |
-| `token` | token sanitizado | Token com espaços/newlines → `Invalid character in header` |
-| `url` | URL sem barra final | Trailing slash causa erro |
-| `signMsg` | `false` | — |
-| `reopenConversation` | `true` | — |
-| `conversationPending` | `false` | Se `true`, conversas ficam na aba "Pending" e parecem sumidas |
-| `autoCreate` | `true` apenas se sem inboxId | Se `false` e sem inboxId → sem inbox |
+| `accountId` | `"1"` (string) | Enviar como número inteiro pode falhar |
+| `token` | Token sanitizado (sem espaços) | Copiar com quebra de linha → `Invalid header` |
+| `conversationPending` | `false` | Se `true`, conversas ficam em aba "Pending" invisível |
+| `autoCreate` | `true` se sem inboxId | Sem isso e sem inboxId → sem inbox criado |
 | `importMessages` | `false` | `true` importa histórico e gera spam de conversas |
+| Endpoint | `POST /chatwoot/set/{instance}` | Evolution v2 só aceita esse — PUT e outros retornam 404 |
+| Campos do body | camelCase | snake_case é ignorado silenciosamente no Evolution v2 |
 
 ---
 
-## 9. Troubleshooting
-
-### Chatwoot não aparece configurado na Evolution
-1. Verificar `CHATWOOT_ADMIN_TOKEN` e `CHATWOOT_URL` na Vercel
-2. Painel admin → usuário → Diagnosticar → ver resultado
-3. Clicar **Reconfigurar no Evolution**
-
-### "Invalid character in header content [Authorization]"
-- Token do Chatwoot copiado com espaços ou quebra de linha
-- Solução: o código já sanitiza automaticamente via `.trim().replace(/[\r\n\t"']/g, '')`
-- Se o problema persistir, re-salvar o token manualmente nas configurações do usuário
-
-### Conversas chegam ao Chatwoot mas agente não vê
-- O agente não está vinculado ao inbox onde as mensagens chegam
-- Solução: Chatwoot → Settings → Inboxes → inbox correto → Collaborators → adicionar agente
-
-### Conversas na aba "Pending" em vez de "Open"
-- `conversationPending: true` na Evolution
-- Solução: clicar **Reconfigurar no Evolution** (o código envia `false`)
-
-### Usuário mostrado como DESATIVADO mesmo pagando
-- `isGhost` no AdminDashboard verificava apenas `evolution_instance`
-- Agora verifica: tem instância Evolution OU (`plan` é pago E `subscription_status = 'active'`)
-
-### Botão "Sincronizar" não restaurava o plano
-- `sync-profile` não atualizava o campo `plan`
-- Agora normaliza e atualiza `plan` + `subscription_status: 'active'`
-
-### Mensagem de agendamento com preview de link (ícone Meet)
-- Evolution API: adicionar `linkPreview: false` no body de `sendText`
-
----
-
-## 10. Chips Pool (WhatsApp)
-
-Os chips são números WhatsApp pré-autenticados na Evolution, armazenados em `chips_pool`:
-
-```sql
-chips_pool (
-  id, phone_number, evolution_instance,
-  status: 'disponivel' | 'em_uso' | 'bloqueado',
-  assigned_to, assigned_at, assigned_sale_id
-)
-```
-
-- Antes de onboardar um cliente, é preciso ter pelo menos 1 chip com `status = 'disponivel'`
-- O chip deve estar com QR escaneado e **conectado** na Evolution
-- Após o onboarding, o chip fica `status = 'em_uso'` vinculado ao cliente
-
----
-
-## 11. Checklist de Setup Completo
-
-**Infraestrutura:**
-- [ ] Vercel: todas as variáveis de ambiente configuradas (ver seção 2)
-- [ ] Vercel → Deployments → último deploy com status ✅
-
-**Chatwoot:**
-- [ ] Conta administrator criada, `CHATWOOT_ADMIN_TOKEN` copiado para Vercel
-- [ ] `CHATWOOT_ACCOUNT_ID` copiado da URL para Vercel
-- [ ] Webhook criado: `https://app.elevva.net.br/api/webhooks/chatwoot` com eventos `conversation_status_changed` e `message_created`
-
-**Evolution API:**
-- [ ] `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` configurados na Vercel
-- [ ] Webhook padrão: `https://app.elevva.net.br/api/webhooks/evolution` com `webhook_base64: true`
-
-**Asaas:**
-- [ ] `ASAAS_API_KEY` configurado na Vercel
-- [ ] Webhook criado no Asaas: `https://app.elevva.net.br/api/webhooks/asaas`
-- [ ] `ASAAS_WEBHOOK_TOKEN` igual nos dois lugares (Vercel e Asaas)
-
-**Chips:**
-- [ ] Pelo menos 1 chip com QR escaneado e status **conectado** na Evolution
-- [ ] Chip cadastrado em `chips_pool` com `status = 'disponivel'`
-
-**Fluxo de venda:**
-- [ ] Admin cria venda direta → link de pagamento gerado com sucesso
-- [ ] Pagamento confirmado → webhook Asaas recebido → `sales.status = 'paid'`
-- [ ] Onboarding 10 etapas concluído → `onboarding_status = 'concluido'`
-- [ ] Cliente recebe WhatsApp de boas-vindas
-- [ ] Cliente loga com Google → acesso funcional
-
-**Chatwoot por cliente:**
-- [ ] Painel admin → usuário → **Diagnosticar** → todos ✅
-- [ ] Inbox do cliente tem agente como **Collaborator**
-- [ ] Teste: enviar WhatsApp → conversa aparece no Chatwoot
-
----
-
-*Documento gerado em 2026-04-27 com base nos problemas identificados e corrigidos em produção.*
+*Atualizado em 2026-04-27. Todos os problemas encontrados em produção estão documentados e corrigidos.*
