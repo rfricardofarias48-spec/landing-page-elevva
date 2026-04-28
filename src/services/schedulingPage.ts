@@ -22,26 +22,33 @@ export interface SchedulingPageData {
     timeLabel: string;
     isBooked: boolean;
   }>;
-  noSlotsAvailable?: boolean;
 }
 
-export function renderSchedulingPage(data: SchedulingPageData): string {
-  const { token, candidateName, jobTitle, interviewerName, format, location, currentBooking, slots, noSlotsAvailable } = data;
+export interface SchedulingPageResult {
+  html: string;
+  noSlotsAvailable: boolean;
+}
+
+// Slot times are stored as Brazil local time (UTC-3).
+export function isSlotExpired(date: string, time: string, now: Date): boolean {
+  return new Date(`${date}T${time.substring(0, 5)}:00-03:00`) < now;
+}
+
+export function renderSchedulingPage(data: SchedulingPageData): SchedulingPageResult {
+  const { token, candidateName, jobTitle, interviewerName, format, location, currentBooking, slots } = data;
 
   const now = new Date();
-  // Slot times are stored as Brazil local time (UTC-3). Parse with explicit offset
-  // so the server (UTC) compares correctly regardless of host timezone.
-  const isExpired = (date: string, time: string): boolean => {
-    const dt = new Date(`${date}T${time.substring(0, 5)}:00-03:00`);
-    return dt < now;
-  };
 
   const slotsByDate: Record<string, typeof slots> = {};
   for (const slot of slots) {
-    if (isExpired(slot.date, slot.time) && slot.id !== currentBooking?.slotId) continue;
+    if (slot.isBooked && slot.id !== currentBooking?.slotId) continue;
+    if (isSlotExpired(slot.date, slot.time, now) && slot.id !== currentBooking?.slotId) continue;
     if (!slotsByDate[slot.date]) slotsByDate[slot.date] = [];
     slotsByDate[slot.date].push(slot);
   }
+
+  // noSlotsAvailable is derived from the actual rendering result — single source of truth
+  const noSlotsAvailable = Object.keys(slotsByDate).length === 0 && !currentBooking;
 
   const firstName = candidateName?.split(' ')[0] || 'Candidato';
   const isReschedule = !!currentBooking;
@@ -103,7 +110,7 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
     `<div class="info-row"><span class="info-k">${r.key}</span><span class="info-v">${r.val}</span></div>`
   ).join('');
 
-  return `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -568,6 +575,7 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
 </script>
 </body>
 </html>`;
+  return { html, noSlotsAvailable };
 }
 
 function formatDatePTBR(dateStr: string): string {

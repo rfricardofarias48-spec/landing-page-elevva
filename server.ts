@@ -9,7 +9,7 @@ import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/s
 import { cleanPhone, sendText, configureWebhookBase64 } from "./src/services/evolutionService.js";
 import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chatwootService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
-import { renderSchedulingPage, SchedulingPageData } from "./src/services/schedulingPage.js";
+import { renderSchedulingPage, SchedulingPageData, isSlotExpired } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
 import { validateWalletId, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference, getLatestSubscriptionPayment, getPaymentById } from "./src/services/asaasService.js";
 import { provisionClient } from "./src/services/onboardingService.js";
@@ -1927,8 +1927,6 @@ app.get("/api/agendar/:token", async (req, res) => {
 
     // Get available slots for this job
     const nowCheck = new Date();
-    const slotIsExpired = (date: string, time: string) =>
-      new Date(`${date}T${String(time).substring(0, 5)}:00-03:00`) < nowCheck;
 
     let { data: allSlots } = await supabaseAdmin
       .from('interview_slots')
@@ -1937,13 +1935,15 @@ app.get("/api/agendar/:token", async (req, res) => {
       .order('slot_date', { ascending: true })
       .order('slot_time', { ascending: true });
 
+    console.log(`[Scheduling] token=${token} job=${interview.job_id} interview_slots_count=${(allSlots || []).length} slot_id=${interview.slot_id || 'null'}`);
+
     // If no valid unbooked slots exist, auto-repopulate from recruiter's availability_slots.
-    // This self-heals the table if slots were lost due to a previous bug or manual deletion.
     const hasValidInInterviewSlots = (allSlots || []).some(
-      (s: any) => !s.is_booked && !slotIsExpired(s.slot_date, s.slot_time)
+      (s: any) => !s.is_booked && !isSlotExpired(s.slot_date, s.slot_time, nowCheck)
     );
 
     if (!hasValidInInterviewSlots && !interview.slot_id) {
+      console.log(`[Scheduling] No valid interview_slots — attempting repopulation from availability_slots`);
       const { data: jobData } = await supabaseAdmin
         .from('jobs').select('user_id').eq('id', interview.job_id).single();
 
@@ -1951,9 +1951,13 @@ app.get("/api/agendar/:token", async (req, res) => {
         const { data: availSlots } = await supabaseAdmin
           .from('availability_slots').select('*').eq('user_id', jobData.user_id);
 
+        console.log(`[Scheduling] availability_slots found: ${(availSlots || []).length}`);
+
         const validAvail = (availSlots || []).filter(
-          (s: any) => !slotIsExpired(s.slot_date, s.slot_time)
+          (s: any) => !isSlotExpired(s.slot_date, s.slot_time, nowCheck)
         );
+
+        console.log(`[Scheduling] valid (non-expired) availability_slots: ${validAvail.length}`);
 
         if (validAvail.length > 0) {
           const toInsert = validAvail.map((s: any) => ({
@@ -1965,12 +1969,14 @@ app.get("/api/agendar/:token", async (req, res) => {
             interviewer_name: s.interviewer_name,
             is_booked: false,
           }));
-          const { data: inserted } = await supabaseAdmin
+          const { data: inserted, error: insertErr } = await supabaseAdmin
             .from('interview_slots').insert(toInsert)
             .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked');
-          if (inserted && inserted.length > 0) {
+          if (insertErr) {
+            console.warn(`[Scheduling] Repopulation insert error:`, insertErr.message);
+          } else if (inserted && inserted.length > 0) {
             allSlots = inserted;
-            console.log(`[Scheduling] Auto-repopulated ${inserted.length} interview_slots from availability_slots for job ${interview.job_id}`);
+            console.log(`[Scheduling] ✓ Repopulated ${inserted.length} interview_slots`);
           }
         }
       }
@@ -1989,7 +1995,6 @@ app.get("/api/agendar/:token", async (req, res) => {
       };
     });
 
-    // Busca data/hora do slot já reservado (se houver) direto de interview_slots
     const firstSlot = allSlots?.[0];
     const bookedSlot = interview.slot_id
       ? (allSlots || []).find((s: any) => s.id === interview.slot_id) || null
@@ -2000,61 +2005,6 @@ app.get("/api/agendar/:token", async (req, res) => {
       time: bookedSlot.slot_time.substring(0, 5),
     } : null;
 
-    // Detect if no available (non-expired, non-booked) slots exist
-    const hasAvailableSlots = slots.some(s => {
-      if (s.isBooked) return false;
-      return !slotIsExpired(s.date, s.time);
-    });
-
-    if (!hasAvailableSlots) {
-      // Update interview status so notifyPendingReschedules picks it up later
-      await supabaseAdmin.from('interviews')
-        .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
-        .eq('id', interview.id)
-        .in('status', ['AGUARDANDO_ESCOLHA_SLOT', 'AGUARDANDO_RESPOSTA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA']);
-
-      // Notify recruiter — wrapped in try-catch so a missing table never crashes the page
-      (async () => {
-        try {
-          const { data: existing } = await supabaseAdmin
-            .from('slot_requests').select('id').eq('interview_id', interview.id).maybeSingle();
-
-          if (!existing) {
-            const { data: jobOwner } = await supabaseAdmin
-              .from('jobs').select('user_id').eq('id', interview.job_id).single();
-
-            if (jobOwner?.user_id) {
-              await supabaseAdmin.from('slot_requests').insert({
-                interview_id: interview.id,
-                job_id: interview.job_id,
-                candidate_name: candidateName,
-                job_title: job?.title || 'Vaga',
-                profile_id: jobOwner.user_id,
-                status: 'pending',
-              });
-
-              // Fire-and-forget WhatsApp to recruiter
-              const { data: prof } = await supabaseAdmin
-                .from('profiles').select('phone, instancia_evolution, evolution_token')
-                .eq('id', jobOwner.user_id).single();
-
-              if (prof?.phone && prof?.instancia_evolution) {
-                const phone = prof.phone.replace(/\D/g, '');
-                const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-                const evoToken = prof.evolution_token || process.env.EVOLUTION_API_KEY || '';
-                sendText(prof.instancia_evolution, jid,
-                  `⚠️ *Atenção!*\n\nO candidato *${candidateName}* tentou acessar o link de agendamento para a vaga *${job?.title || 'Vaga'}*, mas não encontrou horários disponíveis.\n\nPor favor, adicione novos horários no Elevva para que ele possa agendar a entrevista.`,
-                  evoToken
-                ).catch((e: unknown) => console.warn('[SlotRequest] WhatsApp to recruiter failed:', e));
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('[SlotRequest] Notification failed (table may not exist yet):', e);
-        }
-      })();
-    }
-
     const pageData: SchedulingPageData = {
       token,
       candidateName,
@@ -2064,10 +2014,53 @@ app.get("/api/agendar/:token", async (req, res) => {
       location: firstSlot?.location || null,
       currentBooking,
       slots,
-      noSlotsAvailable: !hasAvailableSlots,
     };
 
-    const html = renderSchedulingPage(pageData);
+    // renderSchedulingPage now determines noSlotsAvailable internally — single source of truth
+    const { html, noSlotsAvailable } = renderSchedulingPage(pageData);
+
+    console.log(`[Scheduling] noSlotsAvailable=${noSlotsAvailable} slots_rendered=${slots.length}`);
+
+    if (noSlotsAvailable) {
+      // Update interview status so notifyPendingReschedules picks it up later
+      await supabaseAdmin.from('interviews')
+        .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
+        .eq('id', interview.id)
+        .in('status', ['AGUARDANDO_ESCOLHA_SLOT', 'AGUARDANDO_RESPOSTA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA']);
+
+      // Notify recruiter — fire-and-forget, never crashes the page
+      (async () => {
+        try {
+          const { data: existing } = await supabaseAdmin
+            .from('slot_requests').select('id').eq('interview_id', interview.id).maybeSingle();
+          if (!existing) {
+            const { data: jobOwner } = await supabaseAdmin
+              .from('jobs').select('user_id').eq('id', interview.job_id).single();
+            if (jobOwner?.user_id) {
+              await supabaseAdmin.from('slot_requests').insert({
+                interview_id: interview.id, job_id: interview.job_id,
+                candidate_name: candidateName, job_title: job?.title || 'Vaga',
+                profile_id: jobOwner.user_id, status: 'pending',
+              });
+              const { data: prof } = await supabaseAdmin
+                .from('profiles').select('phone, instancia_evolution, evolution_token')
+                .eq('id', jobOwner.user_id).single();
+              if (prof?.phone && prof?.instancia_evolution) {
+                const phone = prof.phone.replace(/\D/g, '');
+                const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+                sendText(prof.instancia_evolution, jid,
+                  `⚠️ *Atenção!*\n\nO candidato *${candidateName}* tentou acessar o link de agendamento para a vaga *${job?.title || 'Vaga'}*, mas não encontrou horários disponíveis.\n\nPor favor, adicione novos horários no Elevva para que ele possa agendar a entrevista.`,
+                  prof.evolution_token || process.env.EVOLUTION_API_KEY || ''
+                ).catch((e: unknown) => console.warn('[SlotRequest] WhatsApp failed:', e));
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[SlotRequest] Notification failed (table may not exist yet):', e);
+        }
+      })();
+    }
+
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
   } catch (err) {
