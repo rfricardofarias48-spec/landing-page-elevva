@@ -1844,16 +1844,15 @@ app.get("/api/agendar/:token/data", async (req, res) => {
     const { data: job } = await supabase.from('jobs').select('title, user_id').eq('id', interview.job_id).single();
 
     // Delete expired unbooked slots for this job
+    // Slot times are stored as Brazil local time (UTC-3) — compare with explicit offset
     const nowTs = new Date();
-    const todayStr = nowTs.toISOString().split('T')[0];
-    const currentTimeStr = nowTs.toTimeString().slice(0, 5);
     const { data: expiredSlots } = await supabaseAdmin
       .from('interview_slots')
       .select('id, slot_date, slot_time')
       .eq('job_id', interview.job_id)
       .eq('is_booked', false);
     const expiredIds = (expiredSlots || [])
-      .filter((s: any) => s.slot_date < todayStr || (s.slot_date === todayStr && s.slot_time <= currentTimeStr))
+      .filter((s: any) => new Date(`${s.slot_date}T${String(s.slot_time).substring(0,5)}:00-03:00`) < nowTs)
       .map((s: any) => s.id);
     if (expiredIds.length > 0) {
       await supabaseAdmin.from('interview_slots').delete().in('id', expiredIds);
@@ -1939,12 +1938,11 @@ app.get("/api/agendar/:token", async (req, res) => {
     } : null;
 
     // Detect if no available (non-expired, non-booked) slots exist
+    // Slot times are stored as Brazil local time (UTC-3) — parse with explicit offset
     const nowCheck = new Date();
     const hasAvailableSlots = slots.some(s => {
       if (s.isBooked) return false;
-      const [h, m] = s.time.substring(0, 5).split(':').map(Number);
-      const dt = new Date(s.date);
-      dt.setHours(h, m, 0, 0);
+      const dt = new Date(`${s.date}T${s.time.substring(0, 5)}:00-03:00`);
       return dt >= nowCheck;
     });
 
@@ -1955,29 +1953,31 @@ app.get("/api/agendar/:token", async (req, res) => {
         .eq('id', interview.id)
         .in('status', ['AGUARDANDO_ESCOLHA_SLOT', 'AGUARDANDO_RESPOSTA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA']);
 
-      // Upsert slot_request (dedup by interview_id — only notify recruiter once)
-      const { data: existing } = await supabaseAdmin
-        .from('slot_requests').select('id').eq('interview_id', interview.id).maybeSingle();
+      // Notify recruiter — wrapped in try-catch so a missing table never crashes the page
+      (async () => {
+        try {
+          const { data: existing } = await supabaseAdmin
+            .from('slot_requests').select('id').eq('interview_id', interview.id).maybeSingle();
 
-      if (!existing) {
-        const { data: jobOwner } = await supabaseAdmin
-          .from('jobs').select('user_id').eq('id', interview.job_id).single();
+          if (!existing) {
+            const { data: jobOwner } = await supabaseAdmin
+              .from('jobs').select('user_id').eq('id', interview.job_id).single();
 
-        if (jobOwner?.user_id) {
-          await supabaseAdmin.from('slot_requests').insert({
-            interview_id: interview.id,
-            job_id: interview.job_id,
-            candidate_name: candidateName,
-            job_title: job?.title || 'Vaga',
-            profile_id: jobOwner.user_id,
-            status: 'pending',
-          });
+            if (jobOwner?.user_id) {
+              await supabaseAdmin.from('slot_requests').insert({
+                interview_id: interview.id,
+                job_id: interview.job_id,
+                candidate_name: candidateName,
+                job_title: job?.title || 'Vaga',
+                profile_id: jobOwner.user_id,
+                status: 'pending',
+              });
 
-          // Fire-and-forget WhatsApp notification to recruiter
-          supabaseAdmin.from('profiles')
-            .select('phone, instancia_evolution, evolution_token')
-            .eq('id', jobOwner.user_id).single()
-            .then(({ data: prof }) => {
+              // Fire-and-forget WhatsApp to recruiter
+              const { data: prof } = await supabaseAdmin
+                .from('profiles').select('phone, instancia_evolution, evolution_token')
+                .eq('id', jobOwner.user_id).single();
+
               if (prof?.phone && prof?.instancia_evolution) {
                 const phone = prof.phone.replace(/\D/g, '');
                 const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
@@ -1987,9 +1987,12 @@ app.get("/api/agendar/:token", async (req, res) => {
                   evoToken
                 ).catch((e: unknown) => console.warn('[SlotRequest] WhatsApp to recruiter failed:', e));
               }
-            }).catch((e: unknown) => console.warn('[SlotRequest] Profile lookup failed:', e));
+            }
+          }
+        } catch (e) {
+          console.warn('[SlotRequest] Notification failed (table may not exist yet):', e);
         }
-      }
+      })();
     }
 
     const pageData: SchedulingPageData = {

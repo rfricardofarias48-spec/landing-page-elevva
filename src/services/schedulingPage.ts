@@ -29,10 +29,10 @@ export function renderSchedulingPage(data: SchedulingPageData): string {
   const { token, candidateName, jobTitle, interviewerName, format, location, currentBooking, slots, noSlotsAvailable } = data;
 
   const now = new Date();
+  // Slot times are stored as Brazil local time (UTC-3). Parse with explicit offset
+  // so the server (UTC) compares correctly regardless of host timezone.
   const isExpired = (date: string, time: string): boolean => {
-    const [h, m] = time.split(':').map(Number);
-    const dt = new Date(date);
-    dt.setHours(h, m, 0, 0);
+    const dt = new Date(`${date}T${time.substring(0, 5)}:00-03:00`);
     return dt < now;
   };
 
