@@ -110,14 +110,12 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
         const userId = authUser?.id;
         if (!userId) return;
         const interviewIds = insertedInterviews?.map(i => i.id) || [];
+        // Only start-scheduling here — notify-pending-reschedules runs concurrently and races
+        // on the same AGUARDANDO_RESPOSTA interviews, causing duplicate/invalid tokens.
         fetch('/api/agent/start-scheduling', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId, job_id: job.id, interview_ids: interviewIds }),
         }).catch(e => console.warn('Aviso agente start-scheduling:', e));
-        fetch('/api/agent/notify-pending-reschedules', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, job_id: job.id }),
-        }).catch(() => {});
       }).catch(e => console.error('Erro ao disparar agente:', e));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao agendar entrevistas.';

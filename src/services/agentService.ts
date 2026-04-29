@@ -1256,12 +1256,14 @@ export async function notifyPendingReschedules(
   jobId: string,
   supabase: SupabaseClient,
 ): Promise<{ sent: number; errors: number }> {
-  // Find interviews waiting for new slots — includes AGUARDANDO_RESPOSTA (initial send never happened)
+  // Find interviews where candidate opened the link but found no slots.
+  // AGUARDANDO_RESPOSTA is intentionally excluded — triggerSchedulingForCandidates handles those.
+  // Including AGUARDANDO_RESPOSTA here causes a race with start-scheduling (both generate tokens).
   const { data: pendingInterviews } = await supabase
     .from('interviews')
     .select('id, candidate_id, scheduling_token, job_id')
     .eq('job_id', jobId)
-    .in('status', ['AGUARDANDO_NOVOS_HORARIOS', 'AGUARDANDO_RESPOSTA']);
+    .eq('status', 'AGUARDANDO_NOVOS_HORARIOS');
 
   if (!pendingInterviews || pendingInterviews.length === 0) {
     return { sent: 0, errors: 0 };
@@ -1358,7 +1360,7 @@ export async function notifyPendingReschedules(
         .in('status', ['AGUARDANDO_NOVOS_HORARIOS', 'AGUARDANDO_RESPOSTA'])
         .select('id')
         .maybeSingle();
-      if (!claimed) { sent++; continue; } // already handled by a concurrent call
+      if (!claimed) { continue; } // already handled by a concurrent call — don't double-send
 
       // Update conversation state
       await supabase.from('agent_conversations')
