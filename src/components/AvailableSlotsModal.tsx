@@ -46,10 +46,14 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsA
 
   useEffect(() => { fetchSlots(); }, [userId]);
 
-  // Group slots by date → interviewer
+  const isExpired = (date: string, time: string) =>
+    new Date(`${date}T${time.substring(0, 5)}:00-03:00`) < new Date();
+
+  // Group slots by date → interviewer — only future slots (same view as candidate)
   const grouped = useMemo(() => {
     const dateMap = new Map<string, Map<string, AvailabilitySlot[]>>();
     slots.forEach(s => {
+      if (isExpired(s.slot_date, s.slot_time)) return;
       const interviewerKey = s.interviewer_name || '(sem entrevistador)';
       if (!dateMap.has(s.slot_date)) dateMap.set(s.slot_date, new Map());
       const interviewerMap = dateMap.get(s.slot_date)!;
@@ -131,7 +135,7 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsA
     setSaving(false);
   };
 
-  const totalSlots = slots.length;
+  const totalSlots = slots.filter(s => !isExpired(s.slot_date, s.slot_time)).length;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">

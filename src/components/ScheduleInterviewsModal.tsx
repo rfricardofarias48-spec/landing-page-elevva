@@ -46,8 +46,14 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
     return Array.from(set);
   }, [slots]);
 
+  const isExpired = (date: string, time: string) =>
+    new Date(`${date}T${time.substring(0, 5)}:00-03:00`) < new Date();
+
   const filteredSlots = useMemo(() =>
-    slots.filter(s => selectedInterviewers.has(s.interviewer_name || '(sem entrevistador)')),
+    slots.filter(s =>
+      selectedInterviewers.has(s.interviewer_name || '(sem entrevistador)') &&
+      !isExpired(s.slot_date, s.slot_time)
+    ),
     [slots, selectedInterviewers]
   );
 
