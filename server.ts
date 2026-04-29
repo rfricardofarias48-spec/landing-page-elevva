@@ -2156,19 +2156,33 @@ app.get("/api/agendar/:token", async (req, res) => {
     const nowCheck = new Date();
     const todayBrCheck = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Fetch unbooked slots — use .eq('is_booked', false) directly (boolean literal works correctly;
-    // the .or('is_booked.eq.false') string form does NOT filter booleans correctly in PostgREST).
-    const { data: unbookedSlots } = await supabaseAdmin
+    const userId = job?.user_id || '';
+    console.log(`[Scheduling] token=${token} job_id=${interview.job_id} user_id=${userId} slot_id=${interview.slot_id || 'null'} todayBrCheck=${todayBrCheck}`);
+
+    // Fetch ALL slots for this user (no is_booked filter) so we can see exactly what exists
+    const { data: allUserSlots, error: slotsErr } = await supabaseAdmin
       .from('availability_slots')
       .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
-      .eq('user_id', job?.user_id || '')
-      .eq('is_booked', false)
-      .gte('slot_date', todayBrCheck)
+      .eq('user_id', userId)
       .order('slot_date', { ascending: true })
       .order('slot_time', { ascending: true });
 
+    console.log(`[Scheduling] ALL slots for user: ${allUserSlots?.length ?? 0} rows, error=${slotsErr?.message ?? 'none'}`);
+    if (allUserSlots?.length) {
+      allUserSlots.slice(0, 5).forEach((s: any) =>
+        console.log(`  slot: date=${s.slot_date} time=${s.slot_time} is_booked=${s.is_booked} id=${s.id}`)
+      );
+    }
+
+    // Filter in JS to avoid any PostgREST boolean/date handling edge cases
+    const unbookedSlots = (allUserSlots || []).filter((s: any) =>
+      s.is_booked === false && s.slot_date >= todayBrCheck
+    );
+
+    console.log(`[Scheduling] unbooked+future slots: ${unbookedSlots.length}`);
+
     // Also include the candidate's currently booked slot (so they can keep it or pick another)
-    let allSlots: any[] = unbookedSlots || [];
+    let allSlots: any[] = unbookedSlots;
     if (interview.slot_id) {
       const { data: bookedSlotRow } = await supabaseAdmin
         .from('availability_slots')
@@ -2179,8 +2193,6 @@ app.get("/api/agendar/:token", async (req, res) => {
         allSlots = [...allSlots, bookedSlotRow];
       }
     }
-
-    console.log(`[Scheduling] token=${token} user=${job?.user_id} slots=${(allSlots || []).length} slot_id=${interview.slot_id || 'null'}`);
 
     const slots = (allSlots || []).map((s: any) => {
       const [year, month, day] = s.slot_date.split('-').map(Number);
