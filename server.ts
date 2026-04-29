@@ -2250,7 +2250,7 @@ app.get("/api/agendar/:token", async (req, res) => {
                 const phone = prof.phone.replace(/\D/g, '');
                 const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
                 sendText(prof.instancia_evolution, jid,
-                  `⚠️ *Atenção!*\n\nO candidato *${candidateName}* tentou acessar o link de agendamento para a vaga *${job?.title || 'Vaga'}*, mas não encontrou horários disponíveis.\n\nPor favor, adicione novos horários no Elevva para que ele possa agendar a entrevista.`,
+                  `⚠️ *Atenção!*\n\nO candidato *${candidateName}* tentou acessar o link de agendamento para a vaga *${job?.title?.trim() || 'Vaga'}*, mas não encontrou horários disponíveis.\n\nPor favor, adicione novos horários no Elevva para que ele possa agendar a entrevista.`,
                   prof.evolution_token || process.env.EVOLUTION_API_KEY || ''
                 ).catch((e: unknown) => console.warn('[SlotRequest] WhatsApp failed:', e));
               }

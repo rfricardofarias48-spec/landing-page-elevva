@@ -379,7 +379,7 @@ async function handleSelecionandoVaga(
       .eq('id', existing.id);
   }
 
-  await send(phone, `✅ A vaga de *${selectedJob.title}* foi registrada!\n\nAgora, por favor, envie seu currículo em formato *PDF*.`);
+  await send(phone, `✅ A vaga de *${selectedJob.title.trim()}* foi registrada!\n\nAgora, por favor, envie seu currículo em formato *PDF*.`);
 
   await updateConversation(conv.id, {
     state: 'AGUARDANDO_CURRICULO',
@@ -1224,7 +1224,7 @@ export async function triggerSchedulingForCandidates(
         ? '\n💻 *Formato:* Online'
         : '\n🏢 *Formato:* Presencial';
 
-      const delivered = await evo.sendText(instance, phone, `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`, instanceToken);
+      const delivered = await evo.sendText(instance, phone, `🎉 Parabéns, *${firstName}*! Você foi aprovado(a) para a próxima fase da vaga de *${job?.title?.trim() || 'a vaga'}*!${interviewerLine}${formatNote}${locationLine}\n\n📅 Escolha o melhor horário para sua entrevista:\n${schedulingLink}\n\n_Clique no link acima para selecionar seu horário._`, instanceToken);
 
       if (delivered) {
         sent++;
@@ -1352,7 +1352,7 @@ export async function notifyPendingReschedules(
         .eq('user_id', userId);
 
       // Send WhatsApp message
-      await evo.sendText(instance, phone, `Ótima notícia, *${firstName}*! 🎉\n\nNovos horários foram liberados para sua entrevista na vaga de *${job?.title || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`, instanceToken);
+      await evo.sendText(instance, phone, `Ótima notícia, *${firstName}*! 🎉\n\nNovos horários foram liberados para sua entrevista na vaga de *${job?.title?.trim() || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`, instanceToken);
 
       // Mark slot_request as handled now that candidate was notified
       await supabase.from('slot_requests')
