@@ -382,7 +382,7 @@ export function renderSchedulingPage(data: SchedulingPageData): SchedulingPageRe
     .conf-row:last-child { border-bottom: none; }
     .conf-k { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.7px; }
     .conf-v { font-size: 14px; font-weight: 500; color: var(--ink2); }
-    .conf-v--date { color: var(--g); font-weight: 600; }
+    .conf-v--date { color: var(--g); font-weight: 600; white-space: nowrap; font-size: 13px; }
 
     .btn {
       display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -519,19 +519,22 @@ export function renderSchedulingPage(data: SchedulingPageData): SchedulingPageRe
       const data = await res.json();
       if (!data.ok) { alert(data.error || 'Erro ao agendar. Tente novamente.'); window.location.reload(); return; }
 
+      document.getElementById('loading').classList.remove('on');
+
       document.getElementById('slot-selection').style.display = 'none';
       const conf = document.getElementById('confirmation');
       conf.style.display = 'block';
       conf.classList.add('wrap');
 
+      const cleanTime = time.substring(0, 5);
       const d = new Date(date + 'T12:00:00');
       const label = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
       document.getElementById('conf-datetime').textContent =
-        label.charAt(0).toUpperCase() + label.slice(1) + ' às ' + time;
+        label.charAt(0).toUpperCase() + label.slice(1) + ' às ' + cleanTime;
 
-      const s = date.replace(/-/g,'') + 'T' + time.replace(':','') + '00';
-      const [h, m] = time.split(':').map(Number);
-      const e = date.replace(/-/g,'') + 'T' + String(h+1).padStart(2,'0') + String(m).padStart(2,'0') + '00';
+      const s = date.replace(/-/g,'') + 'T' + cleanTime.replace(':','') + '00';
+      const [h, m] = cleanTime.split(':').map(Number);
+      const e = date.replace(/-/g,'') + 'T' + String(h + 1).padStart(2,'0') + String(m).padStart(2,'0') + '00';
       const p = new URLSearchParams({ action:'TEMPLATE', text:'Entrevista - '+JOB_TITLE, dates:s+'/'+e,
         details: INTERVIEWER ? 'Entrevistador(a): '+INTERVIEWER : 'Entrevista para '+JOB_TITLE,
         location: FORMAT==='ONLINE' ? 'Online' : LOCATION });
