@@ -3642,7 +3642,20 @@ const App: React.FC = () => {
               {/* Footer CTA */}
               <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex gap-3">
                 <button
-                  onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); setSlotRequests([]); }}
+                  onClick={async () => {
+                    const uid = (user as any)?.id;
+                    if (uid) {
+                      // Try to notify pending candidates — if slots already exist they'll receive the link now
+                      fetch('/api/agent/notify-all-pending', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: uid }),
+                      }).catch(() => {});
+                    }
+                    setCurrentTab('ENTREVISTAS');
+                    setView('DASHBOARD');
+                    setSlotRequests([]);
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-black text-sm font-black py-3 px-5 rounded-xl transition-all shadow-[0_4px_14px_rgba(132,204,22,0.35)] hover:shadow-[0_4px_18px_rgba(132,204,22,0.45)] border border-[#65a30d]"
                 >
                   <CalendarPlus className="w-4 h-4" />

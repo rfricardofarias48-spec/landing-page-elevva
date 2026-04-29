@@ -1129,7 +1129,13 @@ export async function triggerSchedulingForCandidates(
   console.log(`[Agent] triggerScheduling: ${rawSlots?.length ?? 0} slots brutos, ${slots.length} válidos para job ${jobId}`);
 
   if (slots.length === 0) {
-    throw new Error('Nenhum horário disponível. Cadastre horários em "Horários Disponíveis" antes de disparar o agente.');
+    // Mark all interviews as waiting for slots instead of throwing — notifyPendingReschedules will pick them up later
+    await supabase.from('interviews')
+      .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
+      .in('id', interviewIds)
+      .in('status', ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT']);
+    console.log(`[Agent] triggerScheduling: sem slots — ${interviewIds.length} entrevista(s) marcadas como AGUARDANDO_NOVOS_HORARIOS`);
+    return { sent: 0, errors: 0 };
   }
 
   // Determine base URL for scheduling links
@@ -1250,12 +1256,12 @@ export async function notifyPendingReschedules(
   jobId: string,
   supabase: SupabaseClient,
 ): Promise<{ sent: number; errors: number }> {
-  // Find interviews waiting for new slots
+  // Find interviews waiting for new slots — includes AGUARDANDO_RESPOSTA (initial send never happened)
   const { data: pendingInterviews } = await supabase
     .from('interviews')
     .select('id, candidate_id, scheduling_token, job_id')
     .eq('job_id', jobId)
-    .eq('status', 'AGUARDANDO_NOVOS_HORARIOS');
+    .in('status', ['AGUARDANDO_NOVOS_HORARIOS', 'AGUARDANDO_RESPOSTA']);
 
   if (!pendingInterviews || pendingInterviews.length === 0) {
     return { sent: 0, errors: 0 };
@@ -1314,11 +1320,24 @@ export async function notifyPendingReschedules(
         .eq('id', iv.candidate_id)
         .single();
 
-      const phone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
-      if (!phone) { errors++; continue; }
+      const rawPhone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
+      if (!rawPhone) { errors++; continue; }
 
       const candidateName = candidate?.['Nome Completo' as keyof typeof candidate] as string | undefined;
       const firstName = candidateName?.split(' ')[0] || 'Candidato';
+
+      // Prefer verified phone from agent_conversations (same logic as triggerSchedulingForCandidates)
+      const digitsOnly = rawPhone.replace(/@.*$/, '').replace(/\D/g, '');
+      let phone = digitsOnly;
+      const { data: existingConv } = await supabase
+        .from('agent_conversations')
+        .select('phone')
+        .eq('user_id', userId)
+        .ilike('phone', `%${digitsOnly.slice(-8)}%`)
+        .maybeSingle();
+      if (existingConv?.phone) {
+        phone = existingConv.phone.replace(/^\+/, '');
+      }
 
       // Ensure scheduling token
       let token = iv.scheduling_token;
@@ -1331,9 +1350,9 @@ export async function notifyPendingReschedules(
 
       const link = `${baseUrl}/api/agendar/${token}`;
 
-      // Update interview status back to REMARCADA
+      // Update interview status to AGUARDANDO_ESCOLHA_SLOT (covers both first send and resend)
       await supabase.from('interviews')
-        .update({ status: 'REMARCADA' })
+        .update({ status: 'AGUARDANDO_ESCOLHA_SLOT' })
         .eq('id', iv.id);
 
       // Update conversation state
@@ -1352,7 +1371,7 @@ export async function notifyPendingReschedules(
         .eq('user_id', userId);
 
       // Send WhatsApp message
-      await evo.sendText(instance, phone, `Ótima notícia, *${firstName}*! 🎉\n\nNovos horários foram liberados para sua entrevista na vaga de *${job?.title?.trim() || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`, instanceToken);
+      await evo.sendText(instance, phone, `Olá, *${firstName}*! 👋\n\nHorários disponíveis para sua entrevista na vaga de *${job?.title?.trim() || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`, instanceToken);
 
       // Mark slot_request as handled now that candidate was notified
       await supabase.from('slot_requests')
