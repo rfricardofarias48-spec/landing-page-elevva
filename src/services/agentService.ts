@@ -689,14 +689,23 @@ async function handleReschedule(
     return;
   }
 
-  // Check available slots for the job
-  const { data: slots } = await supabase
-    .from('interview_slots')
-    .select('id')
-    .eq('job_id', interview.job_id)
-    .eq('is_booked', false);
+  // Check available slots for the job — filter out expired ones (Brazil UTC-3)
+  const nowBr = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const todayBr = nowBr.toISOString().split('T')[0];
+  const currentTimeBr = nowBr.toISOString().split('T')[1].slice(0, 5);
 
-  if (!slots || slots.length === 0) {
+  const { data: rawSlots } = await supabase
+    .from('interview_slots')
+    .select('id, slot_date, slot_time')
+    .eq('job_id', interview.job_id)
+    .eq('is_booked', false)
+    .gte('slot_date', todayBr);
+
+  const slots = (rawSlots || []).filter((s: { id: string; slot_date: string; slot_time: string }) =>
+    s.slot_date > todayBr || (s.slot_date === todayBr && s.slot_time > currentTimeBr)
+  );
+
+  if (slots.length === 0) {
     const candidateName = conv.context.candidate_name || 'Um candidato';
     const jobTitle = conv.context.job_title || 'uma vaga';
 
@@ -716,6 +725,28 @@ async function handleReschedule(
         job_id: interview.job_id,
       },
     }, supabase);
+
+    // Notify recruiter via slot_requests (shown as in-app notification card)
+    const jobTitleForRequest = conv.context.job_title || jobTitle;
+    const { error: slotReqErr } = await supabase
+      .from('slot_requests')
+      .upsert(
+        {
+          profile_id: conv.user_id,
+          interview_id: interview.id,
+          job_id: interview.job_id,
+          candidate_name: candidateName,
+          job_title: jobTitleForRequest,
+          status: 'pending',
+        },
+        { onConflict: 'interview_id' },
+      );
+
+    if (slotReqErr) {
+      console.warn(`[Agent] slot_requests insert failed: ${slotReqErr.message}`);
+    } else {
+      console.log(`[Agent] slot_request created for recruiter ${conv.user_id} — candidate: ${candidateName}, job: ${jobTitleForRequest}`);
+    }
 
     await send(phone, `Entendi que você precisa reagendar, *${conv.context.candidate_name || 'candidato'}*.\n\nInfelizmente, não há outros horários disponíveis no momento. Já notificamos o recrutador para liberar novas datas.\n\nAssim que houver novos horários, enviaremos o link para você escolher. 😊`);
     return;

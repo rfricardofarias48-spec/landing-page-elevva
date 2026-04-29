@@ -2556,6 +2556,20 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
 
     // 7 + 8 + 9. Fire-and-forget: WhatsApp notification + agent state update
     (async () => {
+      // Guard: if a new interview was already created for this candidate (race condition
+      // between cancel + start-scheduling), skip the cancel notification entirely.
+      const { data: newInterview } = await supabaseAdmin
+        .from('interviews')
+        .select('id, status')
+        .eq('candidate_id', interview.candidate_id)
+        .in('status', ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA'])
+        .maybeSingle();
+
+      if (newInterview) {
+        console.log(`[Cancel] SKIP notification: candidate already has new interview ${newInterview.id} (${newInterview.status}) — no WhatsApp cancel sent`);
+        return;
+      }
+
       let whatsappSent = false;
       if (!phone) {
         console.warn(`[Cancel] SKIP WhatsApp: no phone number for candidate ${interview.candidate_id}`);
