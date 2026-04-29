@@ -1337,15 +1337,23 @@ export async function notifyPendingReschedules(
     return { sent: 0, errors: 0 };
   }
 
-  // Check there are now available slots
-  const { data: slots } = await supabase
+  // Check there are now available non-expired slots (Brazil UTC-3)
+  const nowBrCheck = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const todayBrCheck = nowBrCheck.toISOString().split('T')[0];
+  const currentTimeBrCheck = nowBrCheck.toISOString().split('T')[1].slice(0, 5);
+
+  const { data: rawSlots } = await supabase
     .from('interview_slots')
-    .select('id')
+    .select('id, slot_date, slot_time')
     .eq('job_id', jobId)
     .eq('is_booked', false)
-    .limit(1);
+    .gte('slot_date', todayBrCheck);
 
-  if (!slots || slots.length === 0) {
+  const validSlots = (rawSlots || []).filter((s: any) =>
+    s.slot_date > todayBrCheck || (s.slot_date === todayBrCheck && s.slot_time > currentTimeBrCheck)
+  );
+
+  if (validSlots.length === 0) {
     return { sent: 0, errors: 0 };
   }
 
@@ -1421,6 +1429,12 @@ export async function notifyPendingReschedules(
 
       // Send WhatsApp message
       await evo.sendText(instance, phone, `Ótima notícia, *${firstName}*! 🎉\n\nNovos horários foram liberados para sua entrevista na vaga de *${job?.title || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`, instanceToken);
+
+      // Mark slot_request as handled now that candidate was notified
+      await supabase.from('slot_requests')
+        .update({ status: 'handled' })
+        .eq('interview_id', iv.id)
+        .eq('status', 'pending');
 
       sent++;
     } catch (err) {

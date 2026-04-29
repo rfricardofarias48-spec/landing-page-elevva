@@ -14,6 +14,7 @@ interface AvailabilitySlot {
 interface Props {
   userId: string;
   onClose: () => void;
+  onSlotsAdded?: () => void;
 }
 
 interface DayEntry {
@@ -21,7 +22,7 @@ interface DayEntry {
   times: string[];
 }
 
-export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose }) => {
+export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsAdded }) => {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -129,6 +130,15 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose }) => {
       setLocation('');
       setShowForm(false);
       await fetchSlots();
+      // Notifica automaticamente todos os candidatos aguardando novos horários
+      fetch('/api/agent/notify-all-pending', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      }).then(r => r.json()).then(d => {
+        if (d.sent > 0) console.log(`[Slots] Notificados ${d.sent} candidato(s) em espera`);
+      }).catch(() => {});
+      onSlotsAdded?.();
     }
     setSaving(false);
   };

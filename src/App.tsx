@@ -2992,7 +2992,20 @@ const App: React.FC = () => {
 
         {/* Modal Horários Disponíveis */}
         {showAvailableSlots && (user as any)?.id && (
-          <AvailableSlotsModal userId={(user as any).id} onClose={() => setShowAvailableSlots(false)} />
+          <AvailableSlotsModal
+            userId={(user as any).id}
+            onClose={() => setShowAvailableSlots(false)}
+            onSlotsAdded={async () => {
+              // Refresh slot_requests immediately so the notification card disappears
+              const { data } = await supabase
+                .from('slot_requests')
+                .select('id, candidate_name, job_title, created_at, job_id')
+                .eq('profile_id', (user as any).id)
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false });
+              setSlotRequests(data || []);
+            }}
+          />
         )}
 
         {/* VIEW: DASHBOARD (Includes TABS) */}

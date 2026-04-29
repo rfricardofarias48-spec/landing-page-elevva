@@ -1563,6 +1563,41 @@ app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// Notifica TODOS os candidatos em espera quando recrutador adiciona novos horários
+// POST /api/agent/notify-all-pending
+// Body: { user_id: string }
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/agent/notify-all-pending", async (req, res) => {
+  try {
+    const { user_id } = req.body as { user_id: string };
+    if (!user_id) return res.status(400).json({ error: "user_id obrigatório" });
+
+    // Find all jobs for this recruiter
+    const { data: jobs } = await supabaseAdmin
+      .from('jobs').select('id').eq('user_id', user_id);
+
+    let totalSent = 0;
+    let totalErrors = 0;
+
+    for (const job of (jobs || [])) {
+      try {
+        const result = await notifyPendingReschedules(user_id, job.id, supabaseAdmin);
+        totalSent += result.sent;
+        totalErrors += result.errors;
+      } catch (_) {
+        // per-job errors are non-fatal
+      }
+    }
+
+    console.log(`[Notify All Pending] user=${user_id} sent=${totalSent} errors=${totalErrors}`);
+    return res.json({ ok: true, sent: totalSent, errors: totalErrors });
+  } catch (err: unknown) {
+    console.error("[Notify All Pending] Error:", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Erro interno." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // Dados públicos do portal — resolve portal_code ou UUID e retorna
 // apenas campos públicos (sem tokens sensíveis).
 // GET /api/portal/:code
