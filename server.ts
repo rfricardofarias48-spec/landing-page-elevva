@@ -2156,17 +2156,29 @@ app.get("/api/agendar/:token", async (req, res) => {
     const nowCheck = new Date();
     const todayBrCheck = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Fetch all slots for this recruiter: unbooked + the candidate's current booking
-    // NOTE: do NOT delete expired slots here — only the recruiter-facing GET /api/slots should prune.
-    // Deleting here would silently wipe slots from the DB when any candidate opens a link.
-    const { data: allSlots } = await supabaseAdmin
+    // Fetch unbooked slots — use .eq('is_booked', false) directly (boolean literal works correctly;
+    // the .or('is_booked.eq.false') string form does NOT filter booleans correctly in PostgREST).
+    const { data: unbookedSlots } = await supabaseAdmin
       .from('availability_slots')
       .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
       .eq('user_id', job?.user_id || '')
-      .or(interview.slot_id ? `is_booked.eq.false,id.eq.${interview.slot_id}` : 'is_booked.eq.false')
+      .eq('is_booked', false)
       .gte('slot_date', todayBrCheck)
       .order('slot_date', { ascending: true })
       .order('slot_time', { ascending: true });
+
+    // Also include the candidate's currently booked slot (so they can keep it or pick another)
+    let allSlots: any[] = unbookedSlots || [];
+    if (interview.slot_id) {
+      const { data: bookedSlotRow } = await supabaseAdmin
+        .from('availability_slots')
+        .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
+        .eq('id', interview.slot_id)
+        .maybeSingle();
+      if (bookedSlotRow && !allSlots.find((s: any) => s.id === bookedSlotRow.id)) {
+        allSlots = [...allSlots, bookedSlotRow];
+      }
+    }
 
     console.log(`[Scheduling] token=${token} user=${job?.user_id} slots=${(allSlots || []).length} slot_id=${interview.slot_id || 'null'}`);
 
