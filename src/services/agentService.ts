@@ -136,6 +136,44 @@ async function syncInterviewSlots(jobId: string, userId: string, supabase: Supab
   }
 }
 
+// ── Helper: free a slot and restore it to availability_slots + other jobs ──
+async function restoreSlotToAvailability(
+  supabase: SupabaseClient,
+  userId: string,
+  jobId: string,
+  slot: { slot_date: string; slot_time: string; interviewer_name: string | null; format: string; location: string | null },
+): Promise<void> {
+  let existQ = supabase.from('availability_slots').select('id')
+    .eq('user_id', userId)
+    .eq('slot_date', slot.slot_date)
+    .eq('slot_time', slot.slot_time);
+  if (slot.interviewer_name) existQ = (existQ as any).eq('interviewer_name', slot.interviewer_name);
+  else existQ = (existQ as any).is('interviewer_name', null);
+  const { data: existing } = await existQ.maybeSingle();
+  if (!existing) {
+    await supabase.from('availability_slots').insert({
+      user_id: userId,
+      slot_date: slot.slot_date,
+      slot_time: slot.slot_time,
+      interviewer_name: slot.interviewer_name || null,
+      format: slot.format || 'ONLINE',
+      location: slot.location || null,
+    });
+    console.log(`[RestoreSlot] Restored ${slot.slot_date} ${slot.slot_time} to availability_slots for user ${userId}`);
+  }
+  const { data: allJobs } = await supabase.from('jobs').select('id').eq('user_id', userId);
+  const otherIds = (allJobs || []).map((j: any) => j.id).filter((id: string) => id !== jobId);
+  if (otherIds.length > 0) {
+    let q = supabase.from('interview_slots').update({ is_booked: false })
+      .in('job_id', otherIds)
+      .eq('slot_date', slot.slot_date)
+      .eq('slot_time', slot.slot_time)
+      .eq('is_booked', true);
+    if (slot.interviewer_name) q = (q as any).eq('interviewer_name', slot.interviewer_name);
+    await q;
+  }
+}
+
 // ─────────────────────────── Types ───────────────────────────
 
 interface ConversationContext {
@@ -730,6 +768,20 @@ async function handleReschedule(
 
     console.log(`[Agent] No slots available for reschedule. Candidate: ${candidateName}, Job: ${jobTitle}. Setting AGUARDANDO_NOVOS_HORARIOS.`);
 
+    // Free the current slot and restore to availability_slots before clearing slot_id
+    if (interview.slot_id) {
+      const { data: slotToFree } = await supabase.from('interview_slots')
+        .select('slot_date, slot_time, interviewer_name, format, location')
+        .eq('id', interview.slot_id).maybeSingle();
+      await supabase.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
+      if (slotToFree) {
+        const { data: jobForRestore } = await supabase.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
+        if (jobForRestore?.user_id) {
+          await restoreSlotToAvailability(supabase, jobForRestore.user_id, interview.job_id, slotToFree);
+        }
+      }
+    }
+
     // Mark interview as waiting for new slots — clear slot fields so the
     // scheduling page can repopulate when the recruiter adds new slots
     await supabase.from('interviews')
@@ -785,12 +837,18 @@ async function handleReschedule(
     console.log(`[Agent] Reschedule: deleted Google Calendar event ${interview.google_event_id}`);
   }
 
-  // Free the old slot
+  // Free the old slot and restore it to availability_slots
   if (interview.slot_id) {
-    await supabase
-      .from('interview_slots')
-      .update({ is_booked: false })
-      .eq('id', interview.slot_id);
+    const { data: slotToFree } = await supabase.from('interview_slots')
+      .select('slot_date, slot_time, interviewer_name, format, location')
+      .eq('id', interview.slot_id).maybeSingle();
+    await supabase.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
+    if (slotToFree) {
+      const { data: jobForRestore } = await supabase.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
+      if (jobForRestore?.user_id) {
+        await restoreSlotToAvailability(supabase, jobForRestore.user_id, interview.job_id, slotToFree);
+      }
+    }
   }
 
   // Reset interview status

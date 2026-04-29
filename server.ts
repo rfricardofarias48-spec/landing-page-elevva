@@ -2313,9 +2313,16 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     console.log('[Book Slot] Interview lookup:', { success: !!interview, error: intErr?.message });
     if (intErr || !interview) return res.status(404).json({ ok: false, error: 'Link invalido' });
 
-    // If reschedule: free old slot and cancel old Google Calendar event
+    // If reschedule: save old slot data, free it, restore later after job is fetched
+    let freedSlotData: { slot_date: string; slot_time: string; interviewer_name: string | null; format: string; location: string | null } | null = null;
     if (interview.slot_id) {
       console.log('[Book Slot] Reschedule detected — freeing old slot:', interview.slot_id);
+      const { data: slotToFree } = await supabaseAdmin
+        .from('interview_slots')
+        .select('slot_date, slot_time, interviewer_name, format, location')
+        .eq('id', interview.slot_id)
+        .maybeSingle();
+      freedSlotData = slotToFree;
       await supabaseAdmin.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
     }
     if (interview.google_event_id) {
@@ -2451,6 +2458,38 @@ app.post("/api/agendar/:token/book", async (req, res) => {
         if (bookedInterviewer) otherUpdate = (otherUpdate as any).eq('interviewer_name', bookedInterviewer);
         await otherUpdate;
         console.log(`[Book Slot] Marked slot as booked in ${otherJobIds.length} other job(s)`);
+      }
+
+      // 3. Restore the freed slot (reschedule path) back to availability_slots + un-mark in other jobs
+      if (freedSlotData) {
+        let existQ = supabaseAdmin.from('availability_slots').select('id')
+          .eq('user_id', job.user_id)
+          .eq('slot_date', freedSlotData.slot_date)
+          .eq('slot_time', freedSlotData.slot_time);
+        if (freedSlotData.interviewer_name) existQ = (existQ as any).eq('interviewer_name', freedSlotData.interviewer_name);
+        else existQ = (existQ as any).is('interviewer_name', null);
+        const { data: existingAvail } = await existQ.maybeSingle();
+        if (!existingAvail) {
+          await supabaseAdmin.from('availability_slots').insert({
+            user_id: job.user_id,
+            slot_date: freedSlotData.slot_date,
+            slot_time: freedSlotData.slot_time,
+            interviewer_name: freedSlotData.interviewer_name || null,
+            format: freedSlotData.format || 'ONLINE',
+            location: freedSlotData.location || null,
+          });
+          console.log(`[Book Slot] Restored freed slot ${freedSlotData.slot_date} ${freedSlotData.slot_time} to availability_slots`);
+        }
+        if (otherJobIds.length > 0) {
+          let q = supabaseAdmin.from('interview_slots').update({ is_booked: false })
+            .in('job_id', otherJobIds)
+            .eq('slot_date', freedSlotData.slot_date)
+            .eq('slot_time', freedSlotData.slot_time)
+            .eq('is_booked', true);
+          if (freedSlotData.interviewer_name) q = (q as any).eq('interviewer_name', freedSlotData.interviewer_name);
+          await q;
+          console.log(`[Book Slot] Un-marked freed slot in ${otherJobIds.length} other job(s)`);
+        }
       }
     }
 
