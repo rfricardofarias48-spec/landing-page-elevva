@@ -1567,30 +1567,75 @@ app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
 // POST /api/agent/notify-all-pending
 // Body: { user_id: string }
 // ─────────────────────────────────────────────────────────────────────
+// ── Helper: sync availability_slots → interview_slots for one job ────────────
+async function syncJobSlotsFromMaster(jobId: string, userId: string): Promise<number> {
+  const nowBr = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const todayBr = nowBr.toISOString().split('T')[0];
+  const currentTimeBr = nowBr.toISOString().split('T')[1].slice(0, 5);
+
+  // Booked slot keys across ALL recruiter jobs (to avoid double-offering same slot)
+  const { data: recruiterJobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', userId);
+  const recruiterJobIds = (recruiterJobs || []).map((j: any) => j.id);
+  let bookedKeys = new Set<string>();
+  if (recruiterJobIds.length > 0) {
+    const { data: bookedSlots } = await supabaseAdmin
+      .from('interview_slots').select('slot_date, slot_time, interviewer_name')
+      .in('job_id', recruiterJobIds).eq('is_booked', true);
+    bookedKeys = new Set((bookedSlots || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`));
+  }
+
+  // Valid (non-expired, non-booked) availability_slots for this recruiter
+  const { data: availSlots } = await supabaseAdmin
+    .from('availability_slots').select('*').eq('user_id', userId).gte('slot_date', todayBr);
+  const validAvail = (availSlots || []).filter((s: any) =>
+    (s.slot_date > todayBr || (s.slot_date === todayBr && s.slot_time > currentTimeBr)) &&
+    !bookedKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
+  );
+
+  // Existing interview_slots for this job (to avoid duplicates)
+  const { data: existing } = await supabaseAdmin
+    .from('interview_slots').select('slot_date, slot_time, interviewer_name').eq('job_id', jobId);
+  const existingKeys = new Set((existing || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`));
+
+  const toInsert = validAvail
+    .filter((s: any) => !existingKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`))
+    .map((s: any) => ({
+      job_id: jobId, slot_date: s.slot_date, slot_time: s.slot_time,
+      format: s.format, location: s.location, interviewer_name: s.interviewer_name, is_booked: false,
+    }));
+
+  if (toInsert.length > 0) {
+    await supabaseAdmin.from('interview_slots').insert(toInsert);
+    console.log(`[SyncJobSlots] +${toInsert.length} slot(s) → job ${jobId}`);
+  }
+  return toInsert.length;
+}
+
 app.post("/api/agent/notify-all-pending", async (req, res) => {
   try {
     const { user_id } = req.body as { user_id: string };
     if (!user_id) return res.status(400).json({ error: "user_id obrigatório" });
 
-    // Find all jobs for this recruiter
-    const { data: jobs } = await supabaseAdmin
-      .from('jobs').select('id').eq('user_id', user_id);
+    const { data: jobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', user_id);
 
     let totalSent = 0;
     let totalErrors = 0;
+    let totalSynced = 0;
 
     for (const job of (jobs || [])) {
       try {
+        // Step 1: sync availability_slots → interview_slots BEFORE checking if there are slots
+        const synced = await syncJobSlotsFromMaster(job.id, user_id);
+        totalSynced += synced;
+        // Step 2: notify candidates waiting for this job
         const result = await notifyPendingReschedules(user_id, job.id, supabaseAdmin);
         totalSent += result.sent;
         totalErrors += result.errors;
-      } catch (_) {
-        // per-job errors are non-fatal
-      }
+      } catch (_) { /* per-job errors are non-fatal */ }
     }
 
-    console.log(`[Notify All Pending] user=${user_id} sent=${totalSent} errors=${totalErrors}`);
-    return res.json({ ok: true, sent: totalSent, errors: totalErrors });
+    console.log(`[Notify All Pending] user=${user_id} synced=${totalSynced} sent=${totalSent} errors=${totalErrors}`);
+    return res.json({ ok: true, sent: totalSent, synced: totalSynced, errors: totalErrors });
   } catch (err: unknown) {
     console.error("[Notify All Pending] Error:", err);
     return res.status(500).json({ error: err instanceof Error ? err.message : "Erro interno." });
@@ -2038,22 +2083,17 @@ app.get("/api/agendar/:token/data", async (req, res) => {
 
     let validSlots = (allUnbooked || []).filter((s: any) => !slotExpired(s.slot_date, s.slot_time));
 
-    // Auto-repopulate from availability_slots if no valid interview_slots exist
-    if (validSlots.length === 0 && !interview.slot_id && job?.user_id) {
-      const { data: availSlots } = await supabaseAdmin
-        .from('availability_slots').select('*').eq('user_id', job.user_id);
-      const freshAvail = (availSlots || []).filter((s: any) => !slotExpired(s.slot_date, s.slot_time));
-      if (freshAvail.length > 0) {
-        const { data: inserted } = await supabaseAdmin
+    // Always sync availability_slots → interview_slots (no !slot_id guard)
+    if (validSlots.length === 0 && job?.user_id) {
+      const inserted = await syncJobSlotsFromMaster(interview.job_id, job.user_id);
+      if (inserted > 0) {
+        const { data: refreshed } = await supabaseAdmin
           .from('interview_slots')
-          .insert(freshAvail.map((s: any) => ({
-            job_id: interview.job_id,
-            slot_date: s.slot_date, slot_time: s.slot_time,
-            format: s.format, location: s.location,
-            interviewer_name: s.interviewer_name, is_booked: false,
-          })))
-          .select('id, slot_date, slot_time, format, location, interviewer_name');
-        if (inserted) validSlots = inserted;
+          .select('id, slot_date, slot_time, format, location, interviewer_name')
+          .eq('job_id', interview.job_id)
+          .eq('is_booked', false);
+        const freshValid = (refreshed || []).filter((s: any) => !slotExpired(s.slot_date, s.slot_time));
+        if (freshValid.length > 0) validSlots = freshValid;
       }
     }
 
@@ -2145,65 +2185,25 @@ app.get("/api/agendar/:token", async (req, res) => {
 
     console.log(`[Scheduling] token=${token} job=${interview.job_id} interview_slots_count=${(allSlots || []).length} slot_id=${interview.slot_id || 'null'}`);
 
-    // If no valid unbooked slots exist, auto-repopulate from recruiter's availability_slots.
+    // Always sync availability_slots → interview_slots (unconditional — removes the
+    // old !slot_id guard that blocked sync for rescheduled interviews)
     const hasValidInInterviewSlots = (allSlots || []).some(
       (s: any) => !s.is_booked && !isSlotExpired(s.slot_date, s.slot_time, nowCheck)
     );
 
-    if (!hasValidInInterviewSlots && !interview.slot_id) {
-      console.log(`[Scheduling] No valid interview_slots — attempting repopulation from availability_slots`);
-      const { data: jobData } = await supabaseAdmin
-        .from('jobs').select('user_id').eq('id', interview.job_id).single();
-
-      if (jobData?.user_id) {
-        const { data: availSlots } = await supabaseAdmin
-          .from('availability_slots').select('*').eq('user_id', jobData.user_id);
-
-        console.log(`[Scheduling] availability_slots found: ${(availSlots || []).length}`);
-
-        // Build a set of already-booked slot keys across ALL jobs for this recruiter
-        // so we never show the candidate a slot that another candidate already took
-        const { data: recruiterJobs } = await supabaseAdmin
-          .from('jobs').select('id').eq('user_id', jobData.user_id);
-        const recruiterJobIds = (recruiterJobs || []).map((j: any) => j.id);
-        let bookedKeys = new Set<string>();
-        if (recruiterJobIds.length > 0) {
-          const { data: bookedSlots } = await supabaseAdmin
+    if (!hasValidInInterviewSlots) {
+      console.log(`[Scheduling] No valid interview_slots — syncing from availability_slots`);
+      if (jobOwnerData?.user_id) {
+        const inserted = await syncJobSlotsFromMaster(interview.job_id, jobOwnerData.user_id);
+        if (inserted > 0) {
+          // Re-fetch after sync
+          const { data: freshSlots } = await supabaseAdmin
             .from('interview_slots')
-            .select('slot_date, slot_time, interviewer_name')
-            .in('job_id', recruiterJobIds)
-            .eq('is_booked', true);
-          bookedKeys = new Set(
-            (bookedSlots || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
-          );
-        }
-
-        const validAvail = (availSlots || []).filter((s: any) =>
-          !isSlotExpired(s.slot_date, s.slot_time, nowCheck) &&
-          !bookedKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
-        );
-
-        console.log(`[Scheduling] valid (non-expired, non-booked) availability_slots: ${validAvail.length}`);
-
-        if (validAvail.length > 0) {
-          const toInsert = validAvail.map((s: any) => ({
-            job_id: interview.job_id,
-            slot_date: s.slot_date,
-            slot_time: s.slot_time,
-            format: s.format,
-            location: s.location,
-            interviewer_name: s.interviewer_name,
-            is_booked: false,
-          }));
-          const { data: inserted, error: insertErr } = await supabaseAdmin
-            .from('interview_slots').insert(toInsert)
-            .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked');
-          if (insertErr) {
-            console.warn(`[Scheduling] Repopulation insert error:`, insertErr.message);
-          } else if (inserted && inserted.length > 0) {
-            allSlots = inserted;
-            console.log(`[Scheduling] ✓ Repopulated ${inserted.length} interview_slots`);
-          }
+            .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
+            .eq('job_id', interview.job_id)
+            .order('slot_date', { ascending: true })
+            .order('slot_time', { ascending: true });
+          if (freshSlots) allSlots = freshSlots;
         }
       }
     }

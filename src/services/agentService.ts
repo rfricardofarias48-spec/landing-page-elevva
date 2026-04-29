@@ -730,9 +730,17 @@ async function handleReschedule(
 
     console.log(`[Agent] No slots available for reschedule. Candidate: ${candidateName}, Job: ${jobTitle}. Setting AGUARDANDO_NOVOS_HORARIOS.`);
 
-    // Mark interview as waiting for new slots
+    // Mark interview as waiting for new slots — clear slot fields so the
+    // scheduling page can repopulate when the recruiter adds new slots
     await supabase.from('interviews')
-      .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
+      .update({
+        status: 'AGUARDANDO_NOVOS_HORARIOS',
+        slot_id: null,
+        slot_date: null,
+        slot_time: null,
+        meeting_link: null,
+        google_event_id: null,
+      })
       .eq('id', interview.id);
 
     // Update conversation state
