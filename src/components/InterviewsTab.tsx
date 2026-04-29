@@ -160,10 +160,9 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     const slotsToInsert = newSlotDays
       .filter(d => d.date)
       .flatMap(d => d.times.filter(t => t).map(t => ({
-        job_id: addSlotsForJob.jobId,
         slot_date: d.date,
         slot_time: t,
-        is_booked: false,
+        format: 'ONLINE',
         interviewer_name: newSlotInterviewer.trim() || null,
       })));
 
@@ -171,8 +170,12 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
 
     setIsAddingSlots(true);
     try {
-      const { error } = await supabase.from('interview_slots').insert(slotsToInsert);
-      if (error) throw error;
+      const res0 = await fetch('/api/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, slots: slotsToInsert }),
+      });
+      if (!res0.ok) throw new Error('Erro ao salvar horários');
 
       // Notify pending candidates
       const res = await fetch('/api/agent/notify-pending-reschedules', {

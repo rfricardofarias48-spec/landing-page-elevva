@@ -38,26 +38,9 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsA
 
   const fetchSlots = async () => {
     setLoading(true);
-    // Use Brazil local time (UTC-3) to avoid deleting tomorrow's slots
-    const nowBrazil = new Date(new Date().getTime() - 3 * 60 * 60 * 1000);
-    const today = nowBrazil.toISOString().split('T')[0];
-    const currentTime = nowBrazil.toISOString().split('T')[1].slice(0, 5);
-
-    // Delete expired slots from DB — both availability_slots AND interview_slots
-    await Promise.all([
-      supabase.from('availability_slots').delete()
-        .eq('user_id', userId).lt('slot_date', today),
-      supabase.from('availability_slots').delete()
-        .eq('user_id', userId).eq('slot_date', today).lte('slot_time', currentTime),
-    ]);
-
-    const { data } = await supabase
-      .from('availability_slots')
-      .select('*')
-      .eq('user_id', userId)
-      .order('slot_date', { ascending: true })
-      .order('slot_time', { ascending: true });
-    setSlots(data || []);
+    const res = await fetch(`/api/slots?user_id=${userId}`);
+    const json = await res.json();
+    setSlots(json.slots || []);
     setLoading(false);
   };
 
@@ -87,7 +70,7 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsA
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
-    await supabase.from('availability_slots').delete().eq('id', id);
+    await fetch(`/api/slots/${id}`, { method: 'DELETE' });
     setSlots(prev => prev.filter(s => s.id !== id));
     setDeletingId(null);
   };
@@ -121,8 +104,13 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsA
       }))
     );
 
-    const { error } = await supabase.from('availability_slots').insert(toInsert);
-    if (error) {
+    const res = await fetch('/api/slots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, slots: toInsert.map(({ user_id: _u, ...s }) => s) }),
+    });
+    const json = await res.json();
+    if (!json.ok) {
       setFormError('Erro ao salvar horários. Tente novamente.');
     } else {
       setDays([{ date: '', times: [''] }]);

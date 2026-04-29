@@ -46,133 +46,6 @@ function isSlotExpired(slotDate: string, slotTime: string): boolean {
   return slotDt <= now;
 }
 
-/**
- * Sincroniza interview_slots de um job com availability_slots do usuário.
- * - Remove slots vencidos (is_booked=false e data/hora passada)
- * - Adiciona slots novos que existem em availability_slots mas não em interview_slots
- * - Preserva slots já reservados (is_booked=true)
- */
-async function syncInterviewSlots(jobId: string, userId: string, supabase: SupabaseClient): Promise<void> {
-  // Usar horário de Brasília (UTC-3) para comparação de datas/horas
-  const now = new Date();
-  const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-  const today = brNow.toISOString().split('T')[0];
-  const currentTime = brNow.toISOString().split('T')[1].slice(0, 5); // HH:MM em BR
-
-  // 1. Deletar slots vencidos e não reservados
-  const { data: allSlots } = await supabase
-    .from('interview_slots')
-    .select('id, slot_date, slot_time, is_booked')
-    .eq('job_id', jobId)
-    .eq('is_booked', false);
-
-  const expiredIds = (allSlots || [])
-    .filter((s: any) => isSlotExpired(s.slot_date, s.slot_time))
-    .map((s: any) => s.id);
-
-  if (expiredIds.length > 0) {
-    await supabase.from('interview_slots').delete().in('id', expiredIds);
-  }
-
-  // 2. Buscar slots disponíveis do usuário — filtra datas passadas no JS (evita .or aninhado)
-  const { data: rawAvailSlots } = await supabase
-    .from('availability_slots')
-    .select('slot_date, slot_time, format, location, interviewer_name')
-    .eq('user_id', userId)
-    .gte('slot_date', today)
-    .order('slot_date', { ascending: true })
-    .order('slot_time', { ascending: true });
-
-  const availSlots = (rawAvailSlots || []).filter((s: any) =>
-    s.slot_date > today || (s.slot_date === today && s.slot_time > currentTime)
-  );
-
-  console.log(`[Agent] syncInterviewSlots: ${rawAvailSlots?.length ?? 0} slots brutos, ${availSlots.length} válidos para job ${jobId}`);
-
-  if (!availSlots.length) return;
-
-  // 3. Buscar interview_slots existentes para evitar duplicatas
-  const { data: existing } = await supabase
-    .from('interview_slots')
-    .select('slot_date, slot_time, interviewer_name')
-    .eq('job_id', jobId);
-
-  const existingKeys = new Set((existing || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`));
-
-  // 3b. Buscar slots já reservados em TODOS os jobs do mesmo recrutador
-  const { data: recruiterJobs } = await supabase
-    .from('jobs').select('id').eq('user_id', userId);
-  const recruiterJobIds = (recruiterJobs || []).map((j: any) => j.id);
-  let bookedKeys = new Set<string>();
-  if (recruiterJobIds.length > 0) {
-    const { data: bookedSlots } = await supabase
-      .from('interview_slots')
-      .select('slot_date, slot_time, interviewer_name')
-      .in('job_id', recruiterJobIds)
-      .eq('is_booked', true);
-    bookedKeys = new Set(
-      (bookedSlots || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
-    );
-  }
-
-  // 4. Inserir apenas os slots que ainda não existem e não estão reservados
-  const toInsert = availSlots
-    .filter((s: any) =>
-      !existingKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`) &&
-      !bookedKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
-    )
-    .map((s: any) => ({
-      job_id: jobId,
-      format: s.format,
-      location: s.location,
-      interviewer_name: s.interviewer_name,
-      slot_date: s.slot_date,
-      slot_time: s.slot_time,
-      is_booked: false,
-    }));
-
-  if (toInsert.length > 0) {
-    await supabase.from('interview_slots').insert(toInsert);
-  }
-}
-
-// ── Helper: free a slot and restore it to availability_slots + other jobs ──
-async function restoreSlotToAvailability(
-  supabase: SupabaseClient,
-  userId: string,
-  jobId: string,
-  slot: { slot_date: string; slot_time: string; interviewer_name: string | null; format: string; location: string | null },
-): Promise<void> {
-  let existQ = supabase.from('availability_slots').select('id')
-    .eq('user_id', userId)
-    .eq('slot_date', slot.slot_date)
-    .eq('slot_time', slot.slot_time);
-  if (slot.interviewer_name) existQ = (existQ as any).eq('interviewer_name', slot.interviewer_name);
-  else existQ = (existQ as any).is('interviewer_name', null);
-  const { data: existing } = await existQ.maybeSingle();
-  if (!existing) {
-    await supabase.from('availability_slots').insert({
-      user_id: userId,
-      slot_date: slot.slot_date,
-      slot_time: slot.slot_time,
-      interviewer_name: slot.interviewer_name || null,
-      format: slot.format || 'ONLINE',
-      location: slot.location || null,
-    });
-    console.log(`[RestoreSlot] Restored ${slot.slot_date} ${slot.slot_time} to availability_slots for user ${userId}`);
-  }
-  const { data: allJobs } = await supabase.from('jobs').select('id').eq('user_id', userId);
-  const otherIds = (allJobs || []).map((j: any) => j.id).filter((id: string) => id !== jobId);
-  if (otherIds.length > 0) {
-    let q = supabase.from('interview_slots').update({ is_booked: false })
-      .in('job_id', otherIds)
-      .eq('slot_date', slot.slot_date)
-      .eq('slot_time', slot.slot_time)
-      .eq('is_booked', true);
-    if (slot.interviewer_name) q = (q as any).eq('interviewer_name', slot.interviewer_name);
-    await q;
-  }
-}
 
 // ─────────────────────────── Types ───────────────────────────
 
@@ -681,8 +554,8 @@ async function handleConfirmacaoLembrete(
 
       if (interview) {
         if (interview.slot_id) {
-          await supabase.from('interview_slots')
-            .update({ is_booked: false }).eq('id', interview.slot_id);
+          await supabase.from('availability_slots')
+            .update({ is_booked: false, booked_interview_id: null }).eq('id', interview.slot_id);
         }
         await supabase.from('interviews')
           .update({ status: 'CANCELADA' }).eq('id', interview.id);
@@ -751,10 +624,12 @@ async function handleReschedule(
   const todayBr = nowBr.toISOString().split('T')[0];
   const currentTimeBr = nowBr.toISOString().split('T')[1].slice(0, 5);
 
+  // Read slots from single table — get job.user_id first
+  const { data: jobForSlots } = await supabase.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
   const { data: rawSlots } = await supabase
-    .from('interview_slots')
+    .from('availability_slots')
     .select('id, slot_date, slot_time')
-    .eq('job_id', interview.job_id)
+    .eq('user_id', jobForSlots?.user_id || '')
     .eq('is_booked', false)
     .gte('slot_date', todayBr);
 
@@ -768,18 +643,11 @@ async function handleReschedule(
 
     console.log(`[Agent] No slots available for reschedule. Candidate: ${candidateName}, Job: ${jobTitle}. Setting AGUARDANDO_NOVOS_HORARIOS.`);
 
-    // Free the current slot and restore to availability_slots before clearing slot_id
+    // Free the current slot in single table
     if (interview.slot_id) {
-      const { data: slotToFree } = await supabase.from('interview_slots')
-        .select('slot_date, slot_time, interviewer_name, format, location')
-        .eq('id', interview.slot_id).maybeSingle();
-      await supabase.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
-      if (slotToFree) {
-        const { data: jobForRestore } = await supabase.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
-        if (jobForRestore?.user_id) {
-          await restoreSlotToAvailability(supabase, jobForRestore.user_id, interview.job_id, slotToFree);
-        }
-      }
+      await supabase.from('availability_slots')
+        .update({ is_booked: false, booked_interview_id: null })
+        .eq('id', interview.slot_id);
     }
 
     // Mark interview as waiting for new slots — clear slot fields so the
@@ -837,18 +705,11 @@ async function handleReschedule(
     console.log(`[Agent] Reschedule: deleted Google Calendar event ${interview.google_event_id}`);
   }
 
-  // Free the old slot and restore it to availability_slots
+  // Free the old slot in single table
   if (interview.slot_id) {
-    const { data: slotToFree } = await supabase.from('interview_slots')
-      .select('slot_date, slot_time, interviewer_name, format, location')
-      .eq('id', interview.slot_id).maybeSingle();
-    await supabase.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
-    if (slotToFree) {
-      const { data: jobForRestore } = await supabase.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
-      if (jobForRestore?.user_id) {
-        await restoreSlotToAvailability(supabase, jobForRestore.user_id, interview.job_id, slotToFree);
-      }
-    }
+    await supabase.from('availability_slots')
+      .update({ is_booked: false, booked_interview_id: null })
+      .eq('id', interview.slot_id);
   }
 
   // Reset interview status
@@ -1245,20 +1106,17 @@ export async function triggerSchedulingForCandidates(
     .eq('id', jobId)
     .single();
 
-  // Sync interview_slots with availability_slots (removes expired, adds new)
-  await syncInterviewSlots(jobId, userId, supabase);
-
   // Usar horário de Brasília (UTC-3)
   const now = new Date();
   const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000);
   const today = brNow.toISOString().split('T')[0];
   const currentTime = brNow.toISOString().split('T')[1].slice(0, 5);
 
-  // Get available slots for this job — filtra no JS para evitar .or aninhado
+  // Get available slots from single table
   const { data: rawSlots } = await supabase
-    .from('interview_slots')
+    .from('availability_slots')
     .select('id, slot_date, slot_time, format, location, interviewer_name')
-    .eq('job_id', jobId)
+    .eq('user_id', userId)
     .eq('is_booked', false)
     .gte('slot_date', today)
     .order('slot_date', { ascending: true })
@@ -1409,9 +1267,9 @@ export async function notifyPendingReschedules(
   const currentTimeBrCheck = nowBrCheck.toISOString().split('T')[1].slice(0, 5);
 
   const { data: rawSlots } = await supabase
-    .from('interview_slots')
+    .from('availability_slots')
     .select('id, slot_date, slot_time')
-    .eq('job_id', jobId)
+    .eq('user_id', userId)
     .eq('is_booked', false)
     .gte('slot_date', todayBrCheck);
 

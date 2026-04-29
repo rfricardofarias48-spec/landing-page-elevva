@@ -29,34 +29,16 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
 
   useEffect(() => {
     const fetchSlots = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const currentTime = now.toTimeString().slice(0, 5);
-
-      // Delete expired slots from DB before fetching
-      await Promise.all([
-        supabase.from('availability_slots').delete()
-          .eq('user_id', authUser.id).lt('slot_date', today),
-        supabase.from('availability_slots').delete()
-          .eq('user_id', authUser.id).eq('slot_date', today).lte('slot_time', currentTime),
-      ]);
-
-      const { data } = await supabase
-        .from('availability_slots')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .order('slot_date', { ascending: true })
-        .order('slot_time', { ascending: true });
-      const fetched = data || [];
+      const res = await fetch(`/api/slots/for-job/${job.id}`);
+      const json = await res.json();
+      const fetched: AvailabilitySlot[] = json.slots || [];
       setSlots(fetched);
       const names = new Set(fetched.map((s: AvailabilitySlot) => s.interviewer_name || '(sem entrevistador)'));
       setSelectedInterviewers(names);
       setLoadingSlots(false);
     };
     fetchSlots();
-  }, []);
+  }, [job.id]);
 
   const interviewers = useMemo(() => {
     const set = new Set<string>();
@@ -92,19 +74,6 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
     }
     setIsSubmitting(true);
     try {
-      const slotsToInsert = filteredSlots.map(s => ({
-        job_id: job.id,
-        format: s.format,
-        location: s.location,
-        interviewer_name: s.interviewer_name,
-        slot_date: s.slot_date,
-        slot_time: s.slot_time,
-        is_booked: false,
-      }));
-
-      const { error: slotsError } = await supabase.from('interview_slots').insert(slotsToInsert);
-      if (slotsError) throw slotsError;
-
       const ACTIVE_STATUSES = ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA'];
       const selectedIds = selectedCandidates.map(c => c.id);
 
