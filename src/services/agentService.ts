@@ -94,14 +94,33 @@ async function syncInterviewSlots(jobId: string, userId: string, supabase: Supab
   // 3. Buscar interview_slots existentes para evitar duplicatas
   const { data: existing } = await supabase
     .from('interview_slots')
-    .select('slot_date, slot_time')
+    .select('slot_date, slot_time, interviewer_name')
     .eq('job_id', jobId);
 
-  const existingKeys = new Set((existing || []).map((s: any) => `${s.slot_date}|${s.slot_time}`));
+  const existingKeys = new Set((existing || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`));
 
-  // 4. Inserir apenas os slots que ainda não existem
+  // 3b. Buscar slots já reservados em TODOS os jobs do mesmo recrutador
+  const { data: recruiterJobs } = await supabase
+    .from('jobs').select('id').eq('user_id', userId);
+  const recruiterJobIds = (recruiterJobs || []).map((j: any) => j.id);
+  let bookedKeys = new Set<string>();
+  if (recruiterJobIds.length > 0) {
+    const { data: bookedSlots } = await supabase
+      .from('interview_slots')
+      .select('slot_date, slot_time, interviewer_name')
+      .in('job_id', recruiterJobIds)
+      .eq('is_booked', true);
+    bookedKeys = new Set(
+      (bookedSlots || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
+    );
+  }
+
+  // 4. Inserir apenas os slots que ainda não existem e não estão reservados
   const toInsert = availSlots
-    .filter((s: any) => !existingKeys.has(`${s.slot_date}|${s.slot_time}`))
+    .filter((s: any) =>
+      !existingKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`) &&
+      !bookedKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
+    )
     .map((s: any) => ({
       job_id: jobId,
       format: s.format,

@@ -2126,11 +2126,29 @@ app.get("/api/agendar/:token", async (req, res) => {
 
         console.log(`[Scheduling] availability_slots found: ${(availSlots || []).length}`);
 
-        const validAvail = (availSlots || []).filter(
-          (s: any) => !isSlotExpired(s.slot_date, s.slot_time, nowCheck)
+        // Build a set of already-booked slot keys across ALL jobs for this recruiter
+        // so we never show the candidate a slot that another candidate already took
+        const { data: recruiterJobs } = await supabaseAdmin
+          .from('jobs').select('id').eq('user_id', jobData.user_id);
+        const recruiterJobIds = (recruiterJobs || []).map((j: any) => j.id);
+        let bookedKeys = new Set<string>();
+        if (recruiterJobIds.length > 0) {
+          const { data: bookedSlots } = await supabaseAdmin
+            .from('interview_slots')
+            .select('slot_date, slot_time, interviewer_name')
+            .in('job_id', recruiterJobIds)
+            .eq('is_booked', true);
+          bookedKeys = new Set(
+            (bookedSlots || []).map((s: any) => `${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
+          );
+        }
+
+        const validAvail = (availSlots || []).filter((s: any) =>
+          !isSlotExpired(s.slot_date, s.slot_time, nowCheck) &&
+          !bookedKeys.has(`${s.slot_date}|${s.slot_time}|${s.interviewer_name || ''}`)
         );
 
-        console.log(`[Scheduling] valid (non-expired) availability_slots: ${validAvail.length}`);
+        console.log(`[Scheduling] valid (non-expired, non-booked) availability_slots: ${validAvail.length}`);
 
         if (validAvail.length > 0) {
           const toInsert = validAvail.map((s: any) => ({
@@ -2365,6 +2383,41 @@ app.post("/api/agendar/:token/book", async (req, res) => {
     }
 
     console.log('[Book Slot] Job lookup:', { success: !!job, error: jobErr?.message });
+
+    // ── Remove booked slot from master list + mark it booked in all other jobs ──
+    if (job?.user_id) {
+      const bookedDate = booked.slot_date;
+      const bookedTime = booked.slot_time;
+      const bookedInterviewer = booked.interviewer_name || null;
+
+      // 1. Delete from availability_slots (so recruiter modal no longer shows it)
+      let availDel = supabaseAdmin
+        .from('availability_slots')
+        .delete()
+        .eq('user_id', job.user_id)
+        .eq('slot_date', bookedDate)
+        .eq('slot_time', bookedTime);
+      if (bookedInterviewer) availDel = (availDel as any).eq('interviewer_name', bookedInterviewer);
+      await availDel;
+      console.log(`[Book Slot] Removed availability_slot ${bookedDate} ${bookedTime} for user ${job.user_id}`);
+
+      // 2. Mark same slot as booked in interview_slots of all other jobs (same recruiter)
+      const { data: recruiterJobs } = await supabaseAdmin
+        .from('jobs').select('id').eq('user_id', job.user_id);
+      const otherJobIds = (recruiterJobs || []).map((j: any) => j.id).filter((id: string) => id !== interview.job_id);
+      if (otherJobIds.length > 0) {
+        let otherUpdate = supabaseAdmin
+          .from('interview_slots')
+          .update({ is_booked: true })
+          .in('job_id', otherJobIds)
+          .eq('slot_date', bookedDate)
+          .eq('slot_time', bookedTime)
+          .eq('is_booked', false);
+        if (bookedInterviewer) otherUpdate = (otherUpdate as any).eq('interviewer_name', bookedInterviewer);
+        await otherUpdate;
+        console.log(`[Book Slot] Marked slot as booked in ${otherJobIds.length} other job(s)`);
+      }
+    }
 
     // Use phone already extracted for WhatsApp
     const phone = candidatePhone;
