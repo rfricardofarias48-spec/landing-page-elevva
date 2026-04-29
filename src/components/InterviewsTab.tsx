@@ -402,17 +402,17 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       {pendingByJob.length > 0 && (
         <div className="mb-6 space-y-3">
           {pendingByJob.map(group => (
-            <div key={group.jobId} className="flex flex-col md:flex-row md:items-center gap-4 p-5 bg-orange-50 border border-orange-200 rounded-2xl">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
-                  <Bell className="w-5 h-5 text-orange-600" />
+            <div key={group.jobId} className="flex flex-col md:flex-row md:items-center gap-4 px-6 py-5 bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl shadow-sm">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 border border-[#bbf7d0] shadow-sm">
+                  <Bell className="w-5 h-5 text-[#16a34a]" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-orange-900 truncate">
+                  <p className="text-sm font-black text-slate-900 truncate">
                     {group.candidates.length} candidato{group.candidates.length > 1 ? 's' : ''} aguardando novos horários
                   </p>
-                  <p className="text-xs text-orange-700 truncate">
-                    <strong>{group.jobTitle}</strong> — {group.candidates.map(c => formatName(c.candidate_name)).join(', ')}
+                  <p className="text-xs font-bold text-slate-500 truncate">
+                    <span className="text-slate-700">{group.jobTitle}</span> — {group.candidates.map(c => formatName(c.candidate_name)).join(', ')}
                   </p>
                 </div>
               </div>
@@ -423,7 +423,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
                     setNewSlotDays([{ date: '', times: [''] }]);
                     setNewSlotInterviewer('');
                   }}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-sm transition-all shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#84cc16] hover:bg-[#65a30d] text-black rounded-xl font-black text-sm transition-all shadow-[0_4px_12px_rgba(132,204,22,0.3)] hover:shadow-[0_4px_16px_rgba(132,204,22,0.4)] border border-[#65a30d]"
                 >
                   <Plus className="w-4 h-4" />
                   Adicionar Horários
@@ -899,7 +899,7 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
               </div>
             </div>
 
-            <p className="text-sm text-orange-700 bg-orange-50 p-3 rounded-xl mb-6 border border-orange-200">
+            <p className="text-sm text-[#16a34a] font-bold bg-[#f0fdf4] p-3 rounded-xl mb-6 border border-[#bbf7d0]">
               Ao salvar, os candidatos aguardando reagendamento receberão automaticamente o link para escolher um novo horário.
             </p>
 

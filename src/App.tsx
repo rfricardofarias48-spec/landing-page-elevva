@@ -3601,37 +3601,36 @@ const App: React.FC = () => {
       {/* SLOT REQUEST NOTIFICATION CARD */}
       {slotRequests.length > 0 && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none">
-          <div className="pointer-events-auto w-full max-w-md animate-slide-up">
-            {/* Backdrop blur pill */}
-            <div className="bg-white rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.18)] border border-amber-100 overflow-hidden">
+          <div className="pointer-events-auto w-full max-w-lg animate-slide-up">
+            <div className="bg-white rounded-[2rem] shadow-[0_32px_80px_rgba(0,0,0,0.20)] border border-slate-200 overflow-hidden">
 
               {/* Header */}
-              <div className="bg-amber-50 border-b border-amber-100 px-6 py-4 flex items-center gap-3">
-                <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <div className="bg-[#f0fdf4] border-b border-[#bbf7d0] px-8 py-6 flex items-center gap-4">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border border-[#bbf7d0]">
+                  <CalendarPlus className="w-6 h-6 text-[#16a34a]" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-slate-900 text-sm">Candidato sem horários disponíveis</p>
-                  <p className="text-xs text-amber-700 font-medium mt-0.5">
+                  <p className="font-black text-slate-900 text-base tracking-tight">Horários precisam ser adicionados</p>
+                  <p className="text-xs font-bold text-[#16a34a] mt-0.5 uppercase tracking-widest">
                     {slotRequests.length === 1 ? '1 candidato aguardando' : `${slotRequests.length} candidatos aguardando`}
                   </p>
                 </div>
               </div>
 
               {/* Requests list */}
-              <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {slotRequests.map(req => (
-                  <div key={req.id} className="flex items-center gap-3 px-6 py-4">
-                    <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <CalendarPlus className="w-4 h-4 text-slate-500" />
+                  <div key={req.id} className="flex items-center gap-4 px-8 py-4 hover:bg-slate-50 transition-colors">
+                    <div className="w-9 h-9 bg-[#f0fdf4] rounded-xl flex items-center justify-center flex-shrink-0 border border-[#bbf7d0]">
+                      <CalendarPlus className="w-4 h-4 text-[#16a34a]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{req.candidate_name}</p>
-                      <p className="text-xs text-slate-500 truncate">{req.job_title}</p>
+                      <p className="text-sm font-black text-slate-900 truncate">{req.candidate_name}</p>
+                      <p className="text-xs font-bold text-slate-400 truncate">{req.job_title}</p>
                     </div>
                     <button
                       onClick={() => dismissSlotRequest(req.id)}
-                      className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all flex-shrink-0"
+                      className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all flex-shrink-0"
                       title="Marcar como resolvido"
                     >
                       <X size={14} />
@@ -3641,17 +3640,17 @@ const App: React.FC = () => {
               </div>
 
               {/* Footer CTA */}
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex gap-3">
                 <button
                   onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); setSlotRequests([]); }}
-                  className="flex-1 flex items-center justify-center gap-2 bg-black text-white text-sm font-bold py-2.5 px-4 rounded-xl hover:bg-zinc-800 transition-all"
+                  className="flex-1 flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-black text-sm font-black py-3 px-5 rounded-xl transition-all shadow-[0_4px_14px_rgba(132,204,22,0.35)] hover:shadow-[0_4px_18px_rgba(132,204,22,0.45)] border border-[#65a30d]"
                 >
                   <CalendarPlus className="w-4 h-4" />
                   Adicionar horários
                 </button>
                 <button
                   onClick={() => setSlotRequests([])}
-                  className="px-4 py-2.5 text-slate-500 text-sm font-medium hover:bg-slate-200 rounded-xl transition-all"
+                  className="px-5 py-3 text-slate-500 text-sm font-bold hover:bg-slate-200 rounded-xl transition-all"
                 >
                   Fechar
                 </button>
