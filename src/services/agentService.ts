@@ -1350,10 +1350,15 @@ export async function notifyPendingReschedules(
 
       const link = `${baseUrl}/api/agendar/${token}`;
 
-      // Update interview status to AGUARDANDO_ESCOLHA_SLOT (covers both first send and resend)
-      await supabase.from('interviews')
+      // Atomic status update — only proceeds if the interview is still in a "waiting" state.
+      // Prevents duplicate WhatsApp when two concurrent notify calls run at the same time.
+      const { data: claimed } = await supabase.from('interviews')
         .update({ status: 'AGUARDANDO_ESCOLHA_SLOT' })
-        .eq('id', iv.id);
+        .eq('id', iv.id)
+        .in('status', ['AGUARDANDO_NOVOS_HORARIOS', 'AGUARDANDO_RESPOSTA'])
+        .select('id')
+        .maybeSingle();
+      if (!claimed) { sent++; continue; } // already handled by a concurrent call
 
       // Update conversation state
       await supabase.from('agent_conversations')
