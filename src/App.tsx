@@ -3605,13 +3605,13 @@ const App: React.FC = () => {
             <div className="bg-white rounded-[2rem] shadow-[0_32px_80px_rgba(0,0,0,0.20)] border border-slate-200 overflow-hidden">
 
               {/* Header */}
-              <div className="bg-[#f0fdf4] border-b border-[#bbf7d0] px-8 py-6 flex items-center gap-4">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border border-[#bbf7d0]">
-                  <CalendarPlus className="w-6 h-6 text-[#16a34a]" />
+              <div className="px-8 py-6 border-b border-slate-100 flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <CalendarPlus className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-slate-900 text-base tracking-tight">Horários precisam ser adicionados</p>
-                  <p className="text-xs font-bold text-[#16a34a] mt-0.5 uppercase tracking-widest">
+                  <p className="text-xs font-bold text-slate-400 mt-0.5 uppercase tracking-widest">
                     {slotRequests.length === 1 ? '1 candidato aguardando' : `${slotRequests.length} candidatos aguardando`}
                   </p>
                 </div>
@@ -3621,8 +3621,8 @@ const App: React.FC = () => {
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {slotRequests.map(req => (
                   <div key={req.id} className="flex items-center gap-4 px-8 py-4 hover:bg-slate-50 transition-colors">
-                    <div className="w-9 h-9 bg-[#f0fdf4] rounded-xl flex items-center justify-center flex-shrink-0 border border-[#bbf7d0]">
-                      <CalendarPlus className="w-4 h-4 text-[#16a34a]" />
+                    <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <CalendarPlus className="w-4 h-4 text-slate-500" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-black text-slate-900 truncate">{req.candidate_name}</p>
