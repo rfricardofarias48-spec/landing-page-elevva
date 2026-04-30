@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText, ThumbsUp, ThumbsDown, Loader2, Bell, Plus } from 'lucide-react';
+import { Calendar, Clock, Video, CheckCircle2, XCircle, AlertCircle, Trash2, Filter, Phone, Briefcase, User, Link as LinkIcon, Download, Eye, FileText, ThumbsUp, ThumbsDown, Loader2, Bell, Plus, Send } from 'lucide-react';
 import { Interview } from '../types';
 import { supabase } from '../services/supabaseClient';
 import jsPDF from 'jspdf';
@@ -133,11 +133,12 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
     return Array.from(map.values());
   }, [pendingReschedules]);
 
-  // Add slots modal state
+  // Add slots inline state — expandedJobId controls which card is open
   const [addSlotsForJob, setAddSlotsForJob] = useState<{ jobId: string; jobTitle: string } | null>(null);
   const [newSlotDays, setNewSlotDays] = useState<{ date: string; times: string[] }[]>([{ date: '', times: [''] }]);
   const [newSlotInterviewer, setNewSlotInterviewer] = useState('');
   const [isAddingSlots, setIsAddingSlots] = useState(false);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
   const handleAddSlotDay = useCallback(() => {
     setNewSlotDays(prev => [...prev, { date: '', times: [''] }]);
@@ -398,39 +399,117 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         </div>
       </div>
 
-      {/* Notification: Candidates waiting for new slots */}
+      {/* Notification: Candidates waiting for new slots — inline form */}
       {pendingByJob.length > 0 && (
         <div className="mb-6 space-y-3">
-          {pendingByJob.map(group => (
-            <div key={group.jobId} className="flex flex-col md:flex-row md:items-center gap-4 px-6 py-5 bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl shadow-sm">
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 border border-[#bbf7d0] shadow-sm">
-                  <Bell className="w-5 h-5 text-[#16a34a]" />
+          {pendingByJob.map(group => {
+            const isExpanded = expandedJobId === group.jobId;
+            return (
+              <div key={group.jobId} className="bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl shadow-sm overflow-hidden">
+                {/* Header row */}
+                <div className="flex flex-col md:flex-row md:items-center gap-4 px-6 py-5">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 border border-[#bbf7d0] shadow-sm">
+                      <Bell className="w-5 h-5 text-[#16a34a]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">
+                        {group.candidates.length} candidato{group.candidates.length > 1 ? 's' : ''} aguardando novos horários
+                      </p>
+                      <p className="text-xs font-bold text-slate-500 truncate">
+                        <span className="text-slate-700">{group.jobTitle}</span> — {group.candidates.map(c => formatName(c.candidate_name)).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!isExpanded) {
+                        setExpandedJobId(group.jobId);
+                        setAddSlotsForJob({ jobId: group.jobId, jobTitle: group.jobTitle });
+                        setNewSlotDays([{ date: '', times: [''] }]);
+                        setNewSlotInterviewer('');
+                      } else {
+                        setExpandedJobId(null);
+                        setAddSlotsForJob(null);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#84cc16] hover:bg-[#65a30d] text-black rounded-xl font-black text-sm transition-all shadow-[0_4px_12px_rgba(132,204,22,0.3)] border border-[#65a30d] shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {isExpanded ? 'Fechar' : 'Adicionar e Enviar'}
+                  </button>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-slate-900 truncate">
-                    {group.candidates.length} candidato{group.candidates.length > 1 ? 's' : ''} aguardando novos horários
-                  </p>
-                  <p className="text-xs font-bold text-slate-500 truncate">
-                    <span className="text-slate-700">{group.jobTitle}</span> — {group.candidates.map(c => formatName(c.candidate_name)).join(', ')}
-                  </p>
-                </div>
+
+                {/* Inline slot form */}
+                {isExpanded && (
+                  <div className="px-6 pb-6 border-t border-[#bbf7d0] pt-4 space-y-4 bg-white/60">
+                    <p className="text-xs font-bold text-[#16a34a]">
+                      Adicione os horários abaixo. Após salvar, o link será enviado automaticamente para os candidatos via WhatsApp.
+                    </p>
+
+                    {/* Interviewer */}
+                    <input
+                      type="text"
+                      value={newSlotInterviewer}
+                      onChange={e => setNewSlotInterviewer(e.target.value)}
+                      placeholder="Entrevistador (opcional)"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d]"
+                    />
+
+                    {/* Days */}
+                    {newSlotDays.map((day, dayIdx) => (
+                      <div key={dayIdx} className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <input
+                          type="date"
+                          value={day.date}
+                          onChange={e => handleSlotDateChange(dayIdx, e.target.value)}
+                          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d]"
+                        />
+                        {day.times.map((time, timeIdx) => (
+                          <input
+                            key={timeIdx}
+                            type="time"
+                            value={time}
+                            onChange={e => handleSlotTimeChange(dayIdx, timeIdx, e.target.value)}
+                            className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#65a30d] w-32"
+                          />
+                        ))}
+                        <button
+                          onClick={() => handleAddSlotTime(dayIdx)}
+                          className="text-xs font-bold text-[#16a34a] hover:bg-green-50 px-2 py-1 rounded-lg transition-colors"
+                        >
+                          + Horário
+                        </button>
+                      </div>
+                    ))}
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleAddSlotDay}
+                        className="text-xs font-bold text-slate-500 hover:text-slate-700 px-3 py-1.5 border border-dashed border-slate-300 rounded-xl transition-colors"
+                      >
+                        + Outro dia
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await handleSaveNewSlots();
+                          setExpandedJobId(null);
+                        }}
+                        disabled={isAddingSlots || newSlotDays.every(d => !d.date || d.times.every(t => !t))}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-[#84cc16] hover:bg-[#65a30d] text-black rounded-xl font-black text-sm transition-all shadow-[0_4px_12px_rgba(132,204,22,0.3)] border border-[#65a30d] disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+                      >
+                        {isAddingSlots ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                        ) : (
+                          <><Send className="w-4 h-4" /> Salvar e Notificar Candidatos</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    setAddSlotsForJob({ jobId: group.jobId, jobTitle: group.jobTitle });
-                    setNewSlotDays([{ date: '', times: [''] }]);
-                    setNewSlotInterviewer('');
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#84cc16] hover:bg-[#65a30d] text-black rounded-xl font-black text-sm transition-all shadow-[0_4px_12px_rgba(132,204,22,0.3)] hover:shadow-[0_4px_16px_rgba(132,204,22,0.4)] border border-[#65a30d]"
-                >
-                  <Plus className="w-4 h-4" />
-                  Adicionar Horários
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

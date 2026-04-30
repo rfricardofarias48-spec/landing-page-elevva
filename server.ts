@@ -2098,14 +2098,6 @@ app.post('/api/slots', async (req, res) => {
     const { error } = await supabaseAdmin.from('availability_slots').insert(toInsert);
     if (error) return res.status(500).json({ ok: false, error: error.message });
 
-    // Fire-and-forget: notify candidates waiting for new slots (AGUARDANDO_NOVOS_HORARIOS)
-    const { data: userJobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', user_id);
-    if (userJobs?.length) {
-      Promise.all(
-        userJobs.map((j: { id: string }) => notifyPendingReschedules(user_id, j.id, supabaseAdmin).catch(() => {}))
-      ).catch(() => {});
-    }
-
     return res.json({ ok: true, inserted: toInsert.length });
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'Erro interno' });
