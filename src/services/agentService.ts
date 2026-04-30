@@ -625,13 +625,16 @@ async function handleReschedule(
   const currentTimeBr = nowBr.toISOString().split('T')[1].slice(0, 5);
 
   // Read slots from single table — get job.user_id first
+  // IMPORTANT: exclude the candidate's current slot so they can't "reschedule" to the same time
   const { data: jobForSlots } = await supabase.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
-  const { data: rawSlots } = await supabase
+  let slotsQuery = supabase
     .from('availability_slots')
     .select('id, slot_date, slot_time')
     .eq('user_id', jobForSlots?.user_id || '')
     .eq('is_booked', false)
     .gte('slot_date', todayBr);
+  if (interview.slot_id) slotsQuery = slotsQuery.neq('id', interview.slot_id);
+  const { data: rawSlots } = await slotsQuery;
 
   const slots = (rawSlots || []).filter((s: { id: string; slot_date: string; slot_time: string }) =>
     s.slot_date > todayBr || (s.slot_date === todayBr && s.slot_time > currentTimeBr)
@@ -760,7 +763,7 @@ async function handleAguardandoEscolhaSlot(
   if (token) {
     const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
 
-    const link = `${baseUrl}/api/agendar/${token}`;
+    const link = `${baseUrl}/e/${token}`;
     await send(phone, `Para escolher seu horário de entrevista, acesse o link abaixo:\n\n${link}\n\n_Se precisar de ajuda, fale com o recrutador._`);
   } else {
     await send(phone, 'Sua entrevista está sendo agendada. Em breve você receberá o link para escolher o horário.');
