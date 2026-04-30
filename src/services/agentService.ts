@@ -653,9 +653,9 @@ async function handleReschedule(
         .eq('id', interview.slot_id);
     }
 
-    // Critical: update status and slot fields — these columns always exist
+    // Critical: update status and slot_id (slot_date/slot_time live in availability_slots, not interviews)
     const { error: statusErr } = await supabase.from('interviews')
-      .update({ status: 'AGUARDANDO_NOVOS_HORARIOS', slot_id: null, slot_date: null, slot_time: null })
+      .update({ status: 'AGUARDANDO_NOVOS_HORARIOS', slot_id: null })
       .eq('id', interview.id);
     if (statusErr) console.error(`[Agent] Failed to set AGUARDANDO_NOVOS_HORARIOS for interview ${interview.id}: ${statusErr.message}`);
 
@@ -712,9 +712,9 @@ async function handleReschedule(
       .eq('id', interview.slot_id);
   }
 
-  // Critical: reset slot and status
+  // Critical: reset slot_id and status (slot_date/slot_time live in availability_slots, not interviews)
   const { error: remarcadaErr } = await supabase.from('interviews')
-    .update({ slot_id: null, slot_date: null, slot_time: null, status: 'REMARCADA' })
+    .update({ slot_id: null, status: 'REMARCADA' })
     .eq('id', interview.id);
   if (remarcadaErr) console.error(`[Agent] Failed to set REMARCADA for interview ${interview.id}: ${remarcadaErr.message}`);
 
