@@ -2618,9 +2618,6 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
     }
     console.log(`[Cancel] Interview record deleted`);
 
-    // 6. Delete free (unbooked) slots for this job
-    await supabaseAdmin.from('availability_slots').delete().eq('job_id', interview.job_id).eq('is_booked', false);
-
     // Respond immediately — DB work is done. WhatsApp + conversation update run async.
     res.json({ ok: true });
 
