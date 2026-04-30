@@ -284,6 +284,10 @@ const App: React.FC = () => {
   const [activeChat, setActiveChat] = useState<{ interviewId: string, candidateName: string } | null>(null);
   const [chatNotification, setChatNotification] = useState<{ interviewId: string, candidateName: string, message: string } | null>(null);
 
+  // Pending reschedule notification
+  const [slotAlertDismissed, setSlotAlertDismissed] = useState(false);
+  const [showSlotAlert, setShowSlotAlert] = useState(false);
+
   // Settings State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -399,6 +403,21 @@ const App: React.FC = () => {
     const interval = setInterval(fetchSlotRequests, 60000);
     return () => clearInterval(interval);
   }, [user?.id]);
+
+  // Every 15 min: show on-screen alert if candidates are waiting for new slots
+  useEffect(() => {
+    if (!user) return;
+    const check = () => {
+      const hasPending = interviews.some((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS');
+      if (hasPending) {
+        setSlotAlertDismissed(false);
+        setShowSlotAlert(true);
+      }
+    };
+    check();
+    const interval = setInterval(check, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user, interviews]);
 
   const dismissSlotRequest = async (id: string) => {
     await supabase.from('slot_requests').update({ status: 'handled' }).eq('id', id);
@@ -2876,12 +2895,22 @@ const App: React.FC = () => {
                 <Briefcase className="w-6 h-6 lg:mr-3" />
                 <span className="hidden lg:block font-bold text-sm">Minhas Vagas</span>
             </button>
-            <button 
+            <button
                 onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); }}
-                className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'ENTREVISTAS' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
+                className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group relative ${currentTab === 'ENTREVISTAS' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
             >
-                <Calendar className="w-6 h-6 lg:mr-3" />
+                <span className="relative">
+                  <Calendar className="w-6 h-6 lg:mr-3" />
+                  {interviews.some((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS') && (
+                    <span className="absolute -top-1 -right-1 lg:-right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse" />
+                  )}
+                </span>
                 <span className="hidden lg:block font-bold text-sm">Entrevistas</span>
+                {interviews.some((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS') && (
+                  <span className="hidden lg:flex ml-auto items-center justify-center bg-orange-500 text-white text-[10px] font-black rounded-full w-5 h-5">
+                    {interviews.filter((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS').length}
+                  </span>
+                )}
             </button>
             <button
                 onClick={() => { setCurrentTab('APROVADOS'); setView('DASHBOARD'); }}
@@ -3544,6 +3573,34 @@ const App: React.FC = () => {
       )}
 
       {/* Chat Notification Balloon */}
+      {/* PENDING SLOTS ALERT TOAST */}
+      {showSlotAlert && !slotAlertDismissed && currentTab !== 'ENTREVISTAS' && (
+        <div className="fixed bottom-6 right-6 z-[10000] bg-white border border-orange-200 rounded-2xl shadow-2xl p-4 w-80 animate-slide-up">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0">
+              <AlertTriangle size={20} />
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-bold text-slate-900 text-sm">Candidatos aguardando horários</h4>
+                <button onClick={() => setSlotAlertDismissed(true)} className="text-slate-400 hover:text-slate-600 ml-2">
+                  <X size={14} />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">
+                {interviews.filter((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS').length} candidato(s) precisam de novos horários disponíveis para confirmar sua entrevista.
+              </p>
+              <button
+                onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); setSlotAlertDismissed(true); }}
+                className="w-full py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-black transition-colors"
+              >
+                Ver Entrevistas →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {chatNotification && (
         <div 
           className="fixed bottom-24 right-6 z-[10000] bg-white border border-emerald-200 rounded-2xl shadow-2xl p-4 w-80 cursor-pointer hover:scale-105 transition-all animate-slide-up"
