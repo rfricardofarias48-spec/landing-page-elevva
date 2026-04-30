@@ -217,7 +217,8 @@ const App: React.FC = () => {
   const [slotCardExpanded, setSlotCardExpanded] = useState(false);
   const [slotCardDate, setSlotCardDate] = useState('');
   const [slotCardTime, setSlotCardTime] = useState('');
-  const [slotCardSlots, setSlotCardSlots] = useState<Array<{date: string; time: string}>>([]);
+  const [slotCardInterviewer, setSlotCardInterviewer] = useState('');
+  const [slotCardSlots, setSlotCardSlots] = useState<Array<{date: string; time: string; interviewer: string}>>([]);
   const [slotCardSaving, setSlotCardSaving] = useState(false);
 
   // Billing Period
@@ -3706,9 +3707,12 @@ const App: React.FC = () => {
                       <div className="space-y-1.5">
                         {slotCardSlots.map((s, i) => (
                           <div key={i} className="flex items-center justify-between bg-slate-100 rounded-xl px-3 py-2">
-                            <span className="text-sm font-bold text-slate-700">
-                              {new Date(`${s.date}T${s.time}`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {s.time}
-                            </span>
+                            <div>
+                              <span className="text-sm font-bold text-slate-700">
+                                {new Date(`${s.date}T${s.time}`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {s.time}
+                              </span>
+                              {s.interviewer && <span className="ml-2 text-xs text-slate-400">— {s.interviewer}</span>}
+                            </div>
                             <button
                               onClick={() => setSlotCardSlots(prev => prev.filter((_, idx) => idx !== i))}
                               className="text-slate-400 hover:text-red-500 transition-colors"
@@ -3719,6 +3723,17 @@ const App: React.FC = () => {
                         ))}
                       </div>
                     )}
+                    {/* Entrevistador */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Entrevistador (opcional)</label>
+                      <input
+                        type="text"
+                        value={slotCardInterviewer}
+                        onChange={e => setSlotCardInterviewer(e.target.value)}
+                        placeholder="Nome do entrevistador"
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-lime-400"
+                      />
+                    </div>
                     {/* Inputs para novo horário */}
                     <div className="flex gap-2">
                       <div className="flex-1">
@@ -3744,7 +3759,7 @@ const App: React.FC = () => {
                           disabled={!slotCardDate || !slotCardTime}
                           onClick={() => {
                             if (!slotCardDate || !slotCardTime) return;
-                            setSlotCardSlots(prev => [...prev, { date: slotCardDate, time: slotCardTime }]);
+                            setSlotCardSlots(prev => [...prev, { date: slotCardDate, time: slotCardTime, interviewer: slotCardInterviewer }]);
                             setSlotCardDate('');
                             setSlotCardTime('');
                           }}
@@ -3772,6 +3787,7 @@ const App: React.FC = () => {
                                   slot_date: s.date,
                                   slot_time: s.time,
                                   format: 'ONLINE',
+                                  interviewer_name: s.interviewer || null,
                                 })),
                               }),
                             });
@@ -3783,6 +3799,7 @@ const App: React.FC = () => {
                             setSlotCardSlots([]);
                             setSlotCardDate('');
                             setSlotCardTime('');
+                            setSlotCardInterviewer('');
                             setSlotCardExpanded(false);
                             setSlotRequests([]);
                           } finally {
@@ -3795,7 +3812,7 @@ const App: React.FC = () => {
                         {slotCardSaving ? 'Enviando...' : `Salvar e Notificar${slotCardSlots.length > 1 ? ` (${slotCardSlots.length})` : ''}`}
                       </button>
                       <button
-                        onClick={() => { setSlotCardExpanded(false); setSlotCardDate(''); setSlotCardTime(''); setSlotCardSlots([]); }}
+                        onClick={() => { setSlotCardExpanded(false); setSlotCardDate(''); setSlotCardTime(''); setSlotCardInterviewer(''); setSlotCardSlots([]); }}
                         className="px-4 py-3 text-slate-500 text-sm font-bold hover:bg-slate-200 rounded-xl transition-all"
                       >
                         Cancelar
