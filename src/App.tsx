@@ -467,16 +467,15 @@ const App: React.FC = () => {
       )
       .subscribe();
 
-    const interviewSlotsChannel = supabase.channel(`interview_slots-${user.id}`)
+    const interviewSlotsChannel = supabase.channel(`availability_slots-${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'interview_slots',
+          table: 'availability_slots',
         },
         () => {
-          // Re-fetch interviews when any slot change happens
           fetchInterviews(user.id);
         }
       )
@@ -1112,7 +1111,7 @@ const App: React.FC = () => {
         *,
         jobs!inner (title, user_id),
         candidates (analysis_result, "WhatsApp com DDD", file_path, file_name),
-        interview_slots (slot_date, slot_time, format, location, interviewer_name)
+        availability_slots!interviews_slot_id_fkey (slot_date, slot_time, format, location, interviewer_name)
       `)
       .eq('jobs.user_id', userId)
       .order('created_at', { ascending: false });
@@ -1122,43 +1121,24 @@ const App: React.FC = () => {
       return;
     }
 
-    // Fetch interviewer names from slots as a fallback for old interviews
-    const jobIds = Array.from(new Set(data.map((i: Record<string, unknown>) => i.job_id)));
-    const interviewerMap = new Map();
-    
-    if (jobIds.length > 0) {
-      const { data: slotsData } = await supabase
-        .from('interview_slots')
-        .select('job_id, interviewer_name')
-        .in('job_id', jobIds)
-        .not('interviewer_name', 'is', null);
-
-      if (slotsData) {
-        slotsData.forEach(slot => {
-          if (!interviewerMap.has(slot.job_id)) {
-            interviewerMap.set(slot.job_id, slot.interviewer_name);
-          }
-        });
-      }
-    }
-
     const formattedInterviews = data.map((i: Record<string, unknown>) => {
-      const rawTime = (i.slot_time || (i.interview_slots as Record<string, unknown>)?.slot_time) as string | undefined;
+      const slot = i.availability_slots as Record<string, unknown> | null;
+      const rawTime = (i.slot_time || slot?.slot_time) as string | undefined;
       const formattedTime = rawTime ? rawTime.substring(0, 5) : undefined;
-      
-      const analysisResult = extractAnalysisResult(i.candidates?.analysis_result);
+
+      const analysisResult = extractAnalysisResult((i.candidates as Record<string, unknown>)?.analysis_result);
 
       return {
         ...i,
-        job_title: i.jobs?.title,
+        job_title: (i.jobs as Record<string, unknown>)?.title,
         candidate_name: analysisResult?.candidateName || 'Candidato',
-        candidate_phone: i.candidates?.['WhatsApp com DDD'] || '',
-        candidate_file_path: i.candidates?.file_path || i.candidates?.file_name,
-        scheduled_date: i.slot_date || i.interview_slots?.slot_date,
+        candidate_phone: (i.candidates as Record<string, unknown>)?.['WhatsApp com DDD'] || '',
+        candidate_file_path: (i.candidates as Record<string, unknown>)?.file_path || (i.candidates as Record<string, unknown>)?.file_name,
+        scheduled_date: i.slot_date || slot?.slot_date,
         scheduled_time: formattedTime,
-        format: i.interview_slots?.format,
-        meeting_link: i.meeting_link || i.interview_slots?.location,
-        interviewer_name: i.interviewer_name || i.interview_slots?.interviewer_name || interviewerMap.get(i.job_id)
+        format: slot?.format,
+        meeting_link: i.meeting_link || slot?.location,
+        interviewer_name: i.interviewer_name || slot?.interviewer_name,
       };
     });
 
