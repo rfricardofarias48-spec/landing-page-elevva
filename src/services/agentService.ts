@@ -603,12 +603,12 @@ async function handleReschedule(
     return;
   }
 
-  // Find the confirmed interview for this candidate
+  // Find the active interview for this candidate (any non-cancelled status)
   const { data: interview } = await supabase
     .from('interviews')
     .select('id, job_id, slot_id, scheduling_token, google_event_id')
     .eq('candidate_id', candidateId)
-    .in('status', ['CONFIRMADA', 'AGENDADA', 'REMARCADA'])
+    .in('status', ['CONFIRMADA', 'AGENDADA', 'REMARCADA', 'AGUARDANDO_NOVOS_HORARIOS', 'AGUARDANDO_ESCOLHA_SLOT', 'AGUARDANDO_RESPOSTA'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -650,18 +650,15 @@ async function handleReschedule(
         .eq('id', interview.slot_id);
     }
 
-    // Mark interview as waiting for new slots — clear slot fields so the
-    // scheduling page can repopulate when the recruiter adds new slots
-    await supabase.from('interviews')
-      .update({
-        status: 'AGUARDANDO_NOVOS_HORARIOS',
-        slot_id: null,
-        slot_date: null,
-        slot_time: null,
-        meeting_link: null,
-        google_event_id: null,
-      })
+    // Critical: update status and slot fields — these columns always exist
+    const { error: statusErr } = await supabase.from('interviews')
+      .update({ status: 'AGUARDANDO_NOVOS_HORARIOS', slot_id: null, slot_date: null, slot_time: null })
       .eq('id', interview.id);
+    if (statusErr) console.error(`[Agent] Failed to set AGUARDANDO_NOVOS_HORARIOS for interview ${interview.id}: ${statusErr.message}`);
+
+    // Optional: clear Google Calendar fields (best-effort, columns may not exist in all schemas)
+    supabase.from('interviews').update({ meeting_link: null, google_event_id: null })
+      .eq('id', interview.id).then(() => {}).catch(() => {});
 
     // Update conversation state
     await updateConversation(conv.id, {
@@ -712,18 +709,15 @@ async function handleReschedule(
       .eq('id', interview.slot_id);
   }
 
-  // Reset interview status
-  await supabase
-    .from('interviews')
-    .update({
-      slot_id: null,
-      slot_date: null,
-      slot_time: null,
-      meeting_link: null,
-      google_event_id: null,
-      status: 'REMARCADA',
-    })
+  // Critical: reset slot and status
+  const { error: remarcadaErr } = await supabase.from('interviews')
+    .update({ slot_id: null, slot_date: null, slot_time: null, status: 'REMARCADA' })
     .eq('id', interview.id);
+  if (remarcadaErr) console.error(`[Agent] Failed to set REMARCADA for interview ${interview.id}: ${remarcadaErr.message}`);
+
+  // Optional: clear Google Calendar fields (best-effort)
+  supabase.from('interviews').update({ meeting_link: null, google_event_id: null })
+    .eq('id', interview.id).then(() => {}).catch(() => {});
 
   // Ensure scheduling token exists
   let token = interview.scheduling_token;
@@ -746,7 +740,7 @@ async function handleReschedule(
   }, supabase);
 
   const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-  const link = `${baseUrl}/api/agendar/${token}`;
+  const link = `${baseUrl}/e/${token}`;
 
   await send(phone, `Sem problemas, *${conv.context.candidate_name || 'candidato'}*! Vamos reagendar.\n\nEscolha um novo horário no link abaixo:\n\n${link}\n\n_Clique no link para selecionar seu novo horário._`);
 }
@@ -956,7 +950,7 @@ export async function processIncomingMessage(
   const rescheduleKeywords = ['reagendar', 'remarcar', 'mudar horário', 'mudar horario', 'trocar horário', 'trocar horario', 'alterar data', 'mudar data', 'outro horário', 'outro horario', 'não posso', 'nao posso', 'cancelar entrevista', 'desmarcar'];
   const isRescheduleIntent = rescheduleKeywords.some(k => text.includes(k));
 
-  if (isRescheduleIntent && (conv.state === 'ENTREVISTA_CONFIRMADA' || conv.state === 'AGUARDANDO_ESCOLHA_SLOT')) {
+  if (isRescheduleIntent && (conv.state === 'ENTREVISTA_CONFIRMADA' || conv.state === 'AGUARDANDO_ESCOLHA_SLOT' || conv.state === 'AGUARDANDO_NOVOS_HORARIOS')) {
     await handleReschedule(conv, instance, phone, supabase, send);
     return;
   }
@@ -1059,9 +1053,34 @@ export async function processIncomingMessage(
       await handleConfirmacaoLembrete(conv, instance, phone, text, supabase, send);
       break;
 
-    case 'AGUARDANDO_NOVOS_HORARIOS':
-      await send(phone, 'Ainda estamos aguardando o recrutador liberar novos horários. Assim que houver disponibilidade, enviaremos o link para você escolher. 😊');
+    case 'AGUARDANDO_NOVOS_HORARIOS': {
+      // Check if recruiter already added slots since candidate was put on hold
+      const nowBrW = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      const todayBrW = nowBrW.toISOString().split('T')[0];
+      const timeBrW = nowBrW.toISOString().split('T')[1].slice(0, 5);
+      const interviewIdW = conv.context?.interview_id as string | undefined;
+      let recruiterUserIdW = conv.user_id;
+      if (interviewIdW) {
+        const { data: ivW } = await supabase.from('interviews').select('job_id').eq('id', interviewIdW).maybeSingle();
+        if (ivW?.job_id) {
+          const { data: jW } = await supabase.from('jobs').select('user_id').eq('id', ivW.job_id).maybeSingle();
+          if (jW?.user_id) recruiterUserIdW = jW.user_id;
+        }
+      }
+      const { data: newSlotsW } = await supabase
+        .from('availability_slots').select('id').eq('user_id', recruiterUserIdW)
+        .eq('is_booked', false).gte('slot_date', todayBrW);
+      const hasNewSlots = (newSlotsW || []).some((s: any) =>
+        s.slot_date > todayBrW || (s.slot_date === todayBrW && s.slot_time > timeBrW)
+      );
+      if (hasNewSlots && interviewIdW) {
+        // Slots appeared — trigger handleReschedule to send the link
+        await handleReschedule(conv, instance, phone, supabase, send);
+      } else {
+        await send(phone, 'Ainda estamos aguardando o recrutador liberar novos horários. Assim que houver disponibilidade, enviaremos o link para você escolher. 😊');
+      }
       break;
+    }
 
     case 'AGUARDANDO_ESCOLHA_SLOT':
       await handleAguardandoEscolhaSlot(conv, instance, phone, text, selectedRowId, supabase, send);
