@@ -2142,6 +2142,11 @@ app.get('/api/slots/for-job/:jobId', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Short URL alias: /e/:token → same page as /api/agendar/:token
+app.get("/e/:token", (req, res) => {
+  res.redirect(301, `/api/agendar/${req.params.token}`);
+});
+
 app.get("/api/agendar/:token", async (req, res) => {
   try {
     const { token } = req.params;

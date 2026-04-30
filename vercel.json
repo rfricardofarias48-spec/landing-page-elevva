@@ -41,7 +41,11 @@
       "destination": "/api"
     },
     {
-      "source": "/((?!api/|assets/|.*\\..*).*)",
+      "source": "/e/:token",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api/|assets/|e/|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],
