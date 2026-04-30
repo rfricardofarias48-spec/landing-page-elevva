@@ -1353,7 +1353,7 @@ export async function notifyPendingReschedules(
           .eq('id', iv.id);
       }
 
-      const link = `${baseUrl}/api/agendar/${token}`;
+      const link = `${baseUrl}/e/${token}`;
 
       // Atomic status update — only proceeds if the interview is still in a "waiting" state.
       // Prevents duplicate WhatsApp when two concurrent notify calls run at the same time.
