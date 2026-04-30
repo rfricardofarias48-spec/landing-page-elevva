@@ -3763,13 +3763,18 @@ const App: React.FC = () => {
                           if (!uid || slotCardSlots.length === 0) return;
                           setSlotCardSaving(true);
                           try {
-                            await Promise.all(slotCardSlots.map(s =>
-                              fetch('/api/slots', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ user_id: uid, date: s.date, time: s.time }),
-                              })
-                            ));
+                            await fetch('/api/slots', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                user_id: uid,
+                                slots: slotCardSlots.map(s => ({
+                                  slot_date: s.date,
+                                  slot_time: s.time,
+                                  format: 'ONLINE',
+                                })),
+                              }),
+                            });
                             await fetch('/api/agent/notify-all-pending', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
