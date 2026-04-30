@@ -2010,6 +2010,18 @@ app.get("/api/agendar/:token/data", async (req, res) => {
     if (error || !interview) return res.status(404).json({ ok: false, error: 'Link invalido ou expirado' });
 
     const { data: job } = await supabaseAdmin.from('jobs').select('title, user_id').eq('id', interview.job_id).single();
+
+    // Primary: look up user_id from agent_conversations (most reliable — stores exact recruiter)
+    const { data: agentConvData } = await supabaseAdmin
+      .from('agent_conversations')
+      .select('user_id')
+      .filter('context->>interview_id', 'eq', interview.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const recruiterUserId: string = agentConvData?.user_id || job?.user_id || '';
+
     const nowData = new Date();
     const todayBrData = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
     const slotExpired = (date: string, time: string) =>
@@ -2019,7 +2031,7 @@ app.get("/api/agendar/:token/data", async (req, res) => {
     const { data: rawSlots } = await supabaseAdmin
       .from('availability_slots')
       .select('id, slot_date, slot_time, format, location, interviewer_name')
-      .eq('user_id', job?.user_id || '')
+      .eq('user_id', recruiterUserId)
       .eq('is_booked', false)
       .gte('slot_date', todayBrData)
       .order('slot_date', { ascending: true })
@@ -2146,7 +2158,7 @@ app.get("/api/agendar/:token", async (req, res) => {
       return res.status(404).send('<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h1>Link invalido ou expirado</h1><p>Entre em contato com o recrutador.</p></body></html>');
     }
 
-    // Get job + recruiter user_id
+    // Get job + recruiter user_id (fallback)
     const { data: job } = await supabaseAdmin.from('jobs').select('title, user_id').eq('id', interview.job_id).single();
 
     // Get candidate name
@@ -2156,8 +2168,19 @@ app.get("/api/agendar/:token", async (req, res) => {
     const nowCheck = new Date();
     const todayBrCheck = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    const userId = job?.user_id || '';
-    console.log(`[Scheduling] token=${token} job_id=${interview.job_id} user_id=${userId} slot_id=${interview.slot_id || 'null'} todayBrCheck=${todayBrCheck}`);
+    // Primary: look up user_id from agent_conversations — this stores the exact recruiter
+    // user_id that was used to create the slots, even when job.user_id differs.
+    const { data: agentConv } = await supabaseAdmin
+      .from('agent_conversations')
+      .select('user_id')
+      .filter('context->>interview_id', 'eq', interview.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Cascade: agentConv (most reliable) → job.user_id (legacy fallback)
+    const userId: string = agentConv?.user_id || job?.user_id || '';
+    console.log(`[Scheduling] token=${token} interview=${interview.id} agentConv.user_id=${agentConv?.user_id || 'null'} job.user_id=${job?.user_id || 'null'} resolved=${userId} slot_id=${interview.slot_id || 'null'} today=${todayBrCheck}`);
 
     // Fetch ALL slots for this user (no is_booked filter) so we can see exactly what exists
     const { data: allUserSlots, error: slotsErr } = await supabaseAdmin

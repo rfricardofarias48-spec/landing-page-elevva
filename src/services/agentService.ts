@@ -1192,11 +1192,13 @@ export async function triggerSchedulingForCandidates(
       let token = interview.scheduling_token;
       if (!token) {
         token = crypto.randomBytes(6).toString('base64url');
-        await supabase
-          .from('interviews')
-          .update({ scheduling_token: token })
-          .eq('id', interview.id);
       }
+      // Always ensure user_id and token are stored directly in the interview
+      // so the scheduling link never depends on job lookup to find slots.
+      await supabase
+        .from('interviews')
+        .update({ scheduling_token: token, user_id: userId })
+        .eq('id', interview.id);
 
       const schedulingLink = `${baseUrl}/api/agendar/${token}`;
 

@@ -24,6 +24,8 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
   const [selectedInterviewers, setSelectedInterviewers] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  // Reactive "now" — ticks every 60 s so expired slots vanish automatically
+  const [now, setNow] = useState(() => new Date());
 
   const selectedCandidates = job.candidates.filter(c => c.isSelected);
 
@@ -38,7 +40,14 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
       setLoadingSlots(false);
     };
     fetchSlots();
+    const interval = setInterval(fetchSlots, 60_000);
+    return () => clearInterval(interval);
   }, [job.id]);
+
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(tick);
+  }, []);
 
   const interviewers = useMemo(() => {
     const set = new Set<string>();
@@ -47,14 +56,15 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
   }, [slots]);
 
   const isExpired = (date: string, time: string) =>
-    new Date(`${date}T${time.substring(0, 5)}:00-03:00`) < new Date();
+    new Date(`${date}T${time.substring(0, 5)}:00-03:00`) < now;
 
   const filteredSlots = useMemo(() =>
     slots.filter(s =>
       selectedInterviewers.has(s.interviewer_name || '(sem entrevistador)') &&
       !isExpired(s.slot_date, s.slot_time)
     ),
-    [slots, selectedInterviewers]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slots, selectedInterviewers, now]
   );
 
   const toggleInterviewer = (name: string) => {

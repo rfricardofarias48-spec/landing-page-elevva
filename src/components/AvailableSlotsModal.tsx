@@ -25,6 +25,8 @@ interface DayEntry {
 export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsAdded }) => {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [loading, setLoading] = useState(true);
+  // Reactive "now" — updates every 60 s so expired slots disappear without page reload
+  const [now, setNow] = useState(() => new Date());
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -44,10 +46,21 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsA
     setLoading(false);
   };
 
-  useEffect(() => { fetchSlots(); }, [userId]);
+  useEffect(() => {
+    fetchSlots();
+    // Re-fetch every 60 s so the app stays in sync with what candidates see
+    const interval = setInterval(fetchSlots, 60_000);
+    return () => clearInterval(interval);
+  }, [userId]);
+
+  // Tick every 60 s so useMemo re-evaluates expiry without waiting for a re-fetch
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(tick);
+  }, []);
 
   const isExpired = (date: string, time: string) =>
-    new Date(`${date}T${time.substring(0, 5)}:00-03:00`) < new Date();
+    new Date(`${date}T${time.substring(0, 5)}:00-03:00`) < now;
 
   // Group slots by date → interviewer — only future slots (same view as candidate)
   const grouped = useMemo(() => {
@@ -61,7 +74,8 @@ export const AvailableSlotsModal: React.FC<Props> = ({ userId, onClose, onSlotsA
       interviewerMap.get(interviewerKey)!.push(s);
     });
     return Array.from(dateMap.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [slots]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots, now]);
 
   const formatDate = (dateStr: string) => {
     const [year, month, day] = dateStr.split('-').map(Number);
