@@ -2518,7 +2518,7 @@ app.delete("/api/interviews/:id", async (req, res) => {
 
     // Free the slot
     if (interview.slot_id) {
-      await supabaseAdmin.from('interview_slots').update({ is_booked: false, booked_by: null }).eq('id', interview.slot_id);
+      await supabaseAdmin.from('availability_slots').update({ is_booked: false, booked_interview_id: null }).eq('id', interview.slot_id);
     }
 
     // Delete the interview record
@@ -2606,7 +2606,7 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
 
     // 4. Free the slot
     if (interview.slot_id) {
-      await supabaseAdmin.from('interview_slots').update({ is_booked: false }).eq('id', interview.slot_id);
+      await supabaseAdmin.from('availability_slots').update({ is_booked: false, booked_interview_id: null }).eq('id', interview.slot_id);
       console.log(`[Cancel] Slot ${interview.slot_id} freed`);
     }
 
@@ -2619,7 +2619,7 @@ app.post("/api/interviews/:id/cancel", async (req, res) => {
     console.log(`[Cancel] Interview record deleted`);
 
     // 6. Delete free (unbooked) slots for this job
-    await supabaseAdmin.from('interview_slots').delete().eq('job_id', interview.job_id).eq('is_booked', false);
+    await supabaseAdmin.from('availability_slots').delete().eq('job_id', interview.job_id).eq('is_booked', false);
 
     // Respond immediately — DB work is done. WhatsApp + conversation update run async.
     res.json({ ok: true });
