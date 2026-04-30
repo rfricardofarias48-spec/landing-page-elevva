@@ -1108,9 +1108,7 @@ export async function triggerSchedulingForCandidates(
 
   // Usar horário de Brasília (UTC-3)
   const now = new Date();
-  const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-  const today = brNow.toISOString().split('T')[0];
-  const currentTime = brNow.toISOString().split('T')[1].slice(0, 5);
+  const today = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   // Get available slots from single table
   const { data: rawSlots } = await supabase
@@ -1122,9 +1120,10 @@ export async function triggerSchedulingForCandidates(
     .order('slot_date', { ascending: true })
     .order('slot_time', { ascending: true });
 
-  const slots = (rawSlots || []).filter((s: any) =>
-    s.slot_date > today || (s.slot_date === today && s.slot_time > currentTime)
-  );
+  const slots = (rawSlots || []).filter((s: any) => {
+    const slotDt = new Date(`${s.slot_date}T${String(s.slot_time).substring(0, 5)}:00-03:00`);
+    return slotDt >= now;
+  });
 
   console.log(`[Agent] triggerScheduling: ${rawSlots?.length ?? 0} slots brutos, ${slots.length} válidos para job ${jobId}`);
 

@@ -2001,7 +2001,7 @@ app.get("/api/agendar/:token/data", async (req, res) => {
   try {
     const { token } = req.params;
 
-    const { data: interview, error } = await supabase
+    const { data: interview, error } = await supabaseAdmin
       .from('interviews')
       .select('id, job_id, candidate_id, status, slot_id, scheduling_token')
       .eq('scheduling_token', token)
@@ -2009,7 +2009,7 @@ app.get("/api/agendar/:token/data", async (req, res) => {
 
     if (error || !interview) return res.status(404).json({ ok: false, error: 'Link invalido ou expirado' });
 
-    const { data: job } = await supabase.from('jobs').select('title, user_id').eq('id', interview.job_id).single();
+    const { data: job } = await supabaseAdmin.from('jobs').select('title, user_id').eq('id', interview.job_id).single();
     const nowData = new Date();
     const todayBrData = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
     const slotExpired = (date: string, time: string) =>
@@ -2110,18 +2110,18 @@ app.get('/api/slots/for-job/:jobId', async (req, res) => {
     const { jobId } = req.params;
     const { data: job } = await supabaseAdmin.from('jobs').select('user_id').eq('id', jobId).maybeSingle();
     if (!job?.user_id) return res.status(404).json({ ok: false, error: 'Vaga não encontrada' });
-    const nowBr = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    const todayBr = nowBr.toISOString().split('T')[0];
-    const currentTimeBr = nowBr.toISOString().split('T')[1].slice(0, 5);
+    const todayBr = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
     const { data, error } = await supabaseAdmin
       .from('availability_slots')
       .select('id, slot_date, slot_time, interviewer_name, format, location')
       .eq('user_id', job.user_id).eq('is_booked', false).gte('slot_date', todayBr)
       .order('slot_date', { ascending: true }).order('slot_time', { ascending: true });
     if (error) return res.status(500).json({ ok: false, error: error.message });
-    const slots = (data || []).filter((s: any) =>
-      s.slot_date > todayBr || (s.slot_date === todayBr && s.slot_time > currentTimeBr)
-    );
+    const nowForFilter = new Date();
+    const slots = (data || []).filter((s: any) => {
+      const slotDt = new Date(`${s.slot_date}T${String(s.slot_time).substring(0, 5)}:00-03:00`);
+      return slotDt >= nowForFilter;
+    });
     return res.json({ ok: true, slots });
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'Erro interno' });

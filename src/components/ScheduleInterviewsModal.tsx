@@ -231,6 +231,18 @@ export const ScheduleInterviewsModal: React.FC<Props> = ({ job, onClose, onSucce
             </>
           )}
 
+          {filteredSlots.length > 0 && selectedCandidates.length > filteredSlots.length && (
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black text-amber-800">Atenção: horários insuficientes</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Você tem <strong>{selectedCandidates.length} candidatos</strong> mas apenas <strong>{filteredSlots.length} horário{filteredSlots.length !== 1 ? 's' : ''}</strong> disponível{filteredSlots.length !== 1 ? 'is' : ''}. Os primeiros candidatos a clicarem no link conseguirão escolher — os demais verão "sem horários disponíveis". Cadastre mais horários antes de agendar.
+                </p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
               <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
