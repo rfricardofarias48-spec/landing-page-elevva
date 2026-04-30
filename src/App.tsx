@@ -25,7 +25,7 @@ import { PublicPortalScreen } from './components/PublicPortalScreen';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon,
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, AlertTriangle, CalendarPlus
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, AlertTriangle, CalendarPlus, Send
 } from 'lucide-react';
 
 const CHATWOOT_BASE_URL = (import.meta.env.VITE_CHATWOOT_URL || 'https://bot-chatwoot.5mljrq.easypanel.host').replace(/\/$/, '');
@@ -214,6 +214,10 @@ const App: React.FC = () => {
   const [slotRequests, setSlotRequests] = useState<Array<{
     id: string; candidate_name: string; job_title: string; created_at: string; job_id: string;
   }>>([]);
+  const [slotCardExpanded, setSlotCardExpanded] = useState(false);
+  const [slotCardDate, setSlotCardDate] = useState('');
+  const [slotCardTime, setSlotCardTime] = useState('');
+  const [slotCardSaving, setSlotCardSaving] = useState(false);
 
   // Billing Period
   const [isAnnual, setIsAnnual] = useState(false);
@@ -3677,33 +3681,86 @@ const App: React.FC = () => {
               </div>
 
               {/* Footer CTA */}
-              <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex gap-3">
-                <button
-                  onClick={async () => {
-                    const uid = (user as any)?.id;
-                    if (uid) {
-                      // Try to notify pending candidates — if slots already exist they'll receive the link now
-                      fetch('/api/agent/notify-all-pending', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ user_id: uid }),
-                      }).catch(() => {});
-                    }
-                    setCurrentTab('ENTREVISTAS');
-                    setView('DASHBOARD');
-                    setSlotRequests([]);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-black text-sm font-black py-3 px-5 rounded-xl transition-all shadow-[0_4px_14px_rgba(132,204,22,0.35)] hover:shadow-[0_4px_18px_rgba(132,204,22,0.45)] border border-[#65a30d]"
-                >
-                  <CalendarPlus className="w-4 h-4" />
-                  Adicionar horários
-                </button>
-                <button
-                  onClick={() => setSlotRequests([])}
-                  className="px-5 py-3 text-slate-500 text-sm font-bold hover:bg-slate-200 rounded-xl transition-all"
-                >
-                  Fechar
-                </button>
+              <div className="px-8 py-6 bg-slate-50 border-t border-slate-100">
+                {!slotCardExpanded ? (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setSlotCardExpanded(true)}
+                      className="flex-1 flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] text-black text-sm font-black py-3 px-5 rounded-xl transition-all shadow-[0_4px_14px_rgba(132,204,22,0.35)] hover:shadow-[0_4px_18px_rgba(132,204,22,0.45)] border border-[#65a30d]"
+                    >
+                      <CalendarPlus className="w-4 h-4" />
+                      Adicionar horário
+                    </button>
+                    <button
+                      onClick={() => setSlotRequests([])}
+                      className="px-5 py-3 text-slate-500 text-sm font-bold hover:bg-slate-200 rounded-xl transition-all"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Data</label>
+                        <input
+                          type="date"
+                          value={slotCardDate}
+                          onChange={e => setSlotCardDate(e.target.value)}
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-lime-400"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-500 mb-1">Hora</label>
+                        <input
+                          type="time"
+                          value={slotCardTime}
+                          onChange={e => setSlotCardTime(e.target.value)}
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-lime-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={!slotCardDate || !slotCardTime || slotCardSaving}
+                        onClick={async () => {
+                          if (!slotCardDate || !slotCardTime) return;
+                          const uid = (user as any)?.id;
+                          if (!uid) return;
+                          setSlotCardSaving(true);
+                          try {
+                            await fetch('/api/slots', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ user_id: uid, date: slotCardDate, time: slotCardTime }),
+                            });
+                            await fetch('/api/agent/notify-all-pending', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ user_id: uid }),
+                            });
+                            setSlotCardDate('');
+                            setSlotCardTime('');
+                            setSlotCardExpanded(false);
+                            setSlotRequests([]);
+                          } finally {
+                            setSlotCardSaving(false);
+                          }
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-[#84cc16] hover:bg-[#65a30d] disabled:opacity-40 text-black text-sm font-black py-3 px-5 rounded-xl transition-all border border-[#65a30d]"
+                      >
+                        <Send className="w-4 h-4" />
+                        {slotCardSaving ? 'Enviando...' : 'Salvar e Notificar'}
+                      </button>
+                      <button
+                        onClick={() => { setSlotCardExpanded(false); setSlotCardDate(''); setSlotCardTime(''); }}
+                        className="px-4 py-3 text-slate-500 text-sm font-bold hover:bg-slate-200 rounded-xl transition-all"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
