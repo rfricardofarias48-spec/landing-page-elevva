@@ -340,7 +340,7 @@ export const AdminDashboard: React.FC = () => {
       const newResumeLimit = 9999;
 
       const PLAN_DEFAULT_PRICE: Record<string, number> = {
-        ESSENCIAL: 499.90, PRO: 1299.90, MAX: 2499.00, ULTRA: 4499.00
+        ESSENCIAL: 399.90, PRO: 649.00, MAX: 1499.00, ULTRA: 2299.00
       };
       const priceToSave = customPrice != null ? customPrice : (PLAN_DEFAULT_PRICE[newPlan] ?? 0);
 
@@ -708,8 +708,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       });
 
       const stats = {
-          ESSENCIAL: { count: 0, price: 499.90, revenue: 0 },
-          PRO: { count: 0, price: 1299.90, revenue: 0 },
+          ESSENCIAL: { count: 0, price: 399.90, revenue: 0 },
+          PRO: { count: 0, price: 649.00, revenue: 0 },
           ENTERPRISE: { count: 0, price: 0, revenue: 0 },
           totalUsers: historicalUsers.length,
           totalRevenue: 0,
@@ -720,7 +720,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
       historicalUsers.forEach(u => {
           if (isGhost(u)) return; // conta desativada — não entra no MRR
-          const defaultPrice = u.plan === 'ESSENCIAL' ? 499.90 : u.plan === 'PRO' ? 1299.90 : u.plan === 'MAX' ? 2499.00 : u.plan === 'ULTRA' ? 4499.00 : 0;
+          const defaultPrice = u.plan === 'ESSENCIAL' ? 399.90 : u.plan === 'PRO' ? 649.00 : u.plan === 'MAX' ? 1499.00 : u.plan === 'ULTRA' ? 2299.00 : 0;
           const userPrice = u.plan_price != null ? u.plan_price : defaultPrice;
 
           if (u.plan in stats) {
@@ -815,7 +815,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       return users
         .filter(u => new Date(u.created_at) <= endOfMonth && u.plan !== 'ADMIN' && !isGhost(u))
         .reduce((acc, u) => {
-          const defaultPrice = u.plan === 'PRO' ? 1299.90 : u.plan === 'MAX' ? 2499.00 : u.plan === 'ULTRA' ? 4499.00 : u.plan === 'ENTERPRISE' ? 0 : 499.90;
+          const defaultPrice = u.plan === 'PRO' ? 649.00 : u.plan === 'MAX' ? 1499.00 : u.plan === 'ULTRA' ? 2299.00 : u.plan === 'ENTERPRISE' ? 0 : 399.90;
           return acc + (u.plan_price ?? defaultPrice);
         }, 0);
     });
@@ -1187,7 +1187,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           <span className="text-xs text-zinc-400 font-bold italic">A consultar</span>
                                       ) : (
                                           <span className="text-xs font-black text-zinc-800">
-                                              R$ {(user.plan_price ?? (user.plan === 'ESSENCIAL' ? 499.90 : user.plan === 'PRO' ? 1299.90 : user.plan === 'MAX' ? 2499 : user.plan === 'ULTRA' ? 4499 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                              R$ {(user.plan_price ?? (user.plan === 'ESSENCIAL' ? 399.90 : user.plan === 'PRO' ? 649.00 : user.plan === 'MAX' ? 1499 : user.plan === 'ULTRA' ? 2299 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                               <span className="text-zinc-400 font-normal">/mês</span>
                                           </span>
                                       )}
@@ -1882,10 +1882,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Plano</label>
                                           <select value={directLinkForm.plan} onChange={e => setDirectLinkForm(f => ({...f, plan: e.target.value}))}
                                               className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white">
-                                              <option value="ESSENCIAL">Essencial — R$ 499,90/mês · 3 vagas</option>
-                                              <option value="PRO">Pro — R$ 1.299,90/mês · 10 vagas</option>
-                                              <option value="MAX">Max (Agência) — R$ 2.499,00/mês · 25 vagas</option>
-                                              <option value="ULTRA">Ultra (Agência) — R$ 4.499,00/mês · 50 vagas</option>
+                                              <option value="ESSENCIAL">Essencial — R$ 399,90/mês · 3 vagas</option>
+                                              <option value="PRO">Pro — R$ 649,00/mês · 10 vagas</option>
+                                              <option value="MAX">Max (Agência) — R$ 1.499,00/mês · 25 vagas</option>
+                                              <option value="ULTRA">Ultra (Agência) — R$ 2.299,00/mês · 50 vagas</option>
                                               <option value="ENTERPRISE">Enterprise — personalizado</option>
                                           </select>
                                       </div>
@@ -1908,11 +1908,11 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           {directLinkForm.plan === 'ENTERPRISE' ? (
                                               <span className="text-zinc-500 font-medium">Valor personalizado abaixo</span>
                                           ) : directLinkForm.billing === 'anual' ? (() => {
-                                              const ANUAL: Record<string,string> = { ESSENCIAL: 'R$ 4.799,04/ano', PRO: 'R$ 12.479,04/ano', MAX: 'R$ 20.991,60/ano', ULTRA: 'R$ 37.791,60/ano' };
+                                              const ANUAL: Record<string,string> = { ESSENCIAL: 'R$ 3.839,04/ano', PRO: 'R$ 6.230,40/ano', MAX: 'R$ 12.591,60/ano', ULTRA: 'R$ 19.311,60/ano' };
                                               const CHEIO: Record<string,string> = { ESSENCIAL: 'R$ 5.998,80', PRO: 'R$ 15.598,80', MAX: 'R$ 29.988,00', ULTRA: 'R$ 53.988,00' };
                                               return <span className="font-black text-zinc-900">{ANUAL[directLinkForm.plan] || ''}<span className="ml-2 text-xs text-zinc-400 font-medium line-through">{CHEIO[directLinkForm.plan] || ''}</span></span>;
                                           })() : (() => {
-                                              const MENSAL: Record<string,string> = { ESSENCIAL: 'R$ 499,90/mês', PRO: 'R$ 1.299,90/mês', MAX: 'R$ 2.499,00/mês', ULTRA: 'R$ 4.499,00/mês' };
+                                              const MENSAL: Record<string,string> = { ESSENCIAL: 'R$ 399,90/mês', PRO: 'R$ 649,00/mês', MAX: 'R$ 1.499,00/mês', ULTRA: 'R$ 2.299,00/mês' };
                                               return <span className="font-black text-zinc-900">{MENSAL[directLinkForm.plan] || ''}</span>;
                                           })()}
                                       </div>
@@ -2622,10 +2622,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Plano</label>
                                           <select value={directLinkForm.plan} onChange={e => setDirectLinkForm(f => ({...f, plan: e.target.value}))}
                                               className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white">
-                                              <option value="ESSENCIAL">Essencial — R$ 499,90/mês · 3 vagas</option>
-                                              <option value="PRO">Pro — R$ 1.299,90/mês · 10 vagas</option>
-                                              <option value="MAX">Max (Agência) — R$ 2.499,00/mês · 25 vagas</option>
-                                              <option value="ULTRA">Ultra (Agência) — R$ 4.499,00/mês · 50 vagas</option>
+                                              <option value="ESSENCIAL">Essencial — R$ 399,90/mês · 3 vagas</option>
+                                              <option value="PRO">Pro — R$ 649,00/mês · 10 vagas</option>
+                                              <option value="MAX">Max (Agência) — R$ 1.499,00/mês · 25 vagas</option>
+                                              <option value="ULTRA">Ultra (Agência) — R$ 2.299,00/mês · 50 vagas</option>
                                               <option value="ENTERPRISE">Enterprise — personalizado</option>
                                           </select>
                                       </div>
@@ -2648,11 +2648,11 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                           {directLinkForm.plan === 'ENTERPRISE' ? (
                                               <span className="text-zinc-500 font-medium">Valor personalizado abaixo</span>
                                           ) : directLinkForm.billing === 'anual' ? (() => {
-                                              const ANUAL: Record<string,string> = { ESSENCIAL: 'R$ 4.799,04/ano', PRO: 'R$ 12.479,04/ano', MAX: 'R$ 20.991,60/ano', ULTRA: 'R$ 37.791,60/ano' };
+                                              const ANUAL: Record<string,string> = { ESSENCIAL: 'R$ 3.839,04/ano', PRO: 'R$ 6.230,40/ano', MAX: 'R$ 12.591,60/ano', ULTRA: 'R$ 19.311,60/ano' };
                                               const CHEIO: Record<string,string> = { ESSENCIAL: 'R$ 5.998,80', PRO: 'R$ 15.598,80', MAX: 'R$ 29.988,00', ULTRA: 'R$ 53.988,00' };
                                               return <span className="font-black text-zinc-900">{ANUAL[directLinkForm.plan] || ''}<span className="ml-2 text-xs text-zinc-400 font-medium line-through">{CHEIO[directLinkForm.plan] || ''}</span></span>;
                                           })() : (() => {
-                                              const MENSAL: Record<string,string> = { ESSENCIAL: 'R$ 499,90/mês', PRO: 'R$ 1.299,90/mês', MAX: 'R$ 2.499,00/mês', ULTRA: 'R$ 4.499,00/mês' };
+                                              const MENSAL: Record<string,string> = { ESSENCIAL: 'R$ 399,90/mês', PRO: 'R$ 649,00/mês', MAX: 'R$ 1.499,00/mês', ULTRA: 'R$ 2.299,00/mês' };
                                               return <span className="font-black text-zinc-900">{MENSAL[directLinkForm.plan] || ''}</span>;
                                           })()}
                                       </div>
@@ -3798,17 +3798,17 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-2">
-                                        <button onClick={() => handleUpdatePlan('ESSENCIAL', tempPlanPrice ? parseFloat(tempPlanPrice) : 499.90)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
-                                            <span>ESSENCIAL</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas · R$ 499,90/mês</span>
+                                        <button onClick={() => handleUpdatePlan('ESSENCIAL', tempPlanPrice ? parseFloat(tempPlanPrice) : 399.90)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-white text-zinc-600 border-zinc-200 hover:border-black hover:text-black">
+                                            <span>ESSENCIAL</span> <span className="text-[10px] text-zinc-400 font-normal">3 Vagas · R$ 399,90/mês</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('PRO', tempPlanPrice ? parseFloat(tempPlanPrice) : 1299.90)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
-                                            <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas · R$ 1.299,90/mês</span>
+                                        <button onClick={() => handleUpdatePlan('PRO', tempPlanPrice ? parseFloat(tempPlanPrice) : 649.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-[#65a30d] text-black border-[#65a30d] hover:bg-[#4d7c0f]">
+                                            <span>PRO</span> <span className="text-[10px] text-black/60 font-normal">10 Vagas · R$ 649,00/mês</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('MAX', tempPlanPrice ? parseFloat(tempPlanPrice) : 2499.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-blue-600 text-white border-blue-600 hover:bg-blue-700">
-                                            <span>MAX (Agência)</span> <span className="text-[10px] text-white/70 font-normal">25 Vagas · R$ 2.499,00/mês</span>
+                                        <button onClick={() => handleUpdatePlan('MAX', tempPlanPrice ? parseFloat(tempPlanPrice) : 1499.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-blue-600 text-white border-blue-600 hover:bg-blue-700">
+                                            <span>MAX (Agência)</span> <span className="text-[10px] text-white/70 font-normal">25 Vagas · R$ 1.499,00/mês</span>
                                         </button>
-                                        <button onClick={() => handleUpdatePlan('ULTRA', tempPlanPrice ? parseFloat(tempPlanPrice) : 4499.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-violet-600 text-white border-violet-600 hover:bg-violet-700">
-                                            <span>ULTRA (Agência)</span> <span className="text-[10px] text-white/70 font-normal">50 Vagas · R$ 4.499,00/mês</span>
+                                        <button onClick={() => handleUpdatePlan('ULTRA', tempPlanPrice ? parseFloat(tempPlanPrice) : 2299.00)} className="text-xs font-bold py-3 px-3 rounded-xl border flex justify-between items-center transition-colors bg-violet-600 text-white border-violet-600 hover:bg-violet-700">
+                                            <span>ULTRA (Agência)</span> <span className="text-[10px] text-white/70 font-normal">50 Vagas · R$ 2.299,00/mês</span>
                                         </button>
                                         <button
                                             onClick={() => {
@@ -3832,7 +3832,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                     <p className="text-sm font-bold text-[#65a30d] mt-1">
                                         {selectedUser.plan === 'ENTERPRISE' && (!selectedUser.plan_price || selectedUser.plan_price === 0)
                                             ? <span className="text-zinc-400">A consultar — defina o valor acima</span>
-                                            : <>R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 499.90 : selectedUser.plan === 'PRO' ? 1499 : selectedUser.plan === 'MAX' ? 2499 : selectedUser.plan === 'ULTRA' ? 4499 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês</>
+                                            : <>R$ {(selectedUser.plan_price != null ? selectedUser.plan_price : (selectedUser.plan === 'ESSENCIAL' ? 399.90 : selectedUser.plan === 'PRO' ? 649 : selectedUser.plan === 'MAX' ? 1499 : selectedUser.plan === 'ULTRA' ? 2299 : 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês</>
                                         }
                                     </p>
                                     <p className="text-xs text-zinc-400 font-bold mt-1">

@@ -44,14 +44,14 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PLAN_PRICES: Record<string, number> = {
-  ESSENCIAL:       499.90,
-  ESSENCIAL_ANUAL: 4799.04,
-  PRO:             1299.90,
-  PRO_ANUAL:       12479.04,
-  MAX:             2499.00,
-  MAX_ANUAL:       20991.60,
-  ULTRA:           4499.00,
-  ULTRA_ANUAL:     37791.60,
+  ESSENCIAL:       399.90,
+  ESSENCIAL_ANUAL: 3839.04,
+  PRO:             649.00,
+  PRO_ANUAL:       6230.40,
+  MAX:             1499.00,
+  MAX_ANUAL:       12591.60,
+  ULTRA:           2299.00,
+  ULTRA_ANUAL:     19311.60,
   ENTERPRISE:      0,
 };
 
@@ -472,10 +472,10 @@ export const VendedorDashboard: React.FC = () => {
                         onChange={e => setLinkPlan(e.target.value)}
                         className="w-full border border-zinc-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 bg-white"
                       >
-                        <option value="ESSENCIAL">Essencial — R$ 499,90/mês · 3 vagas</option>
-                        <option value="PRO">Pro — R$ 1.299,90/mês · 10 vagas</option>
-                        <option value="MAX">Max (Agência) — R$ 2.499,00/mês · 25 vagas</option>
-                        <option value="ULTRA">Ultra (Agência) — R$ 4.499,00/mês · 50 vagas</option>
+                        <option value="ESSENCIAL">Essencial — R$ 399,90/mês · 3 vagas</option>
+                        <option value="PRO">Pro — R$ 649,00/mês · 10 vagas</option>
+                        <option value="MAX">Max (Agência) — R$ 1.499,00/mês · 25 vagas</option>
+                        <option value="ULTRA">Ultra (Agência) — R$ 2.299,00/mês · 50 vagas</option>
                         <option value="ENTERPRISE">Enterprise — personalizado</option>
                       </select>
                     </div>
