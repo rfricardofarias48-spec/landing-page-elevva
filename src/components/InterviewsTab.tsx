@@ -257,11 +257,11 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
       case 'AGENDADA': return 'Agendada';
       case 'CONFIRMADA': return 'Confirmada';
       case 'APROVADO': return 'Aprovado';
-      case 'REMARCADA': return 'Remarcada';
+      case 'REMARCADA': return 'Reagendado';
       case 'COMPLETED':
       case 'REALIZADA': return 'Concluída';
       case 'CANCELADA': return 'Cancelada';
-      case 'AGUARDANDO_NOVOS_HORARIOS': return 'Aguardando Horários';
+      case 'AGUARDANDO_NOVOS_HORARIOS': return 'Reagendando';
       default: return status;
     }
   };
