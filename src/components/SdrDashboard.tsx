@@ -1695,9 +1695,11 @@ export const SdrDashboard: React.FC = () => {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ nicho: gNicho.trim(), regiao: gRegiao.trim(), quantidade: gQtd }),
                         });
-                        const startData = await startRes.json();
+                        let startData: any;
+                        try { startData = await startRes.json(); }
+                        catch { setGError(`Erro do servidor (HTTP ${startRes.status}). Verifique se APIFY_TOKEN está configurado nas variáveis de ambiente.`); return; }
                         if (!startRes.ok || !startData.runId) {
-                          setGError(startData.error || 'Erro ao iniciar busca');
+                          setGError(startData.error || `Erro ao iniciar busca (HTTP ${startRes.status})`);
                           return;
                         }
                         // Passo 2: polling a cada 5s até SUCCEEDED (máx 2min)
@@ -1709,7 +1711,9 @@ export const SdrDashboard: React.FC = () => {
                           await new Promise(r => setTimeout(r, 5000));
                           attempts++;
                           const pollRes = await fetch(`/api/sdr/leads/result/${runId}`);
-                          const pollData = await pollRes.json();
+                          let pollData: any;
+                          try { pollData = await pollRes.json(); }
+                          catch { setGError(`Erro ao ler resultado (HTTP ${pollRes.status})`); return; }
                           if (!pollRes.ok) { setGError(pollData.error || 'Erro ao buscar resultado'); return; }
                           if (pollData.status === 'SUCCEEDED') {
                             const newLeads: StoredLead[] = (pollData.leads || []).map((l: GeneratedLead, idx: number) => ({
