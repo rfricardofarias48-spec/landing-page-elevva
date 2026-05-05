@@ -48,12 +48,15 @@ export const InterviewsTab: React.FC<Props> = ({ interviews, initialSelectedInte
         .eq('id', interview.candidate_id);
       if (error) throw error;
 
-      // Atualiza status da entrevista para APROVADO
       const { error: interviewError } = await supabase
         .from('interviews')
         .update({ status: 'APROVADO' })
         .eq('id', interview.id);
       if (interviewError) throw interviewError;
+
+      // Envia mensagem WhatsApp de aprovação (fire-and-forget — não bloqueia se falhar)
+      fetch(`/api/interviews/${interview.id}/notify-approved`, { method: 'POST' })
+        .catch(e => console.warn('[Approve] Falha ao enviar notificação WhatsApp:', e));
 
       onRefresh?.();
     } catch (err) {

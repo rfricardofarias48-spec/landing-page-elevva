@@ -2582,6 +2582,48 @@ app.post("/api/agendar/:token/book", async (req, res) => {
   }
 });
 
+// ── Notifica candidato aprovado via WhatsApp ──────────────────────────────────
+app.post("/api/interviews/:id/notify-approved", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: interview } = await supabaseAdmin
+      .from('interviews')
+      .select('id, candidate_id, job_id, candidate_name, candidate_phone')
+      .eq('id', id)
+      .single();
+    if (!interview) return res.status(404).json({ ok: false, error: 'Entrevista não encontrada' });
+
+    const { data: job } = await supabaseAdmin
+      .from('jobs').select('user_id, title').eq('id', interview.job_id).single();
+    if (!job) return res.status(404).json({ ok: false, error: 'Vaga não encontrada' });
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles').select('instancia_evolution, evolution_token').eq('id', job.user_id).single();
+    if (!profile?.instancia_evolution) return res.status(400).json({ ok: false, error: 'Instância Evolution não configurada' });
+
+    let phone = interview.candidate_phone as string | undefined;
+    if (!phone) {
+      const { data: candidate } = await supabaseAdmin
+        .from('candidates').select('"WhatsApp com DDD"').eq('id', interview.candidate_id).single();
+      phone = candidate?.['WhatsApp com DDD'] as string | undefined;
+    }
+    if (!phone) return res.status(400).json({ ok: false, error: 'Telefone do candidato não encontrado' });
+
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    const firstName = (interview.candidate_name as string || 'Candidato').split(' ')[0];
+    const jobTitle = (job.title as string || 'a vaga').trim();
+
+    const message = `Olá, *${firstName}*! 🎉\n\nTemos ótimas notícias — você foi *aprovado(a)* no processo seletivo para a vaga de *${jobTitle}*!\n\nEm breve, nosso time de RH entrará em contato com mais informações sobre os próximos passos. Parabéns! 🏆`;
+
+    await sendText(profile.instancia_evolution, cleanPhone, message, profile.evolution_token || undefined);
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('[Approve] Erro ao enviar notificação:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── Delete interview silently (Google Calendar deletion, no WhatsApp) ──
 app.delete("/api/interviews/:id", async (req, res) => {
   const { id } = req.params;
