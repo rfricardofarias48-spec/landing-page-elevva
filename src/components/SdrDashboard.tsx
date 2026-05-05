@@ -15,6 +15,15 @@ import {
 
 type SdrView = 'OVERVIEW' | 'LEADS' | 'SLOTS' | 'CONVERSATIONS' | 'PROMPTS' | 'GERADOR_LEADS';
 interface GeneratedLead { nome: string; categoria: string; endereco: string; cidade: string; telefone: string; site: string; email: string; rating: number | null; reviews: number }
+const LEAD_STATUS_OPTIONS = ['NOVO', 'CONTATADO', 'QUALIFICADO', 'DESCARTADO'] as const;
+type LeadLocalStatus = (typeof LEAD_STATUS_OPTIONS)[number];
+const LEAD_STATUS_COLOR: Record<LeadLocalStatus, string> = {
+  NOVO:        'bg-slate-700 text-slate-300',
+  CONTATADO:   'bg-blue-500/20 text-blue-400',
+  QUALIFICADO: 'bg-lime-500/20 text-lime-400',
+  DESCARTADO:  'bg-red-500/20 text-red-400',
+};
+interface StoredLead extends GeneratedLead { _id: string; obs: string; leadStatus: LeadLocalStatus; nicho: string; regiao_busca: string; gerado_em: string; }
 
 // ─── Prompt SDR — tipos e constantes (fora do componente para referência estável) ───
 interface SdrSection { key: string; label: string; description: string; rows: number }
@@ -136,17 +145,12 @@ export const SdrDashboard: React.FC = () => {
   const [gStatus, setGStatus] = useState<string>('');
   const [gStatsToday, setGStatsToday] = useState(0);
   const [gStatsMonth, setGStatsMonth] = useState(0);
-
-  const fetchGenerationStats = useCallback(async () => {
-    try {
-      const res = await fetch('/api/sdr/leads/generation-stats');
-      if (res.ok) {
-        const data = await res.json();
-        setGStatsToday(data.today ?? 0);
-        setGStatsMonth(data.month ?? 0);
-      }
-    } catch { /* silencioso */ }
-  }, []);
+  const [gAllLeads, setGAllLeads] = useState<StoredLead[]>(() => {
+    try { return JSON.parse(localStorage.getItem('elevva_sdr_leads') || '[]'); } catch { return []; }
+  });
+  const [gEditingObs, setGEditingObs] = useState<string | null>(null);
+  const [gTempObs, setGTempObs] = useState('');
+  const [gFilter, setGFilter] = useState<LeadLocalStatus | null>(null);
 
   // ─────── Data Fetching ───────────────────────────────────────────────────────
 
@@ -247,9 +251,15 @@ export const SdrDashboard: React.FC = () => {
     }
   };
 
+  // Persiste leads no localStorage e atualiza contadores
   useEffect(() => {
-    fetchGenerationStats();
-  }, [fetchGenerationStats]);
+    try { localStorage.setItem('elevva_sdr_leads', JSON.stringify(gAllLeads)); } catch {}
+    const todayStr = new Date().toDateString();
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+    setGStatsToday(gAllLeads.filter(l => new Date(l.gerado_em).toDateString() === todayStr).length);
+    setGStatsMonth(gAllLeads.filter(l => { const d = new Date(l.gerado_em); return `${d.getFullYear()}-${d.getMonth()}` === monthKey; }).length);
+  }, [gAllLeads]);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -1702,9 +1712,13 @@ export const SdrDashboard: React.FC = () => {
                           const pollData = await pollRes.json();
                           if (!pollRes.ok) { setGError(pollData.error || 'Erro ao buscar resultado'); return; }
                           if (pollData.status === 'SUCCEEDED') {
+                            const newLeads: StoredLead[] = (pollData.leads || []).map((l: GeneratedLead, idx: number) => ({
+                              ...l, _id: `${Date.now()}-${idx}`, obs: '', leadStatus: 'NOVO' as LeadLocalStatus,
+                              nicho: gNicho.trim(), regiao_busca: gRegiao.trim(), gerado_em: new Date().toISOString(),
+                            }));
+                            setGAllLeads(prev => [...newLeads, ...prev]);
                             setGLeads(pollData.leads || []);
                             setGStatus('');
-                            fetchGenerationStats();
                             return;
                           }
                           if (pollData.status !== 'RUNNING' && pollData.status !== 'READY') {
@@ -1726,37 +1740,34 @@ export const SdrDashboard: React.FC = () => {
                     {gLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                     {gLoading ? (gStatus || 'Buscando...') : 'Gerar Leads'}
                   </button>
-                  {gLeads.length > 0 && (
+                  {gAllLeads.length > 0 && (
                     <button
                       onClick={() => {
-                        const rows = gLeads.map((l, i) => `
+                        const leadsToExport = gFilter ? gAllLeads.filter(l => l.leadStatus === gFilter) : gAllLeads;
+                        const rows = leadsToExport.map((l, i) => `
                           <tr style="background:${i % 2 === 0 ? '#f9fafb' : '#ffffff'}">
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111">${l.nome || '—'}</td>
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#555">${l.categoria || '—'}</td>
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:monospace;color:#111">${l.cidade || '—'}</td>
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-family:monospace;color:#111">${l.telefone || '—'}</td>
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#555">${l.email || '—'}</td>
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#2563eb">${l.site ? `<a href="${l.site}">${l.site}</a>` : '—'}</td>
-                            <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#111">${l.rating ?? '—'}</td>
+                            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111">${l.nome || '—'}</td>
+                            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#555">${l.cidade || '—'}</td>
+                            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;color:#111">${l.telefone || '—'}</td>
+                            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#2563eb">${l.site ? `<a href="${l.site}">${l.site.replace(/^https?:\/\//, '')}</a>` : '—'}</td>
+                            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#555">${l.leadStatus}</td>
+                            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#555;font-size:12px">${l.obs || ''}</td>
                           </tr>`).join('');
                         const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-                          <title>Leads — ${gNicho} · ${gRegiao}</title>
+                          <title>Leads — Elevva SDR</title>
                           <style>
-                            body { font-family: Arial, sans-serif; margin: 32px; color: #111; }
-                            h1 { font-size: 22px; margin-bottom: 4px; }
-                            p { color: #666; font-size: 13px; margin-bottom: 24px; }
-                            table { width: 100%; border-collapse: collapse; font-size: 13px; }
-                            th { background: #1e293b; color: #fff; padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-                            @media print { @page { margin: 15mm; size: A4 landscape; } }
+                            body { font-family: Arial, sans-serif; margin: 18mm 15mm; color: #111; }
+                            h1 { font-size: 18px; margin-bottom: 4px; }
+                            p { color: #666; font-size: 12px; margin-bottom: 16px; }
+                            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                            th { background: #1e293b; color: #fff; padding: 8px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+                            @media print { @page { margin: 15mm; size: A4 portrait; } }
                           </style>
                         </head><body>
-                          <h1>Leads — ${gNicho}</h1>
-                          <p>${gLeads.length} empresas encontradas · Região: ${gRegiao} · Elevva SDR</p>
+                          <h1>Leads — Elevva SDR</h1>
+                          <p>${leadsToExport.length} leads · Gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
                           <table>
-                            <thead><tr>
-                              <th>Empresa</th><th>Categoria</th><th>Região</th>
-                              <th>Telefone</th><th>Email</th><th>Site</th><th>Rating</th>
-                            </tr></thead>
+                            <thead><tr><th>Empresa</th><th>Região</th><th>Telefone</th><th>Site</th><th>Status</th><th>Observação</th></tr></thead>
                             <tbody>${rows}</tbody>
                           </table>
                         </body></html>`;
@@ -1784,42 +1795,108 @@ export const SdrDashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Resultados */}
-              {gLeads.length > 0 && (
+              {/* Lista de Leads (persistente) */}
+              {gAllLeads.length > 0 && !gLoading && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-                    <span className="text-sm font-bold text-white">{gLeads.length} leads encontrados</span>
-                    <span className="text-xs text-slate-500">{gNicho} · {gRegiao}</span>
+                  {/* Header com filtros */}
+                  <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-sm font-bold text-white">
+                        {gFilter ? gAllLeads.filter(l => l.leadStatus === gFilter).length : gAllLeads.length} leads
+                        {gFilter && <span className="text-slate-500"> (filtrado)</span>}
+                      </span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => setGFilter(null)}
+                          className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg transition-colors ${gFilter === null ? 'bg-lime-500 text-slate-900' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                        >Todos</button>
+                        {LEAD_STATUS_OPTIONS.map(s => (
+                          <button key={s}
+                            onClick={() => setGFilter(gFilter === s ? null : s)}
+                            className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg transition-colors ${gFilter === s ? 'bg-lime-500 text-slate-900' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                          >{s}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { if (window.confirm('Limpar todos os leads salvos?')) { setGAllLeads([]); setGFilter(null); }}}
+                      className="text-xs text-slate-600 hover:text-red-400 font-bold transition-colors"
+                    >Limpar tudo</button>
                   </div>
+                  {/* Tabela */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-800 bg-slate-950/80 text-xs text-slate-500 uppercase tracking-wide">
                           <th className="px-4 py-3 text-left">Empresa</th>
-                          <th className="px-4 py-3 text-left">Categoria</th>
                           <th className="px-4 py-3 text-left">Região</th>
                           <th className="px-4 py-3 text-left">Telefone</th>
-                          <th className="px-4 py-3 text-left">Email</th>
                           <th className="px-4 py-3 text-left">Site</th>
-                          <th className="px-4 py-3 text-left">Rating</th>
+                          <th className="px-4 py-3 text-left">Status</th>
+                          <th className="px-4 py-3 text-center">Obs.</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {gLeads.map((lead, i) => (
-                          <tr key={i} className="border-b border-slate-800/50 hover:bg-white/[0.03] transition-colors">
-                            <td className="px-4 py-3 font-semibold text-white max-w-[200px] truncate">{lead.nome || '—'}</td>
-                            <td className="px-4 py-3 text-slate-400 max-w-[160px] truncate">{lead.categoria || '—'}</td>
-                            <td className="px-4 py-3 text-slate-300 font-mono text-xs whitespace-nowrap">{lead.cidade || '—'}</td>
-                            <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{lead.telefone || '—'}</td>
-                            <td className="px-4 py-3 text-slate-300">{lead.email || '—'}</td>
-                            <td className="px-4 py-3">
-                              {lead.site
-                                ? <a href={lead.site} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-lime-400 hover:text-lime-300 transition-colors"><Globe className="w-3 h-3" /><span className="truncate max-w-[120px]">{lead.site.replace(/^https?:\/\//, '')}</span></a>
-                                : <span className="text-slate-600">—</span>
-                              }
-                            </td>
-                            <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{lead.rating != null ? `${lead.rating} ★` : '—'}</td>
-                          </tr>
+                        {(gFilter ? gAllLeads.filter(l => l.leadStatus === gFilter) : gAllLeads).map(lead => (
+                          <React.Fragment key={lead._id}>
+                            <tr className="border-b border-slate-800/50 hover:bg-white/[0.02] transition-colors">
+                              <td className="px-4 py-3 font-semibold text-white max-w-[200px] truncate" title={lead.nome}>{lead.nome || '—'}</td>
+                              <td className="px-4 py-3 text-slate-300 text-xs whitespace-nowrap">{lead.cidade || '—'}</td>
+                              <td className="px-4 py-3 text-slate-300 whitespace-nowrap font-mono text-xs">{lead.telefone || '—'}</td>
+                              <td className="px-4 py-3">
+                                {lead.site
+                                  ? <a href={lead.site} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-lime-400 hover:text-lime-300 transition-colors max-w-[140px]"><Globe className="w-3 h-3 shrink-0" /><span className="truncate">{lead.site.replace(/^https?:\/\//, '')}</span></a>
+                                  : <span className="text-slate-600">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={() => {
+                                    const idx = LEAD_STATUS_OPTIONS.indexOf(lead.leadStatus);
+                                    const next = LEAD_STATUS_OPTIONS[(idx + 1) % LEAD_STATUS_OPTIONS.length];
+                                    setGAllLeads(prev => prev.map(l => l._id === lead._id ? { ...l, leadStatus: next } : l));
+                                  }}
+                                  className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg transition-all hover:opacity-80 ${LEAD_STATUS_COLOR[lead.leadStatus]}`}
+                                  title="Clique para mudar o status"
+                                >{lead.leadStatus}</button>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => { setGEditingObs(gEditingObs === lead._id ? null : lead._id); setGTempObs(lead.obs); }}
+                                  className={`p-1.5 rounded-lg transition-colors hover:bg-slate-800 ${lead.obs ? 'text-lime-400' : 'text-slate-600'}`}
+                                  title={lead.obs || 'Adicionar observação'}
+                                ><MessageSquare className="w-3.5 h-3.5" /></button>
+                              </td>
+                            </tr>
+                            {gEditingObs === lead._id && (
+                              <tr className="border-b border-slate-800/50 bg-slate-950/40">
+                                <td colSpan={6} className="px-4 py-3">
+                                  <div className="flex gap-2 items-start">
+                                    <textarea
+                                      value={gTempObs}
+                                      onChange={e => setGTempObs(e.target.value)}
+                                      placeholder="Observação sobre este lead..."
+                                      rows={2}
+                                      autoFocus
+                                      className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-lime-500 resize-none transition-colors"
+                                    />
+                                    <div className="flex flex-col gap-1.5 shrink-0">
+                                      <button
+                                        onClick={() => { setGAllLeads(prev => prev.map(l => l._id === lead._id ? { ...l, obs: gTempObs } : l)); setGEditingObs(null); }}
+                                        className="px-3 py-1.5 bg-lime-500 hover:bg-lime-400 text-slate-900 rounded-lg text-xs font-black transition-colors"
+                                      >Salvar</button>
+                                      <button
+                                        onClick={() => setGEditingObs(null)}
+                                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-xs font-bold transition-colors"
+                                      >Cancelar</button>
+                                    </div>
+                                  </div>
+                                  {lead.obs && gTempObs === lead.obs && (
+                                    <p className="text-xs text-slate-500 mt-2 px-1">Atual: {lead.obs}</p>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>
@@ -1835,7 +1912,7 @@ export const SdrDashboard: React.FC = () => {
                 </div>
               )}
 
-              {!gLoading && gLeads.length === 0 && !gError && (
+              {!gLoading && gAllLeads.length === 0 && !gError && (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-600">
                   <Zap className="w-12 h-12 mb-3 opacity-20" />
                   <p className="font-semibold text-slate-500">Nenhuma busca realizada</p>

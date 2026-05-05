@@ -673,28 +673,6 @@ async function handleReschedule(
       },
     }, supabase);
 
-    // Notify recruiter via slot_requests (shown as in-app notification card)
-    const jobTitleForRequest = conv.context.job_title || jobTitle;
-    const { error: slotReqErr } = await supabase
-      .from('slot_requests')
-      .upsert(
-        {
-          profile_id: conv.user_id,
-          interview_id: interview.id,
-          job_id: interview.job_id,
-          candidate_name: candidateName,
-          job_title: jobTitleForRequest,
-          status: 'pending',
-        },
-        { onConflict: 'interview_id' },
-      );
-
-    if (slotReqErr) {
-      console.warn(`[Agent] slot_requests insert failed: ${slotReqErr.message}`);
-    } else {
-      console.log(`[Agent] slot_request created for recruiter ${conv.user_id} — candidate: ${candidateName}, job: ${jobTitleForRequest}`);
-    }
-
     await send(phone, `Entendi que você precisa reagendar, *${conv.context.candidate_name || 'candidato'}*.\n\nInfelizmente, não há outros horários disponíveis no momento. Já notificamos o recrutador para liberar novas datas.\n\nAssim que houver novos horários, enviaremos o link para você escolher. 😊`);
     return;
   }
@@ -712,11 +690,11 @@ async function handleReschedule(
       .eq('id', interview.slot_id);
   }
 
-  // Critical: reset slot_id and status (slot_date/slot_time live in availability_slots, not interviews)
+  // Reset slot and move directly to AGUARDANDO_ESCOLHA_SLOT (no transient REMARCADA step)
   const { error: remarcadaErr } = await supabase.from('interviews')
-    .update({ slot_id: null, status: 'REMARCADA' })
+    .update({ slot_id: null, status: 'AGUARDANDO_ESCOLHA_SLOT' })
     .eq('id', interview.id);
-  if (remarcadaErr) console.error(`[Agent] Failed to set REMARCADA for interview ${interview.id}: ${remarcadaErr.message}`);
+  if (remarcadaErr) console.error(`[Agent] Failed to set AGUARDANDO_ESCOLHA_SLOT for interview ${interview.id}: ${remarcadaErr.message}`);
 
   // Optional: clear Google Calendar fields (best-effort)
   supabase.from('interviews').update({ meeting_link: null, google_event_id: null })
@@ -725,7 +703,7 @@ async function handleReschedule(
   // Ensure scheduling token exists
   let token = interview.scheduling_token;
   if (!token) {
-    token = crypto.randomBytes(6).toString('base64url');
+    token = crypto.randomBytes(32).toString('base64url');
     await supabase
       .from('interviews')
       .update({ scheduling_token: token })
@@ -874,7 +852,7 @@ export async function processIncomingMessage(
         .from('interviews')
         .select('id, status, scheduling_token, job_id')
         .eq('candidate_id', candidateByPhone.id)
-        .in('status', ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'REMARCADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS'])
+        .in('status', ['AGUARDANDO_RESPOSTA', 'AGUARDANDO_ESCOLHA_SLOT', 'CONFIRMADA', 'AGENDADA', 'ENTREVISTA_CONFIRMADA', 'AGUARDANDO_NOVOS_HORARIOS'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -882,7 +860,6 @@ export async function processIncomingMessage(
       if (activeInterview) {
         const syncedState =
           activeInterview.status === 'CONFIRMADA' || activeInterview.status === 'AGENDADA' ? 'ENTREVISTA_CONFIRMADA' :
-          activeInterview.status === 'REMARCADA' ? 'AGUARDANDO_ESCOLHA_SLOT' :
           activeInterview.status === 'AGUARDANDO_ESCOLHA_SLOT' || activeInterview.status === 'AGUARDANDO_RESPOSTA' ? 'AGUARDANDO_ESCOLHA_SLOT' :
           activeInterview.status === 'AGUARDANDO_NOVOS_HORARIOS' ? 'AGUARDANDO_NOVOS_HORARIOS' :
           conv.state;
@@ -1150,7 +1127,7 @@ export async function triggerSchedulingForCandidates(
   console.log(`[Agent] triggerScheduling: ${rawSlots?.length ?? 0} slots brutos, ${slots.length} válidos para job ${jobId}`);
 
   if (slots.length === 0) {
-    // Mark all interviews as waiting for slots instead of throwing — notifyPendingReschedules will pick them up later
+    // Mark all interviews as waiting for slots — POST /api/slots will notify them when recruiter adds new times
     await supabase.from('interviews')
       .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
       .in('id', interviewIds)
@@ -1213,7 +1190,7 @@ export async function triggerSchedulingForCandidates(
       // Generate scheduling token if not exists
       let token = interview.scheduling_token;
       if (!token) {
-        token = crypto.randomBytes(6).toString('base64url');
+        token = crypto.randomBytes(32).toString('base64url');
       }
       // Critical path: always save token (fails if user_id column missing)
       await supabase
@@ -1272,182 +1249,3 @@ export async function triggerSchedulingForCandidates(
   return { sent, errors };
 }
 
-/**
- * Re-send scheduling links to candidates whose interviews are AGUARDANDO_NOVOS_HORARIOS.
- * Called after recruiter adds new slots for a job.
- */
-export async function notifyPendingReschedules(
-  userId: string,
-  jobId: string,
-  supabase: SupabaseClient,
-): Promise<{ sent: number; errors: number }> {
-  // Primary: find interviews with AGUARDANDO_NOVOS_HORARIOS status
-  const { data: primaryInterviews } = await supabase
-    .from('interviews')
-    .select('id, candidate_id, scheduling_token, job_id')
-    .eq('job_id', jobId)
-    .eq('status', 'AGUARDANDO_NOVOS_HORARIOS');
-
-  // Fallback: find conversations in AGUARDANDO_NOVOS_HORARIOS state for this user —
-  // handles cases where the interview status update failed (e.g. past CHECK constraint issue)
-  const { data: waitingConvs } = await supabase
-    .from('agent_conversations')
-    .select('context')
-    .eq('user_id', userId)
-    .eq('state', 'AGUARDANDO_NOVOS_HORARIOS');
-
-  const fallbackInterviewIds = new Set<string>();
-  for (const conv of (waitingConvs || [])) {
-    const interviewId = (conv.context as any)?.interview_id;
-    if (interviewId) fallbackInterviewIds.add(interviewId);
-  }
-
-  // Merge: collect all interview ids already found by the primary query
-  const primaryIds = new Set((primaryInterviews || []).map((i: any) => i.id));
-
-  // Fetch any missing fallback interviews that belong to this job
-  const missingIds = Array.from(fallbackInterviewIds).filter(id => !primaryIds.has(id));
-  let fallbackInterviews: any[] = [];
-  if (missingIds.length > 0) {
-    const { data: extra } = await supabase
-      .from('interviews')
-      .select('id, candidate_id, scheduling_token, job_id')
-      .in('id', missingIds)
-      .eq('job_id', jobId)
-      .not('status', 'in', '("CANCELADA","REALIZADA","COMPLETED")');
-    fallbackInterviews = extra || [];
-  }
-
-  const pendingInterviews = [...(primaryInterviews || []), ...fallbackInterviews];
-
-  if (pendingInterviews.length === 0) {
-    return { sent: 0, errors: 0 };
-  }
-
-  // Check there are now available non-expired slots (Brazil UTC-3)
-  const nowBrCheck = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const todayBrCheck = nowBrCheck.toISOString().split('T')[0];
-  const currentTimeBrCheck = nowBrCheck.toISOString().split('T')[1].slice(0, 5);
-
-  const { data: rawSlots } = await supabase
-    .from('availability_slots')
-    .select('id, slot_date, slot_time')
-    .eq('user_id', userId)
-    .eq('is_booked', false)
-    .gte('slot_date', todayBrCheck);
-
-  const validSlots = (rawSlots || []).filter((s: any) =>
-    s.slot_date > todayBrCheck || (s.slot_date === todayBrCheck && s.slot_time > currentTimeBrCheck)
-  );
-
-  if (validSlots.length === 0) {
-    return { sent: 0, errors: 0 };
-  }
-
-  // Get recruiter's Evolution instance
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('instancia_evolution, evolution_token')
-    .eq('id', userId)
-    .single();
-
-  if (!profile?.instancia_evolution) {
-    throw new Error('Instância Evolution não configurada.');
-  }
-
-  const instance = profile.instancia_evolution;
-  const instanceToken: string | undefined = profile.evolution_token || undefined;
-  const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
-
-  // Get job title
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('title')
-    .eq('id', jobId)
-    .single();
-
-  let sent = 0;
-  let errors = 0;
-
-  for (const iv of pendingInterviews) {
-    try {
-      const { data: candidate } = await supabase
-        .from('candidates')
-        .select('"WhatsApp com DDD", "Nome Completo"')
-        .eq('id', iv.candidate_id)
-        .single();
-
-      const rawPhone = candidate?.['WhatsApp com DDD' as keyof typeof candidate] as string | undefined;
-      if (!rawPhone) { errors++; continue; }
-
-      const candidateName = candidate?.['Nome Completo' as keyof typeof candidate] as string | undefined;
-      const firstName = candidateName?.split(' ')[0] || 'Candidato';
-
-      // Prefer verified phone from agent_conversations (same logic as triggerSchedulingForCandidates)
-      const digitsOnly = rawPhone.replace(/@.*$/, '').replace(/\D/g, '');
-      let phone = digitsOnly;
-      const { data: existingConv } = await supabase
-        .from('agent_conversations')
-        .select('phone')
-        .eq('user_id', userId)
-        .ilike('phone', `%${digitsOnly.slice(-8)}%`)
-        .maybeSingle();
-      if (existingConv?.phone) {
-        phone = existingConv.phone.replace(/^\+/, '');
-      }
-
-      // Ensure scheduling token
-      let token = iv.scheduling_token;
-      if (!token) {
-        token = crypto.randomBytes(6).toString('base64url');
-        await supabase.from('interviews')
-          .update({ scheduling_token: token })
-          .eq('id', iv.id);
-      }
-
-      const link = `${baseUrl}/e/${token}`;
-
-      // Atomic status update — only proceeds if the interview is still in a "waiting" state.
-      // Prevents duplicate WhatsApp when two concurrent notify calls run at the same time.
-      const { data: claimed } = await supabase.from('interviews')
-        .update({ status: 'AGUARDANDO_ESCOLHA_SLOT' })
-        .eq('id', iv.id)
-        .in('status', ['AGUARDANDO_NOVOS_HORARIOS', 'AGUARDANDO_RESPOSTA'])
-        .select('id')
-        .maybeSingle();
-      if (!claimed) { continue; } // already handled by a concurrent call — don't double-send
-
-      // Update conversation state
-      await supabase.from('agent_conversations')
-        .update({
-          state: 'AGUARDANDO_ESCOLHA_SLOT',
-          context: {
-            job_title: job?.title || 'a vaga',
-            candidate_name: candidateName,
-            interview_id: iv.id,
-            scheduling_token: token,
-          },
-          updated_at: new Date().toISOString(),
-        })
-        .eq('phone', phone)
-        .eq('user_id', userId);
-
-      // Send WhatsApp message
-      await evo.sendText(instance, phone, `Olá, *${firstName}*! 👋\n\nHorários disponíveis para sua entrevista na vaga de *${job?.title?.trim() || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`, instanceToken);
-
-      // Mark slot_request as handled now that candidate was notified
-      await supabase.from('slot_requests')
-        .update({ status: 'handled' })
-        .eq('interview_id', iv.id)
-        .eq('status', 'pending');
-
-      sent++;
-    } catch (err) {
-      console.error(`[Agent] notifyPendingReschedules error for interview ${iv.id}:`, err);
-      errors++;
-    }
-  }
-
-  console.log(`[Agent] notifyPendingReschedules: ${sent} sent, ${errors} errors for job ${jobId}`);
-  return { sent, errors };
-}

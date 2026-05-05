@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { analyzeResume, generateDailyBriefing, BriefingJob } from "./src/services/hermesService.js";
-import { processIncomingMessage, triggerSchedulingForCandidates, notifyPendingReschedules } from "./src/services/agentService.js";
+import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
 import { cleanPhone, sendText, configureWebhookBase64 } from "./src/services/evolutionService.js";
 import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chatwootService.js";
@@ -39,12 +40,75 @@ function normalizeName(raw: string): string {
 const app = express();
 const PORT = 3000;
 
-app.use(cors());
+const ALLOWED_ORIGINS = [
+  'https://app.elevva.net.br',
+  'https://www.elevva.net.br',
+  'https://elevva.net.br',
+  // Desenvolvimento local
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+app.use(cors({
+  origin: (origin, cb) => {
+    // Permite requests sem origin (curl, mobile apps, webhooks Evolution/Chatwoot)
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origem não permitida: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key'],
+}));
+
+// Rate limiters
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.headers['x-forwarded-for'] || req.ip || 'unknown'),
+  skip: (_req) => process.env.NODE_ENV === 'test',
+});
+
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(express.json({ limit: "50mb" })); // Large limit for base64 PDFs from Evolution API
 
+// ── Middleware: protege rotas /api/admin/* ──────────────────────────────────
+// Verifica JWT Supabase no header Authorization e confirma plan = 'ADMIN'
+async function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  try {
+    const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    // Aceita ADMIN_SECRET como alternativa para chamadas server-to-server / curl
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (adminSecret && token === adminSecret) return next();
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    // Valida JWT via Supabase
+    const adminClient = createClient(
+      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    );
+    const { data: { user }, error } = await adminClient.auth.getUser(token);
+    if (error || !user) return res.status(401).json({ error: 'Token inválido' });
+    const { data: profile } = await adminClient.from('profiles').select('plan').eq('id', user.id).maybeSingle();
+    if (profile?.plan !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado' });
+    next();
+  } catch {
+    res.status(500).json({ error: 'Erro na autenticação' });
+  }
+}
+
 // Initialize Supabase for backend
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://dbfttgtntntuiimbqzgu.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiZnR0Z3RudG50dWlpbWJxemd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMTUwODksImV4cCI6MjA4NTg5MTA4OX0.H36Kv-PzK8Ab8FN5HzAWO5S_y8t-z8gExl5GsDBQchs';
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+if (!supabaseUrl || !supabaseKey) {
+  console.error('[FATAL] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados. Verifique as variáveis de ambiente.');
+}
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Admin client with service role key for RLS-protected tables
@@ -58,7 +122,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // Backfill: popula chatwoot_conversation_id nos registros agent_conversations que estão null
-app.post("/api/admin/backfill-chatwoot-ids", async (req, res) => {
+app.post("/api/admin/backfill-chatwoot-ids", adminLimiter, requireAdmin, async (req, res) => {
   try {
     const chatwootBase = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
     const adminToken = process.env.CHATWOOT_ADMIN_TOKEN || '';
@@ -291,7 +355,7 @@ app.get("/api/webhooks/enterprise/vagas-ativas", async (req, res) => {
   }
 });
 
-app.post("/api/webhooks/enterprise/resume", async (req, res) => {
+app.post("/api/webhooks/enterprise/resume", webhookLimiter, async (req, res) => {
   try {
     // 1. Security: Verify API Key
     const authHeader = req.headers.authorization;
@@ -621,7 +685,7 @@ app.get("/api/interviews/:id/confirm", async (req, res) => {
 });
 
 // Endpoint para confirmar entrevista via Webhook (POST) - Ex: n8n ou Chatwoot
-app.post("/api/webhooks/interviews/confirm", async (req, res) => {
+app.post("/api/webhooks/interviews/confirm", webhookLimiter, async (req, res) => {
   try {
     const { interview_id, candidate_phone } = req.body;
 
@@ -680,7 +744,7 @@ app.post("/api/webhooks/interviews/confirm", async (req, res) => {
 // ADMIN: Configurar webhook_base64 na instância Evolution GO
 // Chamado pelo Admin ao salvar configurações do agente
 // ─────────────────────────────────────────────────────────────────────
-app.post("/api/admin/configure-evolution-webhook", async (req, res) => {
+app.post("/api/admin/configure-evolution-webhook", adminLimiter, requireAdmin, async (req, res) => {
   try {
     const { instance, token } = req.body as { instance: string; token: string };
     if (!instance || !token) {
@@ -700,7 +764,7 @@ app.post("/api/admin/configure-evolution-webhook", async (req, res) => {
 // POST /api/admin/configure-chatwoot
 // Body: { instance, evolutionToken, chatwootAccountId, chatwootToken, chatwootInboxId }
 // ─────────────────────────────────────────────────────────────────────
-app.post("/api/admin/configure-chatwoot", async (req, res) => {
+app.post("/api/admin/configure-chatwoot", adminLimiter, requireAdmin, async (req, res) => {
   try {
     const { instance, evolutionToken, chatwootAccountId, chatwootToken, chatwootInboxId } =
       req.body as {
@@ -734,7 +798,7 @@ app.post("/api/admin/configure-chatwoot", async (req, res) => {
 // POST /api/admin/reconfigure-chatwoot/:userId
 // Lê os dados salvos no perfil e refaz a integração Evolution ↔ Chatwoot.
 // ─────────────────────────────────────────────────────────────────────
-app.post("/api/admin/reconfigure-chatwoot/:userId", async (req, res) => {
+app.post("/api/admin/reconfigure-chatwoot/:userId", adminLimiter, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { data: profile, error } = await supabaseAdmin
@@ -811,7 +875,7 @@ app.post("/api/admin/reconfigure-chatwoot/:userId", async (req, res) => {
 // ADMIN: Diagnóstico Chatwoot — mostra estado atual da integração
 // GET /api/admin/diagnose-chatwoot/:userId
 // ─────────────────────────────────────────────────────────────────────
-app.get("/api/admin/diagnose-chatwoot/:userId", async (req, res) => {
+app.get("/api/admin/diagnose-chatwoot/:userId", adminLimiter, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { data: profile } = await supabaseAdmin
@@ -918,7 +982,7 @@ app.get("/api/admin/diagnose-chatwoot/:userId", async (req, res) => {
 // ADMIN: Deletar usuário (profiles + Supabase Auth)
 // DELETE /api/admin/delete-user/:id
 // ─────────────────────────────────────────────────────────────────────
-app.delete("/api/admin/delete-user/:id", async (req, res) => {
+app.delete("/api/admin/delete-user/:id", adminLimiter, requireAdmin, async (req, res) => {
   const log: string[] = [];
 
   try {
@@ -1042,7 +1106,7 @@ app.delete("/api/admin/delete-user/:id", async (req, res) => {
 // ADMIN: Contagem real de CVs por usuário (bypassa RLS via service role)
 // GET /api/admin/cv-counts
 // ─────────────────────────────────────────────────────────────────────
-app.get("/api/admin/cv-counts", async (_req, res) => {
+app.get("/api/admin/cv-counts", adminLimiter, requireAdmin, async (_req, res) => {
   try {
     // Busca todos os jobs com seus candidatos usando service role (sem RLS)
     const { data: jobs, error } = await supabaseAdmin
@@ -1067,7 +1131,7 @@ app.get("/api/admin/cv-counts", async (_req, res) => {
 // ADMIN: Setup Check — testa todas as integrações do sistema
 // GET /api/admin/setup-check
 // ─────────────────────────────────────────────────────────────────────
-app.get("/api/admin/setup-check", async (_req, res) => {
+app.get("/api/admin/setup-check", adminLimiter, requireAdmin, async (_req, res) => {
   const results: Record<string, { ok: boolean; label: string; detail: string }> = {};
 
   // 1. Supabase
@@ -1173,7 +1237,7 @@ app.get("/api/admin/setup-check", async (_req, res) => {
 // ADMIN: Contas — lista clientes com status de saúde
 // GET /api/admin/accounts-health
 // ─────────────────────────────────────────────────────────────────────
-app.get("/api/admin/accounts-health", async (_req, res) => {
+app.get("/api/admin/accounts-health", adminLimiter, requireAdmin, async (_req, res) => {
   try {
     const { data: profiles, error } = await supabaseAdmin
       .from('profiles')
@@ -1238,7 +1302,7 @@ app.get("/api/admin/accounts-health", async (_req, res) => {
 // Configure este URL no Chatwoot: Settings → Integrations → Webhooks
 // POST /api/webhooks/chatwoot
 // ─────────────────────────────────────────────────────────────────────
-app.post("/api/webhooks/chatwoot", async (req, res) => {
+app.post("/api/webhooks/chatwoot", webhookLimiter, async (req, res) => {
   // Verificar segredo do webhook
   const secret = process.env.CHATWOOT_WEBHOOK_SECRET;
   if (secret) {
@@ -1356,7 +1420,7 @@ app.post("/api/webhooks/chatwoot", async (req, res) => {
 // Configure este URL no painel da Evolution API como webhook de entrada
 // POST https://seu-dominio.com/api/webhooks/agent/whatsapp
 // ─────────────────────────────────────────────────────────────────────
-app.post("/api/webhooks/agent/whatsapp", async (req, res) => {
+app.post("/api/webhooks/agent/whatsapp", webhookLimiter, async (req, res) => {
   // ARQUITETURA: processar PRIMEIRO, responder DEPOIS.
   // Vercel encerra o Lambda imediatamente após res.json(), mesmo com await.
   // Processar antes garante que toda a lógica roda dentro do contexto ativo.
@@ -1534,61 +1598,16 @@ app.post("/api/agent/start-scheduling", async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────
-// Notifica candidatos com reagendamento pendente quando novos slots são adicionados
-// POST /api/agent/notify-pending-reschedules
-// Body: { user_id: string, job_id: string }
-// ─────────────────────────────────────────────────────────────────────
-app.post("/api/agent/notify-pending-reschedules", async (req, res) => {
-  try {
-    const { user_id, job_id } = req.body as { user_id: string; job_id: string };
-
-    if (!user_id || !job_id) {
-      return res.status(400).json({ error: "Campos obrigatórios: user_id, job_id" });
-    }
-
-    const result = await notifyPendingReschedules(user_id, job_id, supabaseAdmin);
-
-    return res.status(200).json({
-      ok: true,
-      message: `${result.sent} candidato(s) notificado(s).`,
-      ...result,
-    });
-  } catch (err: unknown) {
-    console.error("[Notify Pending Reschedules] Error:", err);
-    return res.status(500).json({
-      error: err instanceof Error ? err.message : "Erro interno do servidor.",
-    });
-  }
+// POST /api/agent/notify-pending-reschedules — deprecated, notification now happens inside POST /api/slots
+app.post("/api/agent/notify-pending-reschedules", (_req, res) => {
+  res.json({ ok: true, sent: 0, errors: 0, deprecated: true });
 });
 
 // ─────────────────────────────────────────────────────────────────────
 // Notifica TODOS os candidatos em espera quando recrutador adiciona novos horários
-// POST /api/agent/notify-all-pending
-// Body: { user_id: string }
-app.post("/api/agent/notify-all-pending", async (req, res) => {
-  try {
-    const { user_id } = req.body as { user_id: string };
-    if (!user_id) return res.status(400).json({ error: "user_id obrigatório" });
-
-    const { data: jobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', user_id);
-    let totalSent = 0;
-    let totalErrors = 0;
-
-    for (const job of (jobs || [])) {
-      try {
-        const result = await notifyPendingReschedules(user_id, job.id, supabaseAdmin);
-        totalSent += result.sent;
-        totalErrors += result.errors;
-      } catch (_) { /* per-job errors are non-fatal */ }
-    }
-
-    console.log(`[Notify All Pending] user=${user_id} sent=${totalSent} errors=${totalErrors}`);
-    return res.json({ ok: true, sent: totalSent, errors: totalErrors });
-  } catch (err: unknown) {
-    console.error("[Notify All Pending] Error:", err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Erro interno." });
-  }
+// POST /api/agent/notify-all-pending — deprecated, notification now happens inside POST /api/slots
+app.post("/api/agent/notify-all-pending", (_req, res) => {
+  res.json({ ok: true, sent: 0, errors: 0, deprecated: true });
 });
 
 // ─────────────────────────────────────────────────────────────────────
@@ -2082,7 +2101,7 @@ app.get('/api/slots', async (req, res) => {
   }
 });
 
-// POST /api/slots — create slots (AvailableSlotsModal save)
+// POST /api/slots — create slots and immediately notify waiting candidates
 app.post('/api/slots', async (req, res) => {
   try {
     const { user_id, slots } = req.body as {
@@ -2090,6 +2109,7 @@ app.post('/api/slots', async (req, res) => {
       slots: Array<{ slot_date: string; slot_time: string; format: string; location?: string | null; interviewer_name?: string | null }>;
     };
     if (!user_id || !slots?.length) return res.status(400).json({ ok: false, error: 'user_id e slots obrigatórios' });
+
     const toInsert = slots.map(s => ({
       user_id, slot_date: s.slot_date, slot_time: s.slot_time,
       format: s.format || 'ONLINE', location: s.location || null,
@@ -2098,7 +2118,109 @@ app.post('/api/slots', async (req, res) => {
     const { error } = await supabaseAdmin.from('availability_slots').insert(toInsert);
     if (error) return res.status(500).json({ ok: false, error: error.message });
 
-    return res.json({ ok: true, inserted: toInsert.length });
+    // Notify candidates waiting for new slots (AGUARDANDO_NOVOS_HORARIOS)
+    let notified = 0;
+    try {
+      // Get job ids that belong to this recruiter
+      const { data: userJobs } = await supabaseAdmin.from('jobs').select('id').eq('user_id', user_id);
+      const userJobIds = (userJobs || []).map((j: any) => j.id);
+
+      if (userJobIds.length > 0) {
+        const { data: pending } = await supabaseAdmin
+          .from('interviews')
+          .select('id, candidate_id, scheduling_token, job_id')
+          .eq('status', 'AGUARDANDO_NOVOS_HORARIOS')
+          .in('job_id', userJobIds);
+
+        if (pending && pending.length > 0) {
+          const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('instancia_evolution, evolution_token')
+            .eq('id', user_id)
+            .single();
+
+          const baseUrl = process.env.BASE_URL || 'https://app.elevva.net.br';
+
+          for (const iv of pending) {
+            try {
+              const { data: candidate } = await supabaseAdmin
+                .from('candidates')
+                .select('"WhatsApp com DDD", "Nome Completo"')
+                .eq('id', iv.candidate_id)
+                .single();
+
+              const rawPhone = candidate?.['WhatsApp com DDD'];
+              if (!rawPhone) continue;
+
+              const candidateName = (candidate?.['Nome Completo'] as string | undefined);
+              const firstName = candidateName?.split(' ')[0] || 'Candidato';
+              const digitsOnly = String(rawPhone).replace(/@.*$/, '').replace(/\D/g, '');
+
+              // Prefer verified phone from agent_conversations
+              let phone = digitsOnly;
+              const { data: existingConv } = await supabaseAdmin
+                .from('agent_conversations')
+                .select('phone')
+                .eq('user_id', user_id)
+                .ilike('phone', `%${digitsOnly.slice(-8)}%`)
+                .maybeSingle();
+              if (existingConv?.phone) phone = existingConv.phone.replace(/^\+/, '');
+
+              // Ensure scheduling token
+              let token = iv.scheduling_token as string | undefined;
+              if (!token) {
+                const { randomBytes } = await import('crypto');
+                token = randomBytes(32).toString('base64url');
+                await supabaseAdmin.from('interviews').update({ scheduling_token: token }).eq('id', iv.id);
+              }
+
+              const link = `${baseUrl}/e/${token}`;
+
+              const { data: job } = await supabaseAdmin.from('jobs').select('title').eq('id', iv.job_id).single();
+
+              // Atomic claim — prevents double-send on concurrent calls
+              const { data: claimed } = await supabaseAdmin
+                .from('interviews')
+                .update({ status: 'AGUARDANDO_ESCOLHA_SLOT' })
+                .eq('id', iv.id)
+                .eq('status', 'AGUARDANDO_NOVOS_HORARIOS')
+                .select('id')
+                .maybeSingle();
+              if (!claimed) continue;
+
+              // Update conversation state
+              await supabaseAdmin.from('agent_conversations')
+                .update({
+                  state: 'AGUARDANDO_ESCOLHA_SLOT',
+                  context: { job_title: job?.title || 'a vaga', candidate_name: candidateName, interview_id: iv.id, scheduling_token: token },
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('phone', phone)
+                .eq('user_id', user_id);
+
+              // Send WhatsApp link
+              if (profile?.instancia_evolution) {
+                await sendText(
+                  profile.instancia_evolution,
+                  phone,
+                  `Olá, *${firstName}*! 👋\n\nHorários disponíveis para sua entrevista na vaga de *${(job?.title as string | undefined)?.trim() || 'a vaga'}*.\n\n📅 Escolha o melhor horário:\n${link}\n\n_Clique no link para selecionar seu horário._`,
+                  profile.evolution_token || undefined,
+                );
+              }
+
+              notified++;
+            } catch (ivErr) {
+              console.error(`[Slots] Erro ao notificar entrevista ${iv.id}:`, ivErr);
+            }
+          }
+        }
+      }
+    } catch (notifyErr) {
+      console.error('[Slots] Erro na notificação automática:', notifyErr);
+    }
+
+    console.log(`[Slots] user=${user_id} inserted=${toInsert.length} notified=${notified}`);
+    return res.json({ ok: true, inserted: toInsert.length, notified });
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'Erro interno' });
   }
@@ -2263,43 +2385,11 @@ app.get("/api/agendar/:token", async (req, res) => {
     console.log(`[Scheduling] noSlotsAvailable=${noSlotsAvailable} slots_rendered=${slots.length}`);
 
     if (noSlotsAvailable) {
-      // Update interview status so notifyPendingReschedules picks it up later
+      // Mark interview as waiting — recruiter will be notified via Realtime on the app
       await supabaseAdmin.from('interviews')
         .update({ status: 'AGUARDANDO_NOVOS_HORARIOS' })
         .eq('id', interview.id)
-        .in('status', ['AGUARDANDO_ESCOLHA_SLOT', 'AGUARDANDO_RESPOSTA', 'AGUARDANDO_NOVOS_HORARIOS', 'REMARCADA']);
-
-      // Notify recruiter — fire-and-forget, never crashes the page
-      (async () => {
-        try {
-          const { data: existing } = await supabaseAdmin
-            .from('slot_requests').select('id').eq('interview_id', interview.id).maybeSingle();
-          if (!existing) {
-            const { data: jobOwner } = await supabaseAdmin
-              .from('jobs').select('user_id').eq('id', interview.job_id).single();
-            if (jobOwner?.user_id) {
-              await supabaseAdmin.from('slot_requests').insert({
-                interview_id: interview.id, job_id: interview.job_id,
-                candidate_name: candidateName, job_title: job?.title || 'Vaga',
-                profile_id: jobOwner.user_id, status: 'pending',
-              });
-              const { data: prof } = await supabaseAdmin
-                .from('profiles').select('phone, instancia_evolution, evolution_token')
-                .eq('id', jobOwner.user_id).single();
-              if (prof?.phone && prof?.instancia_evolution) {
-                const phone = prof.phone.replace(/\D/g, '');
-                const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-                sendText(prof.instancia_evolution, jid,
-                  `⚠️ *Atenção!*\n\nO candidato *${candidateName}* tentou acessar o link de agendamento para a vaga *${job?.title?.trim() || 'Vaga'}*, mas não encontrou horários disponíveis.\n\nPor favor, adicione novos horários no Elevva para que ele possa agendar a entrevista.`,
-                  prof.evolution_token || process.env.EVOLUTION_API_KEY || ''
-                ).catch((e: unknown) => console.warn('[SlotRequest] WhatsApp failed:', e));
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('[SlotRequest] Notification failed (table may not exist yet):', e);
-        }
-      })();
+        .in('status', ['AGUARDANDO_ESCOLHA_SLOT', 'AGUARDANDO_RESPOSTA', 'AGUARDANDO_NOVOS_HORARIOS']);
     }
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -3475,7 +3565,7 @@ app.get("/api/admissions/:id/dossier", async (req, res) => {
 // GET /api/cron/pending-sales-cleanup — Remove vendas pending com mais de 7 dias ─
 // Roda todo dia às 03:00 UTC via Vercel Cron
 app.get("/api/cron/pending-sales-cleanup", async (req, res) => {
-  const secret = req.headers['authorization']?.replace('Bearer ', '') || req.query.secret;
+  const secret = req.headers['authorization']?.replace('Bearer ', '');
   if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -3510,8 +3600,7 @@ app.get("/api/cron/pending-sales-cleanup", async (req, res) => {
 
 // GET /api/cron/admission-cleanup — Cron job para limpeza LGPD 5 dias
 app.get("/api/cron/admission-cleanup", async (req, res) => {
-  // Verify cron secret
-  const secret = req.headers['authorization']?.replace('Bearer ', '') || req.query.secret;
+  const secret = req.headers['authorization']?.replace('Bearer ', '');
   if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: "Unauthorized" });
   }
@@ -3658,7 +3747,7 @@ app.get("/admissao/:token", async (req, res) => {
 // PAUSADO — aguardando novo número de WhatsApp para o SDR
 const SDR_PAUSED = true;
 
-app.post("/api/webhooks/sdr/whatsapp", async (req, res) => {
+app.post("/api/webhooks/sdr/whatsapp", webhookLimiter, async (req, res) => {
   if (SDR_PAUSED) {
     console.log("[SDR Webhook] Agente SDR pausado — mensagem ignorada");
     return res.status(200).json({ received: true, paused: true });
@@ -4465,7 +4554,7 @@ app.put("/api/system-prompt/:id", async (req, res) => {
 // Body: { message, history: [{role, content}], attendancePrompt }
 // ──────────────────────────────────────────────────────────────────────────────
 
-app.post("/api/admin/training-chat", async (req, res) => {
+app.post("/api/admin/training-chat", adminLimiter, requireAdmin, async (req, res) => {
   const { message, history, attendancePrompt } = req.body as {
     message?: string;
     history?: { role: 'user' | 'assistant'; content: string }[];
@@ -5162,7 +5251,7 @@ setInterval(() => {
 }, 60_000);
 
 // ── POST /api/webhooks/evolution[/:event] — Webhook global do Evolution API ───
-app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (req, res) => {
+app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], webhookLimiter, async (req, res) => {
   try {
     const body = req.body as any;
     const eventFromPath = ((req.params as any).event || '').toUpperCase().replace(/-/g, '_');
@@ -5297,7 +5386,7 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], async (r
 
 // ── POST /api/webhooks/asaas — Webhook de pagamento Asaas ─────────────────────
 // Dispara o onboarding automático quando o cliente paga
-app.post("/api/webhooks/asaas", async (req, res) => {
+app.post("/api/webhooks/asaas", webhookLimiter, async (req, res) => {
   // Validar token do webhook
   const headerToken = req.headers['asaas-access-token'] as string | undefined;
   if (!validateWebhookToken(headerToken)) {

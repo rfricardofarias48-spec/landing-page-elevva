@@ -141,6 +141,18 @@ export const AdminDashboard: React.FC = () => {
     }
   }, [selectedUser?.id]);
 
+  const adminFetch = async (input: string, init: RequestInit = {}): Promise<Response> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    return fetch(input, {
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -159,7 +171,7 @@ export const AdminDashboard: React.FC = () => {
       // Busca contagens reais de CVs via endpoint admin (bypassa RLS)
       let cvCounts: Record<string, number> = {};
       try {
-        const cvRes = await fetch('/api/admin/cv-counts');
+        const cvRes = await adminFetch('/api/admin/cv-counts');
         if (cvRes.ok) {
           const cvJson = await cvRes.json();
           cvCounts = cvJson.counts || {};
@@ -270,7 +282,7 @@ export const AdminDashboard: React.FC = () => {
       if (!confirm(`Tem certeza que deseja DELETAR a conta de ${user.name || user.email}? Esta ação é irreversível.`)) return;
       setActionLoading(true);
       try {
-          const res = await fetch(`/api/admin/delete-user/${user.id}`, { method: 'DELETE' });
+          const res = await adminFetch(`/api/admin/delete-user/${user.id}`, { method: 'DELETE' });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Erro ao deletar');
           setUsers(prev => prev.filter(u => u.id !== user.id));
@@ -426,7 +438,7 @@ export const AdminDashboard: React.FC = () => {
           // Configura webhook_base64 automaticamente na instância Evolution GO
           if (tempInstancia && tempEvolutionToken) {
             try {
-              await fetch('/api/admin/configure-evolution-webhook', {
+              await adminFetch('/api/admin/configure-evolution-webhook', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ instance: tempInstancia, token: tempEvolutionToken }),
@@ -438,7 +450,7 @@ export const AdminDashboard: React.FC = () => {
             // Configura integração Chatwoot na instância Evolution GO (se preenchido)
             if (tempChatwootAccountId && tempChatwootToken && tempChatwootInboxId) {
               try {
-                await fetch('/api/admin/configure-chatwoot', {
+                await adminFetch('/api/admin/configure-chatwoot', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -481,7 +493,7 @@ export const AdminDashboard: React.FC = () => {
     setReconfigChatwootLoading(true);
     setReconfigChatwootMsg(null);
     try {
-      const res = await fetch(`/api/admin/reconfigure-chatwoot/${selectedUser.id}`, { method: 'POST' });
+      const res = await adminFetch(`/api/admin/reconfigure-chatwoot/${selectedUser.id}`, { method: 'POST' });
       const data = await res.json() as { ok: boolean; message?: string; error?: string };
       setReconfigChatwootMsg(data.ok ? `✅ ${data.message}` : `❌ ${data.error || 'Falha'}`);
     } catch (err) {
@@ -496,7 +508,7 @@ export const AdminDashboard: React.FC = () => {
     setDiagChatwootLoading(true);
     setDiagChatwootResult(null);
     try {
-      const res = await fetch(`/api/admin/diagnose-chatwoot/${selectedUser.id}`);
+      const res = await adminFetch(`/api/admin/diagnose-chatwoot/${selectedUser.id}`);
       const data = await res.json();
       setDiagChatwootResult(JSON.stringify(data, null, 2));
     } catch (err) {
@@ -615,7 +627,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       setTrainingMessages(newHistory);
       setTrainingSending(true);
       try {
-          const res = await fetch('/api/admin/training-chat', {
+          const res = await adminFetch('/api/admin/training-chat', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ message: userMsg, history: trainingMessages, attendancePrompt }),
@@ -3276,7 +3288,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   const runSetupCheck = async () => {
     setSetupCheckLoading(true);
     try {
-      const res = await fetch('/api/admin/setup-check');
+      const res = await adminFetch('/api/admin/setup-check');
       if (res.ok) setSetupCheckResult(await res.json());
     } catch (e: any) {
       alert('Erro ao verificar setup: ' + e.message);
@@ -3289,7 +3301,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
     setAccountsHealthLoading(true);
     setAccountsHealthError(null);
     try {
-      const res = await fetch('/api/admin/accounts-health');
+      const res = await adminFetch('/api/admin/accounts-health');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setAccountsHealth(data);

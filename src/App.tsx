@@ -210,10 +210,6 @@ const App: React.FC = () => {
   const [initialSelectedInterview, setInitialSelectedInterview] = useState<Record<string, unknown> | null>(null);
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   
-  // Slot requests (candidates waiting for new interview slots)
-  const [slotRequests, setSlotRequests] = useState<Array<{
-    id: string; candidate_name: string; job_title: string; created_at: string; job_id: string;
-  }>>([]);
   const [slotCardDismissed, setSlotCardDismissed] = useState(false);
   const [slotCardExpanded, setSlotCardExpanded] = useState(false);
   const [slotCardDate, setSlotCardDate] = useState('');
@@ -394,38 +390,24 @@ const App: React.FC = () => {
     };
   }, [user]);
 
-  // --- SLOT REQUESTS POLLING ---
+  // --- REALTIME: reabrir card quando interview muda para AGUARDANDO_NOVOS_HORARIOS ---
   useEffect(() => {
     if (!user?.id) return;
-    const fetchSlotRequests = async () => {
-      const { data } = await supabase
-        .from('slot_requests')
-        .select('id, candidate_name, job_title, created_at, job_id')
-        .eq('profile_id', user.id)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-      setSlotRequests(data || []);
-    };
-    fetchSlotRequests();
-    const interval = setInterval(fetchSlotRequests, 60000);
-    return () => clearInterval(interval);
+    const channel = supabase
+      .channel(`interviews-waiting-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'interviews',
+        filter: `status=eq.AGUARDANDO_NOVOS_HORARIOS`,
+      }, () => {
+        setSlotCardDismissed(false);
+        fetchInterviews(user.id!);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
 
-  // Reabre o modal quando novas entrevistas AGUARDANDO_NOVOS_HORARIOS aparecerem
-  const prevPendingCountRef = React.useRef(0);
-  useEffect(() => {
-    const pending = interviews.filter((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS');
-    if (pending.length > prevPendingCountRef.current) {
-      // Novo candidato entrou em espera — reabrir modal
-      setSlotCardDismissed(false);
-    }
-    prevPendingCountRef.current = pending.length;
-  }, [interviews]);
-
-  const dismissSlotRequest = async (id: string) => {
-    await supabase.from('slot_requests').update({ status: 'handled' }).eq('id', id);
-    setSlotRequests(prev => prev.filter(r => r.id !== id));
-  };
 
   // --- REALTIME PROFILE SUBSCRIPTION (AUTOMATIC PLAN UPDATE) ---
   useEffect(() => {
@@ -3007,15 +2989,8 @@ const App: React.FC = () => {
           <AvailableSlotsModal
             userId={(user as any).id}
             onClose={() => setShowAvailableSlots(false)}
-            onSlotsAdded={async () => {
-              // Refresh slot_requests immediately so the notification card disappears
-              const { data } = await supabase
-                .from('slot_requests')
-                .select('id, candidate_name, job_title, created_at, job_id')
-                .eq('profile_id', (user as any).id)
-                .eq('status', 'pending')
-                .order('created_at', { ascending: false });
-              setSlotRequests(data || []);
+            onSlotsAdded={() => {
+              if ((user as any)?.id) fetchInterviews((user as any).id);
             }}
           />
         )}
@@ -3783,11 +3758,6 @@ const App: React.FC = () => {
                                   interviewer_name: s.interviewer || null,
                                 })),
                               }),
-                            });
-                            await fetch('/api/agent/notify-all-pending', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ user_id: uid }),
                             });
                             setSlotCardSlots([]);
                             setSlotCardDate('');
