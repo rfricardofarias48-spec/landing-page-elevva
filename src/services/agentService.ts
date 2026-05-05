@@ -1281,16 +1281,46 @@ export async function notifyPendingReschedules(
   jobId: string,
   supabase: SupabaseClient,
 ): Promise<{ sent: number; errors: number }> {
-  // Find interviews where candidate opened the link but found no slots.
-  // AGUARDANDO_RESPOSTA is intentionally excluded — triggerSchedulingForCandidates handles those.
-  // Including AGUARDANDO_RESPOSTA here causes a race with start-scheduling (both generate tokens).
-  const { data: pendingInterviews } = await supabase
+  // Primary: find interviews with AGUARDANDO_NOVOS_HORARIOS status
+  const { data: primaryInterviews } = await supabase
     .from('interviews')
     .select('id, candidate_id, scheduling_token, job_id')
     .eq('job_id', jobId)
     .eq('status', 'AGUARDANDO_NOVOS_HORARIOS');
 
-  if (!pendingInterviews || pendingInterviews.length === 0) {
+  // Fallback: find conversations in AGUARDANDO_NOVOS_HORARIOS state for this user —
+  // handles cases where the interview status update failed (e.g. past CHECK constraint issue)
+  const { data: waitingConvs } = await supabase
+    .from('agent_conversations')
+    .select('context')
+    .eq('user_id', userId)
+    .eq('state', 'AGUARDANDO_NOVOS_HORARIOS');
+
+  const fallbackInterviewIds = new Set<string>();
+  for (const conv of (waitingConvs || [])) {
+    const interviewId = (conv.context as any)?.interview_id;
+    if (interviewId) fallbackInterviewIds.add(interviewId);
+  }
+
+  // Merge: collect all interview ids already found by the primary query
+  const primaryIds = new Set((primaryInterviews || []).map((i: any) => i.id));
+
+  // Fetch any missing fallback interviews that belong to this job
+  const missingIds = Array.from(fallbackInterviewIds).filter(id => !primaryIds.has(id));
+  let fallbackInterviews: any[] = [];
+  if (missingIds.length > 0) {
+    const { data: extra } = await supabase
+      .from('interviews')
+      .select('id, candidate_id, scheduling_token, job_id')
+      .in('id', missingIds)
+      .eq('job_id', jobId)
+      .not('status', 'in', '("CANCELADA","REALIZADA","COMPLETED")');
+    fallbackInterviews = extra || [];
+  }
+
+  const pendingInterviews = [...(primaryInterviews || []), ...fallbackInterviews];
+
+  if (pendingInterviews.length === 0) {
     return { sent: 0, errors: 0 };
   }
 
