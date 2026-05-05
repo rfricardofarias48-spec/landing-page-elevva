@@ -214,6 +214,7 @@ const App: React.FC = () => {
   const [slotRequests, setSlotRequests] = useState<Array<{
     id: string; candidate_name: string; job_title: string; created_at: string; job_id: string;
   }>>([]);
+  const [slotCardDismissed, setSlotCardDismissed] = useState(false);
   const [slotCardExpanded, setSlotCardExpanded] = useState(false);
   const [slotCardDate, setSlotCardDate] = useState('');
   const [slotCardTime, setSlotCardTime] = useState('');
@@ -410,20 +411,16 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [user?.id]);
 
-  // Every 15 min: show on-screen alert if candidates are waiting for new slots
+  // Reabre o modal quando novas entrevistas AGUARDANDO_NOVOS_HORARIOS aparecerem
+  const prevPendingCountRef = React.useRef(0);
   useEffect(() => {
-    if (!user) return;
-    const check = () => {
-      const hasPending = interviews.some((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS');
-      if (hasPending) {
-        setSlotAlertDismissed(false);
-        setShowSlotAlert(true);
-      }
-    };
-    check();
-    const interval = setInterval(check, 15 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [user, interviews]);
+    const pending = interviews.filter((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS');
+    if (pending.length > prevPendingCountRef.current) {
+      // Novo candidato entrou em espera — reabrir modal
+      setSlotCardDismissed(false);
+    }
+    prevPendingCountRef.current = pending.length;
+  }, [interviews]);
 
   const dismissSlotRequest = async (id: string) => {
     await supabase.from('slot_requests').update({ status: 'handled' }).eq('id', id);
@@ -3641,8 +3638,11 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* SLOT REQUEST NOTIFICATION CARD */}
-      {slotRequests.length > 0 && (
+      {/* SLOT REQUEST NOTIFICATION CARD — visível apenas quando há entrevistas AGUARDANDO_NOVOS_HORARIOS */}
+      {(() => {
+        const waitingInterviews = interviews.filter((i: Record<string, unknown>) => i.status === 'AGUARDANDO_NOVOS_HORARIOS');
+        if (waitingInterviews.length === 0 || slotCardDismissed) return null;
+        return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 pointer-events-none">
           <div className="pointer-events-auto w-full max-w-lg animate-slide-up">
             <div className="bg-white rounded-[2rem] shadow-[0_32px_80px_rgba(0,0,0,0.20)] border border-slate-200 overflow-hidden">
@@ -3655,29 +3655,22 @@ const App: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-slate-900 text-base tracking-tight">Horários precisam ser adicionados</p>
                   <p className="text-xs font-bold text-slate-400 mt-0.5 uppercase tracking-widest">
-                    {slotRequests.length === 1 ? '1 candidato aguardando' : `${slotRequests.length} candidatos aguardando`}
+                    {waitingInterviews.length === 1 ? '1 candidato aguardando' : `${waitingInterviews.length} candidatos aguardando`}
                   </p>
                 </div>
               </div>
 
-              {/* Requests list */}
+              {/* Candidates list */}
               <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                {slotRequests.map(req => (
-                  <div key={req.id} className="flex items-center gap-4 px-8 py-4 hover:bg-slate-50 transition-colors">
+                {waitingInterviews.map((iv: any) => (
+                  <div key={iv.id} className="flex items-center gap-4 px-8 py-4 hover:bg-slate-50 transition-colors">
                     <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0">
                       <CalendarPlus className="w-4 h-4 text-slate-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-slate-900 truncate">{req.candidate_name}</p>
-                      <p className="text-xs font-bold text-slate-400 truncate">{req.job_title}</p>
+                      <p className="text-sm font-black text-slate-900 truncate">{iv.candidate_name}</p>
+                      <p className="text-xs font-bold text-slate-400 truncate">{iv.job_title}</p>
                     </div>
-                    <button
-                      onClick={() => dismissSlotRequest(req.id)}
-                      className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all flex-shrink-0"
-                      title="Marcar como resolvido"
-                    >
-                      <X size={14} />
-                    </button>
                   </div>
                 ))}
               </div>
@@ -3694,7 +3687,7 @@ const App: React.FC = () => {
                       Adicionar horário
                     </button>
                     <button
-                      onClick={() => setSlotRequests([])}
+                      onClick={() => { setSlotCardDismissed(true); setSlotCardExpanded(false); }}
                       className="px-5 py-3 text-slate-500 text-sm font-bold hover:bg-slate-200 rounded-xl transition-all"
                     >
                       Fechar
@@ -3801,7 +3794,8 @@ const App: React.FC = () => {
                             setSlotCardTime('');
                             setSlotCardInterviewer('');
                             setSlotCardExpanded(false);
-                            setSlotRequests([]);
+                            setSlotCardDismissed(true);
+                            if ((user as any)?.id) fetchInterviews((user as any).id);
                           } finally {
                             setSlotCardSaving(false);
                           }
@@ -3825,7 +3819,8 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
     </div>
   );
