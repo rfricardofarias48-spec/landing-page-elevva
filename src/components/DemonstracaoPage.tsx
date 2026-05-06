@@ -537,7 +537,7 @@ export function DemonstracaoPage() {
         </div>
 
         {/* ── ÁREA DE VÍDEO ──────────────────────────────────────────────── */}
-        <div id="demo-section" className="relative max-w-6xl mx-auto px-4 md:px-0 pb-16">
+        <div id="demo-section" className="relative max-w-7xl mx-auto px-4 md:px-6 pb-16">
           <div
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s' }}
           >

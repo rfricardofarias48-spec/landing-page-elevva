@@ -62,17 +62,18 @@ const VideoPlayer = ({ src }: { src: string }) => {
 
   return (
     <motion.div
-      className="relative w-full bg-black"
+      className="relative w-full overflow-hidden"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
       onMouseEnter={() => setShowBar(true)}
       onMouseLeave={() => setShowBar(false)}
     >
-      {/* Video */}
+      {/* Video — slightly wider + shifted to crop built-in white margins */}
       <video
         ref={videoRef}
-        className="w-full h-auto block"
+        className="block h-auto"
+        style={{ width: '113%', marginLeft: '-6.5%' }}
         src={src}
         onTimeUpdate={handleTimeUpdate}
         onEnded={() => setIsPlaying(false)}
