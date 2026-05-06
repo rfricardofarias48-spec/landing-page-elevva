@@ -537,11 +537,13 @@ export function DemonstracaoPage() {
         </div>
 
         {/* ── ÁREA DE VÍDEO ──────────────────────────────────────────────── */}
-        <div id="demo-section" className="relative max-w-7xl mx-auto px-4 md:px-6 pb-12 md:border-x md:border-slate-100">
+        <div id="demo-section" className="relative max-w-5xl mx-auto px-4 md:px-6 pb-12 md:border-x md:border-slate-100">
           <div
             style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.98)', transition: 'opacity 0.8s ease 0.55s, transform 0.8s ease 0.55s' }}
           >
-            <div className="w-full rounded-3xl border border-slate-200 bg-white shadow-[0_48px_120px_-24px_rgba(0,0,0,0.08)]" style={{ minHeight: 'clamp(220px, 50vw, 480px)' }} />
+            <div className="w-full rounded-3xl overflow-hidden border border-slate-200 shadow-[0_48px_120px_-24px_rgba(0,0,0,0.12)] bg-black">
+              <VideoPlayer src="https://ik.imagekit.io/xsbrdnr0y/Untitled%20design.mp4?updatedAt=1775707225317" />
+            </div>
           </div>
         </div>
       </section>
