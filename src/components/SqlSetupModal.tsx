@@ -403,7 +403,7 @@ EXECUTE FUNCTION public.delete_old_resume_file();
 
 -- 4. Agenda a limpeza diária às 03:00 AM
 SELECT cron.unschedule('cleanup');
-SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHERE created_at < NOW() - INTERVAL '10 days'$$);
+SELECT cron.schedule('cleanup', '0 3 * * *', $$DELETE FROM public.candidates WHERE created_at < NOW() - INTERVAL '20 days'$$);
 `.trim();
 
   const getSql = () => {

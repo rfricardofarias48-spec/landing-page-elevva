@@ -2418,7 +2418,7 @@ const App: React.FC = () => {
                               </>
                           )}
                           <div className="space-y-2 mb-5 text-xs font-medium text-zinc-300 flex-1">
-                              {['Até 10 vagas simultâneas', 'Todas as funções do Essencial', 'Portal de Admissão', 'Conformidade LGPD'].map(f => (
+                              {['Até 10 vagas simultâneas', 'Todas as funções do Essencial'].map(f => (
                                   <div key={f} className="flex items-center gap-2">
                                       <div className="w-4 h-4 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-2.5 h-2.5 text-[#65a30d]" /></div>
                                       <span>{f}</span>

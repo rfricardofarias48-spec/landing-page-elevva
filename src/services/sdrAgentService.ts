@@ -47,7 +47,7 @@ const DEFAULT_PLANOS = `Temos dois planos:
 *Plano Pro — R$ 899/mês*
 ✅ Tudo do Essencial + até 10 vagas
 ✅ Portal de Admissão + dossiê PDF
-✅ Exclusão automática de dados em 48h (LGPD)
+✅ Exclusão automática de dados em 20 dias (LGPD)
 
 Também temos opção de plano anual com desconto. Posso detalhar na demonstração.`;
 

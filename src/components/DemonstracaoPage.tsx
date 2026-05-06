@@ -727,9 +727,9 @@ export function DemonstracaoPage() {
               {[
                 {
                   icon: Lock,
-                  title: 'Exclusão Automática (5 Dias)',
-                  desc: 'PDF original é deletado permanentemente 5 dias após a análise. Zero passivo de dados para a sua empresa.',
-                  badge: '5 dias',
+                  title: 'Exclusão Automática (20 Dias)',
+                  desc: 'PDF original é deletado permanentemente 20 dias após a análise. Zero passivo de dados para a sua empresa.',
+                  badge: '20 dias',
                 },
                 {
                   icon: ShieldCheck,
@@ -865,7 +865,7 @@ export function DemonstracaoPage() {
                 Tração total para seu RH com mais vagas.
               </p>
               <ul className="space-y-3 flex-1 mb-8">
-                {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão', 'Conformidade LGPD (Exclusão em 5 dias)'].map(f => (
+                {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial'].map(f => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
                     <span className="w-4 h-4 rounded-full bg-[#65a30d]/20 flex items-center justify-center shrink-0 mt-0.5">
                       <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
