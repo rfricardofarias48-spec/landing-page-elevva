@@ -2270,7 +2270,7 @@ const App: React.FC = () => {
                           <h3 className="text-4xl font-black tracking-tighter text-white">{isGhostAccount ? 'Desativado' : normalizedPlan}</h3>
                           {(() => {
                               if (isGhostAccount) return <span className="text-xl font-black text-slate-500">—</span>;
-                              const stdPrice = normalizedPlan === 'ESSENCIAL' ? 399.90 : normalizedPlan === 'PRO' ? 649.00 : null;
+                              const stdPrice = normalizedPlan === 'ESSENCIAL' ? 399.00 : normalizedPlan === 'PRO' ? 749.00 : null;
                               const activePrice = user?.plan_price && user.plan_price > 0 ? user.plan_price : stdPrice;
                               if (!activePrice) return null;
                               const isEnterprise = normalizedPlan === 'ENTERPRISE';
@@ -2345,7 +2345,7 @@ const App: React.FC = () => {
                       <div className="bg-white rounded-2xl p-8 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
                           <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Essencial</h4>
                           <p className="text-sm text-slate-500 font-medium mb-5">Para equipes enxutas e recrutamento ágil.</p>
-                          {normalizedPlan === 'ESSENCIAL' && user?.plan_price != null && user.plan_price !== 399.90 ? (
+                          {normalizedPlan === 'ESSENCIAL' && user?.plan_price != null && user.plan_price !== 399.00 ? (
                               <div className="mb-6">
                                   <div className="text-slate-900 mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
@@ -2359,13 +2359,13 @@ const App: React.FC = () => {
                                   <div className="text-slate-900 mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
                                       <span className="text-5xl font-black tracking-tighter">{isAnnual ? '319' : '399'}</span>
-                                      <span className="text-lg font-bold">,{isAnnual ? '92' : '90'}</span>
+                                      <span className="text-lg font-bold">,{isAnnual ? '20' : '00'}</span>
                                       <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
                                       <div className="mb-5">
-                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 4.798,80</span>
-                                          <span className="text-sm font-bold text-[#65a30d]">R$ 3.839,04/ano</span>
+                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 4.788,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 3.830,40/ano</span>
                                       </div>
                                   ) : (<div className="mb-5 h-4"></div>)}
                               </>
@@ -2396,7 +2396,7 @@ const App: React.FC = () => {
                           </div>
                           <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter">Pro <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-5">Tração total para seu RH com mais vagas.</p>
-                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 649.00 ? (
+                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 749.00 ? (
                               <div className="mb-6">
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
@@ -2409,14 +2409,14 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '519' : '649'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '599' : '749'}</span>
                                       <span className="text-lg font-bold">,{isAnnual ? '20' : '00'}</span>
                                       <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
                                       <div className="mb-5">
-                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 7.788,00</span>
-                                          <span className="text-sm font-bold text-[#65a30d]">R$ 6.230,40/ano</span>
+                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 8.988,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 7.190,40/ano</span>
                                       </div>
                                   ) : (<div className="mb-5 h-4"></div>)}
                               </>
@@ -2469,7 +2469,7 @@ const App: React.FC = () => {
                       <div className="bg-white rounded-2xl p-6 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
                           <h4 className="text-2xl font-black text-slate-900 mb-1 tracking-tighter">Max</h4>
                           <p className="text-sm text-slate-500 font-medium mb-5">Para agências em crescimento com múltiplos clientes.</p>
-                          {normalizedPlan === 'MAX' && user?.plan_price != null && user.plan_price !== 1499 ? (
+                          {normalizedPlan === 'MAX' && user?.plan_price != null && user.plan_price !== 1699 ? (
                               <div className="mb-6">
                                   <div className="text-slate-900 mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
@@ -2482,14 +2482,14 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-slate-900 mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '1.049' : '1.499'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '1.189' : '1.699'}</span>
                                       <span className="text-lg font-bold">,{isAnnual ? '30' : '00'}</span>
                                       <span className="text-sm font-bold text-slate-400 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
                                       <div className="mb-5">
-                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 17.988,00</span>
-                                          <span className="text-sm font-bold text-[#65a30d]">R$ 12.591,60/ano</span>
+                                          <span className="text-sm text-slate-400 line-through mr-2">R$ 20.388,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 14.271,60/ano</span>
                                       </div>
                                   ) : (<div className="mb-5 h-4"></div>)}
                               </>
@@ -2520,7 +2520,7 @@ const App: React.FC = () => {
                           </div>
                           <h4 className="text-2xl font-black text-white mb-1 flex items-center gap-2 tracking-tighter mt-3">Ultra <Zap className="w-5 h-5 text-[#65a30d] fill-[#65a30d]" /></h4>
                           <p className="text-sm text-zinc-400 font-medium mb-5">Para grandes agências com alta demanda de vagas.</p>
-                          {normalizedPlan === 'ULTRA' && user?.plan_price != null && user.plan_price !== 2299 ? (
+                          {normalizedPlan === 'ULTRA' && user?.plan_price != null && user.plan_price !== 2999 ? (
                               <div className="mb-6">
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
@@ -2533,14 +2533,14 @@ const App: React.FC = () => {
                               <>
                                   <div className="text-white mb-1 flex items-baseline">
                                       <span className="text-sm font-bold mr-1">R$</span>
-                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '1.609' : '2.299'}</span>
+                                      <span className="text-5xl font-black tracking-tighter">{isAnnual ? '2.099' : '2.999'}</span>
                                       <span className="text-lg font-bold">,{isAnnual ? '30' : '00'}</span>
                                       <span className="text-sm font-bold text-zinc-500 ml-1">/mês</span>
                                   </div>
                                   {isAnnual ? (
                                       <div className="mb-5">
-                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 27.588,00</span>
-                                          <span className="text-sm font-bold text-[#65a30d]">R$ 19.311,60/ano</span>
+                                          <span className="text-sm text-zinc-500 line-through mr-2">R$ 35.988,00</span>
+                                          <span className="text-sm font-bold text-[#65a30d]">R$ 25.191,60/ano</span>
                                       </div>
                                   ) : (<div className="mb-5 h-4"></div>)}
                               </>

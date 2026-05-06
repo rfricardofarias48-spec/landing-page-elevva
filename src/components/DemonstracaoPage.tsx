@@ -199,8 +199,8 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PLAN_PRICES_DISPLAY: Record<string, Record<string, string>> = {
-  ESSENCIAL: { mensal: 'R$ 549,00/mês', anual: 'R$ 439,20/mês' },
-  PRO:       { mensal: 'R$ 899,00/mês', anual: 'R$ 719,20/mês' },
+  ESSENCIAL: { mensal: 'R$ 399,00/mês', anual: 'R$ 319,20/mês' },
+  PRO:       { mensal: 'R$ 749,00/mês', anual: 'R$ 599,20/mês' },
   ENTERPRISE:{ mensal: 'A consultar',   anual: 'A consultar' },
 };
 
@@ -813,12 +813,12 @@ export function DemonstracaoPage() {
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Essencial</p>
               <div className="flex items-end gap-1 mb-1">
                 <span className="text-4xl font-black text-slate-900 tracking-tighter leading-none">
-                  R$ {billing === 'mensal' ? '549,00' : '439,20'}
+                  R$ {billing === 'mensal' ? '399,00' : '319,20'}
                 </span>
                 <span className="text-sm text-slate-400 font-medium mb-1">/mês</span>
               </div>
               {billing === 'anual' && (
-                <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 5.270,40/ano</p>
+                <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 3.830,40/ano</p>
               )}
               <p className="text-sm text-slate-500 font-medium mt-3 mb-8 leading-relaxed">
                 Para equipes enxutas e recrutamento ágil.
@@ -852,12 +852,12 @@ export function DemonstracaoPage() {
               </div>
               <div className="flex items-end gap-1 mb-1">
                 <span className="text-4xl font-black text-white tracking-tighter leading-none">
-                  R$ {billing === 'mensal' ? '899,00' : '719,20'}
+                  R$ {billing === 'mensal' ? '749,00' : '599,20'}
                 </span>
                 <span className="text-sm text-slate-500 font-medium mb-1">/mês</span>
               </div>
               {billing === 'anual' && (
-                <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 8.630,40/ano</p>
+                <p className="text-xs text-[#65a30d] font-bold mb-4">Cobrado como R$ 7.190,40/ano</p>
               )}
               <p className="text-sm text-slate-400 font-medium mt-3 mb-8 leading-relaxed">
                 Tração total para seu RH com mais vagas.
