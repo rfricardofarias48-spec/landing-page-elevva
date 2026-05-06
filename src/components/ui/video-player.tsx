@@ -62,7 +62,7 @@ const VideoPlayer = ({ src }: { src: string }) => {
 
   return (
     <motion.div
-      className="relative w-full overflow-hidden rounded-3xl bg-black"
+      className="relative w-full bg-black"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
@@ -72,7 +72,7 @@ const VideoPlayer = ({ src }: { src: string }) => {
       {/* Video */}
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
+        className="w-full h-auto block"
         src={src}
         onTimeUpdate={handleTimeUpdate}
         onEnded={() => setIsPlaying(false)}
