@@ -2340,194 +2340,207 @@ const App: React.FC = () => {
                       </div>
                   </div>
 
-                  {/* ── Todos os Planos: Essencial · Pro · Max · Ultra ── */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1 min-h-0">
+                  {/* ── Todos os Planos: grid 2×2 ── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-2">
 
-                      {/* ESSENCIAL */}
-                      <div className="bg-white rounded-2xl p-5 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
-                          <h4 className="text-lg font-black text-slate-900 mb-0.5 tracking-tighter">Essencial</h4>
-                          <p className="text-xs text-slate-500 font-medium mb-4 leading-snug">Para equipes enxutas e recrutamento ágil.</p>
+                      {/* ── ESSENCIAL ── */}
+                      <div className="bg-white rounded-[1.75rem] p-7 flex flex-col border border-slate-100 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_8px_32px_rgba(0,0,0,0.07)] transition-shadow">
+                          <div className="flex items-start justify-between mb-5">
+                              <div>
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Essencial</p>
+                                  <p className="text-sm text-slate-500 font-medium leading-snug">Para equipes enxutas e recrutamento ágil.</p>
+                              </div>
+                              <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full">3 vagas</span>
+                          </div>
                           {normalizedPlan === 'ESSENCIAL' && user?.plan_price != null && user.plan_price !== 399.00 ? (
-                              <div className="mb-4">
-                                  <div className="text-slate-900 mb-1 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-xs font-bold text-slate-400 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1 mb-1">
+                                      <span className="text-base font-bold text-slate-400 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-slate-900 tracking-tighter leading-none">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-slate-400 mb-1">/mês</span>
                                   </div>
-                                  <span className="text-[10px] font-black bg-[#65a30d]/10 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
+                                  <span className="text-xs font-black bg-[#65a30d]/10 text-[#65a30d] px-2.5 py-1 rounded-full">Preço negociado</span>
                               </div>
                           ) : (
-                              <>
-                                  <div className="text-slate-900 mb-0.5 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{isAnnual ? '319' : '399'}</span>
-                                      <span className="text-sm font-bold">,{isAnnual ? '20' : '00'}</span>
-                                      <span className="text-xs font-bold text-slate-400 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1">
+                                      <span className="text-base font-bold text-slate-400 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-slate-900 tracking-tighter leading-none">{isAnnual ? '319' : '399'}</span>
+                                      <span className="text-xl font-black text-slate-900">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-sm font-bold text-slate-400 mb-1">/mês</span>
                                   </div>
-                                  {isAnnual ? (
-                                      <p className="text-[10px] font-bold text-[#65a30d] mb-4">R$ 3.830,40/ano</p>
-                                  ) : (<div className="mb-4 h-3"></div>)}
-                              </>
+                                  {isAnnual && <p className="text-xs font-bold text-[#65a30d] mt-1.5">R$ 3.830,40 cobrado anualmente · 20% off</p>}
+                              </div>
                           )}
-                          <div className="space-y-2 mb-5 text-xs font-medium text-slate-600 flex-1">
+                          <div className="space-y-2.5 mb-7 flex-1">
                               {['Até 3 vagas simultâneas', 'Triagem e ranking', 'Relatórios automáticos', 'Agendamento autônomo', 'Google Calendar e Meet'].map(f => (
-                                  <div key={f} className="flex items-center gap-2">
-                                      <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-2.5 h-2.5 text-slate-600" /></div>
-                                      <span>{f}</span>
+                                  <div key={f} className="flex items-center gap-2.5">
+                                      <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                      <span className="text-sm font-medium text-slate-700">{f}</span>
                                   </div>
                               ))}
                           </div>
                           {!isGhostAccount && normalizedPlan === 'ESSENCIAL' ? (
-                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-3 rounded-xl text-xs text-center cursor-not-allowed">Plano Atual</button>
+                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
                           ) : (
                               <button onClick={() => handleUpgradeLink('ESSENCIAL')} disabled={upgradingPlan === 'ESSENCIAL'}
-                                  className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-3 rounded-xl text-xs transition-colors hover:bg-slate-50 flex items-center justify-center gap-1 disabled:opacity-60">
-                                  {upgradingPlan === 'ESSENCIAL' ? <span className="animate-spin text-sm">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar' : currentRank > 1 ? 'Fazer Downgrade' : 'Assinar Essencial'}
+                                  className="w-full border-2 border-slate-200 hover:border-slate-900 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                                  {upgradingPlan === 'ESSENCIAL' ? <span className="animate-spin">⏳</span> : null}
+                                  {isGhostAccount ? 'Assinar Essencial' : currentRank > 1 ? 'Fazer Downgrade' : 'Assinar Essencial'}
                               </button>
                           )}
                       </div>
 
-                      {/* PRO */}
-                      <div className="bg-[#0a0a0a] rounded-2xl p-5 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800">
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
-                              <Star className="w-2.5 h-2.5 fill-black" /> Mais Popular
+                      {/* ── PRO ── */}
+                      <div className="bg-[#0a0a0a] rounded-[1.75rem] p-7 flex flex-col relative border border-zinc-800 shadow-[0px_8px_40px_rgba(0,0,0,0.22)] hover:shadow-[0px_12px_50px_rgba(0,0,0,0.30)] transition-shadow overflow-hidden">
+                          <div className="absolute top-0 right-0 bg-[#65a30d] text-white text-[10px] font-black px-4 py-2 rounded-bl-2xl flex items-center gap-1.5 tracking-wide">
+                              <Star className="w-3 h-3 fill-white" /> Mais Popular
                           </div>
-                          <h4 className="text-lg font-black text-white mb-0.5 flex items-center gap-1.5 tracking-tighter mt-1">Pro <Zap className="w-4 h-4 text-[#65a30d] fill-[#65a30d]" /></h4>
-                          <p className="text-xs text-zinc-400 font-medium mb-4 leading-snug">Para RH ágil e agências com alto giro de pessoal.</p>
+                          <div className="flex items-start justify-between mb-5 mt-1">
+                              <div>
+                                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Pro</p>
+                                  <p className="text-sm text-zinc-400 font-medium leading-snug">Para RH ágil e agências com alto giro de pessoal.</p>
+                              </div>
+                              <span className="text-[10px] font-black bg-zinc-800 text-zinc-400 px-2.5 py-1 rounded-full">10 vagas</span>
+                          </div>
                           {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 749.00 ? (
-                              <div className="mb-4">
-                                  <div className="text-white mb-1 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-xs font-bold text-zinc-500 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1 mb-1">
+                                      <span className="text-base font-bold text-zinc-500 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-white tracking-tighter leading-none">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-zinc-500 mb-1">/mês</span>
                                   </div>
-                                  <span className="text-[10px] font-black bg-[#65a30d]/20 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
+                                  <span className="text-xs font-black bg-[#65a30d]/20 text-[#65a30d] px-2.5 py-1 rounded-full">Preço negociado</span>
                               </div>
                           ) : (
-                              <>
-                                  <div className="text-white mb-0.5 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{isAnnual ? '599' : '749'}</span>
-                                      <span className="text-sm font-bold">,{isAnnual ? '20' : '00'}</span>
-                                      <span className="text-xs font-bold text-zinc-500 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1">
+                                      <span className="text-base font-bold text-zinc-500 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-white tracking-tighter leading-none">{isAnnual ? '599' : '749'}</span>
+                                      <span className="text-xl font-black text-white">,{isAnnual ? '20' : '00'}</span>
+                                      <span className="text-sm font-bold text-zinc-500 mb-1">/mês</span>
                                   </div>
-                                  {isAnnual ? (
-                                      <p className="text-[10px] font-bold text-[#65a30d] mb-4">R$ 7.190,40/ano</p>
-                                  ) : (<div className="mb-4 h-3"></div>)}
-                              </>
+                                  {isAnnual && <p className="text-xs font-bold text-[#65a30d] mt-1.5">R$ 7.190,40 cobrado anualmente · 20% off</p>}
+                              </div>
                           )}
-                          <div className="space-y-2 mb-5 text-xs font-medium text-zinc-300 flex-1">
-                              {['Até 10 vagas simultâneas', 'Todas as funções do Essencial'].map(f => (
-                                  <div key={f} className="flex items-center gap-2">
-                                      <div className="w-4 h-4 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-2.5 h-2.5 text-[#65a30d]" /></div>
-                                      <span>{f}</span>
+                          <div className="space-y-2.5 mb-7 flex-1">
+                              {['Até 10 vagas simultâneas', 'Todas as funções do Essencial', 'Portal de Admissão', 'Conformidade LGPD'].map(f => (
+                                  <div key={f} className="flex items-center gap-2.5">
+                                      <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
+                                      <span className="text-sm font-medium text-zinc-300">{f}</span>
                                   </div>
                               ))}
                           </div>
                           {!isGhostAccount && normalizedPlan === 'PRO' ? (
-                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-3 rounded-xl text-xs text-center cursor-not-allowed">Plano Atual</button>
+                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
                           ) : (
                               <button onClick={() => handleUpgradeLink('PRO')} disabled={upgradingPlan === 'PRO'}
-                                  className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-3 rounded-xl text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-60">
-                                  {upgradingPlan === 'PRO' ? <span className="animate-spin text-sm">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar' : currentRank > 2 ? 'Fazer Downgrade' : currentRank === 1 ? 'Assinar Pro' : 'Fazer Upgrade'}
+                                  className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-[0_4px_20px_rgba(101,163,13,0.4)]">
+                                  {upgradingPlan === 'PRO' ? <span className="animate-spin">⏳</span> : null}
+                                  {isGhostAccount ? 'Assinar Pro' : currentRank > 2 ? 'Fazer Downgrade' : currentRank === 1 ? 'Assinar Pro' : 'Fazer Upgrade'}
                               </button>
                           )}
                       </div>
 
-                      {/* MAX */}
-                      <div className="bg-white rounded-2xl p-5 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.02)] border border-slate-100">
-                          <h4 className="text-lg font-black text-slate-900 mb-0.5 tracking-tighter">Max</h4>
-                          <p className="text-xs text-slate-500 font-medium mb-4 leading-snug">Para agências em crescimento com múltiplos clientes.</p>
+                      {/* ── MAX ── */}
+                      <div className="bg-white rounded-[1.75rem] p-7 flex flex-col border border-slate-100 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_8px_32px_rgba(0,0,0,0.07)] transition-shadow">
+                          <div className="flex items-start justify-between mb-5">
+                              <div>
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Max · Agência</p>
+                                  <p className="text-sm text-slate-500 font-medium leading-snug">Para agências em crescimento com múltiplos clientes.</p>
+                              </div>
+                              <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full">25 vagas</span>
+                          </div>
                           {normalizedPlan === 'MAX' && user?.plan_price != null && user.plan_price !== 1699 ? (
-                              <div className="mb-4">
-                                  <div className="text-slate-900 mb-1 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-xs font-bold text-slate-400 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1 mb-1">
+                                      <span className="text-base font-bold text-slate-400 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-slate-900 tracking-tighter leading-none">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-slate-400 mb-1">/mês</span>
                                   </div>
-                                  <span className="text-[10px] font-black bg-[#65a30d]/10 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
+                                  <span className="text-xs font-black bg-[#65a30d]/10 text-[#65a30d] px-2.5 py-1 rounded-full">Preço negociado</span>
                               </div>
                           ) : (
-                              <>
-                                  <div className="text-slate-900 mb-0.5 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{isAnnual ? '1.189' : '1.699'}</span>
-                                      <span className="text-sm font-bold">,{isAnnual ? '30' : '00'}</span>
-                                      <span className="text-xs font-bold text-slate-400 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1">
+                                      <span className="text-base font-bold text-slate-400 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-slate-900 tracking-tighter leading-none">{isAnnual ? '1.189' : '1.699'}</span>
+                                      <span className="text-xl font-black text-slate-900">,{isAnnual ? '30' : '00'}</span>
+                                      <span className="text-sm font-bold text-slate-400 mb-1">/mês</span>
                                   </div>
-                                  {isAnnual ? (
-                                      <p className="text-[10px] font-bold text-[#65a30d] mb-4">R$ 14.271,60/ano</p>
-                                  ) : (<div className="mb-4 h-3"></div>)}
-                              </>
+                                  {isAnnual && <p className="text-xs font-bold text-[#65a30d] mt-1.5">R$ 14.271,60 cobrado anualmente · 30% off</p>}
+                              </div>
                           )}
-                          <div className="space-y-2 mb-5 text-xs font-medium text-slate-600 flex-1">
+                          <div className="space-y-2.5 mb-7 flex-1">
                               {['Até 25 vagas simultâneas', 'Todas as funções do Pro', 'Múltiplos clientes / operações', 'Relatórios avançados'].map(f => (
-                                  <div key={f} className="flex items-center gap-2">
-                                      <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-2.5 h-2.5 text-slate-600" /></div>
-                                      <span>{f}</span>
+                                  <div key={f} className="flex items-center gap-2.5">
+                                      <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-slate-600" /></div>
+                                      <span className="text-sm font-medium text-slate-700">{f}</span>
                                   </div>
                               ))}
                           </div>
                           {!isGhostAccount && normalizedPlan === 'MAX' ? (
-                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-3 rounded-xl text-xs text-center cursor-not-allowed">Plano Atual</button>
+                              <button disabled className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
                           ) : (
                               <button onClick={() => handleUpgradeLink('MAX')} disabled={upgradingPlan === 'MAX'}
-                                  className="w-full bg-transparent border border-slate-200 text-slate-900 font-bold py-3 rounded-xl text-xs transition-colors hover:bg-slate-50 flex items-center justify-center gap-1 disabled:opacity-60">
-                                  {upgradingPlan === 'MAX' ? <span className="animate-spin text-sm">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar' : currentRank > 3 ? 'Fazer Downgrade' : currentRank < 3 ? 'Assinar Max' : 'Fazer Upgrade'}
+                                  className="w-full border-2 border-slate-200 hover:border-slate-900 text-slate-900 font-bold py-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                                  {upgradingPlan === 'MAX' ? <span className="animate-spin">⏳</span> : null}
+                                  {isGhostAccount ? 'Assinar Max' : currentRank > 3 ? 'Fazer Downgrade' : currentRank < 3 ? 'Assinar Max' : 'Fazer Upgrade'}
                               </button>
                           )}
                       </div>
 
-                      {/* ULTRA */}
-                      <div className="bg-[#0a0a0a] rounded-2xl p-5 flex flex-col relative shadow-[0px_4px_20px_rgba(0,0,0,0.2)] z-10 border border-zinc-800">
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#65a30d] text-white text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest z-10 flex items-center gap-1 whitespace-nowrap shadow-lg">
-                              <Star className="w-2.5 h-2.5 fill-black" /> Máxima Capacidade
+                      {/* ── ULTRA ── */}
+                      <div className="bg-[#0a0a0a] rounded-[1.75rem] p-7 flex flex-col relative border border-zinc-800 shadow-[0px_8px_40px_rgba(0,0,0,0.22)] hover:shadow-[0px_12px_50px_rgba(0,0,0,0.30)] transition-shadow overflow-hidden">
+                          <div className="absolute top-0 right-0 bg-[#65a30d] text-white text-[10px] font-black px-4 py-2 rounded-bl-2xl flex items-center gap-1.5 tracking-wide">
+                              <Zap className="w-3 h-3 fill-white" /> Máxima Capacidade
                           </div>
-                          <h4 className="text-lg font-black text-white mb-0.5 flex items-center gap-1.5 tracking-tighter mt-1">Ultra <Zap className="w-4 h-4 text-[#65a30d] fill-[#65a30d]" /></h4>
-                          <p className="text-xs text-zinc-400 font-medium mb-4 leading-snug">Para grandes agências com alta demanda de vagas.</p>
+                          <div className="flex items-start justify-between mb-5 mt-1">
+                              <div>
+                                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Ultra · Agência</p>
+                                  <p className="text-sm text-zinc-400 font-medium leading-snug">Para grandes agências com alta demanda de vagas.</p>
+                              </div>
+                              <span className="text-[10px] font-black bg-zinc-800 text-zinc-400 px-2.5 py-1 rounded-full">50 vagas</span>
+                          </div>
                           {normalizedPlan === 'ULTRA' && user?.plan_price != null && user.plan_price !== 2999 ? (
-                              <div className="mb-4">
-                                  <div className="text-white mb-1 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-xs font-bold text-zinc-500 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1 mb-1">
+                                      <span className="text-base font-bold text-zinc-500 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-white tracking-tighter leading-none">{user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="text-sm font-bold text-zinc-500 mb-1">/mês</span>
                                   </div>
-                                  <span className="text-[10px] font-black bg-[#65a30d]/20 text-[#65a30d] px-2 py-0.5 rounded-md">Preço negociado</span>
+                                  <span className="text-xs font-black bg-[#65a30d]/20 text-[#65a30d] px-2.5 py-1 rounded-full">Preço negociado</span>
                               </div>
                           ) : (
-                              <>
-                                  <div className="text-white mb-0.5 flex items-baseline">
-                                      <span className="text-xs font-bold mr-0.5">R$</span>
-                                      <span className="text-3xl font-black tracking-tighter">{isAnnual ? '2.099' : '2.999'}</span>
-                                      <span className="text-sm font-bold">,{isAnnual ? '30' : '00'}</span>
-                                      <span className="text-xs font-bold text-zinc-500 ml-1">/mês</span>
+                              <div className="mb-5">
+                                  <div className="flex items-end gap-1">
+                                      <span className="text-base font-bold text-zinc-500 mb-1">R$</span>
+                                      <span className="text-5xl font-black text-white tracking-tighter leading-none">{isAnnual ? '2.099' : '2.999'}</span>
+                                      <span className="text-xl font-black text-white">,{isAnnual ? '30' : '00'}</span>
+                                      <span className="text-sm font-bold text-zinc-500 mb-1">/mês</span>
                                   </div>
-                                  {isAnnual ? (
-                                      <p className="text-[10px] font-bold text-[#65a30d] mb-4">R$ 25.191,60/ano</p>
-                                  ) : (<div className="mb-4 h-3"></div>)}
-                              </>
+                                  {isAnnual && <p className="text-xs font-bold text-[#65a30d] mt-1.5">R$ 25.191,60 cobrado anualmente · 30% off</p>}
+                              </div>
                           )}
-                          <div className="space-y-2 mb-5 text-xs font-medium text-zinc-300 flex-1">
+                          <div className="space-y-2.5 mb-7 flex-1">
                               {['Até 50 vagas simultâneas', 'Todas as funções do Max', 'Prioridade máxima no suporte', 'SLA garantido'].map(f => (
-                                  <div key={f} className="flex items-center gap-2">
-                                      <div className="w-4 h-4 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-2.5 h-2.5 text-[#65a30d]" /></div>
-                                      <span>{f}</span>
+                                  <div key={f} className="flex items-center gap-2.5">
+                                      <div className="w-5 h-5 rounded-full bg-[#65a30d]/20 flex items-center justify-center flex-shrink-0"><Check className="w-3 h-3 text-[#65a30d]" /></div>
+                                      <span className="text-sm font-medium text-zinc-300">{f}</span>
                                   </div>
                               ))}
                           </div>
                           {!isGhostAccount && normalizedPlan === 'ULTRA' ? (
-                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-3 rounded-xl text-xs text-center cursor-not-allowed">Plano Atual</button>
+                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
                           ) : (
                               <button onClick={() => handleUpgradeLink('ULTRA')} disabled={upgradingPlan === 'ULTRA'}
-                                  className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-3 rounded-xl text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-60">
-                                  {upgradingPlan === 'ULTRA' ? <span className="animate-spin text-sm">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar' : 'Assinar Ultra'}
+                                  className="w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-[0_4px_20px_rgba(101,163,13,0.4)]">
+                                  {upgradingPlan === 'ULTRA' ? <span className="animate-spin">⏳</span> : null}
+                                  {isGhostAccount ? 'Assinar Ultra' : 'Assinar Ultra'}
                               </button>
                           )}
                       </div>
+
                   </div>
               </div>
               );
