@@ -3799,6 +3799,43 @@ app.post("/api/webhooks/sdr/whatsapp", webhookLimiter, async (req, res) => {
     console.log("[SDR Webhook] RAW payload:", JSON.stringify(payload).substring(0, 2000));
     const eventRaw = String(payload.event || "").toLowerCase();
 
+    // ── CONNECTION_UPDATE: auto-registrar chip SDR no pool ─────────────────────
+    const isConnUpdate = eventRaw === "connection_update" || eventRaw === "connection.update";
+    if (isConnUpdate) {
+      const data = payload.data as Record<string, unknown> | undefined;
+      const state = String(data?.state || data?.connection || "");
+      const instanceName = String(payload.instance || payload.instanceName || "");
+      console.log(`[SDR Webhook] CONNECTION_UPDATE instance=${instanceName} state=${state}`);
+
+      if (state === "open" && instanceName) {
+        const { data: existing } = await supabaseAdmin
+          .from('chips_pool').select('id').eq('evolution_instance', instanceName).maybeSingle();
+
+        if (existing) {
+          await supabaseAdmin.from('chips_pool')
+            .update({ status: 'disponivel' })
+            .eq('evolution_instance', instanceName)
+            .eq('status', 'manutencao');
+          console.log(`[SDR Webhook] chip SDR já existe, status verificado`);
+        } else {
+          const phoneRaw = String(data?.me?.id || data?.wuid || data?.number || '');
+          const phoneNumber = phoneRaw.replace(/[^0-9]/g, '').replace(/:.*$/, '');
+          const { error: insertErr } = await supabaseAdmin.from('chips_pool').insert({
+            phone_number: phoneNumber || null,
+            evolution_instance: instanceName,
+            display_name: `SDR — ${instanceName}`,
+            status: 'disponivel',
+          });
+          if (insertErr) {
+            console.error(`[SDR Webhook] Erro ao inserir chip SDR: ${insertErr.message}`);
+          } else {
+            console.log(`[SDR Webhook] ✅ Chip SDR registrado: ${instanceName} / ${phoneNumber}`);
+          }
+        }
+      }
+      return res.status(200).json({ received: true });
+    }
+
     // Aceita Evolution API v2 (MESSAGES_UPSERT) e Evolution GO (message)
     const isV2  = eventRaw === "messages_upsert" || eventRaw === "messages.upsert";
     const isGO  = eventRaw === "message";
