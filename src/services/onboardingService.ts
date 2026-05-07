@@ -460,6 +460,21 @@ export async function provisionClient(saleId: string): Promise<ProvisionResult> 
 
       ctx.welcomeSent = true;
       await saveContext(saleId, 10, ctx);
+
+      // Enviar boas-vindas pelo número SDR (agente conversacional)
+      const sdrInstance = process.env.SDR_EVOLUTION_INSTANCE;
+      if (sdrInstance) {
+        const sdrWelcomeMsg =
+          `Olá, ${sale.client_name.split(' ')[0]}! 👋 Sou a *Elevva AI*, seu assistente de recrutamento.\n\n` +
+          `Estou aqui para te ajudar a acompanhar suas vagas, candidatos e entrevistas diretamente por aqui.\n\n` +
+          `Pode me perguntar qualquer coisa sobre seu processo seletivo a qualquer momento! 🚀`;
+        try {
+          await evolutionPost(`/message/sendText/${sdrInstance}`, { number: clientPhone, text: sdrWelcomeMsg });
+          console.log(`[Onboarding] Boas-vindas SDR enviadas para ${clientPhone} via ${sdrInstance}`);
+        } catch (sdrErr: any) {
+          console.warn(`[Onboarding] Boas-vindas SDR falhou (não bloqueante): ${sdrErr.message}`);
+        }
+      }
     }
 
     // ── FINALIZAR ─────────────────────────────────────────────────────────────

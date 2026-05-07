@@ -7,6 +7,7 @@ import OpenAI from "openai";
 import { analyzeResume, generateDailyBriefing, BriefingJob } from "./src/services/hermesService.js";
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
+import { isKnownRecruiter, handleRecruiterMessage } from "./src/services/recruiterAgentService.js";
 import { cleanPhone, sendText, configureWebhookBase64 } from "./src/services/evolutionService.js";
 import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chatwootService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
@@ -3786,8 +3787,7 @@ app.get("/admissao/:token", async (req, res) => {
 // SDR Webhook — Evolution API webhook for SDR chip
 // Configure this URL in Evolution API panel for the SDR instance
 // POST https://seu-dominio.com/api/webhooks/sdr/whatsapp
-// PAUSADO — aguardando novo número de WhatsApp para o SDR
-const SDR_PAUSED = true;
+const SDR_PAUSED = false;
 
 app.post("/api/webhooks/sdr/whatsapp", webhookLimiter, async (req, res) => {
   if (SDR_PAUSED) {
@@ -3845,15 +3845,18 @@ app.post("/api/webhooks/sdr/whatsapp", webhookLimiter, async (req, res) => {
     console.log(`[SDR Webhook] PARSED → Instance: ${instance}, Phone: ${phone}, Text: "${textContent}", PushName: ${pushName}`);
 
     try {
-      await processSdrMessage(
-        instance,
-        phone,
-        pushName,
-        textContent,
-        referralData,
-        supabaseAdmin,
-      );
-      console.log("[SDR Webhook] processSdrMessage completed OK");
+      // Route to recruiter agent if sender is an active recruiter; otherwise lead SDR flow
+      const recruiter = textContent && await isKnownRecruiter(phone, supabaseAdmin);
+      if (recruiter) {
+        console.log(`[SDR Webhook] Recruiter detected for ${phone} — routing to RecruiterAgent`);
+        const reply = await handleRecruiterMessage(phone, textContent!, supabaseAdmin);
+        if (reply) {
+          await sendText(instance, `${phone}@s.whatsapp.net`, reply);
+        }
+      } else {
+        await processSdrMessage(instance, phone, pushName, textContent, referralData, supabaseAdmin);
+        console.log("[SDR Webhook] processSdrMessage completed OK");
+      }
     } catch (procErr) {
       console.error("[SDR Webhook] processSdrMessage FAILED:", procErr);
     }
@@ -6168,11 +6171,12 @@ app.post("/api/cron/daily-briefing", async (req, res) => {
         if (!message) { skipped++; continue; }
 
         const phone = profile.phone.replace(/\D/g, '');
+        // Send briefing from SDR instance so recruiter gets it in the agent conversation
+        const sdrInstance = process.env.SDR_EVOLUTION_INSTANCE || profile.instancia_evolution;
         await sendText(
-          profile.instancia_evolution,
+          sdrInstance,
           `${phone}@s.whatsapp.net`,
           message,
-          profile.evolution_token || undefined,
         );
 
         console.log(`[DailyBriefing] ✅ Enviado para ${recruiterName} (${phone})`);

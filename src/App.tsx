@@ -2607,45 +2607,6 @@ const App: React.FC = () => {
                  </div>
              </div>
 
-             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
-                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><Lock className="w-5 h-5 text-slate-400"/> Segurança</h3>
-                 
-                 {isOAuthUser && (
-                     <div className="bg-blue-50/50 text-blue-700 p-4 rounded-2xl mb-6 text-xs font-medium border border-blue-100 flex items-center gap-3">
-                         <ShieldCheck className="w-5 h-5 shrink-0" />
-                         Sua conta está vinculada ao Google. Você pode definir uma senha abaixo para também acessar via email.
-                     </div>
-                 )}
-
-                 <div className="space-y-4">
-                     {!isOAuthUser && (
-                         <div>
-                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Senha Atual</label>
-                             <input 
-                               type="password" 
-                               value={currentPassword}
-                               onChange={(e) => setSearchTerm(e.target.value)}
-                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
-                             />
-                         </div>
-                     )}
-                     <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">{isOAuthUser ? 'Nova Senha' : 'Nova Senha'}</label>
-                         <input 
-                           type="password" 
-                           value={newPassword}
-                           onChange={(e) => setNewPassword(e.target.value)}
-                           placeholder={isOAuthUser ? "Crie uma senha segura" : ""}
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
-                         />
-                     </div>
-                     <div className="pt-4">
-                        <button onClick={handleChangePassword} disabled={changingPassword} className="bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm">
-                            {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Key className="w-4 h-4 text-slate-400" />} {isOAuthUser ? 'Definir Senha' : 'Alterar Senha'}
-                        </button>
-                     </div>
-                 </div>
-             </div>
          </div>
 
          {/* Agente de Recrutamento */}
