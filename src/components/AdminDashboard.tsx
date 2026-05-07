@@ -2243,6 +2243,14 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors disabled:opacity-40">
                           <Activity className="w-4 h-4" /> Verificar Todos
                       </button>
+                      <button onClick={async () => {
+                          const r = await fetch('/api/chips-pool/sync-profiles', { method: 'POST' });
+                          const d = await r.json();
+                          alert(`Sincronizado: ${d.imported} importados, ${d.skipped} já existentes.`);
+                          fetchChips();
+                      }} className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors">
+                          <RefreshCw className="w-4 h-4" /> Sincronizar Perfis
+                      </button>
                       <button onClick={fetchChips} className="flex items-center gap-2 border border-zinc-200 text-zinc-600 font-bold px-4 py-2.5 rounded-2xl text-sm hover:bg-zinc-50 transition-colors">
                           <RefreshCw className="w-4 h-4" /> Atualizar
                       </button>

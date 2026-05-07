@@ -3797,10 +3797,12 @@ app.post("/api/webhooks/sdr/whatsapp", webhookLimiter, async (req, res) => {
   try {
     const payload = req.body as Record<string, unknown>;
     console.log("[SDR Webhook] RAW payload:", JSON.stringify(payload).substring(0, 2000));
-    const eventRaw = String(payload.event || "");
+    const eventRaw = String(payload.event || "").toLowerCase();
 
-    // Evolution GO: event "Message" for incoming messages
-    if (eventRaw.toLowerCase() !== "message") {
+    // Aceita Evolution API v2 (MESSAGES_UPSERT) e Evolution GO (message)
+    const isV2  = eventRaw === "messages_upsert" || eventRaw === "messages.upsert";
+    const isGO  = eventRaw === "message";
+    if (!isV2 && !isGO) {
       console.log(`[SDR Webhook] Ignored event: "${eventRaw}"`);
       return res.status(200).json({ received: true });
     }
@@ -3808,39 +3810,60 @@ app.post("/api/webhooks/sdr/whatsapp", webhookLimiter, async (req, res) => {
     const data = payload.data as Record<string, unknown> | undefined;
     if (!data) { console.log("[SDR Webhook] No data field"); return res.status(200).json({ received: true }); }
 
-    // Evolution GO: Chat, IsFromMe, PushName are inside data.Info
-    const info = data.Info as Record<string, unknown> | undefined;
-
-    console.log(`[SDR Webhook] IsFromMe=${info?.IsFromMe}, Chat=${info?.Chat}, PushName=${info?.PushName}`);
-
-    // Ignore messages sent by the bot
-    if (info?.IsFromMe === true) { console.log("[SDR Webhook] Skipped: IsFromMe"); return res.status(200).json({ received: true }); }
-
-    // Evolution GO: phone is in data.Info.Chat (format: "5551...@s.whatsapp.net")
-    const chatJid = String(info?.Chat || "");
-    if (!chatJid || chatJid.endsWith("@g.us")) { console.log("[SDR Webhook] Skipped: no chatJid or group"); return res.status(200).json({ received: true }); }
-
-    const instance = String(payload.instanceName || "");
-    const phone = cleanPhone(chatJid);
-    const pushName = String(info?.PushName || "");
-
-    // Evolution GO: text is in data.Message.conversation or data.Message.extendedTextMessage.text
-    const messageObj = data.Message as Record<string, unknown> | undefined;
-    console.log(`[SDR Webhook] Message obj keys: ${messageObj ? Object.keys(messageObj).join(',') : 'null'}`);
+    let instance = String(payload.instance || payload.instanceName || "");
+    let phone = "";
+    let pushName = "";
     let textContent: string | null = null;
-    if (messageObj) {
-      if (messageObj.conversation) {
-        textContent = String(messageObj.conversation).trim();
-      } else if (messageObj.extendedTextMessage) {
+    let referralData: Record<string, unknown> | null = null;
+    let fromMe = false;
+
+    if (isV2) {
+      // ── Evolution API v2 format ──────────────────────────────────────────────
+      const key = data.key as Record<string, unknown> | undefined;
+      fromMe = key?.fromMe === true;
+      const remoteJid = String(key?.remoteJid || "");
+      if (!remoteJid || remoteJid.endsWith("@g.us")) {
+        console.log("[SDR Webhook] Skipped: no remoteJid or group (v2)");
+        return res.status(200).json({ received: true });
+      }
+      phone    = cleanPhone(remoteJid);
+      pushName = String(data.pushName || "");
+      instance = instance || String(data.instance || "");
+
+      const msgType = String(data.messageType || "");
+      const message = (data.message as Record<string, unknown>) || {};
+      if (msgType === "conversation") {
+        textContent = String(message.conversation || "").trim() || null;
+      } else if (msgType === "extendedTextMessage") {
+        const ext = message.extendedTextMessage as Record<string, unknown> | undefined;
+        textContent = String(ext?.text || "").trim() || null;
+        const ctx = ext?.contextInfo as Record<string, unknown> | undefined;
+        referralData = (ctx?.externalAdReply as Record<string, unknown>) || null;
+      }
+    } else {
+      // ── Evolution GO format ──────────────────────────────────────────────────
+      const info = data.Info as Record<string, unknown> | undefined;
+      fromMe   = info?.IsFromMe === true;
+      const chatJid = String(info?.Chat || "");
+      if (!chatJid || chatJid.endsWith("@g.us")) {
+        console.log("[SDR Webhook] Skipped: no chatJid or group (GO)");
+        return res.status(200).json({ received: true });
+      }
+      phone    = cleanPhone(chatJid);
+      pushName = String(info?.PushName || "");
+
+      const messageObj = data.Message as Record<string, unknown> | undefined;
+      if (messageObj?.conversation) {
+        textContent = String(messageObj.conversation).trim() || null;
+      } else if (messageObj?.extendedTextMessage) {
         const ext = messageObj.extendedTextMessage as Record<string, unknown>;
-        textContent = String(ext.text || "").trim();
+        textContent = String(ext.text || "").trim() || null;
+        const ctx = ext.contextInfo as Record<string, unknown> | undefined;
+        referralData = (ctx?.externalAdReply as Record<string, unknown>) || null;
       }
     }
-    if (!textContent) textContent = null;
 
-    // CTWA referral data (from ad clicks)
-    const msgContextInfo = (messageObj?.extendedTextMessage as Record<string, unknown>)?.contextInfo as Record<string, unknown> | undefined;
-    const referralData = msgContextInfo?.externalAdReply as Record<string, unknown> | null || null;
+    if (fromMe) { console.log("[SDR Webhook] Skipped: fromMe"); return res.status(200).json({ received: true }); }
 
     console.log(`[SDR Webhook] PARSED → Instance: ${instance}, Phone: ${phone}, Text: "${textContent}", PushName: ${pushName}`);
 
@@ -5258,6 +5281,45 @@ app.post("/api/chips-pool", async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true, chip: data });
+});
+
+// ── POST /api/chips-pool/sync-profiles — Importa chips já atribuídos nos profiles ──
+// Cria entradas em chips_pool (status em_uso) para instâncias que já estão nos perfis
+app.post("/api/chips-pool/sync-profiles", async (_req, res) => {
+  try {
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, instancia_evolution, whatsapp_number, telefone_agente, full_name')
+      .not('instancia_evolution', 'is', null);
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const p of profiles || []) {
+      const { data: existing } = await supabaseAdmin
+        .from('chips_pool')
+        .select('id')
+        .eq('evolution_instance', p.instancia_evolution)
+        .maybeSingle();
+
+      if (existing) { skipped++; continue; }
+
+      const phone = (p.whatsapp_number || p.telefone_agente || '').replace(/\D/g, '');
+      await supabaseAdmin.from('chips_pool').insert({
+        phone_number: phone || null,
+        evolution_instance: p.instancia_evolution,
+        display_name: p.full_name || p.instancia_evolution,
+        status: 'em_uso',
+        assigned_to: p.id,
+        assigned_at: new Date().toISOString(),
+      });
+      imported++;
+    }
+
+    return res.json({ ok: true, imported, skipped });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── PUT /api/chips-pool/:id — Atualizar chip ─────────────────────────────────
