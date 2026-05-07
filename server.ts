@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
@@ -61,22 +60,28 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key'],
 }));
 
-// Rate limiters
-const webhookLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => String(req.headers['x-forwarded-for'] || req.ip || 'unknown'),
-  skip: (_req) => process.env.NODE_ENV === 'test',
-});
+// Inline rate limiter (avoids express-rate-limit module resolution issues on Vercel)
+function makeRateLimiter(windowMs: number, max: number) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const key = String(req.headers['x-forwarded-for'] || req.ip || 'unknown');
+    const now = Date.now();
+    const entry = hits.get(key);
+    if (!entry || now > entry.resetAt) {
+      hits.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    entry.count++;
+    if (entry.count > max) {
+      res.status(429).json({ error: 'Too many requests' });
+      return;
+    }
+    next();
+  };
+}
 
-const adminLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const webhookLimiter = makeRateLimiter(60 * 1000, 200);
+const adminLimiter = makeRateLimiter(15 * 60 * 1000, 100);
 
 app.use(express.json({ limit: "50mb" })); // Large limit for base64 PDFs from Evolution API
 
