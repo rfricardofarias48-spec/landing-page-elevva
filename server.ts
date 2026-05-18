@@ -1029,6 +1029,39 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
       status_automacao: true,
     }).eq('id', userId);
 
+    // ── 9. Mensagem de boas-vindas ────────────────────────────────────
+    const clientPersonalPhone = (profile.phone || '').replace(/\D/g, '');
+    if (clientPersonalPhone) {
+      const appUrl = process.env.APP_URL || 'https://app.elevva.net.br';
+      const chatwootUrl = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+      const supportInstance = process.env.SUPPORT_EVOLUTION_INSTANCE || evolutionInstance;
+      const welcomeMsg = [
+        `🎉 *Bem-vindo à Elevva, ${clientName}!*`,
+        '',
+        'Sua conta foi configurada com sucesso. Abaixo estão os seus dados de acesso:',
+        '',
+        `📱 *Plataforma Elevva:* ${appUrl}`,
+        ...(chatwootUrl && chatwootLoginEmail ? [
+          '',
+          `💬 *Chatwoot (painel de atendimento):*`,
+          `🔗 ${chatwootUrl}`,
+          `📧 Login: ${chatwootLoginEmail}`,
+          `🔑 Senha: ${chatwootLoginPassword}`,
+        ] : []),
+        '',
+        'Agora é só escanear o QR code no painel para ativar o agente WhatsApp. Qualquer dúvida, estamos aqui! 🚀',
+      ].join('\n');
+
+      try {
+        const welcomed = await sendText(supportInstance, clientPersonalPhone, welcomeMsg, evolutionToken);
+        steps.push({ id: 'welcome_msg', label: 'Mensagem de boas-vindas', ok: welcomed, detail: welcomed ? `Enviada para +${clientPersonalPhone}` : `Falha ao enviar para +${clientPersonalPhone}` });
+      } catch {
+        steps.push({ id: 'welcome_msg', label: 'Mensagem de boas-vindas', ok: false, detail: 'Erro ao enviar mensagem (não-crítico)' });
+      }
+    } else {
+      steps.push({ id: 'welcome_msg', label: 'Mensagem de boas-vindas', ok: false, detail: 'Número pessoal não cadastrado no perfil' });
+    }
+
     // ── 8. QR Code ────────────────────────────────────────────────────
     const qrCode = await getQRCode(evolutionInstance, evolutionToken);
     steps.push({
