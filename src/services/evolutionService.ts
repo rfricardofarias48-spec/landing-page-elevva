@@ -308,3 +308,74 @@ export async function configureWebhookBase64(
   console.error(`[Evolution] Failed to enable webhook_base64 for instance: ${instance}`);
   return false;
 }
+
+/** Cria uma nova instância Evolution e retorna o token gerado */
+export async function createInstance(instanceName: string): Promise<{ token: string } | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/instance/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: API_KEY },
+      body: JSON.stringify({ instanceName, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+    });
+    const data = await res.json() as { instance?: { instanceName: string }; hash?: string | { apikey: string } };
+    if (res.ok && data.hash) {
+      const token = typeof data.hash === 'string' ? data.hash : data.hash.apikey;
+      if (token) { console.log(`[Evolution] Instância criada: ${instanceName}`); return { token }; }
+    }
+    console.error('[Evolution] createInstance failed:', data);
+    return null;
+  } catch (err) {
+    console.error('[Evolution] createInstance error:', err);
+    return null;
+  }
+}
+
+/** Retorna o QR code base64 para conectar WhatsApp em uma instância */
+export async function getQRCode(instance: string, tokenOverride?: string): Promise<string | null> {
+  const key = tokenOverride || getApiKey(instance);
+  try {
+    const res = await fetch(`${BASE_URL}/instance/connect/${instance}`, { headers: { apikey: key } });
+    if (!res.ok) return null;
+    const data = await res.json() as { base64?: string; qrcode?: { base64?: string } };
+    return data.base64 || data.qrcode?.base64 || null;
+  } catch { return null; }
+}
+
+/** Aplica configurações padrão na instância (rejeitar chamadas, ignorar grupos) */
+export async function configureInstanceSettings(instance: string, tokenOverride?: string): Promise<boolean> {
+  const key = tokenOverride || getApiKey(instance);
+  try {
+    const res = await fetch(`${BASE_URL}/settings/set/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: key },
+      body: JSON.stringify({
+        rejectCall: true,
+        msgCall: '',
+        groupsIgnore: true,
+        alwaysOnline: false,
+        readMessages: false,
+        syncFullHistory: false,
+      }),
+    });
+    if (res.ok) { console.log(`[Evolution] Settings configurados: ${instance}`); return true; }
+    return false;
+  } catch { return false; }
+}
+
+/** Deleta permanentemente uma instância Evolution */
+export async function deleteInstance(instanceName: string, tokenOverride?: string): Promise<boolean> {
+  const key = tokenOverride || getApiKey(instanceName);
+  try {
+    const res = await fetch(`${BASE_URL}/instance/delete/${instanceName}`, {
+      method: 'DELETE',
+      headers: { apikey: key },
+    });
+    if (res.ok) { console.log(`[Evolution] Instância deletada: ${instanceName}`); return true; }
+    const text = await res.text();
+    console.error(`[Evolution] deleteInstance HTTP ${res.status}: ${text.substring(0, 200)}`);
+    return false;
+  } catch (err) {
+    console.error(`[Evolution] deleteInstance error:`, err);
+    return false;
+  }
+}

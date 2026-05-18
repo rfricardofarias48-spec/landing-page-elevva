@@ -7,8 +7,8 @@ import { analyzeResume, generateDailyBriefing, BriefingJob } from "./src/service
 import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
 import { isKnownRecruiter, handleRecruiterMessage } from "./src/services/recruiterAgentService.js";
-import { cleanPhone, sendText, configureWebhookBase64 } from "./src/services/evolutionService.js";
-import { mirrorMessage, configureChatwootOnEvolution } from "./src/services/chatwootService.js";
+import { cleanPhone, sendText, configureWebhookBase64, createInstance, getQRCode, configureInstanceSettings, deleteInstance } from "./src/services/evolutionService.js";
+import { mirrorMessage, configureChatwootOnEvolution, createInbox, createAgentUser, assignAgentToInbox, createChatwootWebhook } from "./src/services/chatwootService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData, isSlotExpired } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
@@ -873,6 +873,218 @@ app.post("/api/admin/reconfigure-chatwoot/:userId", adminLimiter, requireAdmin, 
     return res.json({ ok, instance, accountId, inboxId, message: ok ? 'Integração configurada com sucesso!' : 'Falha ao configurar — veja logs do servidor' });
   } catch (err) {
     console.error("[Admin] reconfigure-chatwoot error:", err);
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN: Auto-Setup completo Evolution + Chatwoot para um usuário
+// POST /api/admin/auto-setup/:userId
+// Cria instância, configura webhook, cria inbox Chatwoot, integra tudo
+// e retorna QR code para o cliente escanear.
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+
+  interface SetupStep { id: string; label: string; ok: boolean; detail: string }
+  const steps: SetupStep[] = [];
+
+  function slugify(name: string) {
+    return name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 20);
+  }
+
+  try {
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (profileErr || !profile) return res.status(404).json({ ok: false, error: 'Perfil não encontrado' });
+
+    const CHATWOOT_ACCOUNT_ID = Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
+    const CHATWOOT_ADMIN_TOKEN = process.env.CHATWOOT_ADMIN_TOKEN || '';
+    const WEBHOOK_URL = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/evolution`;
+    const CHATWOOT_WEBHOOK_URL = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/chatwoot`;
+
+    let evolutionInstance: string = profile.instancia_evolution || '';
+    let evolutionToken: string = profile.evolution_token || '';
+    let chatwootInboxId: number = profile.chatwoot_inbox_id || 0;
+    let chatwootToken: string = profile.chatwoot_token || profile.chatwoot_user_token || '';
+
+    // ── 1. Criar instância Evolution ───────────────────────────────────
+    if (!evolutionInstance) {
+      const instanceName = `elevva-${slugify(profile.name || profile.email)}-${Date.now().toString(36)}`;
+      const created = await createInstance(instanceName);
+      if (created) {
+        evolutionInstance = instanceName;
+        evolutionToken = created.token;
+        steps.push({ id: 'evolution_create', label: 'Instância Evolution criada', ok: true, detail: instanceName });
+      } else {
+        steps.push({ id: 'evolution_create', label: 'Criar instância Evolution', ok: false, detail: 'Falha — verifique EVOLUTION_API_URL e EVOLUTION_API_KEY' });
+        return res.json({ ok: false, steps, qrCode: null });
+      }
+    } else {
+      steps.push({ id: 'evolution_create', label: 'Instância Evolution', ok: true, detail: `Já existente: ${evolutionInstance}` });
+    }
+
+    // ── 2. Configurar settings da instância ───────────────────────────
+    const settingsOk = await configureInstanceSettings(evolutionInstance, evolutionToken);
+    steps.push({ id: 'settings', label: 'Settings da instância', ok: settingsOk, detail: settingsOk ? 'Reject Calls ON · Ignore Groups ON' : 'Falha ao aplicar settings' });
+
+    // ── 3. Configurar webhook Evolution ───────────────────────────────
+    const webhookOk = await configureWebhookBase64(evolutionInstance, WEBHOOK_URL, evolutionToken);
+    steps.push({ id: 'webhook', label: 'Webhook Evolution configurado', ok: webhookOk, detail: webhookOk ? `URL: ${WEBHOOK_URL} · Base64 ON` : 'Falha ao configurar webhook' });
+
+    // ── 4. Criar inbox Chatwoot ────────────────────────────────────────
+    if (!chatwootInboxId && CHATWOOT_ADMIN_TOKEN) {
+      const inboxName = `WhatsApp - ${profile.name || profile.email}`;
+      const inboxId = await createInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, inboxName);
+      if (inboxId) {
+        chatwootInboxId = inboxId;
+        steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot criado', ok: true, detail: `Inbox ID: ${inboxId} · "${inboxName}"` });
+      } else {
+        steps.push({ id: 'chatwoot_inbox', label: 'Criar inbox Chatwoot', ok: false, detail: 'Falha — verifique CHATWOOT_ADMIN_TOKEN e CHATWOOT_URL' });
+      }
+    } else if (chatwootInboxId) {
+      steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot', ok: true, detail: `Já configurado: ID ${chatwootInboxId}` });
+    } else {
+      steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot', ok: false, detail: 'CHATWOOT_ADMIN_TOKEN não configurado' });
+    }
+
+    // ── 5. Criar agente Chatwoot ───────────────────────────────────────
+    if (!chatwootToken && CHATWOOT_ADMIN_TOKEN && profile.email) {
+      const agent = await createAgentUser(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, profile.name || profile.email, profile.email);
+      if (agent) {
+        chatwootToken = agent.accessToken;
+        await supabaseAdmin.from('profiles').update({ chatwoot_user_id: agent.agentId }).eq('id', userId);
+        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot criado', ok: true, detail: `Agente ID: ${agent.agentId}` });
+
+        // Atribuir agente ao inbox
+        if (chatwootInboxId) {
+          await assignAgentToInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, chatwootInboxId, agent.agentId);
+        }
+      } else {
+        // Agente pode já existir — usa admin token como fallback
+        chatwootToken = CHATWOOT_ADMIN_TOKEN;
+        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: false, detail: 'Falha ao criar agente — usando token admin como fallback' });
+      }
+    } else if (chatwootToken) {
+      steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: true, detail: 'Token já configurado' });
+    }
+
+    // ── 6. Integrar Evolution ↔ Chatwoot ──────────────────────────────
+    const integrationToken = chatwootToken || CHATWOOT_ADMIN_TOKEN;
+    const chatwootLinked = await configureChatwootOnEvolution(
+      evolutionInstance, evolutionToken, CHATWOOT_ACCOUNT_ID, integrationToken, chatwootInboxId,
+      `WhatsApp - ${profile.name || profile.email}`,
+    );
+    steps.push({
+      id: 'chatwoot_link', label: 'Integração Evolution ↔ Chatwoot', ok: chatwootLinked,
+      detail: chatwootLinked ? `Inbox #${chatwootInboxId} · Reopen ON · Pending OFF` : 'Falha — verifique CHATWOOT_URL e credenciais',
+    });
+
+    // ── 7. Webhook Chatwoot ────────────────────────────────────────────
+    let cwWebhookOk = false;
+    const tokenForWebhook = chatwootToken || CHATWOOT_ADMIN_TOKEN;
+    for (let attempt = 1; attempt <= 3 && !cwWebhookOk; attempt++) {
+      if (attempt > 1) await new Promise(r => setTimeout(r, 2000));
+      cwWebhookOk = await createChatwootWebhook(CHATWOOT_ACCOUNT_ID, tokenForWebhook, CHATWOOT_WEBHOOK_URL);
+    }
+    steps.push({
+      id: 'chatwoot_webhook', label: 'Webhook Chatwoot', ok: cwWebhookOk,
+      detail: cwWebhookOk ? `URL: ${CHATWOOT_WEBHOOK_URL}` : 'Falha após 3 tentativas',
+    });
+
+    // ── Persistir tudo no perfil ───────────────────────────────────────
+    await supabaseAdmin.from('profiles').update({
+      instancia_evolution: evolutionInstance,
+      evolution_token: evolutionToken,
+      chatwoot_account_id: CHATWOOT_ACCOUNT_ID,
+      chatwoot_token: chatwootToken || CHATWOOT_ADMIN_TOKEN,
+      chatwoot_user_token: chatwootToken || CHATWOOT_ADMIN_TOKEN,
+      chatwoot_inbox_id: chatwootInboxId || null,
+      status_automacao: true,
+    }).eq('id', userId);
+
+    // ── 8. QR Code ────────────────────────────────────────────────────
+    const qrCode = await getQRCode(evolutionInstance, evolutionToken);
+    steps.push({
+      id: 'qr', label: 'QR code pronto', ok: !!qrCode,
+      detail: qrCode ? 'Escaneie com o WhatsApp para ativar o agente' : 'QR ainda sendo gerado — aguarde e tente Atualizar QR',
+    });
+
+    return res.json({ ok: true, steps, qrCode, evolutionInstance, chatwootInboxId });
+  } catch (err) {
+    console.error('[Admin] auto-setup error:', err);
+    return res.status(500).json({ ok: false, error: String(err), steps });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN: Deletar conta + dados externos (Evolution + Chatwoot inbox)
+// DELETE /api/admin/delete-user/:userId
+// ─────────────────────────────────────────────────────────────────────
+app.delete("/api/admin/delete-user/:userId", adminLimiter, requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const errors: string[] = [];
+  try {
+    const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('id', userId).single();
+    if (!profile) return res.status(404).json({ ok: false, error: 'Perfil não encontrado' });
+
+    // 1. Deletar instância Evolution
+    if (profile.instancia_evolution) {
+      const evOk = await deleteInstance(profile.instancia_evolution, profile.evolution_token);
+      if (!evOk) errors.push(`evolution: falha ao deletar instância ${profile.instancia_evolution}`);
+    }
+
+    // 2. Deletar inbox Chatwoot (remove dados de conversas deste usuário)
+    const adminToken = process.env.CHATWOOT_ADMIN_TOKEN || '';
+    const chatwootUrl = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+    const accountId = Number(profile.chatwoot_account_id) || Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
+    if (profile.chatwoot_inbox_id && adminToken && chatwootUrl) {
+      try {
+        const r = await fetch(`${chatwootUrl}/api/v1/accounts/${accountId}/inboxes/${profile.chatwoot_inbox_id}`, {
+          method: 'DELETE', headers: { api_access_token: adminToken },
+        });
+        if (!r.ok) errors.push(`chatwoot inbox #${profile.chatwoot_inbox_id}: HTTP ${r.status}`);
+      } catch (e: any) { errors.push(`chatwoot inbox: ${e.message}`); }
+    }
+
+    // 3. Deletar dados Supabase
+    const tables = ['agent_conversations', 'candidates', 'jobs', 'interviews', 'admissions', 'sdr_conversations', 'sdr_leads'];
+    for (const t of tables) {
+      const { error } = await supabaseAdmin.from(t as never).delete().eq('user_id', userId);
+      if (error && !error.message.includes('does not exist')) errors.push(`${t}: ${error.message}`);
+    }
+
+    // 4. Deletar chips_pool assignment
+    await supabaseAdmin.from('chips_pool').update({ status: 'disponivel', assigned_to: null, assigned_sale_id: null }).eq('assigned_to', userId);
+
+    // 5. Deletar perfil
+    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+
+    // 6. Deletar auth user
+    await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    return res.json({ ok: true, errors: errors.length > 0 ? errors : undefined });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: String(err), errors });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN: Atualizar QR code de uma instância
+// GET /api/admin/qr-code/:userId
+// ─────────────────────────────────────────────────────────────────────
+app.get("/api/admin/qr-code/:userId", adminLimiter, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data: profile } = await supabaseAdmin.from('profiles').select('instancia_evolution, evolution_token').eq('id', userId).single();
+    if (!profile?.instancia_evolution) return res.status(400).json({ ok: false, error: 'Instância não configurada' });
+    const qrCode = await getQRCode(profile.instancia_evolution, profile.evolution_token);
+    return res.json({ ok: !!qrCode, qrCode });
+  } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
   }
 });

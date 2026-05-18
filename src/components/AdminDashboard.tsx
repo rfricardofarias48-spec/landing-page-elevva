@@ -4,7 +4,7 @@ import { AdminUserProfile, Announcement, PlanType } from '../types';
 import { SqlSetupModal } from './SqlSetupModal';
 import {
   Users, Calendar, CreditCard, Search, Activity,
-  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap, Plus, Link as LinkIcon, Shield, Wifi, WifiOff, XCircle, ServerCrash
+  Loader2, ArrowUpRight, Ban, CheckCircle2, X, Megaphone, Image as ImageIcon, Upload, Trash2, Filter, UserX, Wallet, Database, TrendingUp, FileText, PieChart, DollarSign, LayoutDashboard, LogOut, Edit3, Save, Banknote, Briefcase, Bot, AlertTriangle, Send, RefreshCw, MessageSquare, Sliders, GraduationCap, Plus, Link as LinkIcon, Shield, Wifi, WifiOff, XCircle, ServerCrash, Zap, QrCode
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
@@ -52,6 +52,15 @@ export const AdminDashboard: React.FC = () => {
   const [reconfigChatwootMsg, setReconfigChatwootMsg] = useState<string | null>(null);
   const [diagChatwootLoading, setDiagChatwootLoading] = useState(false);
   const [diagChatwootResult, setDiagChatwootResult] = useState<string | null>(null);
+
+  // States para Auto-Setup Evolution + Chatwoot
+  interface SetupStep { id: string; label: string; ok: boolean; detail: string }
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupSteps, setSetupSteps] = useState<SetupStep[]>([]);
+  const [setupQR, setSetupQR] = useState<string | null>(null);
+  const [setupDone, setSetupDone] = useState(false);
+  const [qrRefreshLoading, setQrRefreshLoading] = useState(false);
 
   // States para Controle Agente
   const [agentSubTab, setAgentSubTab] = useState<'trabalho' | 'atendimento' | 'treinamento'>('trabalho');
@@ -515,6 +524,50 @@ export const AdminDashboard: React.FC = () => {
       setDiagChatwootResult('❌ Erro de rede');
     } finally {
       setDiagChatwootLoading(false);
+    }
+  };
+
+  const handleAutoSetup = async () => {
+    if (!selectedUser) return;
+    setShowSetupModal(true);
+    setSetupLoading(true);
+    setSetupSteps([]);
+    setSetupQR(null);
+    setSetupDone(false);
+    try {
+      const res = await adminFetch(`/api/admin/auto-setup/${selectedUser.id}`, { method: 'POST' });
+      const data = await res.json() as { ok: boolean; steps: SetupStep[]; qrCode: string | null; evolutionInstance?: string; chatwootInboxId?: number };
+      setSetupSteps(data.steps || []);
+      setSetupQR(data.qrCode || null);
+      setSetupDone(true);
+      // Atualiza o usuário selecionado com os novos dados
+      const { data: updated } = await supabase.from('profiles').select('*').eq('id', selectedUser.id).single();
+      if (updated) {
+        setSelectedUser({ ...selectedUser, ...updated });
+        setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, ...updated } : u));
+        setTempInstancia(updated.instancia_evolution || '');
+        setTempEvolutionToken(updated.evolution_token || '');
+        setTempChatwootInboxId(updated.chatwoot_inbox_id ? String(updated.chatwoot_inbox_id) : '');
+        setTempChatwootToken(updated.chatwoot_token || '');
+        setTempChatwootAccountId(updated.chatwoot_account_id ? String(updated.chatwoot_account_id) : '');
+      }
+    } catch {
+      setSetupSteps([{ id: 'error', label: 'Erro de rede', ok: false, detail: 'Não foi possível conectar ao servidor' }]);
+      setSetupDone(true);
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
+  const handleRefreshQR = async () => {
+    if (!selectedUser) return;
+    setQrRefreshLoading(true);
+    try {
+      const res = await adminFetch(`/api/admin/qr-code/${selectedUser.id}`);
+      const data = await res.json() as { ok: boolean; qrCode: string | null };
+      if (data.qrCode) setSetupQR(data.qrCode);
+    } catch { /* ignore */ } finally {
+      setQrRefreshLoading(false);
     }
   };
 
@@ -3973,22 +4026,33 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 </div>
                                             </div>
                                             <p className="text-[10px] text-slate-400 mt-1">Chatwoot → Configurações → Integrações → API de Acesso</p>
-                                            <div className="mt-3 flex items-center gap-3 flex-wrap">
+                                            <div className="mt-3 flex items-center gap-2 flex-wrap">
+                                                {/* Setup Automático — botão principal */}
+                                                <button
+                                                    onClick={handleAutoSetup}
+                                                    disabled={setupLoading}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-black hover:bg-zinc-800 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                                                >
+                                                    {setupLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                                                    {selectedUser?.instancia_evolution ? 'Reconfigurar + QR' : 'Setup Automático'}
+                                                </button>
+                                                {/* Reconfigurar Evolution — ação secundária */}
                                                 <button
                                                     onClick={handleReconfigChatwoot}
                                                     disabled={reconfigChatwootLoading}
                                                     className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                                                    title="Reconectar integração Evolution ↔ Chatwoot com dados já salvos"
                                                 >
                                                     {reconfigChatwootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                                                    Reconfigurar no Evolution
+                                                    Reconectar
                                                 </button>
                                                 <button
                                                     onClick={handleDiagChatwoot}
                                                     disabled={diagChatwootLoading}
-                                                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
                                                 >
                                                     {diagChatwootLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>🔍</span>}
-                                                    Diagnosticar
+                                                    Diagnóstico
                                                 </button>
                                                 {reconfigChatwootMsg && (
                                                     <span className="text-xs font-medium text-slate-600">{reconfigChatwootMsg}</span>
@@ -4054,6 +4118,120 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                 <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* ── Modal Auto-Setup Evolution + Chatwoot ── */}
+        {showSetupModal && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center">
+                                <Zap className="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900">Setup Automático</h3>
+                                <p className="text-[11px] text-slate-400">{selectedUser?.name || selectedUser?.email}</p>
+                            </div>
+                        </div>
+                        {setupDone && (
+                            <button onClick={() => setShowSetupModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="px-6 py-5 space-y-3 max-h-[70vh] overflow-y-auto">
+                        {/* Steps */}
+                        {setupLoading && setupSteps.length === 0 && (
+                            <div className="flex items-center gap-3 py-4">
+                                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                                <span className="text-sm text-slate-500">Iniciando setup...</span>
+                            </div>
+                        )}
+
+                        {setupSteps.map(step => (
+                            <div key={step.id} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: step.ok ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)', border: `1px solid ${step.ok ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
+                                <div className="shrink-0 mt-0.5">
+                                    {step.ok
+                                        ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                        : <XCircle className="w-4 h-4 text-red-500" />
+                                    }
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-900 leading-tight">{step.label}</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{step.detail}</p>
+                                </div>
+                            </div>
+                        ))}
+
+                        {setupLoading && setupSteps.length > 0 && (
+                            <div className="flex items-center gap-2 py-1">
+                                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                <span className="text-xs text-slate-400">Executando próximo passo...</span>
+                            </div>
+                        )}
+
+                        {/* QR Code */}
+                        {setupDone && setupQR && (
+                            <div className="mt-2 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
+                                <div className="flex items-center justify-center gap-2 mb-3">
+                                    <QrCode className="w-4 h-4 text-slate-600" />
+                                    <p className="text-xs font-black text-slate-700 uppercase tracking-wider">Escaneie com o WhatsApp</p>
+                                </div>
+                                <img src={setupQR} alt="QR Code WhatsApp" className="mx-auto rounded-xl" style={{ maxWidth: 220 }} />
+                                <p className="text-[11px] text-slate-400 mt-3">Abra o WhatsApp → Aparelhos conectados → Conectar</p>
+                                <button
+                                    onClick={handleRefreshQR}
+                                    disabled={qrRefreshLoading}
+                                    className="mt-3 flex items-center gap-1.5 mx-auto px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                                >
+                                    {qrRefreshLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                    Atualizar QR
+                                </button>
+                            </div>
+                        )}
+
+                        {setupDone && !setupQR && setupSteps.some(s => s.id === 'qr' && !s.ok) && (
+                            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-center">
+                                <p className="text-xs font-bold text-amber-700">QR em geração</p>
+                                <p className="text-[11px] text-amber-600 mt-1">A instância foi criada mas o QR ainda não está disponível.</p>
+                                <button
+                                    onClick={handleRefreshQR}
+                                    disabled={qrRefreshLoading}
+                                    className="mt-2 flex items-center gap-1.5 mx-auto px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors disabled:opacity-50"
+                                >
+                                    {qrRefreshLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                    Tentar novamente
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Resumo final */}
+                        {setupDone && (
+                            <div className="pt-2 border-t border-slate-100 flex gap-2">
+                                {setupSteps.some(s => !s.ok) && (
+                                    <button
+                                        onClick={handleAutoSetup}
+                                        disabled={setupLoading}
+                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center justify-center gap-1.5"
+                                    >
+                                        <RefreshCw className="w-3.5 h-3.5" />
+                                        Tentar novamente
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setShowSetupModal(false)}
+                                    className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-black text-white hover:bg-zinc-800 transition-colors"
+                                >
+                                    {setupSteps.every(s => s.ok) ? 'Concluído ✓' : 'Fechar'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

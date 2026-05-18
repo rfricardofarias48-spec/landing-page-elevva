@@ -232,6 +232,101 @@ export async function mirrorMessage(
 }
 
 /**
+ * Cria um inbox WhatsApp no Chatwoot para um usuário.
+ * Requer CHATWOOT_ADMIN_TOKEN com permissão de administrador.
+ */
+export async function createInbox(
+  accountId: number,
+  adminToken: string,
+  inboxName: string,
+): Promise<number | null> {
+  const result = await chatwootRequest(
+    'POST',
+    `/api/v1/accounts/${accountId}/inboxes`,
+    adminToken,
+    { name: inboxName, channel: { type: 'api', webhook_url: '' } },
+  ) as { id?: number } | null;
+  if (result?.id) { console.log(`[Chatwoot] Inbox criado: #${result.id} — ${inboxName}`); return result.id; }
+  console.error('[Chatwoot] createInbox falhou');
+  return null;
+}
+
+/**
+ * Cria um agente no Chatwoot e retorna { agentId, accessToken }.
+ * Requer CHATWOOT_ADMIN_TOKEN.
+ */
+export async function createAgentUser(
+  accountId: number,
+  adminToken: string,
+  name: string,
+  email: string,
+): Promise<{ agentId: number; accessToken: string } | null> {
+  const password = `Elv${Math.random().toString(36).slice(2, 8)}@${Math.floor(10 + Math.random() * 90)}`;
+  const result = await chatwootRequest(
+    'POST',
+    `/api/v1/accounts/${accountId}/agents`,
+    adminToken,
+    { name, email, role: 'administrator', password },
+  ) as { id?: number; access_token?: string } | null;
+  if (result?.id) {
+    console.log(`[Chatwoot] Agente criado: #${result.id} — ${email}`);
+    return { agentId: result.id, accessToken: result.access_token || adminToken };
+  }
+  console.error('[Chatwoot] createAgentUser falhou');
+  return null;
+}
+
+/**
+ * Atribui um agente a um inbox no Chatwoot.
+ */
+export async function assignAgentToInbox(
+  accountId: number,
+  adminToken: string,
+  inboxId: number,
+  agentId: number,
+): Promise<boolean> {
+  const result = await chatwootRequest(
+    'POST',
+    `/api/v1/accounts/${accountId}/inbox_members`,
+    adminToken,
+    { inbox_id: inboxId, user_ids: [agentId] },
+  );
+  const ok = result !== null;
+  if (ok) console.log(`[Chatwoot] Agente #${agentId} atribuído ao inbox #${inboxId}`);
+  return ok;
+}
+
+/**
+ * Cria webhook no Chatwoot para receber eventos da conta.
+ * 422 "already taken" é tratado como sucesso (idempotente).
+ */
+export async function createChatwootWebhook(
+  accountId: number,
+  token: string,
+  webhookUrl: string,
+): Promise<boolean> {
+  if (!CHATWOOT_URL || !token) return false;
+  try {
+    const res = await fetch(`${CHATWOOT_URL}/api/v1/accounts/${accountId}/webhooks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'api_access_token': token },
+      body: JSON.stringify({ webhook: { url: webhookUrl, subscriptions: ['conversation_status_changed', 'message_created'] } }),
+    });
+    const text = await res.text();
+    if (res.ok) { console.log(`[Chatwoot] Webhook criado para account #${accountId}`); return true; }
+    if (res.status === 422 && text.includes('already been taken')) {
+      console.log(`[Chatwoot] Webhook já existia para account #${accountId} — OK`);
+      return true;
+    }
+    console.error(`[Chatwoot] createWebhook HTTP ${res.status}: ${text.substring(0, 200)}`);
+    return false;
+  } catch (err) {
+    console.error('[Chatwoot] createWebhook error:', err);
+    return false;
+  }
+}
+
+/**
  * Configure the Chatwoot integration on an Evolution GO instance.
  * This tells Evolution GO to sync WhatsApp messages to Chatwoot automatically.
  * Called when admin saves the agent config.
