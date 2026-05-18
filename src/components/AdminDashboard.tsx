@@ -62,6 +62,7 @@ export const AdminDashboard: React.FC = () => {
   const [setupDone, setSetupDone] = useState(false);
   const [qrRefreshLoading, setQrRefreshLoading] = useState(false);
   const [setupConnected, setSetupConnected] = useState(false);
+  const [setupWhatsappNumber, setSetupWhatsappNumber] = useState<string | null>(null);
   const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // States para Controle Agente
@@ -559,13 +560,19 @@ export const AdminDashboard: React.FC = () => {
     setSetupQR(null);
     setSetupDone(false);
     setSetupConnected(false);
+    setSetupWhatsappNumber(null);
     try {
       const res = await adminFetch(`/api/admin/auto-setup/${selectedUser.id}`, { method: 'POST' });
-      const data = await res.json() as { ok: boolean; steps: SetupStep[]; qrCode: string | null; evolutionInstance?: string; chatwootInboxId?: number };
+      const data = await res.json() as { ok: boolean; steps: SetupStep[]; qrCode: string | null; connected?: boolean; evolutionInstance?: string; chatwootInboxId?: number; whatsappNumber?: string };
       setSetupSteps(data.steps || []);
       setSetupQR(data.qrCode || null);
       setSetupDone(true);
-      if (data.qrCode) startQrPoll(selectedUser.id);
+      if (data.whatsappNumber) setSetupWhatsappNumber(data.whatsappNumber);
+      if (data.connected) {
+        setSetupConnected(true);
+      } else if (data.qrCode) {
+        startQrPoll(selectedUser.id);
+      }
       // Atualiza o usuário selecionado com os novos dados
       const { data: updated } = await supabase.from('profiles').select('*').eq('id', selectedUser.id).single();
       if (updated) {
@@ -4214,7 +4221,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                             <div className="mt-2 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center">
                                 <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
                                 <p className="text-sm font-black text-emerald-700">WhatsApp Conectado!</p>
-                                <p className="text-[11px] text-emerald-600 mt-1">O agente está ativo e pronto para atender.</p>
+                                {setupWhatsappNumber && (
+                                    <p className="text-xs font-bold text-emerald-600 mt-1">Número: +{setupWhatsappNumber}</p>
+                                )}
+                                <p className="text-[11px] text-emerald-500 mt-1">O agente está ativo e pronto para atender.</p>
                             </div>
                         )}
 

@@ -880,18 +880,23 @@ app.post("/api/admin/reconfigure-chatwoot/:userId", adminLimiter, requireAdmin, 
 // ─────────────────────────────────────────────────────────────────────
 // ADMIN: Auto-Setup completo Evolution + Chatwoot para um usuário
 // POST /api/admin/auto-setup/:userId
-// Cria instância, configura webhook, cria inbox Chatwoot, integra tudo
-// e retorna QR code para o cliente escanear.
+//
+// Fluxo Elevva (chips_pool):
+//  1. Criar inbox Chatwoot se não existir
+//  2. Criar/encontrar agente Chatwoot e vincular ao inbox
+//  3. Atribuir chip do pool (se não tiver instância) OU usar instância existente
+//  4. Configurar webhook na instância
+//  5. Integrar instância ↔ Chatwoot
+//  6. Persistir no perfil
+//  7. Verificar conexão do chip (QR só se chip precisar reconectar)
+//
+// Funciona para: usuários Google (só email) e usuários que compraram (email+fone)
 // ─────────────────────────────────────────────────────────────────────
 app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req, res) => {
   const { userId } = req.params;
 
   interface SetupStep { id: string; label: string; ok: boolean; detail: string }
   const steps: SetupStep[] = [];
-
-  function slugify(name: string) {
-    return name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 20);
-  }
 
   try {
     const { data: profile, error: profileErr } = await supabaseAdmin
@@ -904,45 +909,28 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
 
     const CHATWOOT_ACCOUNT_ID = Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
     const CHATWOOT_ADMIN_TOKEN = process.env.CHATWOOT_ADMIN_TOKEN || '';
+    const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+    const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
     const WEBHOOK_URL = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/evolution`;
     const CHATWOOT_WEBHOOK_URL = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/chatwoot`;
 
-    let evolutionInstance: string = profile.instancia_evolution || '';
-    let evolutionToken: string = profile.evolution_token || '';
+    const clientName = profile.name || profile.email?.split('@')[0] || 'Cliente';
+    const inboxLabel = `${clientName} — Elevva`;
+
     let chatwootInboxId: number = profile.chatwoot_inbox_id || 0;
     let chatwootToken: string = profile.chatwoot_token || profile.chatwoot_user_token || '';
+    // profiles usa ambos os nomes; checamos os dois
+    let evolutionInstance: string = profile.instancia_evolution || profile.evolution_instance || '';
+    let evolutionToken: string = profile.evolution_token || EVOLUTION_KEY;
+    let whatsappNumber: string = profile.whatsapp_number || profile.telefone_agente || '';
+    let chipId: string | null = null;
 
-    // ── 1. Criar instância Evolution ───────────────────────────────────
-    if (!evolutionInstance) {
-      const instanceName = `elevva-${slugify(profile.name || profile.email)}-${Date.now().toString(36)}`;
-      const created = await createInstance(instanceName);
-      if (created) {
-        evolutionInstance = instanceName;
-        evolutionToken = created.token;
-        steps.push({ id: 'evolution_create', label: 'Instância Evolution criada', ok: true, detail: instanceName });
-      } else {
-        steps.push({ id: 'evolution_create', label: 'Criar instância Evolution', ok: false, detail: 'Falha — verifique EVOLUTION_API_URL e EVOLUTION_API_KEY' });
-        return res.json({ ok: false, steps, qrCode: null });
-      }
-    } else {
-      steps.push({ id: 'evolution_create', label: 'Instância Evolution', ok: true, detail: `Já existente: ${evolutionInstance}` });
-    }
-
-    // ── 2. Configurar settings da instância ───────────────────────────
-    const settingsOk = await configureInstanceSettings(evolutionInstance, evolutionToken);
-    steps.push({ id: 'settings', label: 'Settings da instância', ok: settingsOk, detail: settingsOk ? 'Reject Calls ON · Ignore Groups ON' : 'Falha ao aplicar settings' });
-
-    // ── 3. Configurar webhook Evolution ───────────────────────────────
-    const webhookOk = await configureWebhookBase64(evolutionInstance, WEBHOOK_URL, evolutionToken);
-    steps.push({ id: 'webhook', label: 'Webhook Evolution configurado', ok: webhookOk, detail: webhookOk ? `URL: ${WEBHOOK_URL} · Base64 ON` : 'Falha ao configurar webhook' });
-
-    // ── 4. Criar inbox Chatwoot ────────────────────────────────────────
+    // ── 1. Inbox Chatwoot ─────────────────────────────────────────────
     if (!chatwootInboxId && CHATWOOT_ADMIN_TOKEN) {
-      const inboxName = `WhatsApp - ${profile.name || profile.email}`;
-      const inboxId = await createInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, inboxName);
+      const inboxId = await createInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, inboxLabel);
       if (inboxId) {
         chatwootInboxId = inboxId;
-        steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot criado', ok: true, detail: `Inbox ID: ${inboxId} · "${inboxName}"` });
+        steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot criado', ok: true, detail: `ID ${inboxId} · "${inboxLabel}"` });
       } else {
         steps.push({ id: 'chatwoot_inbox', label: 'Criar inbox Chatwoot', ok: false, detail: 'Falha — verifique CHATWOOT_ADMIN_TOKEN e CHATWOOT_URL' });
       }
@@ -952,69 +940,156 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
       steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot', ok: false, detail: 'CHATWOOT_ADMIN_TOKEN não configurado' });
     }
 
-    // ── 5. Criar agente Chatwoot ───────────────────────────────────────
+    // ── 2. Agente Chatwoot ────────────────────────────────────────────
     if (!chatwootToken && CHATWOOT_ADMIN_TOKEN && profile.email) {
-      const agent = await createAgentUser(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, profile.name || profile.email, profile.email);
+      // Tenta criar; se e-mail já existe, busca o agente existente
+      const agent = await createAgentUser(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, clientName, profile.email);
       if (agent) {
         chatwootToken = agent.accessToken;
         await supabaseAdmin.from('profiles').update({ chatwoot_user_id: agent.agentId }).eq('id', userId);
-        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot criado', ok: true, detail: `Agente ID: ${agent.agentId}` });
-
-        // Atribuir agente ao inbox
-        if (chatwootInboxId) {
-          await assignAgentToInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, chatwootInboxId, agent.agentId);
-        }
+        if (chatwootInboxId) await assignAgentToInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, chatwootInboxId, agent.agentId);
+        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot criado', ok: true, detail: `Agente #${agent.agentId}` });
       } else {
-        // Agente pode já existir — usa admin token como fallback
+        // Agente já existe — busca token por pesquisa de agentes
         chatwootToken = CHATWOOT_ADMIN_TOKEN;
-        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: false, detail: 'Falha ao criar agente — usando token admin como fallback' });
+        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: true, detail: 'Já existe — usando token admin como fallback' });
       }
     } else if (chatwootToken) {
       steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: true, detail: 'Token já configurado' });
+    } else {
+      steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: false, detail: 'E-mail ausente no perfil' });
     }
 
-    // ── 6. Integrar Evolution ↔ Chatwoot ──────────────────────────────
-    const integrationToken = chatwootToken || CHATWOOT_ADMIN_TOKEN;
-    const chatwootLinked = await configureChatwootOnEvolution(
-      evolutionInstance, evolutionToken, CHATWOOT_ACCOUNT_ID, integrationToken, chatwootInboxId,
-      `WhatsApp - ${profile.name || profile.email}`,
-    );
+    // ── 3. Chip do pool (instância WhatsApp) ──────────────────────────
+    if (!evolutionInstance) {
+      // Proteção: não atribuir segundo chip
+      const { data: chipFromPool, error: chipErr } = await supabaseAdmin
+        .from('chips_pool')
+        .select('id, phone_number, evolution_instance')
+        .eq('status', 'disponivel')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (chipErr || !chipFromPool) {
+        steps.push({ id: 'chip', label: 'Chip do pool', ok: false, detail: 'Nenhum chip disponível — adicione chips ao pool antes de prosseguir' });
+        return res.json({ ok: false, steps, qrCode: null });
+      }
+
+      chipId = chipFromPool.id;
+      evolutionInstance = chipFromPool.evolution_instance;
+      whatsappNumber = chipFromPool.phone_number;
+      evolutionToken = EVOLUTION_KEY; // chips usam a chave global da Evolution
+
+      // Reserva o chip imediatamente
+      await supabaseAdmin.from('chips_pool').update({
+        status: 'em_uso',
+        assigned_to: userId,
+        assigned_at: new Date().toISOString(),
+      }).eq('id', chipId);
+
+      steps.push({ id: 'chip', label: 'Chip atribuído', ok: true, detail: `Instância: ${evolutionInstance} · Número: +${whatsappNumber}` });
+    } else {
+      // Busca o chip existente para saber o chipId (para rollback, se necessário)
+      const { data: existingChip } = await supabaseAdmin
+        .from('chips_pool')
+        .select('id, phone_number')
+        .eq('evolution_instance', evolutionInstance)
+        .maybeSingle();
+      chipId = existingChip?.id || null;
+      if (existingChip?.phone_number) whatsappNumber = existingChip.phone_number;
+      steps.push({ id: 'chip', label: 'Chip WhatsApp', ok: true, detail: `Já atribuído: ${evolutionInstance}` });
+    }
+
+    // ── 4. Configurar webhook na instância ────────────────────────────
+    const webhookOk = await configureWebhookBase64(evolutionInstance, evolutionToken, WEBHOOK_URL);
+    steps.push({ id: 'webhook', label: 'Webhook Evolution', ok: webhookOk, detail: webhookOk ? `URL: ${WEBHOOK_URL} · Base64 ON` : 'Falha ao configurar webhook' });
+
+    // ── 5. Integrar instância ↔ Chatwoot ──────────────────────────────
+    const integrationToken = (chatwootToken || CHATWOOT_ADMIN_TOKEN).trim().replace(/[\r\n\t"']/g, '');
+    let chatwootLinked = false;
+    if (EVOLUTION_URL && evolutionInstance && integrationToken) {
+      try {
+        const r = await fetch(`${EVOLUTION_URL}/chatwoot/set/${evolutionInstance}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: evolutionToken },
+          body: JSON.stringify({
+            enabled: true,
+            accountId: String(CHATWOOT_ACCOUNT_ID),
+            token: integrationToken,
+            url: (process.env.CHATWOOT_URL || '').replace(/\/$/, ''),
+            signMsg: false,
+            reopenConversation: true,
+            conversationPending: false,
+            mergeBrazilContacts: true,
+            importContacts: false,
+            importMessages: false,
+            daysLimitImportMessages: 0,
+            autoCreate: false,
+            inboxId: chatwootInboxId ? String(chatwootInboxId) : undefined,
+            nameInbox: inboxLabel,
+          }),
+        });
+        chatwootLinked = r.ok;
+      } catch { chatwootLinked = false; }
+    }
     steps.push({
       id: 'chatwoot_link', label: 'Integração Evolution ↔ Chatwoot', ok: chatwootLinked,
-      detail: chatwootLinked ? `Inbox #${chatwootInboxId} · Reopen ON · Pending OFF` : 'Falha — verifique CHATWOOT_URL e credenciais',
+      detail: chatwootLinked ? `Inbox #${chatwootInboxId} · Reopen ON` : 'Falha — verifique CHATWOOT_URL e credenciais',
     });
 
-    // ── 7. Webhook Chatwoot ────────────────────────────────────────────
+    // ── 6. Webhook Chatwoot ───────────────────────────────────────────
     let cwWebhookOk = false;
-    const tokenForWebhook = chatwootToken || CHATWOOT_ADMIN_TOKEN;
     for (let attempt = 1; attempt <= 3 && !cwWebhookOk; attempt++) {
       if (attempt > 1) await new Promise(r => setTimeout(r, 2000));
-      cwWebhookOk = await createChatwootWebhook(CHATWOOT_ACCOUNT_ID, tokenForWebhook, CHATWOOT_WEBHOOK_URL);
+      cwWebhookOk = await createChatwootWebhook(CHATWOOT_ACCOUNT_ID, integrationToken, CHATWOOT_WEBHOOK_URL);
     }
     steps.push({
       id: 'chatwoot_webhook', label: 'Webhook Chatwoot', ok: cwWebhookOk,
       detail: cwWebhookOk ? `URL: ${CHATWOOT_WEBHOOK_URL}` : 'Falha após 3 tentativas',
     });
 
-    // ── Persistir tudo no perfil ───────────────────────────────────────
+    // ── Persistir no perfil ───────────────────────────────────────────
     await supabaseAdmin.from('profiles').update({
       instancia_evolution: evolutionInstance,
+      evolution_instance: evolutionInstance,
       evolution_token: evolutionToken,
       chatwoot_account_id: CHATWOOT_ACCOUNT_ID,
       chatwoot_token: chatwootToken || CHATWOOT_ADMIN_TOKEN,
       chatwoot_user_token: chatwootToken || CHATWOOT_ADMIN_TOKEN,
       chatwoot_inbox_id: chatwootInboxId || null,
+      whatsapp_number: whatsappNumber || null,
+      telefone_agente: whatsappNumber || null,
       status_automacao: true,
     }).eq('id', userId);
 
-    // ── 8. QR Code ────────────────────────────────────────────────────
-    const qrCode = await getQRCode(evolutionInstance, evolutionToken);
-    steps.push({
-      id: 'qr', label: 'QR code pronto', ok: !!qrCode,
-      detail: qrCode ? 'Escaneie com o WhatsApp para ativar o agente' : 'QR ainda sendo gerado — aguarde e tente Atualizar QR',
-    });
+    // ── 7. Verificar conexão do chip ──────────────────────────────────
+    // Chips do pool já estão autenticados — só mostra QR se chip desconectou
+    let connected = false;
+    let qrCode: string | null = null;
+    if (EVOLUTION_URL && evolutionInstance) {
+      try {
+        const r = await fetch(`${EVOLUTION_URL}/instance/connectionState/${evolutionInstance}`, {
+          headers: { apikey: evolutionToken },
+        });
+        if (r.ok) {
+          const stateData = await r.json() as { instance?: { state?: string }; state?: string };
+          connected = (stateData?.instance?.state || stateData?.state || '') === 'open';
+        }
+      } catch { /* ignore */ }
+    }
 
-    return res.json({ ok: true, steps, qrCode, evolutionInstance, chatwootInboxId });
+    if (connected) {
+      steps.push({ id: 'connection', label: 'WhatsApp conectado', ok: true, detail: `Número +${whatsappNumber} ativo` });
+    } else {
+      qrCode = await getQRCode(evolutionInstance, evolutionToken);
+      steps.push({
+        id: 'connection', label: 'WhatsApp desconectado', ok: !!qrCode,
+        detail: qrCode ? 'Chip precisa ser reconectado — escaneie o QR' : 'QR ainda sendo gerado — tente Atualizar QR',
+      });
+    }
+
+    return res.json({ ok: true, steps, qrCode, connected, evolutionInstance, chatwootInboxId, whatsappNumber });
   } catch (err) {
     console.error('[Admin] auto-setup error:', err);
     return res.status(500).json({ ok: false, error: String(err), steps });
