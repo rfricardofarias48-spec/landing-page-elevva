@@ -921,8 +921,11 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
     const inboxLabel = `${clientName} — Elevva`;
     const whatsappNumber = (phone || profile.whatsapp_number || profile.telefone_agente || '').replace(/\D/g, '');
 
+    const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
+
     let evolutionInstance: string = profile.instancia_evolution || profile.evolution_instance || '';
-    let evolutionToken: string = profile.evolution_token || '';
+    // Sempre cai para a chave global se o perfil não tiver token próprio
+    let evolutionToken: string = profile.evolution_token || EVOLUTION_KEY;
     let chatwootInboxId: number = profile.chatwoot_inbox_id || 0;
     let chatwootToken: string = profile.chatwoot_token || profile.chatwoot_user_token || '';
 

@@ -341,6 +341,8 @@ export async function configureChatwootOnEvolution(
 ): Promise<boolean> {
   const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
   const chatwootUrl = CHATWOOT_URL;
+  // Fallback to global API key when the caller passes an empty token (existing instances without saved token)
+  const evoApiKey = evolutionToken || process.env.EVOLUTION_API_KEY || '';
 
   if (!EVOLUTION_URL || !chatwootUrl) {
     console.warn('[Chatwoot] EVOLUTION_API_URL or CHATWOOT_URL not configured');
@@ -380,7 +382,7 @@ export async function configureChatwootOnEvolution(
           method,
           headers: {
             'Content-Type': 'application/json',
-            apikey: evolutionToken,
+            apikey: evoApiKey,
           },
           body: JSON.stringify(body),
         });
