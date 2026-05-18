@@ -344,22 +344,36 @@ export async function getQRCode(instance: string, tokenOverride?: string): Promi
 /** Aplica configurações padrão na instância (rejeitar chamadas, ignorar grupos) */
 export async function configureInstanceSettings(instance: string, tokenOverride?: string): Promise<boolean> {
   const key = tokenOverride || getApiKey(instance);
-  try {
-    const res = await fetch(`${BASE_URL}/settings/set/${instance}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: key },
-      body: JSON.stringify({
-        rejectCall: true,
-        msgCall: '',
-        groupsIgnore: true,
-        alwaysOnline: false,
-        readMessages: false,
-        syncFullHistory: false,
-      }),
-    });
-    if (res.ok) { console.log(`[Evolution] Settings configurados: ${instance}`); return true; }
-    return false;
-  } catch { return false; }
+  const body = {
+    rejectCall: true,
+    msgCall: '',
+    groupsIgnore: true,
+    alwaysOnline: false,
+    readMessages: false,
+    syncFullHistory: false,
+  };
+  // Tenta múltiplos endpoints — a versão exacta varia conforme o build da Evolution
+  const paths = [
+    `/settings/set/${instance}`,
+    `/instance/settings/${instance}`,
+    `/settings/${instance}`,
+  ];
+  for (const method of ['POST', 'PUT']) {
+    for (const path of paths) {
+      try {
+        const res = await fetch(`${BASE_URL}${path}`, {
+          method,
+          headers: { 'Content-Type': 'application/json', apikey: key },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) { console.log(`[Evolution] Settings configurados via ${method} ${path}`); return true; }
+        const text = await res.text();
+        console.log(`[Evolution] settings ${method} ${path} → ${res.status}: ${text.substring(0, 100)}`);
+      } catch { /* tenta próximo */ }
+    }
+  }
+  console.warn(`[Evolution] configureInstanceSettings: nenhum endpoint funcionou para ${instance} (não-crítico)`);
+  return false;
 }
 
 /** Deleta permanentemente uma instância Evolution */
