@@ -1022,58 +1022,6 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// ADMIN: Deletar conta + dados externos (Evolution + Chatwoot inbox)
-// DELETE /api/admin/delete-user/:userId
-// ─────────────────────────────────────────────────────────────────────
-app.delete("/api/admin/delete-user/:userId", adminLimiter, requireAdmin, async (req, res) => {
-  const { userId } = req.params;
-  const errors: string[] = [];
-  try {
-    const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('id', userId).single();
-    if (!profile) return res.status(404).json({ ok: false, error: 'Perfil não encontrado' });
-
-    // 1. Deletar instância Evolution
-    if (profile.instancia_evolution) {
-      const evOk = await deleteInstance(profile.instancia_evolution, profile.evolution_token);
-      if (!evOk) errors.push(`evolution: falha ao deletar instância ${profile.instancia_evolution}`);
-    }
-
-    // 2. Deletar inbox Chatwoot (remove dados de conversas deste usuário)
-    const adminToken = process.env.CHATWOOT_ADMIN_TOKEN || '';
-    const chatwootUrl = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
-    const accountId = Number(profile.chatwoot_account_id) || Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
-    if (profile.chatwoot_inbox_id && adminToken && chatwootUrl) {
-      try {
-        const r = await fetch(`${chatwootUrl}/api/v1/accounts/${accountId}/inboxes/${profile.chatwoot_inbox_id}`, {
-          method: 'DELETE', headers: { api_access_token: adminToken },
-        });
-        if (!r.ok) errors.push(`chatwoot inbox #${profile.chatwoot_inbox_id}: HTTP ${r.status}`);
-      } catch (e: any) { errors.push(`chatwoot inbox: ${e.message}`); }
-    }
-
-    // 3. Deletar dados Supabase
-    const tables = ['agent_conversations', 'candidates', 'jobs', 'interviews', 'admissions', 'sdr_conversations', 'sdr_leads'];
-    for (const t of tables) {
-      const { error } = await supabaseAdmin.from(t as never).delete().eq('user_id', userId);
-      if (error && !error.message.includes('does not exist')) errors.push(`${t}: ${error.message}`);
-    }
-
-    // 4. Deletar chips_pool assignment
-    await supabaseAdmin.from('chips_pool').update({ status: 'disponivel', assigned_to: null, assigned_sale_id: null }).eq('assigned_to', userId);
-
-    // 5. Deletar perfil
-    await supabaseAdmin.from('profiles').delete().eq('id', userId);
-
-    // 6. Deletar auth user
-    await supabaseAdmin.auth.admin.deleteUser(userId);
-
-    return res.json({ ok: true, errors: errors.length > 0 ? errors : undefined });
-  } catch (err) {
-    return res.status(500).json({ ok: false, error: String(err), errors });
-  }
-});
-
-// ─────────────────────────────────────────────────────────────────────
 // ADMIN: Atualizar QR code de uma instância
 // GET /api/admin/qr-code/:userId
 // ─────────────────────────────────────────────────────────────────────
@@ -1084,6 +1032,43 @@ app.get("/api/admin/qr-code/:userId", adminLimiter, requireAdmin, async (req, re
     if (!profile?.instancia_evolution) return res.status(400).json({ ok: false, error: 'Instância não configurada' });
     const qrCode = await getQRCode(profile.instancia_evolution, profile.evolution_token);
     return res.json({ ok: !!qrCode, qrCode });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN: Status de conexão da instância + QR code (para polling)
+// GET /api/admin/qr-status/:userId
+// ─────────────────────────────────────────────────────────────────────
+app.get("/api/admin/qr-status/:userId", adminLimiter, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data: profile } = await supabaseAdmin.from('profiles').select('instancia_evolution, evolution_token').eq('id', userId).single();
+    if (!profile?.instancia_evolution) return res.status(400).json({ ok: false, error: 'Instância não configurada' });
+
+    const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
+    const apiKey = profile.evolution_token || process.env.EVOLUTION_API_KEY || '';
+
+    // Verificar estado de conexão via Evolution API
+    let connected = false;
+    let qrCode: string | null = null;
+    try {
+      const r = await fetch(`${EVOLUTION_URL}/instance/connectionState/${profile.instancia_evolution}`, {
+        headers: { apikey: apiKey },
+      });
+      if (r.ok) {
+        const data = await r.json() as { instance?: { state?: string }; state?: string };
+        const state = data?.instance?.state || data?.state || '';
+        connected = state === 'open';
+      }
+    } catch { /* ignore */ }
+
+    if (!connected) {
+      qrCode = await getQRCode(profile.instancia_evolution, profile.evolution_token);
+    }
+
+    return res.json({ ok: true, connected, qrCode });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
   }

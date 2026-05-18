@@ -61,6 +61,8 @@ export const AdminDashboard: React.FC = () => {
   const [setupQR, setSetupQR] = useState<string | null>(null);
   const [setupDone, setSetupDone] = useState(false);
   const [qrRefreshLoading, setQrRefreshLoading] = useState(false);
+  const [setupConnected, setSetupConnected] = useState(false);
+  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // States para Controle Agente
   const [agentSubTab, setAgentSubTab] = useState<'trabalho' | 'atendimento' | 'treinamento'>('trabalho');
@@ -527,19 +529,43 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const stopQrPoll = () => {
+    if (qrPollRef.current) { clearInterval(qrPollRef.current); qrPollRef.current = null; }
+  };
+
+  const startQrPoll = (userId: string) => {
+    stopQrPoll();
+    qrPollRef.current = setInterval(async () => {
+      try {
+        const res = await adminFetch(`/api/admin/qr-status/${userId}`);
+        const data = await res.json() as { ok: boolean; connected: boolean; qrCode: string | null };
+        if (data.connected) {
+          setSetupConnected(true);
+          setSetupQR(null);
+          stopQrPoll();
+        } else if (data.qrCode) {
+          setSetupQR(data.qrCode);
+        }
+      } catch { /* ignore */ }
+    }, 4000);
+  };
+
   const handleAutoSetup = async () => {
     if (!selectedUser) return;
+    stopQrPoll();
     setShowSetupModal(true);
     setSetupLoading(true);
     setSetupSteps([]);
     setSetupQR(null);
     setSetupDone(false);
+    setSetupConnected(false);
     try {
       const res = await adminFetch(`/api/admin/auto-setup/${selectedUser.id}`, { method: 'POST' });
       const data = await res.json() as { ok: boolean; steps: SetupStep[]; qrCode: string | null; evolutionInstance?: string; chatwootInboxId?: number };
       setSetupSteps(data.steps || []);
       setSetupQR(data.qrCode || null);
       setSetupDone(true);
+      if (data.qrCode) startQrPoll(selectedUser.id);
       // Atualiza o usuário selecionado com os novos dados
       const { data: updated } = await supabase.from('profiles').select('*').eq('id', selectedUser.id).single();
       if (updated) {
@@ -563,9 +589,16 @@ export const AdminDashboard: React.FC = () => {
     if (!selectedUser) return;
     setQrRefreshLoading(true);
     try {
-      const res = await adminFetch(`/api/admin/qr-code/${selectedUser.id}`);
-      const data = await res.json() as { ok: boolean; qrCode: string | null };
-      if (data.qrCode) setSetupQR(data.qrCode);
+      const res = await adminFetch(`/api/admin/qr-status/${selectedUser.id}`);
+      const data = await res.json() as { ok: boolean; connected: boolean; qrCode: string | null };
+      if (data.connected) {
+        setSetupConnected(true);
+        setSetupQR(null);
+        stopQrPoll();
+      } else if (data.qrCode) {
+        setSetupQR(data.qrCode);
+        startQrPoll(selectedUser.id);
+      }
     } catch { /* ignore */ } finally {
       setQrRefreshLoading(false);
     }
@@ -4139,7 +4172,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                             </div>
                         </div>
                         {setupDone && (
-                            <button onClick={() => setShowSetupModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                            <button onClick={() => { stopQrPoll(); setShowSetupModal(false); }} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                                 <X className="w-4 h-4 text-slate-500" />
                             </button>
                         )}
@@ -4176,8 +4209,17 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                             </div>
                         )}
 
+                        {/* WhatsApp conectado */}
+                        {setupConnected && (
+                            <div className="mt-2 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center">
+                                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                                <p className="text-sm font-black text-emerald-700">WhatsApp Conectado!</p>
+                                <p className="text-[11px] text-emerald-600 mt-1">O agente está ativo e pronto para atender.</p>
+                            </div>
+                        )}
+
                         {/* QR Code */}
-                        {setupDone && setupQR && (
+                        {setupDone && setupQR && !setupConnected && (
                             <div className="mt-2 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
                                 <div className="flex items-center justify-center gap-2 mb-3">
                                     <QrCode className="w-4 h-4 text-slate-600" />
@@ -4196,7 +4238,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                             </div>
                         )}
 
-                        {setupDone && !setupQR && setupSteps.some(s => s.id === 'qr' && !s.ok) && (
+                        {setupDone && !setupQR && !setupConnected && setupSteps.some(s => s.id === 'qr' && !s.ok) && (
                             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-center">
                                 <p className="text-xs font-bold text-amber-700">QR em geração</p>
                                 <p className="text-[11px] text-amber-600 mt-1">A instância foi criada mas o QR ainda não está disponível.</p>
@@ -4225,10 +4267,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                     </button>
                                 )}
                                 <button
-                                    onClick={() => setShowSetupModal(false)}
+                                    onClick={() => { stopQrPoll(); setShowSetupModal(false); }}
                                     className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-black text-white hover:bg-zinc-800 transition-colors"
                                 >
-                                    {setupSteps.every(s => s.ok) ? 'Concluído ✓' : 'Fechar'}
+                                    {setupConnected ? 'Concluído ✓' : setupSteps.every(s => s.ok) ? 'Concluído ✓' : 'Fechar'}
                                 </button>
                             </div>
                         )}
