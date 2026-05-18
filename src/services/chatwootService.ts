@@ -232,6 +232,72 @@ export async function mirrorMessage(
 }
 
 /**
+ * Cria uma conta Chatwoot nova para o cliente via /auth/sign_up.
+ * Cada cliente recebe sua própria conta isolada (igual ao Agente Atendimento).
+ * Retorna { accountId, accessToken, loginEmail, loginPassword } ou null se falhar.
+ */
+export async function platformSetupAccount(
+  clientName: string,
+  clientEmail: string,
+): Promise<{ accountId: number; accessToken: string; loginEmail: string; loginPassword: string } | null> {
+  const baseUrl = CHATWOOT_URL;
+  if (!baseUrl) { console.warn('[Chatwoot] CHATWOOT_URL não configurado'); return null; }
+
+  const password = `Elv${Math.random().toString(36).slice(2, 8)}@${Math.floor(10 + Math.random() * 90)}!`;
+
+  try {
+    const res = await fetch(`${baseUrl}/auth/sign_up`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        account_name: clientName,
+        email: clientEmail,
+        name: clientName,
+        password,
+        password_confirmation: password,
+      }),
+    });
+
+    const text = await res.text();
+    let data: { data?: { access_token?: string; account_id?: number } } | null = null;
+    try { data = JSON.parse(text); } catch { /* noop */ }
+
+    if (res.ok && data?.data?.access_token && data?.data?.account_id) {
+      const accountId = data.data.account_id;
+      const accessToken = data.data.access_token;
+      console.log(`[Chatwoot] Conta criada: account #${accountId} para ${clientEmail}`);
+      return { accountId, accessToken, loginEmail: clientEmail, loginPassword: password };
+    }
+
+    // Email já cadastrado — tenta fazer login para obter o token
+    if (res.status === 422 || text.includes('already') || text.includes('taken')) {
+      console.warn(`[Chatwoot] Email já registrado (${clientEmail}) — tentando recuperar conta existente`);
+      const loginRes = await fetch(`${baseUrl}/auth/sign_in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: clientEmail, password }),
+      });
+      const loginData = await loginRes.json() as { data?: { access_token?: string; account_id?: number } } | null;
+      if (loginRes.ok && loginData?.data?.access_token && loginData?.data?.account_id) {
+        console.log(`[Chatwoot] Login recuperado: account #${loginData.data.account_id}`);
+        return {
+          accountId: loginData.data.account_id,
+          accessToken: loginData.data.access_token,
+          loginEmail: clientEmail,
+          loginPassword: password,
+        };
+      }
+    }
+
+    console.error(`[Chatwoot] platformSetupAccount falhou: HTTP ${res.status}: ${text.substring(0, 200)}`);
+    return null;
+  } catch (err) {
+    console.error('[Chatwoot] platformSetupAccount erro:', err);
+    return null;
+  }
+}
+
+/**
  * Cria um inbox WhatsApp no Chatwoot para um usuário.
  * Requer CHATWOOT_ADMIN_TOKEN com permissão de administrador.
  */

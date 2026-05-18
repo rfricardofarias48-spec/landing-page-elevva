@@ -8,7 +8,7 @@ import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/se
 import { processSdrMessage, runSdrFollowUps, runSdrDemoReminders } from "./src/services/sdrAgentService.js";
 import { isKnownRecruiter, handleRecruiterMessage } from "./src/services/recruiterAgentService.js";
 import { cleanPhone, sendText, configureWebhookBase64, createInstance, getQRCode, configureInstanceSettings, deleteInstance } from "./src/services/evolutionService.js";
-import { mirrorMessage, configureChatwootOnEvolution, createInbox, createAgentUser, assignAgentToInbox, createChatwootWebhook } from "./src/services/chatwootService.js";
+import { mirrorMessage, configureChatwootOnEvolution, createInbox, createAgentUser, assignAgentToInbox, createChatwootWebhook, platformSetupAccount } from "./src/services/chatwootService.js";
 import { createMeetingEvent, deleteCalendarEvent } from "./src/services/googleCalendarService.js";
 import { renderSchedulingPage, SchedulingPageData, isSlotExpired } from "./src/services/schedulingPage.js";
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
@@ -912,8 +912,6 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
 
     if (profileErr || !profile) return res.status(404).json({ ok: false, error: 'Perfil não encontrado' });
 
-    const CHATWOOT_ACCOUNT_ID = Number(process.env.CHATWOOT_ACCOUNT_ID) || 1;
-    const CHATWOOT_ADMIN_TOKEN = process.env.CHATWOOT_ADMIN_TOKEN || '';
     const WEBHOOK_URL = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/evolution`;
     const CHATWOOT_WEBHOOK_URL = `${process.env.BASE_URL || 'https://app.elevva.net.br'}/api/webhooks/chatwoot`;
 
@@ -924,10 +922,12 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
     const EVOLUTION_KEY = process.env.EVOLUTION_API_KEY || '';
 
     let evolutionInstance: string = profile.instancia_evolution || profile.evolution_instance || '';
-    // Sempre cai para a chave global se o perfil não tiver token próprio
     let evolutionToken: string = profile.evolution_token || EVOLUTION_KEY;
+    let chatwootAccountId: number = profile.chatwoot_account_id || 0;
     let chatwootInboxId: number = profile.chatwoot_inbox_id || 0;
     let chatwootToken: string = profile.chatwoot_token || profile.chatwoot_user_token || '';
+    let chatwootLoginEmail: string = profile.chatwoot_login_email || '';
+    let chatwootLoginPassword: string = profile.chatwoot_login_password || '';
 
     // ── 1. Criar instância Evolution ───────────────────────────────────
     if (!evolutionInstance) {
@@ -947,60 +947,67 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
 
     // ── 2. Settings da instância ──────────────────────────────────────
     const settingsOk = await configureInstanceSettings(evolutionInstance, evolutionToken);
-    steps.push({ id: 'settings', label: 'Settings da instância', ok: settingsOk, detail: settingsOk ? 'Reject Calls ON · Ignore Groups ON' : 'Falha ao aplicar settings' });
+    steps.push({ id: 'settings', label: 'Settings da instância', ok: settingsOk, detail: settingsOk ? 'Reject Calls ON · Ignore Groups ON' : 'Falha ao aplicar settings (não-crítico)' });
 
     // ── 3. Webhook Evolution ──────────────────────────────────────────
     const webhookOk = await configureWebhookBase64(evolutionInstance, WEBHOOK_URL, evolutionToken);
     steps.push({ id: 'webhook', label: 'Webhook Evolution configurado', ok: webhookOk, detail: webhookOk ? `URL: ${WEBHOOK_URL} · Base64 ON` : 'Falha ao configurar webhook' });
 
-    // ── 4. Inbox Chatwoot ─────────────────────────────────────────────
-    if (!chatwootInboxId && CHATWOOT_ADMIN_TOKEN) {
-      const inboxId = await createInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, inboxLabel);
+    // ── 4. Conta Chatwoot própria do cliente ──────────────────────────
+    // Cada cliente recebe sua própria conta isolada (não usa account #1 compartilhada)
+    if (!chatwootAccountId && profile.email) {
+      const cwAccount = await platformSetupAccount(clientName, profile.email);
+      if (cwAccount) {
+        chatwootAccountId = cwAccount.accountId;
+        chatwootToken = cwAccount.accessToken;
+        chatwootLoginEmail = cwAccount.loginEmail;
+        chatwootLoginPassword = cwAccount.loginPassword;
+        steps.push({
+          id: 'chatwoot_account', label: 'Conta Chatwoot criada', ok: true,
+          detail: `Account #${chatwootAccountId} · login: ${chatwootLoginEmail}`,
+        });
+      } else {
+        steps.push({ id: 'chatwoot_account', label: 'Criar conta Chatwoot', ok: false, detail: 'Falha — verifique CHATWOOT_URL' });
+      }
+    } else if (chatwootAccountId) {
+      steps.push({ id: 'chatwoot_account', label: 'Conta Chatwoot', ok: true, detail: `Já configurada: Account #${chatwootAccountId}` });
+    } else {
+      steps.push({ id: 'chatwoot_account', label: 'Conta Chatwoot', ok: false, detail: 'E-mail ausente no perfil' });
+    }
+
+    // ── 5. Inbox Chatwoot ─────────────────────────────────────────────
+    if (!chatwootInboxId && chatwootAccountId && chatwootToken) {
+      const inboxId = await createInbox(chatwootAccountId, chatwootToken, inboxLabel);
       if (inboxId) {
         chatwootInboxId = inboxId;
         steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot criado', ok: true, detail: `ID ${inboxId} · "${inboxLabel}"` });
       } else {
-        steps.push({ id: 'chatwoot_inbox', label: 'Criar inbox Chatwoot', ok: false, detail: 'Falha — verifique CHATWOOT_ADMIN_TOKEN e CHATWOOT_URL' });
+        steps.push({ id: 'chatwoot_inbox', label: 'Criar inbox Chatwoot', ok: false, detail: 'Falha ao criar inbox' });
       }
     } else if (chatwootInboxId) {
       steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot', ok: true, detail: `Já configurado: ID ${chatwootInboxId}` });
     } else {
-      steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot', ok: false, detail: 'CHATWOOT_ADMIN_TOKEN não configurado' });
-    }
-
-    // ── 5. Agente Chatwoot ────────────────────────────────────────────
-    if (!chatwootToken && CHATWOOT_ADMIN_TOKEN && profile.email) {
-      const agent = await createAgentUser(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, clientName, profile.email);
-      if (agent) {
-        chatwootToken = agent.accessToken;
-        await supabaseAdmin.from('profiles').update({ chatwoot_user_id: agent.agentId }).eq('id', userId);
-        if (chatwootInboxId) await assignAgentToInbox(CHATWOOT_ACCOUNT_ID, CHATWOOT_ADMIN_TOKEN, chatwootInboxId, agent.agentId);
-        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot criado', ok: true, detail: `Agente #${agent.agentId}` });
-      } else {
-        chatwootToken = CHATWOOT_ADMIN_TOKEN;
-        steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: true, detail: 'Já existe — usando token admin como fallback' });
-      }
-    } else if (chatwootToken) {
-      steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: true, detail: 'Token já configurado' });
-    } else {
-      steps.push({ id: 'chatwoot_agent', label: 'Agente Chatwoot', ok: false, detail: 'E-mail ausente no perfil' });
+      steps.push({ id: 'chatwoot_inbox', label: 'Inbox Chatwoot', ok: false, detail: 'Conta Chatwoot não configurada' });
     }
 
     // ── 6. Integrar Evolution ↔ Chatwoot ──────────────────────────────
-    const integrationToken = chatwootToken || CHATWOOT_ADMIN_TOKEN;
-    const chatwootLinked = await configureChatwootOnEvolution(
-      evolutionInstance, evolutionToken, CHATWOOT_ACCOUNT_ID, integrationToken, chatwootInboxId, inboxLabel,
-    );
+    const chatwootLinked = chatwootAccountId && chatwootToken
+      ? await configureChatwootOnEvolution(
+          evolutionInstance, evolutionToken, chatwootAccountId, chatwootToken, chatwootInboxId, inboxLabel,
+        )
+      : false;
     steps.push({
       id: 'chatwoot_link', label: 'Integração Evolution ↔ Chatwoot', ok: chatwootLinked,
-      detail: chatwootLinked ? `Inbox #${chatwootInboxId} · Reopen ON · Pending OFF` : 'Falha — verifique CHATWOOT_URL e credenciais',
+      detail: chatwootLinked ? `Account #${chatwootAccountId} · Inbox #${chatwootInboxId} · Reopen ON` : 'Falha — verifique CHATWOOT_URL e credenciais',
     });
 
     // ── 7. Webhook Chatwoot ───────────────────────────────────────────
     let cwWebhookOk = false;
-    for (let attempt = 1; attempt <= 3 && !cwWebhookOk; attempt++) {
-      if (attempt > 1) await new Promise(r => setTimeout(r, 2000));
-      cwWebhookOk = await createChatwootWebhook(CHATWOOT_ACCOUNT_ID, integrationToken, CHATWOOT_WEBHOOK_URL);
+    if (chatwootAccountId && chatwootToken) {
+      for (let attempt = 1; attempt <= 3 && !cwWebhookOk; attempt++) {
+        if (attempt > 1) await new Promise(r => setTimeout(r, 2000));
+        cwWebhookOk = await createChatwootWebhook(chatwootAccountId, chatwootToken, CHATWOOT_WEBHOOK_URL);
+      }
     }
     steps.push({
       id: 'chatwoot_webhook', label: 'Webhook Chatwoot', ok: cwWebhookOk,
@@ -1012,10 +1019,12 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
       instancia_evolution: evolutionInstance,
       evolution_instance: evolutionInstance,
       evolution_token: evolutionToken,
-      chatwoot_account_id: CHATWOOT_ACCOUNT_ID,
-      chatwoot_token: chatwootToken || CHATWOOT_ADMIN_TOKEN,
-      chatwoot_user_token: chatwootToken || CHATWOOT_ADMIN_TOKEN,
+      chatwoot_account_id: chatwootAccountId || null,
+      chatwoot_token: chatwootToken || null,
+      chatwoot_user_token: chatwootToken || null,
       chatwoot_inbox_id: chatwootInboxId || null,
+      chatwoot_login_email: chatwootLoginEmail || null,
+      chatwoot_login_password: chatwootLoginPassword || null,
       ...(whatsappNumber ? { whatsapp_number: whatsappNumber, telefone_agente: whatsappNumber } : {}),
       status_automacao: true,
     }).eq('id', userId);
