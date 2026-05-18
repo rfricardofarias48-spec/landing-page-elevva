@@ -63,6 +63,7 @@ export const AdminDashboard: React.FC = () => {
   const [qrRefreshLoading, setQrRefreshLoading] = useState(false);
   const [setupConnected, setSetupConnected] = useState(false);
   const [setupWhatsappNumber, setSetupWhatsappNumber] = useState<string | null>(null);
+  const [setupPhone, setSetupPhone] = useState('');
   const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // States para Controle Agente
@@ -132,7 +133,6 @@ export const AdminDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (currentView === 'CHIPS') fetchChips();
     if (currentView === 'OVERVIEW') fetchAllSales();
   }, [currentView]);
 
@@ -551,10 +551,24 @@ export const AdminDashboard: React.FC = () => {
     }, 4000);
   };
 
-  const handleAutoSetup = async () => {
+  const openSetupModal = () => {
     if (!selectedUser) return;
     stopQrPoll();
     setShowSetupModal(true);
+    setSetupLoading(false);
+    setSetupSteps([]);
+    setSetupQR(null);
+    setSetupDone(false);
+    setSetupConnected(false);
+    setSetupWhatsappNumber(null);
+    // Pre-fill phone from profile if available
+    const existingPhone = selectedUser.whatsapp_number || selectedUser.telefone_agente || '';
+    setSetupPhone(existingPhone.replace(/\D/g, ''));
+  };
+
+  const handleAutoSetup = async (phone?: string) => {
+    if (!selectedUser) return;
+    stopQrPoll();
     setSetupLoading(true);
     setSetupSteps([]);
     setSetupQR(null);
@@ -562,7 +576,11 @@ export const AdminDashboard: React.FC = () => {
     setSetupConnected(false);
     setSetupWhatsappNumber(null);
     try {
-      const res = await adminFetch(`/api/admin/auto-setup/${selectedUser.id}`, { method: 'POST' });
+      const res = await adminFetch(`/api/admin/auto-setup/${selectedUser.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone || setupPhone }),
+      });
       const data = await res.json() as { ok: boolean; steps: SetupStep[]; qrCode: string | null; connected?: boolean; evolutionInstance?: string; chatwootInboxId?: number; whatsappNumber?: string };
       setSetupSteps(data.steps || []);
       setSetupQR(data.qrCode || null);
@@ -876,9 +894,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             </button>
             <button onClick={() => { setCurrentView('VENDEDORES'); fetchSalespeople(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'VENDEDORES' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Briefcase className="w-5 h-5" /> Vendedores
-            </button>
-            <button onClick={() => { setCurrentView('CHIPS'); fetchChips(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CHIPS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <Bot className="w-5 h-5" /> Chips WhatsApp
             </button>
             <div className="pt-2 pb-1 px-4">
                 <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">Sistema</p>
@@ -2303,8 +2318,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       );
   };
 
-  // ── Render Chips ──────────────────────────────────────────────────────────────
-  const renderChips = () => {
+  const _renderChips_removed = () => {
 
       const disponivel = chipsSummary.disponivel || 0;
       const emUso = chipsSummary.em_uso || 0;
@@ -3817,7 +3831,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
             {currentView === 'VENDAS' && renderVendas()}
             {currentView === 'VENDEDORES' && renderVendedores()}
-            {currentView === 'CHIPS' && renderChips()}
+
             {currentView === 'CONTROLE' && renderControle()}
             {currentView === 'CANCELLATIONS' && (
                 <div className="text-center py-20">
@@ -4069,7 +4083,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                             <div className="mt-3 flex items-center gap-2 flex-wrap">
                                                 {/* Setup Automático — botão principal */}
                                                 <button
-                                                    onClick={handleAutoSetup}
+                                                    onClick={openSetupModal}
                                                     disabled={setupLoading}
                                                     className="flex items-center gap-1.5 px-3 py-2 bg-black hover:bg-zinc-800 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
                                                 >
@@ -4178,7 +4192,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                 <p className="text-[11px] text-slate-400">{selectedUser?.name || selectedUser?.email}</p>
                             </div>
                         </div>
-                        {setupDone && (
+                        {(setupDone || !setupLoading) && (
                             <button onClick={() => { stopQrPoll(); setShowSetupModal(false); }} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                                 <X className="w-4 h-4 text-slate-500" />
                             </button>
@@ -4186,6 +4200,33 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                     </div>
 
                     <div className="px-6 py-5 space-y-3 max-h-[70vh] overflow-y-auto">
+                        {/* Formulário de telefone — mostrado antes de iniciar */}
+                        {!setupLoading && !setupDone && (
+                            <form onSubmit={e => { e.preventDefault(); handleAutoSetup(); }} className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                        Número WhatsApp do cliente
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        placeholder="5511999999999"
+                                        value={setupPhone}
+                                        onChange={e => setSetupPhone(e.target.value.replace(/\D/g, ''))}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-black/10 font-mono"
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1">DDI + DDD + número, sem espaços (ex: 5511999887766)</p>
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={!setupPhone.trim()}
+                                    className="w-full py-2.5 rounded-xl text-sm font-bold bg-black text-white hover:bg-zinc-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                >
+                                    <Zap className="w-4 h-4" />
+                                    Iniciar Setup
+                                </button>
+                            </form>
+                        )}
+
                         {/* Steps */}
                         {setupLoading && setupSteps.length === 0 && (
                             <div className="flex items-center gap-3 py-4">
