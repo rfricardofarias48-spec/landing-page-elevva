@@ -1763,6 +1763,17 @@ app.post("/api/webhooks/agent/whatsapp", webhookLimiter, async (req, res) => {
       return;
     }
 
+    // Dedup compartilhado com o handler /api/webhooks/evolution
+    const agentMsgId = String((msgKey as Record<string, unknown>)?.id || '');
+    const agentWindowKey = agentMsgId || `${remoteJid}:${Math.floor(Date.now() / 3000)}`;
+    const agentDedupKey = `${instance}:${agentWindowKey}`;
+    if (_evoProcessed.has(agentDedupKey)) {
+      console.log(`[Webhook] duplicata ignorada key=${agentDedupKey}`);
+      res.status(200).json({ received: true, duplicate: true });
+      return;
+    }
+    _evoProcessed.set(agentDedupKey, Date.now());
+
     const phone = cleanPhone(remoteJid);
 
     let textContent: string | null = null;
@@ -5694,13 +5705,16 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], webhookL
         const messageType = String(data.messageType || '');
         const message     = (data.message as Record<string, unknown>) || {};
 
-        // Deduplicação: ignora se já processamos este ID nos últimos 30s
-        const dedupKey = `${instanceName}:${msgId}`;
-        if (msgId && _evoProcessed.has(dedupKey)) {
-          console.log(`[EvoWH] duplicata ignorada msgId=${msgId}`);
+        // Deduplicação robusta: usa msgId quando disponível, senão usa
+        // instância + jid + janela de 3 segundos para evitar duplicatas
+        // mesmo quando msgId chega vazio ou quando webhook_by_events envia duas cópias
+        const windowKey = msgId || `${remoteJid}:${Math.floor(Date.now() / 3000)}`;
+        const dedupKey = `${instanceName}:${windowKey}`;
+        if (_evoProcessed.has(dedupKey)) {
+          console.log(`[EvoWH] duplicata ignorada key=${dedupKey}`);
           return res.json({ ok: true, duplicate: true });
         }
-        if (msgId) _evoProcessed.set(dedupKey, Date.now());
+        _evoProcessed.set(dedupKey, Date.now());
 
         if (remoteJid && !fromMe && !remoteJid.endsWith('@g.us')) {
           const phone = cleanPhone(remoteJid);
