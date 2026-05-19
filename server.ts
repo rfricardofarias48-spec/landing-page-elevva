@@ -1068,10 +1068,17 @@ app.get("/api/admin/qr-status/:userId", adminLimiter, requireAdmin, async (req, 
     const { userId } = req.params;
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('name, email, phone, instancia_evolution, evolution_token, chatwoot_login_email, chatwoot_login_password, welcome_sent')
+      .select('name, email, phone, instancia_evolution, evolution_token, chatwoot_login_email, chatwoot_login_password')
       .eq('id', userId)
       .single();
     if (!profile?.instancia_evolution) return res.status(400).json({ ok: false, error: 'Instância não configurada' });
+
+    // welcome_sent pode ainda não existir (migration pendente) — busca separada com fallback
+    let welcomeAlreadySent = false;
+    try {
+      const { data: ws } = await supabaseAdmin.from('profiles').select('welcome_sent').eq('id', userId).single();
+      welcomeAlreadySent = !!(ws as { welcome_sent?: boolean } | null)?.welcome_sent;
+    } catch { /* coluna ainda não existe — ignora */ }
 
     const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
     const apiKey = profile.evolution_token || process.env.EVOLUTION_API_KEY || '';
@@ -1095,7 +1102,7 @@ app.get("/api/admin/qr-status/:userId", adminLimiter, requireAdmin, async (req, 
     }
 
     // Ao conectar pela primeira vez — enviar mensagem de boas-vindas do próprio agente
-    if (connected && !profile.welcome_sent) {
+    if (connected && !welcomeAlreadySent) {
       const clientPhone = (profile.phone || '').replace(/\D/g, '');
       if (clientPhone) {
         const appUrl = process.env.APP_URL || 'https://app.elevva.net.br';
