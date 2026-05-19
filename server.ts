@@ -1029,40 +1029,6 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
       status_automacao: true,
     }).eq('id', userId);
 
-    // ── 9. Mensagem de boas-vindas (fire-and-forget) ─────────────────
-    const clientPersonalPhone = (profile.phone || '').replace(/\D/g, '');
-    if (clientPersonalPhone) {
-      const appUrl = process.env.APP_URL || 'https://app.elevva.net.br';
-      const chatwootUrl = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
-      const supportInstance = process.env.SUPPORT_EVOLUTION_INSTANCE || '';
-      const welcomeMsg = [
-        `🎉 *Bem-vindo à Elevva, ${clientName}!*`,
-        '',
-        'Sua conta foi configurada com sucesso. Abaixo estão os seus dados de acesso:',
-        '',
-        `📱 *Plataforma Elevva:* ${appUrl}`,
-        ...(chatwootUrl && chatwootLoginEmail ? [
-          '',
-          `💬 *Chatwoot (painel de atendimento):*`,
-          `🔗 ${chatwootUrl}`,
-          `📧 Login: ${chatwootLoginEmail}`,
-          `🔑 Senha: ${chatwootLoginPassword}`,
-        ] : []),
-        '',
-        'Agora é só escanear o QR code no painel para ativar o agente WhatsApp. Qualquer dúvida, estamos aqui! 🚀',
-      ].join('\n');
-
-      if (supportInstance) {
-        // Envia em background — não bloqueia a resposta do setup
-        sendText(supportInstance, clientPersonalPhone, welcomeMsg).catch(() => {});
-        steps.push({ id: 'welcome_msg', label: 'Mensagem de boas-vindas', ok: true, detail: `Agendada para +${clientPersonalPhone}` });
-      } else {
-        steps.push({ id: 'welcome_msg', label: 'Mensagem de boas-vindas', ok: false, detail: 'SUPPORT_EVOLUTION_INSTANCE não configurado' });
-      }
-    } else {
-      steps.push({ id: 'welcome_msg', label: 'Mensagem de boas-vindas', ok: false, detail: 'Número pessoal não cadastrado no perfil' });
-    }
-
     // ── 8. QR Code ────────────────────────────────────────────────────
     const qrCode = await getQRCode(evolutionInstance, evolutionToken);
     steps.push({
@@ -1100,7 +1066,11 @@ app.get("/api/admin/qr-code/:userId", adminLimiter, requireAdmin, async (req, re
 app.get("/api/admin/qr-status/:userId", adminLimiter, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { data: profile } = await supabaseAdmin.from('profiles').select('instancia_evolution, evolution_token').eq('id', userId).single();
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('name, email, phone, instancia_evolution, evolution_token, chatwoot_login_email, chatwoot_login_password, welcome_sent')
+      .eq('id', userId)
+      .single();
     if (!profile?.instancia_evolution) return res.status(400).json({ ok: false, error: 'Instância não configurada' });
 
     const EVOLUTION_URL = (process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
@@ -1122,6 +1092,37 @@ app.get("/api/admin/qr-status/:userId", adminLimiter, requireAdmin, async (req, 
 
     if (!connected) {
       qrCode = await getQRCode(profile.instancia_evolution, profile.evolution_token);
+    }
+
+    // Ao conectar pela primeira vez — enviar mensagem de boas-vindas do próprio agente
+    if (connected && !profile.welcome_sent) {
+      const clientPhone = (profile.phone || '').replace(/\D/g, '');
+      if (clientPhone) {
+        const appUrl = process.env.APP_URL || 'https://app.elevva.net.br';
+        const chatwootUrl = (process.env.CHATWOOT_URL || '').replace(/\/$/, '');
+        const clientName = profile.name || profile.email?.split('@')[0] || 'Cliente';
+        const welcomeMsg = [
+          `🎉 *Bem-vindo à Elevva, ${clientName}!*`,
+          '',
+          'Sua conta foi configurada com sucesso. Abaixo estão os seus dados de acesso:',
+          '',
+          `📱 *Plataforma Elevva:* ${appUrl}`,
+          ...(chatwootUrl && profile.chatwoot_login_email ? [
+            '',
+            `💬 *Chatwoot (painel de atendimento):*`,
+            `🔗 ${chatwootUrl}`,
+            `📧 Login: ${profile.chatwoot_login_email}`,
+            `🔑 Senha: ${profile.chatwoot_login_password}`,
+          ] : []),
+          '',
+          'Qualquer dúvida, estamos aqui! 🚀',
+        ].join('\n');
+
+        // Envia do número do próprio agente (instância recém-conectada) — fire-and-forget
+        sendText(profile.instancia_evolution, clientPhone, welcomeMsg, apiKey).catch(() => {});
+      }
+      // Marca como enviado para não disparar novamente a cada polling
+      supabaseAdmin.from('profiles').update({ welcome_sent: true }).eq('id', userId).then(() => {});
     }
 
     return res.json({ ok: true, connected, qrCode });
