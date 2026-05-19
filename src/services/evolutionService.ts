@@ -350,6 +350,7 @@ export async function configureInstanceSettings(instance: string, tokenOverride?
     groupsIgnore: true,
     alwaysOnline: false,
     readMessages: false,
+    readStatus: false,
     syncFullHistory: false,
   };
   // Tenta múltiplos endpoints — a versão exacta varia conforme o build da Evolution
