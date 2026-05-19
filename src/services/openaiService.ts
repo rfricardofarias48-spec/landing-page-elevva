@@ -251,3 +251,73 @@ export async function classifyIntent(
     return { intent: 'UNKNOWN', confidence: 0 };
   }
 }
+
+export type CandidateIntent =
+  | 'restart'           // quer se candidatar a nova vaga / recomeçar
+  | 'friend_curriculum' // quer enviar currículo de outra pessoa
+  | 'status_inquiry'    // pergunta sobre prazo ou andamento
+  | 'withdrawal'        // quer desistir ou cancelar
+  | 'conversational'    // dúvida geral / comentário
+  | 'canned';           // irrelevante — usar resposta padrão
+
+/**
+ * Detecta a intenção do candidato e gera uma resposta contextual.
+ * Usado nos estados de "espera" para evitar respostas enlatadas.
+ * Retorna null se a API falhar (o fluxo usa a resposta padrão como fallback).
+ */
+export async function detectCandidateIntent(
+  candidateName: string,
+  state: string,
+  text: string,
+): Promise<{ intent: CandidateIntent; reply: string } | null> {
+  const apiKey = process.env.OPENAI_API_KEY || '';
+  if (!apiKey || apiKey.length < 10) return null;
+
+  const system = `Você é um classificador de intenções para o Bento, assistente de recrutamento.
+O candidato está no estado: ${state}.
+Candidate name: ${candidateName || 'candidato'}.
+
+Classifique a intenção e escreva uma resposta curta e amigável em português do Brasil.
+Responda APENAS em JSON: { "intent": "<tipo>", "reply": "<mensagem>" }
+
+Tipos de intenção:
+- restart: quer se candidatar a outra vaga ou recomeçar o processo
+- friend_curriculum: quer enviar currículo de outra pessoa (amigo, familiar, etc)
+- status_inquiry: pergunta sobre prazo, andamento ou resultado da candidatura
+- withdrawal: quer desistir, cancelar ou não tem mais interesse
+- conversational: dúvida geral, elogio, reclamação ou comentário
+- canned: mensagem incompreensível ou sem relação com o processo — use resposta padrão
+
+Regras para a resposta (reply):
+- Máximo 3 linhas, tom amigável e direto
+- Para "friend_curriculum": explique que cada candidato deve entrar em contato individualmente pelo mesmo número, e que o amigo pode enviar uma mensagem iniciando o processo
+- Para "status_inquiry": informe que a análise está em andamento e a equipe entrará em contato em breve
+- Para "restart": confirme que vai abrir a lista de vagas
+- Para "withdrawal": acolha a decisão e deseje boa sorte
+- Para "conversational": responda a dúvida de forma útil, dentro do contexto de recrutamento
+- Para "canned": deixe reply como string vazia ""`;
+
+  try {
+    const client = buildClient();
+    const completion = await client.chat.completions.create({
+      model: 'gpt-5.4-nano',
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_completion_tokens: 150,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: `Mensagem do candidato: "${text}"` },
+      ],
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) return null;
+
+    const parsed = JSON.parse(content) as { intent: CandidateIntent; reply: string };
+    console.log(`[OpenAI] candidateIntent "${text.substring(0, 40)}" → ${parsed.intent}`);
+    return parsed;
+  } catch (err) {
+    console.warn('[OpenAI] detectCandidateIntent falhou:', (err as Error).message);
+    return null;
+  }
+}

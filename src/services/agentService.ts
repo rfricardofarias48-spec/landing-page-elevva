@@ -13,11 +13,12 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { analyzeResume } from './openaiService.js';
+import { analyzeResume, detectCandidateIntent } from './openaiService.js';
 import * as evo from './evolutionService.js';
 import { mirrorMessage } from './chatwootService.js';
 import { deleteCalendarEvent } from './googleCalendarService.js';
 import crypto from 'crypto';
+import { searchMemory, addMemory } from './mem0Service.js';
 
 // ─────────────────────────── Helpers ─────────────────────────
 
@@ -402,11 +403,18 @@ async function handleAguardandoCurriculo(
   supabase: SupabaseClient,
   send: SendFn,
   instanceToken?: string,
+  textContent?: string | null,
 ): Promise<void> {
   const isPDF = ['documentMessage', 'documentWithCaptionMessage'].includes(messageType);
 
   if (!isPDF || !mediaData) {
-    await send(phone, 'Por favor, envie seu currículo em formato *PDF* para prosseguir. 📄');
+    const candidateName = conv.context.candidate_name || '';
+    const smart = textContent ? await detectCandidateIntent(candidateName, 'AGUARDANDO_CURRICULO', textContent) : null;
+    if (smart && smart.intent !== 'canned' && smart.reply) {
+      await send(phone, smart.reply);
+    } else {
+      await send(phone, 'Por favor, envie seu currículo em formato *PDF* para prosseguir. 📄');
+    }
     return;
   }
 
@@ -807,6 +815,9 @@ export async function processIncomingMessage(
   // Prioridade: token do payload (Evolution GO) > token do DB > env var
   const instanceToken: string | undefined = webhookToken || profile.evolution_token || undefined;
 
+  // Mem0: ID de isolamento por recrutador + candidato
+  const memUserId = `${profile.id}:${phone}`;
+
   // Helper bound — envia via WhatsApp E espelha no Chatwoot como mensagem de saída
   const send = async (jid: string, text: string) => {
     await evo.sendText(instance, jid, text, instanceToken);
@@ -829,6 +840,13 @@ export async function processIncomingMessage(
           .update({ chatwoot_conversation_id: mirroredId })
           .eq('id', conv.id);
       }
+    }
+    // Mem0: persiste a troca (best-effort, não bloqueia o fluxo)
+    if (textContent) {
+      addMemory(memUserId, [
+        { role: 'user', content: textContent },
+        { role: 'assistant', content: text },
+      ]).catch(() => {});
     }
   };
 
@@ -926,6 +944,19 @@ export async function processIncomingMessage(
 
   const text = (textContent || '').trim().toLowerCase();
 
+  // Mem0: busca memórias relevantes do candidato (best-effort, em paralelo com o fluxo já concluído)
+  const memories = await searchMemory(memUserId, textContent || pushName || '');
+  if (memories.length > 0 && !conv.context.candidate_name) {
+    // Tenta restaurar o nome do candidato a partir das memórias
+    const nameEntry = memories.find(m => /nome|chama/i.test(m));
+    if (nameEntry) {
+      const match = nameEntry.match(/(?:nome|chama)[^a-zA-ZÀ-ÿ]*([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+)?)/);
+      if (match?.[1]) {
+        conv.context = { ...conv.context, candidate_name: match[1] };
+      }
+    }
+  }
+
   // Detect reschedule intent for confirmed interviews
   const rescheduleKeywords = ['reagendar', 'remarcar', 'mudar horário', 'mudar horario', 'trocar horário', 'trocar horario', 'alterar data', 'mudar data', 'outro horário', 'outro horario', 'não posso', 'nao posso', 'cancelar entrevista', 'desmarcar'];
   const isRescheduleIntent = rescheduleKeywords.some(k => text.includes(k));
@@ -957,19 +988,48 @@ export async function processIncomingMessage(
 
     // ── Aguardando currículo via WhatsApp ──
     case 'AGUARDANDO_CURRICULO':
-      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken);
+      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken, textContent);
       break;
 
     // ── Currículo em análise ──
-    case 'ANALISANDO':
-      await send(phone, 'Seu currículo está sendo analisado... ⏳ Aguarde, em breve você receberá um retorno.');
+    case 'ANALISANDO': {
+      const candidateName = conv.context.candidate_name || pushName || '';
+      const smart = text ? await detectCandidateIntent(candidateName, 'ANALISANDO', text) : null;
+      if (smart && smart.intent !== 'canned' && smart.reply) {
+        if (smart.intent === 'restart') {
+          await send(phone, smart.reply);
+          await updateConversation(conv.id, { state: 'NOVO', context: { candidate_name: candidateName } }, supabase);
+          await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
+        } else {
+          await send(phone, smart.reply);
+        }
+      } else {
+        await send(phone, 'Seu currículo está sendo analisado... ⏳ Aguarde, em breve você receberá um retorno.');
+      }
       break;
+    }
 
     // ── Currículo recebido / em avaliação ──
     case 'CURRICULO_RECEBIDO':
-    case 'EM_ANALISE':
-      await send(phone, 'Seu currículo está em análise. 🔍 Em breve nossa equipe entrará em contato com os próximos passos. 😊');
+    case 'EM_ANALISE': {
+      const candidateName = conv.context.candidate_name || pushName || '';
+      const smart = text ? await detectCandidateIntent(candidateName, conv.state, text) : null;
+      if (smart && smart.intent !== 'canned' && smart.reply) {
+        if (smart.intent === 'restart') {
+          await send(phone, smart.reply);
+          await updateConversation(conv.id, { state: 'NOVO', context: { candidate_name: candidateName } }, supabase);
+          await handleNovo(conv, instance, phone, pushName, portalCode, supabase, send);
+        } else if (smart.intent === 'withdrawal') {
+          await send(phone, smart.reply);
+          await updateConversation(conv.id, { state: 'NOVO', context: { candidate_name: candidateName } }, supabase);
+        } else {
+          await send(phone, smart.reply);
+        }
+      } else {
+        await send(phone, 'Seu currículo está em análise. 🔍 Em breve nossa equipe entrará em contato com os próximos passos. 😊');
+      }
       break;
+    }
 
     // ── Reprovado: reinicia fluxo com lista de nichos ──
     case 'REPROVADO':
