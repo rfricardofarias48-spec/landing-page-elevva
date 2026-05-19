@@ -1185,8 +1185,10 @@ app.post("/api/admin/reset-conversation", adminLimiter, requireAdmin, async (req
     ])];
 
     for (const rid of recruiterIds) {
+      const bare = cleanedPhone.replace(/^55/, '');
       await deleteMemories(`${rid}:${cleanedPhone}`);
-      await deleteMemories(`${rid}:${cleanedPhone.replace(/^55/, '')}`);
+      await deleteMemories(`${rid}:55${bare}`);
+      await deleteMemories(`${rid}:${bare}`);
     }
 
     console.log(`[Admin] reset-conversation phone=${cleanedPhone} rows=${deleted?.length || 0} mem0=${recruiterIds.length}`);
