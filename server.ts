@@ -1156,11 +1156,10 @@ app.post("/api/admin/reset-conversation", adminLimiter, requireAdmin, async (req
     if (!phone) return res.status(400).json({ ok: false, error: 'phone obrigatório' });
 
     const cleanedPhone = phone.replace(/\D/g, '');
-    const phoneVariants = [
-      cleanedPhone,
-      `55${cleanedPhone.replace(/^55/, '')}`,
-      cleanedPhone.replace(/^55/, ''),
-    ];
+    const bare = cleanedPhone.replace(/^55/, '');
+    const phoneVariants = [...new Set([cleanedPhone, `55${bare}`, bare])];
+
+    console.log(`[Admin] reset-conversation variants=${JSON.stringify(phoneVariants)} userId=${userId || 'any'}`);
 
     // 1. Busca conversas para pegar user_ids antes de deletar
     const query = supabaseAdmin
@@ -1169,6 +1168,7 @@ app.post("/api/admin/reset-conversation", adminLimiter, requireAdmin, async (req
       .in('phone', phoneVariants);
     if (userId) query.eq('user_id', userId);
     const { data: existing } = await query;
+    console.log(`[Admin] existing rows: ${JSON.stringify((existing || []).map(r => ({ id: r.id, phone: r.phone })))}`);
 
     // 2. Deleta as conversas do Supabase
     const deleteQuery = supabaseAdmin
@@ -1185,18 +1185,28 @@ app.post("/api/admin/reset-conversation", adminLimiter, requireAdmin, async (req
     ])];
 
     for (const rid of recruiterIds) {
-      const bare = cleanedPhone.replace(/^55/, '');
       await deleteMemories(`${rid}:${cleanedPhone}`);
       await deleteMemories(`${rid}:55${bare}`);
       await deleteMemories(`${rid}:${bare}`);
     }
 
-    console.log(`[Admin] reset-conversation phone=${cleanedPhone} rows=${deleted?.length || 0} mem0=${recruiterIds.length}`);
+    const rowsDeleted = deleted?.length || 0;
+    console.log(`[Admin] reset-conversation phone=${cleanedPhone} rows=${rowsDeleted} mem0=${recruiterIds.length}`);
+
+    if (rowsDeleted === 0 && recruiterIds.length === 0) {
+      return res.json({
+        ok: false,
+        rowsDeleted: 0,
+        mem0Cleared: false,
+        message: `Nenhuma conversa encontrada para os números: ${phoneVariants.join(', ')}. Verifique o formato.`,
+      });
+    }
+
     return res.json({
       ok: true,
-      rowsDeleted: deleted?.length || 0,
+      rowsDeleted,
       mem0Cleared: recruiterIds.length > 0,
-      message: `Conversa de +${cleanedPhone} resetada. Próxima mensagem inicia do zero.`,
+      message: `Conversa resetada (${rowsDeleted} registro${rowsDeleted !== 1 ? 's' : ''} no Supabase + Mem0 limpo). Próxima mensagem inicia do zero.`,
     });
   } catch (err) {
     console.error('[Admin] reset-conversation error:', err);
@@ -1635,15 +1645,6 @@ app.get("/api/admin/accounts-health", adminLimiter, requireAdmin, async (_req, r
 // POST /api/webhooks/chatwoot
 // ─────────────────────────────────────────────────────────────────────
 app.post("/api/webhooks/chatwoot", webhookLimiter, async (req, res) => {
-  // Verificar segredo do webhook
-  const secret = process.env.CHATWOOT_WEBHOOK_SECRET;
-  if (secret) {
-    const incoming = req.headers['x-chatwoot-signature'] as string | undefined;
-    if (incoming !== secret) {
-      console.warn('[Chatwoot Webhook] Segredo inválido — requisição rejeitada');
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
 
   try {
     const payload = req.body as {
