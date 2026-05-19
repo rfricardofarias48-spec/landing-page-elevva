@@ -1031,6 +1031,7 @@ app.post("/api/admin/auto-setup/:userId", adminLimiter, requireAdmin, async (req
 
     // ── 8. QR Code ────────────────────────────────────────────────────
     const qrCode = await getQRCode(evolutionInstance, evolutionToken);
+    if (qrCode) _pendingQR.set(evolutionInstance, qrCode);
     steps.push({
       id: 'qr', label: 'QR code pronto', ok: !!qrCode,
       detail: qrCode ? 'Escaneie com o WhatsApp para ativar o agente' : 'QR ainda sendo gerado — aguarde e tente Atualizar QR',
@@ -1052,8 +1053,10 @@ app.get("/api/admin/qr-code/:userId", adminLimiter, requireAdmin, async (req, re
     const { userId } = req.params;
     const { data: profile } = await supabaseAdmin.from('profiles').select('instancia_evolution, evolution_token').eq('id', userId).single();
     if (!profile?.instancia_evolution) return res.status(400).json({ ok: false, error: 'Instância não configurada' });
-    const qrCode = await getQRCode(profile.instancia_evolution, profile.evolution_token);
-    return res.json({ ok: !!qrCode, qrCode });
+    // Busca QR fresco via /instance/connect (chamada explícita do botão Atualizar QR)
+    const freshQR = await getQRCode(profile.instancia_evolution, profile.evolution_token);
+    if (freshQR) _pendingQR.set(profile.instancia_evolution, freshQR);
+    return res.json({ ok: !!freshQR, qrCode: freshQR });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
   }
@@ -1098,7 +1101,11 @@ app.get("/api/admin/qr-status/:userId", adminLimiter, requireAdmin, async (req, 
     } catch { /* ignore */ }
 
     if (!connected) {
-      qrCode = await getQRCode(profile.instancia_evolution, profile.evolution_token);
+      // Retorna QR do mapa (atualizado pelo webhook QRCODE_UPDATED) — não chama /instance/connect
+      // para evitar regenerar o QR e invalidar o que está na tela do usuário
+      qrCode = _pendingQR.get(profile.instancia_evolution) || null;
+    } else {
+      _pendingQR.delete(profile.instancia_evolution);
     }
 
     // Ao conectar pela primeira vez — enviar mensagem de boas-vindas do próprio agente
@@ -5653,6 +5660,10 @@ app.delete("/api/chips-pool/:id", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// QR codes em espera de escaneamento — keyed por instanceName
+// Atualizado pelo webhook QRCODE_UPDATED; consumido pelo polling qr-status
+const _pendingQR = new Map<string, string>();
+
 // Deduplicação: Evolution v2 com webhook_by_events=true envia para base path E subpath
 const _evoProcessed = new Map<string, number>();
 setInterval(() => {
@@ -5737,6 +5748,16 @@ app.post(["/api/webhooks/evolution", "/api/webhooks/evolution/:event"], webhookL
             console.error(`[EvoWH] processIncomingMessage error: ${e.message}`);
           }
         }
+      }
+      return res.json({ ok: true });
+    }
+
+    // ── QRCODE_UPDATED: armazena o novo QR em memória ────────────────
+    if (event === 'QRCODE_UPDATED' && instanceName) {
+      const qrBase64 = body?.data?.qrcode?.base64 || body?.data?.base64 || body?.qrcode?.base64 || '';
+      if (qrBase64) {
+        _pendingQR.set(instanceName, qrBase64);
+        console.log(`[EvoWH] QR atualizado para instância ${instanceName}`);
       }
       return res.json({ ok: true });
     }

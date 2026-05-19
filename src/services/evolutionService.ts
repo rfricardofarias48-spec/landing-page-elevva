@@ -278,7 +278,7 @@ export async function configureWebhookBase64(
       url: webhookUrl,
       webhook_base64: true,
       webhook_by_events: true,
-      events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+      events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
     },
   };
 
