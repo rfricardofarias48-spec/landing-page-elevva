@@ -3869,21 +3869,25 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
         {/* USER DETAILS MODAL */}
         {selectedUser && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[95vh] overflow-y-auto p-8 shadow-2xl relative">
-                    <button onClick={() => { setSelectedUser(null); setIsEditingPlan(false); }} className="absolute top-6 right-6 p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors z-10"><X className="w-5 h-5"/></button>
-
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="w-16 h-16 bg-zinc-100 rounded-2xl flex items-center justify-center text-2xl font-black text-zinc-400">
-                            {selectedUser.name?.charAt(0) || selectedUser.email.charAt(0).toUpperCase()}
+                <div className="bg-white rounded-[2rem] w-full max-w-4xl shadow-2xl relative overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-8 py-5 border-b border-zinc-100">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-zinc-100 rounded-2xl flex items-center justify-center text-xl font-black text-zinc-400">
+                                {selectedUser.name?.charAt(0) || selectedUser.email.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-zinc-900 leading-none">{selectedUser.name || 'Sem nome'}</h3>
+                                <p className="text-zinc-500 font-medium text-sm mt-0.5">{selectedUser.email}</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-2xl font-black text-zinc-900 leading-none">{selectedUser.name || 'Sem nome'}</h3>
-                            <p className="text-zinc-500 font-medium text-sm mt-1">{selectedUser.email}</p>
-                        </div>
+                        <button onClick={() => { setSelectedUser(null); setIsEditingPlan(false); }} className="p-2 bg-zinc-50 hover:bg-zinc-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
                     </div>
 
-
-                    <div className="space-y-6">
+                    {/* Body — 2 colunas */}
+                    <div className="grid grid-cols-[1fr,1.5fr] max-h-[80vh]">
+                        {/* Coluna esquerda: Plano + Stats + Ações */}
+                        <div className="p-6 border-r border-zinc-100 overflow-y-auto space-y-4 flex flex-col">
                         <div className="bg-zinc-50 p-5 rounded-2xl border border-zinc-100 relative group">
                             <div className="flex justify-between items-start mb-2">
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Plano Atual (Manual)</p>
@@ -3998,8 +4002,43 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                             )}
                         </div>
 
+                        {/* Stats */}
+                        <div className="grid grid-cols-2 gap-3 mt-auto">
+                            <div className="bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Vagas Criadas</p>
+                                <p className="text-lg font-black text-zinc-900">{selectedUser.jobs_count}</p>
+                            </div>
+                            <div className="bg-zinc-50 p-3 rounded-xl border border-zinc-100">
+                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Currículos</p>
+                                <p className="text-lg font-black text-zinc-900">{selectedUser.resume_usage}</p>
+                            </div>
+                        </div>
+
+                        {/* Ações */}
+                        <div className="pt-3 border-t border-zinc-100 flex gap-3">
+                            <button
+                                onClick={() => handleToggleBlock(selectedUser)}
+                                disabled={actionLoading}
+                                className={`flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${selectedUser.status === 'BLOCKED' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}
+                            >
+                                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (selectedUser.status === 'BLOCKED' ? <CheckCircle2 className="w-4 h-4"/> : <Ban className="w-4 h-4"/>)}
+                                {selectedUser.status === 'BLOCKED' ? 'Desbloquear' : 'Bloquear'}
+                            </button>
+                            <button
+                                onClick={() => handleDeleteUser(selectedUser)}
+                                disabled={actionLoading}
+                                className="py-2.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all bg-zinc-100 text-zinc-500 hover:bg-red-600 hover:text-white"
+                                title="Deletar conta permanentemente"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>{/* fim coluna esquerda */}
+
+                    {/* Coluna direita: Configurações do Agente */}
+                    <div className="p-6 overflow-y-auto max-h-[80vh]">
                         {selectedUser.plan !== 'ADMIN' && (
-                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 relative group">
+                            <div className="h-full">
                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Configurações do Agente</p>
 
                                 <div className="space-y-3">
@@ -4105,7 +4144,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                             </div>
                                             <p className="text-[10px] text-slate-400 mt-1">Chatwoot → Configurações → Integrações → API de Acesso</p>
                                             <div className="mt-3 flex items-center gap-2 flex-wrap">
-                                                {/* Setup Automático — botão principal */}
                                                 <button
                                                     onClick={openSetupModal}
                                                     disabled={setupLoading}
@@ -4114,7 +4152,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                     {setupLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                                                     {selectedUser?.instancia_evolution ? 'Reconfigurar + QR' : 'Setup Automático'}
                                                 </button>
-                                                {/* Reconfigurar Evolution — ação secundária */}
                                                 <button
                                                     onClick={handleReconfigChatwoot}
                                                     disabled={reconfigChatwootLoading}
@@ -4137,7 +4174,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                                 )}
                                             </div>
                                             {diagChatwootResult && (
-                                                <pre className="mt-3 p-3 bg-slate-900 text-green-400 rounded-xl text-[10px] overflow-x-auto whitespace-pre-wrap max-h-64">{diagChatwootResult}</pre>
+                                                <pre className="mt-3 p-3 bg-slate-900 text-green-400 rounded-xl text-[10px] overflow-x-auto whitespace-pre-wrap max-h-48">{diagChatwootResult}</pre>
                                             )}
 
                                             {/* Reset de conversa */}
@@ -4190,37 +4227,8 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                 </div>
                             </div>
                         )}
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
-                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Vagas Criadas</p>
-                                <p className="text-lg font-black text-zinc-900">{selectedUser.jobs_count}</p>
-                            </div>
-                            <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
-                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Currículos</p>
-                                <p className="text-lg font-black text-zinc-900">{selectedUser.resume_usage}</p>
-                            </div>
-                        </div>
-
-                        <div className="pt-4 border-t border-zinc-100 flex gap-3">
-                            <button
-                                onClick={() => handleToggleBlock(selectedUser)}
-                                disabled={actionLoading}
-                                className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${selectedUser.status === 'BLOCKED' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}
-                            >
-                                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : (selectedUser.status === 'BLOCKED' ? <CheckCircle2 className="w-4 h-4"/> : <Ban className="w-4 h-4"/>)}
-                                {selectedUser.status === 'BLOCKED' ? 'Desbloquear Conta' : 'Bloquear Acesso'}
-                            </button>
-                            <button
-                                onClick={() => handleDeleteUser(selectedUser)}
-                                disabled={actionLoading}
-                                className="py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all bg-zinc-100 text-zinc-500 hover:bg-red-600 hover:text-white"
-                                title="Deletar conta permanentemente"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
+                    </div>{/* fim coluna direita */}
+                    </div>{/* fim grid */}
                 </div>
             </div>
         )}
