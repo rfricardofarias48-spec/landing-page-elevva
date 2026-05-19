@@ -6,7 +6,6 @@ import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
 import { LoginScreen } from './components/LoginScreen';
 import { AdminDashboard } from './components/AdminDashboard';
-import { SdrDashboard } from './components/SdrDashboard';
 import { PublicUploadScreen } from './components/PublicUploadScreen';
 import { PublicSchedulingScreen } from './components/PublicSchedulingScreen';
 import { PublicAdmissionScreen } from './components/PublicAdmissionScreen';
@@ -2738,11 +2737,6 @@ const App: React.FC = () => {
       return <AdminDashboard />;
   }
 
-  // SDR
-  if (user.role === 'SDR' && view === 'DASHBOARD') {
-      return <SdrDashboard />;
-  }
-  
   // Main App Helpers
   const handleEditJobSetup = (job: Job) => {
       setActiveJob(job);

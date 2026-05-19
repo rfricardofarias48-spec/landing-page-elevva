@@ -995,7 +995,8 @@ export async function processIncomingMessage(
     case 'ANALISANDO': {
       const candidateName = conv.context.candidate_name || pushName || '';
       const smart = text ? await detectCandidateIntent(candidateName, 'ANALISANDO', text) : null;
-      if (smart && smart.intent !== 'canned' && smart.reply) {
+      const actionableIntents = ['restart', 'friend_curriculum', 'withdrawal', 'status_inquiry'];
+      if (smart && actionableIntents.includes(smart.intent) && smart.reply) {
         if (smart.intent === 'restart') {
           await send(phone, smart.reply);
           await updateConversation(conv.id, { state: 'NOVO', context: { candidate_name: candidateName } }, supabase);
@@ -1014,7 +1015,8 @@ export async function processIncomingMessage(
     case 'EM_ANALISE': {
       const candidateName = conv.context.candidate_name || pushName || '';
       const smart = text ? await detectCandidateIntent(candidateName, conv.state, text) : null;
-      if (smart && smart.intent !== 'canned' && smart.reply) {
+      const actionableIntents = ['restart', 'friend_curriculum', 'withdrawal', 'status_inquiry'];
+      if (smart && actionableIntents.includes(smart.intent) && smart.reply) {
         if (smart.intent === 'restart') {
           await send(phone, smart.reply);
           await updateConversation(conv.id, { state: 'NOVO', context: { candidate_name: candidateName } }, supabase);
