@@ -20,6 +20,30 @@ import { deleteCalendarEvent } from './googleCalendarService.js';
 import crypto from 'crypto';
 import { searchMemory, addMemory } from './mem0Service.js';
 
+// ─────────────────────────── System prompt cache ─────────────────────────────
+// Carrega o system prompt da tabela system_prompts (id='attendance') com cache de 5 min
+let _cachedPrompt: string | null = null;
+let _cacheExpiry = 0;
+
+async function fetchAttendancePrompt(supabase: SupabaseClient): Promise<string> {
+  if (_cachedPrompt !== null && Date.now() < _cacheExpiry) return _cachedPrompt;
+  try {
+    const { data } = await supabase
+      .from('system_prompts')
+      .select('prompt')
+      .eq('id', 'attendance')
+      .maybeSingle();
+    if (data?.prompt) {
+      _cachedPrompt = data.prompt as string;
+      _cacheExpiry = Date.now() + 5 * 60 * 1000;
+      return _cachedPrompt;
+    }
+  } catch (e) {
+    console.warn('[Agent] fetchAttendancePrompt falhou:', (e as Error).message);
+  }
+  return '';
+}
+
 // ─────────────────────────── Helpers ─────────────────────────
 
 const INVALID_NAME_WORDS = ['erro', 'error', 'null', 'undefined', 'candidato', 'não', 'nao', 'análise', 'analise', 'identificado', 'whatsapp', 'desconhecido'];
@@ -404,12 +428,13 @@ async function handleAguardandoCurriculo(
   send: SendFn,
   instanceToken?: string,
   textContent?: string | null,
+  attendancePrompt?: string,
 ): Promise<void> {
   const isPDF = ['documentMessage', 'documentWithCaptionMessage'].includes(messageType);
 
   if (!isPDF || !mediaData) {
     const candidateName = conv.context.candidate_name || '';
-    const smart = textContent ? await detectCandidateIntent(candidateName, 'AGUARDANDO_CURRICULO', textContent) : null;
+    const smart = textContent ? await detectCandidateIntent(candidateName, 'AGUARDANDO_CURRICULO', textContent, attendancePrompt) : null;
     if (smart && smart.intent !== 'canned' && smart.reply) {
       await send(phone, smart.reply);
     } else {
@@ -818,6 +843,9 @@ export async function processIncomingMessage(
   // Mem0: ID de isolamento por recrutador + candidato
   const memUserId = `${profile.id}:${phone}`;
 
+  // System prompt configurado no admin — carregado com cache de 5 min
+  const attendancePrompt = await fetchAttendancePrompt(supabase);
+
   // Helper bound — envia via WhatsApp E espelha no Chatwoot como mensagem de saída
   const send = async (jid: string, text: string) => {
     await evo.sendText(instance, jid, text, instanceToken);
@@ -988,13 +1016,13 @@ export async function processIncomingMessage(
 
     // ── Aguardando currículo via WhatsApp ──
     case 'AGUARDANDO_CURRICULO':
-      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken, textContent);
+      await handleAguardandoCurriculo(conv, instance, phone, messageType, mediaData, supabase, send, instanceToken, textContent, attendancePrompt);
       break;
 
     // ── Currículo em análise ──
     case 'ANALISANDO': {
       const candidateName = conv.context.candidate_name || pushName || '';
-      const smart = text ? await detectCandidateIntent(candidateName, 'ANALISANDO', text) : null;
+      const smart = text ? await detectCandidateIntent(candidateName, 'ANALISANDO', text, attendancePrompt) : null;
       const actionableIntents = ['restart', 'friend_curriculum', 'withdrawal', 'status_inquiry'];
       if (smart && actionableIntents.includes(smart.intent) && smart.reply) {
         if (smart.intent === 'restart') {
@@ -1014,7 +1042,7 @@ export async function processIncomingMessage(
     case 'CURRICULO_RECEBIDO':
     case 'EM_ANALISE': {
       const candidateName = conv.context.candidate_name || pushName || '';
-      const smart = text ? await detectCandidateIntent(candidateName, conv.state, text) : null;
+      const smart = text ? await detectCandidateIntent(candidateName, conv.state, text, attendancePrompt) : null;
       const actionableIntents = ['restart', 'friend_curriculum', 'withdrawal', 'status_inquiry'];
       if (smart && actionableIntents.includes(smart.intent) && smart.reply) {
         if (smart.intent === 'restart') {

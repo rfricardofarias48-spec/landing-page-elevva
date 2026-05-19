@@ -68,13 +68,17 @@ export async function getMemories(userId: string): Promise<string[]> {
 
 /** Apaga todas as memórias de um candidato (reset de conversa) */
 export async function deleteMemories(userId: string): Promise<boolean> {
-  if (!MEM0_URL) return true;
+  if (!MEM0_URL) {
+    console.warn('[Mem0] MEM0_API_URL não configurado — deleteMemories ignorado');
+    return true;
+  }
   try {
     // Tenta DELETE /users/{userId}/memories (Mem0 v2 bulk delete)
     const bulkRes = await fetch(`${MEM0_URL}/users/${encodeURIComponent(userId)}/memories`, {
       method: 'DELETE',
       headers: headers(),
     });
+    console.log(`[Mem0] DELETE /users bulk userId=${userId} status=${bulkRes.status}`);
     if (bulkRes.ok) return true;
 
     // Fallback: busca todos os IDs e deleta um a um
@@ -82,17 +86,27 @@ export async function deleteMemories(userId: string): Promise<boolean> {
       `${MEM0_URL}/memories?user_id=${encodeURIComponent(userId)}&limit=100`,
       { headers: headers() },
     );
-    if (!listRes.ok) return false;
+    if (!listRes.ok) {
+      console.warn(`[Mem0] list memories falhou userId=${userId} status=${listRes.status}`);
+      return false;
+    }
 
     const data = await listRes.json() as { results?: Array<{ id: string }> };
     const ids = (data.results || []).map(r => r.id);
+    console.log(`[Mem0] fallback: found ${ids.length} memories for userId=${userId}`);
     if (!ids.length) return true;
 
-    await Promise.all(ids.map(id =>
-      fetch(`${MEM0_URL}/memories/${id}`, { method: 'DELETE', headers: headers() }).catch(() => {}),
+    const results = await Promise.all(ids.map(id =>
+      fetch(`${MEM0_URL}/memories/${id}`, { method: 'DELETE', headers: headers() })
+        .then(r => ({ id, ok: r.ok, status: r.status }))
+        .catch(e => ({ id, ok: false, status: 0, error: String(e) })),
     ));
-    return true;
-  } catch {
+    const failed = results.filter(r => !r.ok);
+    if (failed.length) console.warn(`[Mem0] ${failed.length}/${ids.length} deletions failed:`, failed);
+    else console.log(`[Mem0] deleted ${ids.length} memories for userId=${userId}`);
+    return failed.length === 0;
+  } catch (err) {
+    console.error('[Mem0] deleteMemories error:', err);
     return false;
   }
 }

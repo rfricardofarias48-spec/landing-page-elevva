@@ -269,13 +269,18 @@ export async function detectCandidateIntent(
   candidateName: string,
   state: string,
   text: string,
+  attendancePrompt?: string,
 ): Promise<{ intent: CandidateIntent; reply: string } | null> {
   const apiKey = process.env.OPENAI_API_KEY || '';
   if (!apiKey || apiKey.length < 10) return null;
 
+  const botContext = attendancePrompt
+    ? `\n\nCONTEXTO DO BOT (siga o tom, nome e diretrizes abaixo ao escrever a reply):\n${attendancePrompt}`
+    : '';
+
   const system = `Você é um classificador de intenções para o Bento, assistente de recrutamento.
 O candidato está no estado: ${state}.
-Candidate name: ${candidateName || 'candidato'}.
+Nome do candidato: ${candidateName || 'candidato'}.${botContext}
 
 Classifique a intenção e escreva uma resposta curta e amigável em português do Brasil.
 Responda APENAS em JSON: { "intent": "<tipo>", "reply": "<mensagem>" }
