@@ -52,6 +52,9 @@ export const AdminDashboard: React.FC = () => {
   const [reconfigChatwootMsg, setReconfigChatwootMsg] = useState<string | null>(null);
   const [diagChatwootLoading, setDiagChatwootLoading] = useState(false);
   const [diagChatwootResult, setDiagChatwootResult] = useState<string | null>(null);
+  const [resetConvPhone, setResetConvPhone] = useState('');
+  const [resetConvLoading, setResetConvLoading] = useState(false);
+  const [resetConvMsg, setResetConvMsg] = useState<string | null>(null);
 
   // States para Auto-Setup Evolution + Chatwoot
   interface SetupStep { id: string; label: string; ok: boolean; detail: string }
@@ -527,6 +530,27 @@ export const AdminDashboard: React.FC = () => {
       setDiagChatwootResult('❌ Erro de rede');
     } finally {
       setDiagChatwootLoading(false);
+    }
+  };
+
+  const handleResetConversation = async () => {
+    const phone = resetConvPhone.trim().replace(/\D/g, '');
+    if (!phone) return;
+    setResetConvLoading(true);
+    setResetConvMsg(null);
+    try {
+      const res = await adminFetch('/api/admin/reset-conversation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, userId: selectedUser?.id }),
+      });
+      const data = await res.json() as { ok: boolean; message?: string; rowsDeleted?: number };
+      setResetConvMsg(data.ok ? `✅ ${data.message}` : `❌ Erro ao resetar`);
+      if (data.ok) setResetConvPhone('');
+    } catch {
+      setResetConvMsg('❌ Erro de rede');
+    } finally {
+      setResetConvLoading(false);
     }
   };
 
@@ -4115,6 +4139,30 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                                             {diagChatwootResult && (
                                                 <pre className="mt-3 p-3 bg-slate-900 text-green-400 rounded-xl text-[10px] overflow-x-auto whitespace-pre-wrap max-h-64">{diagChatwootResult}</pre>
                                             )}
+
+                                            {/* Reset de conversa */}
+                                            <div className="mt-4 pt-4 border-t border-slate-200">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Resetar Conversa do Candidato</p>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="tel"
+                                                        placeholder="Número com DDI (ex: 5551999990000)"
+                                                        value={resetConvPhone}
+                                                        onChange={e => { setResetConvPhone(e.target.value); setResetConvMsg(null); }}
+                                                        className="flex-1 text-xs px-3 py-2 border border-slate-200 rounded-lg focus:border-red-400 outline-none"
+                                                    />
+                                                    <button
+                                                        onClick={handleResetConversation}
+                                                        disabled={resetConvLoading || !resetConvPhone.trim()}
+                                                        className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap"
+                                                    >
+                                                        {resetConvLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>🗑️</span>}
+                                                        Resetar
+                                                    </button>
+                                                </div>
+                                                {resetConvMsg && <p className="text-xs mt-2 text-slate-600">{resetConvMsg}</p>}
+                                                <p className="text-[10px] text-slate-400 mt-1">Apaga estado no Supabase + memórias no Mem0. O candidato começa do zero.</p>
+                                            </div>
                                         </div>
 
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">

@@ -14,6 +14,7 @@ import { renderSchedulingPage, SchedulingPageData, isSlotExpired } from "./src/s
 import { renderSdrSchedulingPage, SdrSchedulingPageData } from "./src/services/sdrSchedulingPage.js";
 import { validateWalletId, generatePaymentLink, validateWebhookToken, PLAN_PRICES, syncPaymentStatus, getSubaccountInfo, listPayments, getPaymentsByExternalReference, getLatestSubscriptionPayment, getPaymentById } from "./src/services/asaasService.js";
 import { provisionClient } from "./src/services/onboardingService.js";
+import { deleteMemories } from "./src/services/mem0Service.js";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
@@ -1146,6 +1147,63 @@ app.get("/api/admin/qr-status/:userId", adminLimiter, requireAdmin, async (req, 
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN: Reset de conversa — apaga estado no Supabase + memórias no Mem0
+// POST /api/admin/reset-conversation
+// Body: { phone: string }  — número do candidato (somente dígitos)
+// ─────────────────────────────────────────────────────────────────────
+app.post("/api/admin/reset-conversation", adminLimiter, requireAdmin, async (req, res) => {
+  try {
+    const { phone, userId } = req.body as { phone?: string; userId?: string };
+    if (!phone) return res.status(400).json({ ok: false, error: 'phone obrigatório' });
+
+    const cleanedPhone = phone.replace(/\D/g, '');
+    const phoneVariants = [
+      cleanedPhone,
+      `55${cleanedPhone.replace(/^55/, '')}`,
+      cleanedPhone.replace(/^55/, ''),
+    ];
+
+    // 1. Busca conversas para pegar user_ids antes de deletar
+    const query = supabaseAdmin
+      .from('agent_conversations')
+      .select('id, phone, user_id')
+      .in('phone', phoneVariants);
+    if (userId) query.eq('user_id', userId);
+    const { data: existing } = await query;
+
+    // 2. Deleta as conversas do Supabase
+    const deleteQuery = supabaseAdmin
+      .from('agent_conversations')
+      .delete()
+      .in('phone', phoneVariants);
+    if (userId) deleteQuery.eq('user_id', userId);
+    const { data: deleted } = await deleteQuery.select('id');
+
+    // 3. Apaga memórias no Mem0 para cada recrutador identificado
+    const recruiterIds = [...new Set([
+      ...(existing || []).map((r: { user_id?: string }) => r.user_id).filter(Boolean) as string[],
+      ...(userId ? [userId] : []),
+    ])];
+
+    for (const rid of recruiterIds) {
+      await deleteMemories(`${rid}:${cleanedPhone}`);
+      await deleteMemories(`${rid}:${cleanedPhone.replace(/^55/, '')}`);
+    }
+
+    console.log(`[Admin] reset-conversation phone=${cleanedPhone} rows=${deleted?.length || 0} mem0=${recruiterIds.length}`);
+    return res.json({
+      ok: true,
+      rowsDeleted: deleted?.length || 0,
+      mem0Cleared: recruiterIds.length > 0,
+      message: `Conversa de +${cleanedPhone} resetada. Próxima mensagem inicia do zero.`,
+    });
+  } catch (err) {
+    console.error('[Admin] reset-conversation error:', err);
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 // ADMIN: Diagnóstico Chatwoot — mostra estado atual da integração
 // GET /api/admin/diagnose-chatwoot/:userId
 // ─────────────────────────────────────────────────────────────────────
