@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
-type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'COMMISSIONS' | 'PROMPTS' | 'VENDEDORES' | 'CHIPS' | 'VENDAS' | 'CONTROLE';
+type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'PROMPTS' | 'CHIPS' | 'CONTROLE';
 
 interface AdminJob {
   id: string;
@@ -911,15 +911,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                 <Sliders className="w-5 h-5" /> Controle Agente
             </button>
             <div className="pt-2 pb-1 px-4">
-                <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">Comercial</p>
-            </div>
-            <button onClick={() => { setCurrentView('VENDAS'); fetchAllSales(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'VENDAS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <CreditCard className="w-5 h-5" /> Vendas
-            </button>
-            <button onClick={() => { setCurrentView('VENDEDORES'); fetchSalespeople(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'VENDEDORES' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <Briefcase className="w-5 h-5" /> Vendedores
-            </button>
-            <div className="pt-2 pb-1 px-4">
                 <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">Sistema</p>
             </div>
             <button onClick={() => setCurrentView('CONTROLE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CONTROLE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
@@ -1234,7 +1225,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
         <div className="bg-white border border-zinc-100 rounded-[1.75rem] overflow-hidden shadow-sm">
           <div className="px-6 py-4 border-b border-zinc-50 flex items-center justify-between">
             <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Últimas Vendas Confirmadas</p>
-            <button onClick={() => setCurrentView('VENDAS')} className="text-xs font-bold text-zinc-400 hover:text-black transition-colors">Ver todas →</button>
           </div>
           <div className="divide-y divide-zinc-50">
             {paidSales.slice(0, 5).map(s => (
@@ -3683,8 +3673,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             {currentView === 'OVERVIEW' && renderOverview()}
             {currentView === 'USERS' && renderUsersList()}
             {currentView === 'ADS' && renderAdsManager()}
-            {currentView === 'FINANCE' && renderFinance()} 
-            {currentView === 'COMMISSIONS' && renderCommissions()}
+            {currentView === 'FINANCE' && renderFinance()}
             {currentView === 'PROMPTS' && (
                 <div className="flex flex-col h-full">
                     {/* Header + Sub-tabs */}
@@ -3853,8 +3842,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                 </div>
             )}
             {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
-            {currentView === 'VENDAS' && renderVendas()}
-            {currentView === 'VENDEDORES' && renderVendedores()}
 
             {currentView === 'CONTROLE' && renderControle()}
             {currentView === 'CANCELLATIONS' && (

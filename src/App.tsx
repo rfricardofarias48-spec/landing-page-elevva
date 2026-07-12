@@ -10,7 +10,6 @@ import { PublicUploadScreen } from './components/PublicUploadScreen';
 import { PublicSchedulingScreen } from './components/PublicSchedulingScreen';
 import { PublicAdmissionScreen } from './components/PublicAdmissionScreen';
 import { DemonstracaoPage } from './components/DemonstracaoPage';
-import { VendedorDashboard } from './components/VendedorDashboard';
 import { InterviewReportModal } from './components/InterviewReportModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
@@ -866,11 +865,10 @@ const App: React.FC = () => {
       
       // FORCE ADMIN: Se o email for o do dono, força o papel de ADMIN mesmo que no banco esteja USER
       const isAdmin = (data?.role === 'ADMIN') || (email === 'rhfarilog@gmail.com');
-      const isSdr = (data?.role === 'SDR') || (email === 'rfricardofarias48@gmail.com');
 
       const profile = data ? {
         ...data,
-        role: isAdmin ? 'ADMIN' : isSdr ? 'SDR' : (data.role || 'USER'), // Força Admin/SDR se email bater
+        role: isAdmin ? 'ADMIN' : (data.role || 'USER'), // Força Admin se email bater
         name: (dbName && dbName.trim() !== '') ? dbName : 'Usuário', // Fallback para não quebrar a UI
         job_limit: data.plan === 'ENTERPRISE' ? (data.job_limit ?? 9999) : (data.job_limit ?? 3),
         resume_limit: data.plan === 'ENTERPRISE' ? 9999 : (data.resume_limit ?? 9999),
@@ -882,9 +880,9 @@ const App: React.FC = () => {
         name: 'Usuário',
         plan: 'ESSENCIAL',
         job_limit: 3,
-        resume_limit: 9999, 
+        resume_limit: 9999,
         resume_usage: 0,
-        role: isAdmin ? 'ADMIN' : isSdr ? 'SDR' : 'USER'
+        role: isAdmin ? 'ADMIN' : 'USER'
       };
 
       // Gera portal_code curto se ainda não existir
@@ -2648,11 +2646,6 @@ const App: React.FC = () => {
     decodeURIComponent(window.location.pathname).match(/^\/demon?stra[cç][aã]o\/?$/i)
   ) {
     return <DemonstracaoPage />;
-  }
-
-  // Vendedor Dashboard — public, has own auth
-  if (window.location.pathname.match(/^\/vendedor\/?$/i)) {
-    return <VendedorDashboard />;
   }
 
   // Public Scheduling View — check path synchronously to bypass auth state entirely
