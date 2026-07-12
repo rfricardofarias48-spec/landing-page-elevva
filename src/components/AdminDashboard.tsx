@@ -913,6 +913,9 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             <div className="pt-2 pb-1 px-4">
                 <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">Sistema</p>
             </div>
+            <button onClick={() => { setCurrentView('CHIPS'); fetchChips(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CHIPS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
+                <QrCode className="w-5 h-5" /> Chips WhatsApp
+            </button>
             <button onClick={() => setCurrentView('CONTROLE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'CONTROLE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Shield className="w-5 h-5" /> Controle
             </button>
@@ -1284,12 +1287,84 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
                           <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Enterprise</span>
                           <span className="text-lg font-black text-purple-400">{totalEnterprise}</span>
                       </div>
+                      <button onClick={openProvisionAccount}
+                          className="flex items-center gap-2 bg-black text-white font-bold px-5 py-2.5 rounded-2xl text-sm hover:bg-zinc-800 transition-colors shadow-sm">
+                          <Zap className="w-4 h-4" /> Nova Conta Interna
+                      </button>
                   </div>
                   <div className="relative">
                       <Search className="w-5 h-5 absolute left-4 top-3.5 text-zinc-400" />
                       <input type="text" placeholder="Buscar nome ou email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 bg-white border border-zinc-200 rounded-xl text-sm font-bold focus:border-black focus:ring-0 outline-none w-64 md:w-80 shadow-sm" />
                   </div>
               </div>
+
+              {/* Modal: Nova Conta Interna (sem Asaas) — cria a conta e dispara o
+                  onboarding automático completo (Chatwoot + Evolution + chip). */}
+              {showProvisionAccount && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+                          <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-xl font-black text-zinc-900">
+                                  {provisionResult ? 'Conta Provisionada!' : 'Nova Conta Interna'}
+                              </h3>
+                              <button onClick={closeProvisionAccount} className="text-zinc-400 hover:text-zinc-700"><X className="w-5 h-5" /></button>
+                          </div>
+                          {!provisionResult && (
+                              <p className="text-xs text-zinc-400 mb-6">
+                                  Sem cobrança via Asaas — cria o perfil e dispara automaticamente a criação
+                                  do inbox no Chatwoot, atribuição de chip e configuração da instância Evolution.
+                                  Requer um chip disponível na tela "Chips WhatsApp".
+                              </p>
+                          )}
+
+                          {!provisionResult ? (
+                              <form onSubmit={handleProvisionAccount} className="space-y-4">
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">Nome</label>
+                                      <input value={provisionForm.clientName} onChange={e => setProvisionForm(f => ({ ...f, clientName: e.target.value }))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="Nome completo" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">E-mail (login via Google)</label>
+                                      <input type="email" value={provisionForm.clientEmail} onChange={e => setProvisionForm(f => ({ ...f, clientEmail: e.target.value }))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="seuemail@gmail.com" required />
+                                  </div>
+                                  <div>
+                                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1.5">WhatsApp pessoal</label>
+                                      <input value={provisionForm.clientPhone} onChange={e => setProvisionForm(f => ({ ...f, clientPhone: e.target.value }))}
+                                          className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                                          placeholder="5551999999999 (DDI+DDD, sem espaços)" required />
+                                  </div>
+                                  {provisionError && <p className="text-red-500 text-xs font-medium">{provisionError}</p>}
+                                  <button type="submit" disabled={provisionSaving}
+                                      className="w-full bg-black text-white font-bold py-3 rounded-xl text-sm hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                      {provisionSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Provisionando (Chatwoot + Evolution)...</> : <><Zap className="w-4 h-4" /> Provisionar Conta</>}
+                                  </button>
+                              </form>
+                          ) : (
+                              <div className="space-y-4 py-2">
+                                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                                      <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+                                  </div>
+                                  <div className="text-center">
+                                      <p className="text-sm text-zinc-500">Conta pronta pra <strong>{provisionResult.clientEmail}</strong></p>
+                                  </div>
+                                  <div className="bg-zinc-50 rounded-2xl p-4 space-y-2 text-sm">
+                                      <p><span className="text-zinc-400 font-bold text-xs uppercase">WhatsApp do agente:</span> {provisionResult.whatsappNumber || '—'}</p>
+                                      {provisionResult.chatwootLoginUrl && (
+                                          <p><a href={provisionResult.chatwootLoginUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline font-bold">Abrir login do Chatwoot →</a></p>
+                                      )}
+                                  </div>
+                                  <p className="text-xs text-zinc-400 text-center">Faça login em app.elevva.net.br com este e-mail via Google pra acessar.</p>
+                                  <button onClick={closeProvisionAccount} className="w-full border border-zinc-200 text-zinc-600 font-bold py-3 rounded-xl text-sm hover:bg-zinc-50 transition-colors">Fechar</button>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              )}
+
               <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
                   <table className="w-full text-left border-collapse">
                       <thead className="bg-zinc-50 text-zinc-400 text-[10px] font-black uppercase tracking-widest border-b border-zinc-100">
@@ -1671,6 +1746,48 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       } finally {
           setAsaasSyncing(false);
       }
+  };
+
+  // ── State para provisionar conta interna (sem Asaas) ──────────────────────────
+  const [showProvisionAccount, setShowProvisionAccount] = useState(false);
+  const [provisionForm, setProvisionForm] = useState({ clientName: '', clientEmail: '', clientPhone: '' });
+  const [provisionSaving, setProvisionSaving] = useState(false);
+  const [provisionError, setProvisionError] = useState('');
+  const [provisionResult, setProvisionResult] = useState<{ clientEmail: string; whatsappNumber: string; chatwootLoginUrl: string } | null>(null);
+
+  const openProvisionAccount = () => {
+    setProvisionForm({ clientName: '', clientEmail: '', clientPhone: '' });
+    setProvisionError('');
+    setProvisionResult(null);
+    setShowProvisionAccount(true);
+  };
+  const closeProvisionAccount = () => setShowProvisionAccount(false);
+
+  const handleProvisionAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProvisionSaving(true);
+    setProvisionError('');
+    try {
+      const res = await adminFetch('/api/admin/provision-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(provisionForm),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Falha ao provisionar conta');
+      }
+      setProvisionResult({
+        clientEmail: data.clientEmail,
+        whatsappNumber: data.whatsappNumber,
+        chatwootLoginUrl: data.chatwootLoginUrl,
+      });
+      fetchData();
+    } catch (err: any) {
+      setProvisionError(err.message || 'Erro ao provisionar conta');
+    } finally {
+      setProvisionSaving(false);
+    }
   };
 
   // ── State para chips ─────────────────────────────────────────────────────────
@@ -2332,7 +2449,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
       );
   };
 
-  const _renderChips_removed = () => {
+  const renderChips = () => {
 
       const disponivel = chipsSummary.disponivel || 0;
       const emUso = chipsSummary.em_uso || 0;
@@ -3843,6 +3960,7 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             )}
             {currentView === 'DATABASE' && <SqlSetupModal onClose={() => setCurrentView('OVERVIEW')} />}
 
+            {currentView === 'CHIPS' && renderChips()}
             {currentView === 'CONTROLE' && renderControle()}
             {currentView === 'CANCELLATIONS' && (
                 <div className="text-center py-20">

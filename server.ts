@@ -5591,6 +5591,54 @@ app.post("/api/sales/:id/sync-profile", async (req, res) => {
   return res.json({ ok: true, chipInstance, chipPhone });
 });
 
+// ── POST /api/admin/provision-account — Cria conta interna (sem Asaas) e dispara onboarding ──
+// Usado pra contas de uso próprio/interno: pula a cobrança, marca a "venda" como
+// paga direto no banco (amount=0) e roda o mesmo provisionamento automático
+// (Chatwoot + Evolution + chip + boas-vindas) que uma venda real dispararia.
+app.post("/api/admin/provision-account", async (req, res) => {
+  const { clientName, clientEmail, clientPhone } = req.body as {
+    clientName?: string; clientEmail?: string; clientPhone?: string;
+  };
+
+  if (!clientName || !clientEmail || !clientPhone) {
+    return res.status(400).json({ error: 'clientName, clientEmail e clientPhone são obrigatórios' });
+  }
+
+  try {
+    const { data: saleRecord, error: saleErr } = await supabaseAdmin
+      .from('sales')
+      .insert({
+        client_name: clientName,
+        client_email: clientEmail,
+        client_phone: clientPhone,
+        plan: 'ENTERPRISE',
+        amount: 0,
+        commission_amount: 0,
+        billing: 'mensal',
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+    if (saleErr || !saleRecord) {
+      throw new Error(`Erro ao criar registro interno: ${saleErr?.message}`);
+    }
+
+    console.log(`[ProvisionAccount] Conta interna criada — venda ${saleRecord.id} (${clientEmail})`);
+    const result = await provisionClient(saleRecord.id);
+
+    if (result.success) {
+      return res.json({ ok: true, saleId: saleRecord.id, ...result });
+    } else {
+      return res.status(500).json({ ok: false, saleId: saleRecord.id, error: result.error });
+    }
+  } catch (err: any) {
+    console.error('[ProvisionAccount] Erro:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/sales/:id/retry — Reprocessar onboarding com falha ──────────────
 app.post("/api/sales/:id/retry", async (req, res) => {
   const { id } = req.params;
