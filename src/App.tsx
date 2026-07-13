@@ -2708,9 +2708,8 @@ const App: React.FC = () => {
   if (!user) {
       return (
           <>
-            <LoginScreen 
+            <LoginScreen
                 onLogin={handleLogin}
-                onGoogleLogin={handleGoogleLogin}
                 onResetPassword={handleResetPassword}
                 onShowTerms={() => setShowTerms(true)}
                 onShowPrivacy={() => setShowPrivacy(true)}
