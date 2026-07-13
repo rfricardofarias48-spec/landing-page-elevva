@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 // Tipos auxiliares para o Dashboard
-type AdminView = 'OVERVIEW' | 'USERS' | 'ADS' | 'FINANCE' | 'CANCELLATIONS' | 'DATABASE' | 'PROMPTS' | 'CHIPS' | 'CONTROLE';
+type AdminView = 'OVERVIEW' | 'CANCELLATIONS' | 'DATABASE' | 'PROMPTS' | 'CHIPS' | 'CONTROLE';
 
 interface AdminJob {
   id: string;
@@ -136,7 +136,7 @@ export const AdminDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
   }, []);
 
   useEffect(() => {
-    if (currentView === 'OVERVIEW') fetchAllSales();
+    if (currentView === 'OVERVIEW') fetchChips();
   }, [currentView]);
 
   // Sempre que o usuário selecionado muda, reinicia os campos do agente com os dados DESSE usuário
@@ -901,12 +901,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             <button onClick={() => setCurrentView('OVERVIEW')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'OVERVIEW' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <LayoutDashboard className="w-5 h-5" /> Visão Geral
             </button>
-            <button onClick={() => setCurrentView('USERS')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'USERS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <Users className="w-5 h-5" /> Usuários
-            </button>
-            <button onClick={() => setCurrentView('FINANCE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'FINANCE' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
-                <DollarSign className="w-5 h-5" /> Faturamento
-            </button>
             <button onClick={() => { setCurrentView('PROMPTS'); fetchRecruiterPrompt(); fetchAttendancePrompt(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${currentView === 'PROMPTS' ? 'bg-black text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-50 hover:text-black'}`}>
                 <Sliders className="w-5 h-5" /> Controle Agente
             </button>
@@ -935,80 +929,10 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
   );
 
   const renderOverview = () => {
-    const fin = getFinancialData();
     const totalCandidates = allJobs.reduce((acc, job) => acc + job.candidates_count, 0);
-    const activeUsers = users.filter(u => u.status !== 'BLOCKED' && !isGhost(u) && u.role !== 'ADMIN').length;
-    const blockedUsers = users.filter(u => u.status === 'BLOCKED').length;
-    const essencialCount = users.filter(u => u.plan === 'ESSENCIAL' && !isGhost(u)).length;
-    const proCount       = users.filter(u => u.plan === 'PRO' && !isGhost(u)).length;
-    const enterpriseCount= users.filter(u => u.plan === 'ENTERPRISE' && !isGhost(u)).length;
-    const arpu = fin.payingUsers > 0 ? fin.mrr / fin.payingUsers : 0;
-    const arr  = fin.mrr * 12;
-    const now  = new Date();
-
-    // ── 6 meses de dados ─────────────────────────────────────────────────────
-    const months = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-      return { label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.',''), year: d.getFullYear(), month: d.getMonth() };
-    });
-
-    // MRR acumulado até o fim de cada mês — exclui ghost e admin
-    const monthlyMRR = months.map(m => {
-      const endOfMonth = new Date(m.year, m.month + 1, 0, 23, 59, 59);
-      return users
-        .filter(u => new Date(u.created_at) <= endOfMonth && u.plan !== 'ADMIN' && !isGhost(u))
-        .reduce((acc, u) => {
-          const defaultPrice = u.plan === 'PRO' ? 749.00 : u.plan === 'MAX' ? 1699.00 : u.plan === 'ULTRA' ? 2999.00 : u.plan === 'ENTERPRISE' ? 0 : 399.00;
-          return acc + (u.plan_price ?? defaultPrice);
-        }, 0);
-    });
-
-    // Novos clientes por mês — exclui ghost e admin
-    const monthNewUsers = months.map(m =>
-      users.filter(u => { const d = new Date(u.created_at); return d.getFullYear() === m.year && d.getMonth() === m.month && u.plan !== 'ADMIN' && !isGhost(u); }).length
-    );
-
-    // Vendas
-    const paidSales = allSales.filter(s => s.status === 'paid');
-    const salesThisMonth = paidSales.filter(s => {
-      const d = new Date(s.paid_at || s.created_at);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-    const revenueThisMonth = salesThisMonth.reduce((acc, s) => acc + (s.amount || 0), 0);
-
-    // ── SVG área chart ────────────────────────────────────────────────────────
-    const W = 560, H = 200;
-    const PAD = { top: 24, right: 24, bottom: 44, left: 72 };
-    const iW = W - PAD.left - PAD.right;
-    const iH = H - PAD.top - PAD.bottom;
-    const maxMRR = Math.max(...monthlyMRR, 1);
-    const maxNew = Math.max(...monthNewUsers, 1);
-
-    const mrrPts = monthlyMRR.map((v, i) => ({
-      x: PAD.left + (months.length === 1 ? iW / 2 : (i / (months.length - 1)) * iW),
-      y: PAD.top + iH - (v / maxMRR) * iH,
-      v,
-      label: months[i].label,
-      newUsers: monthNewUsers[i],
-    }));
-
-    // Smooth bezier path
-    const toPath = (pts: typeof mrrPts) =>
-      pts.reduce((path, pt, i) => {
-        if (i === 0) return `M ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
-        const prev = pts[i - 1];
-        const cpX = ((prev.x + pt.x) / 2).toFixed(1);
-        return `${path} C ${cpX},${prev.y.toFixed(1)} ${cpX},${pt.y.toFixed(1)} ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
-      }, '');
-
-    const linePath = toPath(mrrPts);
-    const areaPath = `${linePath} L ${mrrPts[mrrPts.length-1].x.toFixed(1)},${(PAD.top + iH).toFixed(1)} L ${mrrPts[0].x.toFixed(1)},${(PAD.top + iH).toFixed(1)} Z`;
-
-    // Grid Y lines (4 levels)
-    const yGridVals = [0, 0.25, 0.5, 0.75, 1].map(f => ({
-      y: PAD.top + iH - f * iH,
-      label: `R$${((maxMRR * f) / 1000).toFixed(0)}k`,
-    }));
+    const activeJobs = allJobs.filter(j => j.status === 'ACTIVE').length;
+    const closedJobs = allJobs.filter(j => j.status === 'CLOSED').length;
+    const connectedChips = (chipsSummary?.em_uso ?? 0) + (chipsSummary?.disponivel ?? 0);
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
@@ -1024,235 +948,66 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* MRR — destaque */}
         <div className="col-span-2 lg:col-span-1 relative overflow-hidden rounded-[1.75rem] bg-zinc-950 p-6 shadow-xl">
-          {/* Glow decorativo */}
           <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #84cc16 0%, transparent 70%)' }} />
           <div className="relative">
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">MRR Estimado</p>
-            <p className="text-3xl font-black text-white leading-none">R$ {fin.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">Vagas Ativas</p>
+            <p className="text-3xl font-black text-white leading-none">{activeJobs}</p>
             <div className="mt-3 pt-3 border-t border-zinc-800 flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500 font-bold uppercase">ARR</span>
-              <span className="text-sm font-black text-[#84cc16]">R$ {(arr / 1000).toFixed(1)}k</span>
+              <span className="text-[10px] text-zinc-500 font-bold uppercase">Total de vagas</span>
+              <span className="text-sm font-black text-[#84cc16]">{allJobs.length}</span>
             </div>
           </div>
         </div>
 
         <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
-          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Clientes Ativos</p>
-          <div>
-            <p className="text-4xl font-black text-zinc-900 mt-2">{activeUsers}</p>
-            {blockedUsers > 0
-              ? <p className="text-[11px] text-red-400 font-bold mt-1">{blockedUsers} bloqueado{blockedUsers > 1 ? 's' : ''}</p>
-              : <p className="text-[11px] text-zinc-300 font-bold mt-1">todos ativos</p>}
-          </div>
-        </div>
-
-        <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
-          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Vendas este Mês</p>
-          <div>
-            <p className="text-4xl font-black text-zinc-900 mt-2">{salesThisMonth.length}</p>
-            <p className="text-[11px] font-bold mt-1" style={{ color: revenueThisMonth > 0 ? '#65a30d' : '#a1a1aa' }}>
-              R$ {revenueThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
-          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Currículos</p>
+          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Candidatos Recebidos</p>
           <div>
             <p className="text-4xl font-black text-zinc-900 mt-2">{totalCandidates}</p>
-            <p className="text-[11px] text-zinc-300 font-bold mt-1">{allJobs.length} vagas ativas</p>
+            <p className="text-[11px] text-zinc-300 font-bold mt-1">em todas as vagas</p>
+          </div>
+        </div>
+
+        <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
+          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Vagas Encerradas</p>
+          <div>
+            <p className="text-4xl font-black text-zinc-900 mt-2">{closedJobs}</p>
+            <p className="text-[11px] text-zinc-300 font-bold mt-1">preenchidas ou fechadas</p>
+          </div>
+        </div>
+
+        <div className="rounded-[1.75rem] bg-white border border-zinc-100 p-6 shadow-sm flex flex-col justify-between">
+          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Chips WhatsApp</p>
+          <div>
+            <p className="text-4xl font-black text-zinc-900 mt-2">{connectedChips}</p>
+            <p className="text-[11px] text-zinc-300 font-bold mt-1">conectados</p>
           </div>
         </div>
       </div>
 
-      {/* Gráfico principal + sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* ── Chart card dark ── */}
-        <div className="lg:col-span-2 rounded-[1.75rem] overflow-hidden" style={{ background: '#0c0c0c' }}>
-          <div className="px-7 pt-6 pb-3 flex items-start justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#84cc16' }}>Receita Recorrente</p>
-              <p className="text-white font-black text-xl mt-0.5">MRR · Últimos 6 meses</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Atual</p>
-              <p className="text-white font-black text-lg">R$ {(fin.mrr / 1000).toFixed(1)}k</p>
-            </div>
-          </div>
-
-          {/* SVG */}
-          <div className="px-2 pb-5">
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 220 }}>
-              <defs>
-                {/* Gradiente da área */}
-                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#84cc16" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#84cc16" stopOpacity="0" />
-                </linearGradient>
-                {/* Glow do ponto */}
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-              </defs>
-
-              {/* Grid lines horizontais */}
-              {yGridVals.map((g, i) => (
-                <g key={i}>
-                  <line x1={PAD.left} y1={g.y} x2={W - PAD.right} y2={g.y}
-                    stroke="#1f1f1f" strokeWidth="1" strokeDasharray={i === 0 ? 'none' : '4,4'} />
-                  <text x={PAD.left - 8} y={g.y + 4} textAnchor="end" fontSize={10} fontWeight="700" fill="#3f3f46">
-                    {g.label}
-                  </text>
-                </g>
-              ))}
-
-              {/* Grid lines verticais (meses) */}
-              {mrrPts.map((pt, i) => (
-                <line key={i} x1={pt.x} y1={PAD.top} x2={pt.x} y2={PAD.top + iH}
-                  stroke="#161616" strokeWidth="1" />
-              ))}
-
-              {/* Área preenchida */}
-              <path d={areaPath} fill="url(#areaGrad)" />
-
-              {/* Linha principal */}
-              <path d={linePath} fill="none" stroke="#84cc16" strokeWidth="2.5"
-                strokeLinecap="round" strokeLinejoin="round" />
-
-              {/* Barras de novos usuários (fundo, pequenas) */}
-              {mrrPts.map((pt, i) => {
-                const bH = monthNewUsers[i] > 0 ? (monthNewUsers[i] / maxNew) * 20 : 0;
-                const bW = 16;
-                return bH > 0 ? (
-                  <rect key={i} x={pt.x - bW / 2} y={PAD.top + iH - bH} width={bW} height={bH}
-                    rx={3} fill="#84cc16" opacity="0.15" />
-                ) : null;
-              })}
-
-              {/* Pontos da linha */}
-              {mrrPts.map((pt, i) => (
-                <g key={i}>
-                  {/* Halo */}
-                  <circle cx={pt.x} cy={pt.y} r={8} fill="#84cc16" opacity="0.12" />
-                  {/* Ponto */}
-                  <circle cx={pt.x} cy={pt.y} r={4} fill="#84cc16" filter="url(#glow)" />
-                  <circle cx={pt.x} cy={pt.y} r={2} fill="#fff" />
-                </g>
-              ))}
-
-              {/* Labels dos meses */}
-              {mrrPts.map((pt, i) => (
-                <text key={i} x={pt.x} y={H - 8} textAnchor="middle"
-                  fontSize={11} fontWeight="700" fill="#52525b" style={{ textTransform: 'uppercase' }}>
-                  {pt.label}
-                </text>
-              ))}
-
-              {/* Valores MRR acima dos pontos */}
-              {mrrPts.map((pt, i) => pt.v > 0 ? (
-                <text key={i} x={pt.x} y={pt.y - 13} textAnchor="middle"
-                  fontSize={10} fontWeight="900" fill="#84cc16">
-                  {pt.v >= 1000 ? `R$${(pt.v / 1000).toFixed(1)}k` : `R$${pt.v.toFixed(0)}`}
-                </text>
-              ) : null)}
-
-              {/* Novos usuários badge (pequeno, abaixo) */}
-              {mrrPts.map((pt, i) => monthNewUsers[i] > 0 ? (
-                <text key={i} x={pt.x} y={PAD.top + iH - 24}
-                  textAnchor="middle" fontSize={9} fontWeight="700" fill="#3f3f46">
-                  +{monthNewUsers[i]}
-                </text>
-              ) : null)}
-            </svg>
-          </div>
-
-          {/* Legenda */}
-          <div className="px-7 pb-5 flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-0.5 rounded-full" style={{ background: '#84cc16' }} />
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">MRR acumulado</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm opacity-40" style={{ background: '#84cc16' }} />
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Novos clientes/mês</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Sidebar métricas ── */}
-        <div className="flex flex-col gap-4">
-
-          {/* Mix de planos */}
-          <div className="flex-1 bg-white border border-zinc-100 rounded-[1.75rem] p-6 shadow-sm">
-            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-5">Mix de Planos</p>
-            <div className="space-y-4">
-              {[
-                { label: 'Essencial', count: essencialCount, hex: '#d4d4d8' },
-                { label: 'Pro',       count: proCount,       hex: '#84cc16' },
-                { label: 'Enterprise',count: enterpriseCount,hex: '#9333ea' },
-              ].map(({ label, count, hex }) => {
-                const pct = fin.payingUsers > 0 ? Math.round(count / fin.payingUsers * 100) : 0;
-                return (
-                  <div key={label}>
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ background: hex }} />
-                        <span className="text-xs font-bold text-zinc-600">{label}</span>
-                      </div>
-                      <span className="text-xs font-black text-zinc-900">{count} <span className="text-zinc-300">({pct}%)</span></span>
-                    </div>
-                    <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: hex }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ARPU + Pagantes */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-zinc-950 rounded-[1.25rem] p-4 flex flex-col gap-1">
-              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">ARPU</p>
-              <p className="text-xl font-black text-white leading-none mt-1">R$ {arpu.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
-            </div>
-            <div className="bg-zinc-950 rounded-[1.25rem] p-4 flex flex-col gap-1">
-              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Pagantes</p>
-              <p className="text-xl font-black text-white leading-none mt-1">{fin.payingUsers}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Últimas vendas */}
-      {paidSales.length > 0 && (
+      {/* Vagas recentes */}
+      {allJobs.length > 0 && (
         <div className="bg-white border border-zinc-100 rounded-[1.75rem] overflow-hidden shadow-sm">
           <div className="px-6 py-4 border-b border-zinc-50 flex items-center justify-between">
-            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Últimas Vendas Confirmadas</p>
+            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Vagas Recentes</p>
           </div>
           <div className="divide-y divide-zinc-50">
-            {paidSales.slice(0, 5).map(s => (
-              <div key={s.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-zinc-50/60 transition-colors">
+            {[...allJobs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 6).map(j => (
+              <div key={j.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-zinc-50/60 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-zinc-100 flex items-center justify-center font-black text-zinc-600 text-xs">
-                    {(s.client_name || '?')[0].toUpperCase()}
+                  <div className="w-8 h-8 rounded-xl bg-zinc-100 flex items-center justify-center">
+                    <Briefcase className="w-4 h-4 text-zinc-500" />
                   </div>
                   <div>
-                    <p className="font-bold text-zinc-900 text-sm leading-none">{s.client_name}</p>
-                    <p className="text-[11px] text-zinc-400 mt-0.5">{s.client_email}</p>
+                    <p className="font-bold text-zinc-900 text-sm leading-none">{j.title}</p>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{new Date(j.created_at).toLocaleDateString('pt-BR')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-bold text-zinc-500">{j.candidates_count} candidato{j.candidates_count === 1 ? '' : 's'}</span>
                   <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
-                    s.plan?.includes('PRO') ? 'bg-[#84cc16] text-black' :
-                    s.plan?.includes('ENTERPRISE') ? 'bg-purple-600 text-white' : 'bg-zinc-100 text-zinc-600'
-                  }`}>{s.plan}</span>
-                  <span className="font-black text-zinc-900 text-sm">R$ {(s.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                  <span className="text-[11px] text-zinc-400 w-20 text-right">{s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-BR') : '—'}</span>
+                    j.status === 'ACTIVE' ? 'bg-[#84cc16] text-black' : 'bg-zinc-100 text-zinc-500'
+                  }`}>{j.status}</span>
                 </div>
               </div>
             ))}
@@ -3793,9 +3548,6 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             )}
 
             {currentView === 'OVERVIEW' && renderOverview()}
-            {currentView === 'USERS' && renderUsersList()}
-            {currentView === 'ADS' && renderAdsManager()}
-            {currentView === 'FINANCE' && renderFinance()}
             {currentView === 'PROMPTS' && (
                 <div className="flex flex-col h-full">
                     {/* Header + Sub-tabs */}
