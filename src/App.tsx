@@ -15,6 +15,7 @@ import { ShareLinkModal } from './components/ShareLinkModal';
 import { SqlSetupModal } from './components/SqlSetupModal';
 import { ScheduleInterviewsModal } from './components/ScheduleInterviewsModal';
 import { InterviewsTab } from './components/InterviewsTab';
+import { AgendaTab } from './components/AgendaTab';
 import { AvailableSlotsModal } from './components/AvailableSlotsModal';
 import { AprovadosTab } from './components/AprovadosTab';
 import { BentoChat } from './components/BentoChat';
@@ -50,7 +51,7 @@ async function analyzeResumeFast(filePath: string, jobTitle: string, criteria: s
   return res.json() as Promise<AnalysisResult>;
 }
 
-type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'APROVADOS' | 'SETTINGS';
+type UserTab = 'OVERVIEW' | 'JOBS' | 'AGENDA' | 'ENTREVISTAS' | 'APROVADOS' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
 const extractAnalysisResult = (rawResult: unknown): AnalysisResult | undefined => {
@@ -2092,8 +2093,8 @@ const App: React.FC = () => {
                       <h3 className="text-lg font-black text-slate-900 tracking-tighter flex items-center gap-2">
                           <Calendar className="w-5 h-5 text-[#65a30d]" /> Próximas Entrevistas
                       </h3>
-                      <button onClick={() => window.open('https://calendar.google.com', '_blank')} className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">
-                          Abrir Google Agenda <ExternalLink className="w-3 h-3" />
+                      <button onClick={() => { setCurrentTab('AGENDA'); setView('DASHBOARD'); }} className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">
+                          Abrir Agenda <ExternalLink className="w-3 h-3" />
                       </button>
                   </div>
                   
@@ -2440,6 +2441,13 @@ const App: React.FC = () => {
                 <span className="hidden lg:block font-bold text-sm">Minhas Vagas</span>
             </button>
             <button
+                onClick={() => { setCurrentTab('AGENDA'); setView('DASHBOARD'); }}
+                className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'AGENDA' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
+            >
+                <Calendar className="w-6 h-6 lg:mr-3" />
+                <span className="hidden lg:block font-bold text-sm">Agenda</span>
+            </button>
+            <button
                 onClick={() => { setCurrentTab('ENTREVISTAS'); setView('DASHBOARD'); }}
                 className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group relative ${currentTab === 'ENTREVISTAS' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
             >
@@ -2517,6 +2525,7 @@ const App: React.FC = () => {
             <div className="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar">
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'SETTINGS' && renderSettings()}
+               {currentTab === 'AGENDA' && <AgendaTab interviews={interviews as any} onOpenAvailableSlots={() => setShowAvailableSlots(true)} />}
                {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} onOpenAvailableSlots={() => setShowAvailableSlots(true)} />}
                {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} interviews={interviews} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} chatwootAccountId={(user as any)?.chatwoot_account_id} userId={(user as any)?.id} />}
                {currentTab === 'JOBS' && (
