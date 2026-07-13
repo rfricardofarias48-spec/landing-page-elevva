@@ -20,7 +20,7 @@ interface AdminJob {
   status: 'ACTIVE' | 'CLOSED'; 
 }
 
-export const AdminDashboard: React.FC = () => {
+export const AdminDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) => {
   const [currentView, setCurrentView] = useState<AdminView>('OVERVIEW');
   const [users, setUsers] = useState<AdminUserProfile[]>([]);
   const [allJobs, setAllJobs] = useState<AdminJob[]>([]);
@@ -921,7 +921,12 @@ Inclua as 3 experiências profissionais mais recentes em workHistory.`;
             </button>
         </nav>
 
-        <div className="p-4 border-t border-zinc-100">
+        <div className="p-4 border-t border-zinc-100 space-y-1">
+            {onExit && (
+                <button onClick={onExit} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-zinc-500 hover:bg-zinc-50 hover:text-black transition-colors">
+                    <LayoutDashboard className="w-5 h-5" /> Voltar pra Minha Conta
+                </button>
+            )}
             <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 transition-colors">
                 <LogOut className="w-5 h-5" /> Sair
             </button>

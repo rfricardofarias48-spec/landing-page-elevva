@@ -23,7 +23,7 @@ import { PublicPortalScreen } from './components/PublicPortalScreen';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon,
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, AlertTriangle, CalendarPlus, Send
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, Shield, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, AlertTriangle, CalendarPlus, Send
 } from 'lucide-react';
 
 const CHATWOOT_BASE_URL = (import.meta.env.VITE_CHATWOOT_URL || 'https://bot-chatwoot.5mljrq.easypanel.host').replace(/\/$/, '');
@@ -896,7 +896,7 @@ const App: React.FC = () => {
 
       setUser(profile);
 
-      if (isAdmin || isSdr) {
+      if (isAdmin) {
           setView('DASHBOARD');
       }
       
@@ -961,6 +961,23 @@ const App: React.FC = () => {
           localStorage.setItem(`welcome_dismissed_${user.id}`, 'true');
       }
       setShowNameModal(false);
+  };
+
+  // Acesso simplificado — senha única, sem e-mail visível. Autentica
+  // internamente com a conta fixa do admin; onAuthStateChange cuida do
+  // resto (busca o profile, decide se cai em ADMIN ou USER normal).
+  const ACCESS_ACCOUNT_EMAIL = 'rhfarilog@gmail.com';
+
+  const handleSimpleLogin = async (password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email: ACCESS_ACCOUNT_EMAIL, password });
+      if (error) {
+        return { success: false, error: 'Senha incorreta.' };
+      }
+      return { success: true };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
   };
 
   const handleLogin = async (email: string, pass: string, name?: string, phone?: string, isRegister?: boolean) => {
@@ -2704,29 +2721,14 @@ const App: React.FC = () => {
       );
   }
 
-  // Auth
+  // Auth — acesso simplificado: só senha (sem e-mail visível)
   if (!user) {
-      return (
-          <>
-            <LoginScreen
-                onLogin={handleLogin}
-                onResetPassword={handleResetPassword}
-                onShowTerms={() => setShowTerms(true)}
-                onShowPrivacy={() => setShowPrivacy(true)}
-            />
-            {showTerms && (
-                <LegalModal title="Termos de Uso" onClose={() => setShowTerms(false)} />
-            )}
-            {showPrivacy && (
-                <LegalModal title="Política de Privacidade" onClose={() => setShowPrivacy(false)} />
-            )}
-          </>
-      );
+      return <LoginScreen onLogin={handleSimpleLogin} />;
   }
 
-  // Admin
-  if (user.role === 'ADMIN' && view === 'DASHBOARD') {
-      return <AdminDashboard />;
+  // Admin — acessado via botão "Admin" na conta normal, não é mais automático
+  if (view === 'ADMIN') {
+      return <AdminDashboard onExit={() => setView('DASHBOARD')} />;
   }
 
   // Main App Helpers
@@ -2800,13 +2802,22 @@ const App: React.FC = () => {
                 <CreditCard className="w-6 h-6 lg:mr-3" />
                 <span className="hidden lg:block font-bold text-sm">Minha Assinatura</span>
             </button>
-            <button 
+            <button
                 onClick={() => { setCurrentTab('SETTINGS'); setView('DASHBOARD'); }}
                 className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'SETTINGS' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
             >
                 <Settings className="w-6 h-6 lg:mr-3" />
                 <span className="hidden lg:block font-bold text-sm">Configurações</span>
             </button>
+            {user.role === 'ADMIN' && (
+                <button
+                    onClick={() => setView('ADMIN')}
+                    className="w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group text-white bg-[#65a30d] hover:bg-[#568a0b] shadow-md mt-2"
+                >
+                    <Shield className="w-6 h-6 lg:mr-3" />
+                    <span className="hidden lg:block font-bold text-sm">Admin</span>
+                </button>
+            )}
         </nav>
         
         <div className="p-4 border-t border-slate-100">
