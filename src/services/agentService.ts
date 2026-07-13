@@ -71,6 +71,107 @@ function isSlotExpired(slotDate: string, slotTime: string): boolean {
   return slotDt <= now;
 }
 
+// ─────────────────────────── Agenda "sempre aberta" ───────────
+// A partir daqui a disponibilidade não vem mais de linhas pré-cadastradas
+// em availability_slots — é calculada em tempo real a partir do horário de
+// funcionamento da conta (profiles.working_hours) menos os bloqueios
+// (blocked_slots) e os horários já reservados. Uma linha em
+// availability_slots só passa a existir no momento em que um candidato
+// efetivamente reserva um horário (materializeSlot) — mantendo o restante
+// do fluxo (interviews.slot_id → availability_slots.id) intacto.
+
+export interface WorkingHours { start: string; end: string; days: number[] }
+const DEFAULT_WORKING_HOURS: WorkingHours = { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] };
+const SLOT_INTERVAL_MINUTES = 60;
+const LOOKAHEAD_DAYS = 21;
+
+export interface ComputedSlot { slot_date: string; slot_time: string; format: string; interviewer_name: string | null; location: string | null }
+
+/** Calcula os horários disponíveis de um recrutador nos próximos LOOKAHEAD_DAYS dias. */
+export async function computeAvailableSlots(
+  userId: string,
+  supabase: SupabaseClient,
+  opts?: { excludeSlotId?: string },
+): Promise<ComputedSlot[]> {
+  const { data: profile } = await supabase.from('profiles').select('working_hours, name').eq('id', userId).maybeSingle();
+  const wh: WorkingHours = (profile?.working_hours as WorkingHours) || DEFAULT_WORKING_HOURS;
+  const interviewerName: string | null = (profile?.name as string) || null;
+
+  const nowBr = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const todayStr = nowBr.toISOString().split('T')[0];
+  const nowTimeStr = nowBr.toISOString().split('T')[1].slice(0, 5);
+
+  const { data: blocks } = await supabase
+    .from('blocked_slots').select('date, all_day, start_time, end_time')
+    .eq('user_id', userId).gte('date', todayStr);
+
+  const { data: booked } = await supabase
+    .from('availability_slots').select('id, slot_date, slot_time')
+    .eq('user_id', userId).eq('is_booked', true).gte('slot_date', todayStr);
+  const bookedSet = new Set(
+    (booked || [])
+      .filter((b: any) => b.id !== opts?.excludeSlotId)
+      .map((b: any) => `${b.slot_date}_${String(b.slot_time).slice(0, 5)}`)
+  );
+
+  const results: ComputedSlot[] = [];
+  for (let i = 0; i < LOOKAHEAD_DAYS; i++) {
+    const d = new Date(nowBr); d.setDate(d.getDate() + i);
+    const dow = d.getDay();
+    if (!wh.days.includes(dow)) continue;
+    const dateStr = d.toISOString().split('T')[0];
+
+    const dayBlocks = (blocks || []).filter((b: any) => b.date === dateStr);
+    if (dayBlocks.some((b: any) => b.all_day)) continue;
+
+    const [startH, startM] = wh.start.split(':').map(Number);
+    const [endH, endM] = wh.end.split(':').map(Number);
+    let cur = startH * 60 + startM;
+    const end = endH * 60 + endM;
+
+    while (cur + SLOT_INTERVAL_MINUTES <= end) {
+      const timeStr = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`;
+      cur += SLOT_INTERVAL_MINUTES;
+
+      if (dateStr === todayStr && timeStr <= nowTimeStr) continue;
+      const isBlocked = dayBlocks.some((b: any) =>
+        !b.all_day && b.start_time && b.end_time &&
+        timeStr >= String(b.start_time).slice(0, 5) && timeStr < String(b.end_time).slice(0, 5)
+      );
+      if (isBlocked) continue;
+      if (bookedSet.has(`${dateStr}_${timeStr}`)) continue;
+
+      results.push({ slot_date: dateStr, slot_time: timeStr, format: 'ONLINE', interviewer_name: interviewerName, location: null });
+    }
+  }
+  return results;
+}
+
+/**
+ * Materializa (cria, se ainda não existir) a linha em availability_slots
+ * correspondente a um horário calculado, pronta pra ser marcada como
+ * reservada pelo chamador. Retorna null se o horário já estiver ocupado
+ * (corrida entre dois candidatos escolhendo o mesmo horário).
+ */
+export async function materializeSlot(
+  userId: string, slotDate: string, slotTime: string, supabase: SupabaseClient,
+): Promise<{ id: string } | null> {
+  const { data: existing } = await supabase
+    .from('availability_slots').select('id, is_booked')
+    .eq('user_id', userId).eq('slot_date', slotDate).eq('slot_time', slotTime).maybeSingle();
+  if (existing) {
+    if (existing.is_booked) return null;
+    return { id: existing.id };
+  }
+  const { data: profile } = await supabase.from('profiles').select('name').eq('id', userId).maybeSingle();
+  const { data: inserted, error } = await supabase
+    .from('availability_slots')
+    .insert({ user_id: userId, slot_date: slotDate, slot_time: slotTime, format: 'ONLINE', interviewer_name: profile?.name || null, is_booked: false })
+    .select('id').single();
+  if (error || !inserted) return null;
+  return { id: inserted.id };
+}
+
 
 // ─────────────────────────── Types ───────────────────────────
 
@@ -652,26 +753,11 @@ async function handleReschedule(
     return;
   }
 
-  // Check available slots for the job — filter out expired ones (Brazil UTC-3)
-  const nowBr = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const todayBr = nowBr.toISOString().split('T')[0];
-  const currentTimeBr = nowBr.toISOString().split('T')[1].slice(0, 5);
-
-  // Read slots from single table — get job.user_id first
-  // IMPORTANT: exclude the candidate's current slot so they can't "reschedule" to the same time
+  // Agenda sempre aberta: calcula disponibilidade a partir do horário de
+  // funcionamento + bloqueios — exclui o slot atual do candidato (se tiver
+  // um reservado) pra ele poder "reagendar" pro mesmo horário se quiser.
   const { data: jobForSlots } = await supabase.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
-  let slotsQuery = supabase
-    .from('availability_slots')
-    .select('id, slot_date, slot_time')
-    .eq('user_id', jobForSlots?.user_id || '')
-    .eq('is_booked', false)
-    .gte('slot_date', todayBr);
-  if (interview.slot_id) slotsQuery = slotsQuery.neq('id', interview.slot_id);
-  const { data: rawSlots } = await slotsQuery;
-
-  const slots = (rawSlots || []).filter((s: { id: string; slot_date: string; slot_time: string }) =>
-    s.slot_date > todayBr || (s.slot_date === todayBr && s.slot_time > currentTimeBr)
-  );
+  const slots = await computeAvailableSlots(jobForSlots?.user_id || '', supabase, { excludeSlotId: interview.slot_id || undefined });
 
   if (slots.length === 0) {
     const candidateName = conv.context.candidate_name || 'Um candidato';
@@ -1124,10 +1210,9 @@ export async function processIncomingMessage(
       break;
 
     case 'AGUARDANDO_NOVOS_HORARIOS': {
-      // Check if recruiter already added slots since candidate was put on hold
-      const nowBrW = new Date(Date.now() - 3 * 60 * 60 * 1000);
-      const todayBrW = nowBrW.toISOString().split('T')[0];
-      const timeBrW = nowBrW.toISOString().split('T')[1].slice(0, 5);
+      // Agenda sempre aberta: com bloqueios, normalmente sempre há algum
+      // horário disponível — esse estado só persiste se a conta inteira
+      // estiver bloqueada nos próximos LOOKAHEAD_DAYS dias.
       const interviewIdW = conv.context?.interview_id as string | undefined;
       let recruiterUserIdW = conv.user_id;
       if (interviewIdW) {
@@ -1137,12 +1222,8 @@ export async function processIncomingMessage(
           if (jW?.user_id) recruiterUserIdW = jW.user_id;
         }
       }
-      const { data: newSlotsW } = await supabase
-        .from('availability_slots').select('id').eq('user_id', recruiterUserIdW)
-        .eq('is_booked', false).gte('slot_date', todayBrW);
-      const hasNewSlots = (newSlotsW || []).some((s: any) =>
-        s.slot_date > todayBrW || (s.slot_date === todayBrW && s.slot_time > timeBrW)
-      );
+      const newSlotsW = await computeAvailableSlots(recruiterUserIdW, supabase);
+      const hasNewSlots = newSlotsW.length > 0;
       if (hasNewSlots && interviewIdW) {
         // Slots appeared — trigger handleReschedule to send the link
         await handleReschedule(conv, instance, phone, supabase, send);
@@ -1195,26 +1276,11 @@ export async function triggerSchedulingForCandidates(
     .eq('id', jobId)
     .single();
 
-  // Usar horário de Brasília (UTC-3)
-  const now = new Date();
-  const today = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Agenda sempre aberta: calcula disponibilidade a partir do horário de
+  // funcionamento + bloqueios, em vez de ler slots pré-cadastrados.
+  const slots = await computeAvailableSlots(userId, supabase);
 
-  // Get available slots from single table
-  const { data: rawSlots } = await supabase
-    .from('availability_slots')
-    .select('id, slot_date, slot_time, format, location, interviewer_name')
-    .eq('user_id', userId)
-    .eq('is_booked', false)
-    .gte('slot_date', today)
-    .order('slot_date', { ascending: true })
-    .order('slot_time', { ascending: true });
-
-  const slots = (rawSlots || []).filter((s: any) => {
-    const slotDt = new Date(`${s.slot_date}T${String(s.slot_time).substring(0, 5)}:00-03:00`);
-    return slotDt >= now;
-  });
-
-  console.log(`[Agent] triggerScheduling: ${rawSlots?.length ?? 0} slots brutos, ${slots.length} válidos para job ${jobId}`);
+  console.log(`[Agent] triggerScheduling: ${slots.length} horários disponíveis calculados para job ${jobId}`);
 
   if (slots.length === 0) {
     // Mark all interviews as waiting for slots — POST /api/slots will notify them when recruiter adds new times

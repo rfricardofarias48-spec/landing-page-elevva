@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { analyzeResume, generateDailyBriefing, BriefingJob } from "./src/services/hermesService.js";
-import { processIncomingMessage, triggerSchedulingForCandidates } from "./src/services/agentService.js";
+import { processIncomingMessage, triggerSchedulingForCandidates, computeAvailableSlots, materializeSlot } from "./src/services/agentService.js";
 import { isKnownRecruiter, handleRecruiterMessage } from "./src/services/recruiterAgentService.js";
 import { cleanPhone, sendText, configureWebhookBase64, createInstance, getQRCode, configureInstanceSettings, deleteInstance } from "./src/services/evolutionService.js";
 import { mirrorMessage, configureChatwootOnEvolution, createInbox, createAgentUser, assignAgentToInbox, createChatwootWebhook, platformSetupAccount } from "./src/services/chatwootService.js";
@@ -2385,22 +2385,8 @@ app.get("/api/agendar/:token/data", async (req, res) => {
 
     const recruiterUserId: string = agentConvData?.user_id || job?.user_id || '';
 
-    const nowData = new Date();
-    const todayBrData = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const slotExpired = (date: string, time: string) =>
-      new Date(`${date}T${String(time).substring(0, 5)}:00-03:00`) < nowData;
-
-    // Fetch unbooked slots from single table
-    const { data: rawSlots } = await supabaseAdmin
-      .from('availability_slots')
-      .select('id, slot_date, slot_time, format, location, interviewer_name')
-      .eq('user_id', recruiterUserId)
-      .eq('is_booked', false)
-      .gte('slot_date', todayBrData)
-      .order('slot_date', { ascending: true })
-      .order('slot_time', { ascending: true });
-
-    const validSlots = (rawSlots || []).filter((s: any) => !slotExpired(s.slot_date, s.slot_time));
+    // Agenda sempre aberta: calcula disponibilidade em vez de ler slots pré-cadastrados.
+    const validSlots = await computeAvailableSlots(recruiterUserId, supabaseAdmin as any);
 
     const candidateRes = await supabase
       .from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single();
@@ -2583,25 +2569,71 @@ app.delete('/api/slots/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/slots/range — "Bloquear Agenda": remove horários disponíveis
-// ainda não reservados dentro de um período (equivalente a bloquear a
-// agenda no app de atendimento, adaptado ao modelo desta app onde a
-// disponibilidade é opt-in em vez de bloqueio de agenda sempre aberta).
-app.delete('/api/slots/range', async (req, res) => {
+// ── Blocked Slots — "Bloquear Horários" (agenda sempre aberta) ────────────
+// Agenda sempre aberta em profiles.working_hours; blocked_slots guarda os
+// períodos em que o recrutador NÃO está disponível (mesmo modelo do app de
+// atendimento). computeAvailableSlots() já lê essa tabela pra excluir esses
+// horários do que é oferecido aos candidatos.
+
+// GET /api/blocked-slots?user_id=X — lista bloqueios futuros
+app.get('/api/blocked-slots', async (req, res) => {
   try {
-    const { user_id, start_date, end_date, interviewer_name } = req.body as {
-      user_id?: string; start_date?: string; end_date?: string; interviewer_name?: string;
-    };
-    if (!user_id || !start_date) return res.status(400).json({ ok: false, error: 'user_id e start_date obrigatórios' });
-
-    let query = supabaseAdmin.from('availability_slots').delete({ count: 'exact' })
-      .eq('user_id', user_id).eq('is_booked', false)
-      .gte('slot_date', start_date).lte('slot_date', end_date || start_date);
-    if (interviewer_name) query = query.eq('interviewer_name', interviewer_name);
-
-    const { error, count } = await query;
+    const userId = req.query.user_id as string | undefined;
+    if (!userId) return res.status(400).json({ ok: false, error: 'user_id obrigatório' });
+    const today = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const { data, error } = await supabaseAdmin
+      .from('blocked_slots').select('*')
+      .eq('user_id', userId).gte('date', today)
+      .order('date', { ascending: true });
     if (error) return res.status(500).json({ ok: false, error: error.message });
-    return res.json({ ok: true, removed: count ?? 0 });
+    return res.json({ ok: true, blocks: data || [] });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
+// POST /api/blocked-slots — cria um ou mais bloqueios (um por dia no período)
+app.post('/api/blocked-slots', async (req, res) => {
+  try {
+    const { user_id, date, date_end, all_day, start_time, end_time, reason } = req.body as {
+      user_id?: string; date?: string; date_end?: string; all_day?: boolean;
+      start_time?: string; end_time?: string; reason?: string;
+    };
+    if (!user_id || !date) return res.status(400).json({ ok: false, error: 'user_id e date obrigatórios' });
+
+    const start = new Date(date + 'T12:00:00');
+    const end = date_end ? new Date(date_end + 'T12:00:00') : start;
+    if (end < start) return res.status(400).json({ ok: false, error: 'date_end deve ser posterior a date' });
+
+    const rows: any[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      rows.push({
+        user_id,
+        date: cur.toISOString().slice(0, 10),
+        all_day: all_day !== false,
+        start_time: all_day === false ? start_time : null,
+        end_time: all_day === false ? end_time : null,
+        reason: reason || null,
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const { data, error } = await supabaseAdmin.from('blocked_slots').insert(rows).select();
+    if (error) return res.status(500).json({ ok: false, error: error.message });
+    return res.json({ ok: true, created: data?.length ?? 0 });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
+// DELETE /api/blocked-slots/:id — remove um bloqueio
+app.delete('/api/blocked-slots/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin.from('blocked_slots').delete().eq('id', id);
+    if (error) return res.status(500).json({ ok: false, error: error.message });
+    return res.json({ ok: true });
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'Erro interno' });
   }
@@ -2661,9 +2693,6 @@ app.get("/api/agendar/:token", async (req, res) => {
     const { data: candidate } = await supabaseAdmin.from('candidates').select('"Nome Completo"').eq('id', interview.candidate_id).single();
     const candidateName = (candidate as Record<string, string>)?.['Nome Completo'] || 'Candidato';
 
-    const nowCheck = new Date();
-    const todayBrCheck = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
-
     // Primary: look up user_id from agent_conversations — this stores the exact recruiter
     // user_id that was used to create the slots, even when job.user_id differs.
     const { data: agentConv } = await supabaseAdmin
@@ -2676,44 +2705,29 @@ app.get("/api/agendar/:token", async (req, res) => {
 
     // Cascade: agentConv (most reliable) → job.user_id (legacy fallback)
     const userId: string = agentConv?.user_id || job?.user_id || '';
-    console.log(`[Scheduling] token=${token} interview=${interview.id} agentConv.user_id=${agentConv?.user_id || 'null'} job.user_id=${job?.user_id || 'null'} resolved=${userId} slot_id=${interview.slot_id || 'null'} today=${todayBrCheck}`);
+    console.log(`[Scheduling] token=${token} interview=${interview.id} agentConv.user_id=${agentConv?.user_id || 'null'} job.user_id=${job?.user_id || 'null'} resolved=${userId} slot_id=${interview.slot_id || 'null'}`);
 
-    // Fetch ALL slots for this user (no is_booked filter) so we can see exactly what exists
-    const { data: allUserSlots, error: slotsErr } = await supabaseAdmin
-      .from('availability_slots')
-      .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
-      .eq('user_id', userId)
-      .order('slot_date', { ascending: true })
-      .order('slot_time', { ascending: true });
+    // Agenda sempre aberta: horários computados (não têm id real ainda — usam
+    // um id sintético "computed:<data>:<hora>" que o /book materializa na hora).
+    const computedSlots = await computeAvailableSlots(userId, supabaseAdmin as any);
 
-    console.log(`[Scheduling] ALL slots for user: ${allUserSlots?.length ?? 0} rows, error=${slotsErr?.message ?? 'none'}`);
-    if (allUserSlots?.length) {
-      allUserSlots.slice(0, 5).forEach((s: any) =>
-        console.log(`  slot: date=${s.slot_date} time=${s.slot_time} is_booked=${s.is_booked} id=${s.id}`)
-      );
-    }
-
-    // Filter in JS to avoid any PostgREST boolean/date handling edge cases
-    const unbookedSlots = (allUserSlots || []).filter((s: any) =>
-      s.is_booked === false && s.slot_date >= todayBrCheck
-    );
-
-    console.log(`[Scheduling] unbooked+future slots: ${unbookedSlots.length}`);
-
-    // Also include the candidate's currently booked slot (so they can keep it or pick another)
-    let allSlots: any[] = unbookedSlots;
+    // Slot atualmente reservado pelo candidato (se tiver) — pra ele poder manter ou trocar.
+    let bookedSlotRow: { id: string; slot_date: string; slot_time: string; format: string; location: string | null; interviewer_name: string | null } | null = null;
     if (interview.slot_id) {
-      const { data: bookedSlotRow } = await supabaseAdmin
+      const { data } = await supabaseAdmin
         .from('availability_slots')
-        .select('id, slot_date, slot_time, format, location, interviewer_name, is_booked')
+        .select('id, slot_date, slot_time, format, location, interviewer_name')
         .eq('id', interview.slot_id)
         .maybeSingle();
-      if (bookedSlotRow && !allSlots.find((s: any) => s.id === bookedSlotRow.id)) {
-        allSlots = [...allSlots, bookedSlotRow];
-      }
+      bookedSlotRow = data as any;
     }
 
-    const slots = (allSlots || []).map((s: any) => {
+    const allSlots = [
+      ...computedSlots.map(s => ({ id: `computed:${s.slot_date}:${s.slot_time}`, slot_date: s.slot_date, slot_time: s.slot_time, format: s.format, location: s.location, interviewer_name: s.interviewer_name })),
+      ...(bookedSlotRow ? [bookedSlotRow] : []),
+    ];
+
+    const slots = allSlots.map((s: any) => {
       const [year, month, day] = s.slot_date.split('-').map(Number);
       const dateLabel = new Date(year, month - 1, day).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
       return {
@@ -2721,19 +2735,16 @@ app.get("/api/agendar/:token", async (req, res) => {
         date: s.slot_date,
         time: s.slot_time,
         dateLabel,
-        timeLabel: s.slot_time.substring(0, 5),
-        isBooked: s.is_booked && s.id !== interview.slot_id,
+        timeLabel: String(s.slot_time).substring(0, 5),
+        isBooked: false,
       };
     });
 
     const firstSlot = allSlots?.[0];
-    const bookedSlot = interview.slot_id
-      ? (allSlots || []).find((s: any) => s.id === interview.slot_id) || null
-      : null;
-    const currentBooking = bookedSlot ? {
-      slotId: bookedSlot.id,
-      date: bookedSlot.slot_date,
-      time: bookedSlot.slot_time.substring(0, 5),
+    const currentBooking = bookedSlotRow ? {
+      slotId: bookedSlotRow.id,
+      date: bookedSlotRow.slot_date,
+      time: String(bookedSlotRow.slot_time).substring(0, 5),
     } : null;
 
     const pageData: SchedulingPageData = {
@@ -2805,11 +2816,33 @@ app.post("/api/agendar/:token/book", async (req, res) => {
       console.log(`[Book Slot] Old Google Calendar event: ${deleted ? 'deleted' : 'failed to delete'}`);
     }
 
+    // Agenda sempre aberta: slot_id pode vir como id sintético "computed:<data>:<hora>"
+    // (horário calculado, ainda sem linha real em availability_slots) ou como um
+    // uuid real (o slot que o candidato já tinha reservado, mantendo o mesmo horário).
+    let realSlotId = slot_id;
+    if (slot_id.startsWith('computed:')) {
+      const [, slotDate, slotTime] = slot_id.split(':');
+      const { data: agentConvBook } = await supabaseAdmin
+        .from('agent_conversations')
+        .select('user_id')
+        .filter('context->>interview_id', 'eq', interview.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const { data: jobForBook } = await supabaseAdmin.from('jobs').select('user_id').eq('id', interview.job_id).maybeSingle();
+      const bookingUserId: string = agentConvBook?.user_id || jobForBook?.user_id || '';
+      const materialized = await materializeSlot(bookingUserId, slotDate, slotTime, supabaseAdmin as any);
+      if (!materialized) {
+        return res.status(409).json({ ok: false, error: 'Horario ja foi preenchido. Escolha outro.' });
+      }
+      realSlotId = materialized.id;
+    }
+
     // Book the slot in single table (optimistic concurrency)
     const { data: booked, error: bookErr } = await supabaseAdmin
       .from('availability_slots')
       .update({ is_booked: true, booked_interview_id: interview.id })
-      .eq('id', slot_id)
+      .eq('id', realSlotId)
       .eq('is_booked', false)
       .select()
       .maybeSingle();
@@ -2821,7 +2854,7 @@ app.post("/api/agendar/:token/book", async (req, res) => {
 
     // Update interview (columns: slot_id, slot_date, slot_time, status)
     const { error: interviewErr } = await supabaseAdmin.from('interviews').update({
-      slot_id,
+      slot_id: realSlotId,
       slot_date: booked.slot_date,
       slot_time: booked.slot_time,
       status: 'CONFIRMADA',

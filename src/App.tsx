@@ -16,7 +16,6 @@ import { SqlSetupModal } from './components/SqlSetupModal';
 import { ScheduleInterviewsModal } from './components/ScheduleInterviewsModal';
 import { InterviewsTab } from './components/InterviewsTab';
 import { AgendaTab } from './components/AgendaTab';
-import { AvailableSlotsModal } from './components/AvailableSlotsModal';
 import { AprovadosTab } from './components/AprovadosTab';
 import { BentoChat } from './components/BentoChat';
 import { NicheSection } from './components/NicheSection';
@@ -222,7 +221,6 @@ const App: React.FC = () => {
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInterviewModal, setShowInterviewModal] = useState(false);
-  const [showAvailableSlots, setShowAvailableSlots] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
@@ -2509,24 +2507,13 @@ const App: React.FC = () => {
       {/* MAIN CONTENT Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50/50 relative">
 
-        {/* Modal Horários Disponíveis */}
-        {showAvailableSlots && (user as any)?.id && (
-          <AvailableSlotsModal
-            userId={(user as any).id}
-            onClose={() => setShowAvailableSlots(false)}
-            onSlotsAdded={() => {
-              if ((user as any)?.id) fetchInterviews((user as any).id);
-            }}
-          />
-        )}
-
         {/* VIEW: DASHBOARD (Includes TABS) */}
         {view === 'DASHBOARD' && (
             <div className="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar">
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'SETTINGS' && renderSettings()}
-               {currentTab === 'AGENDA' && <AgendaTab interviews={interviews as any} userId={(user as any)?.id} onOpenAvailableSlots={() => setShowAvailableSlots(true)} onRefresh={() => { if ((user as any)?.id) fetchInterviews((user as any).id); }} />}
-               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} onOpenAvailableSlots={() => setShowAvailableSlots(true)} />}
+               {currentTab === 'AGENDA' && <AgendaTab interviews={interviews as any} userId={(user as any)?.id} onRefresh={() => { if ((user as any)?.id) fetchInterviews((user as any).id); }} />}
+               {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} />}
                {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} interviews={interviews} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} chatwootAccountId={(user as any)?.chatwoot_account_id} userId={(user as any)?.id} />}
                {currentTab === 'JOBS' && (
                    <>

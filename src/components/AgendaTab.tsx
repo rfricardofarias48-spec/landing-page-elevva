@@ -1,5 +1,5 @@
-import React, { type ReactNode, useEffect, useState, useMemo, useRef } from 'react';
-import { Search, Plus, X, ChevronLeft, ChevronRight, Calendar, List, User, Briefcase, Phone, Trash2, ChevronDown, Lock, AlertTriangle, Video, MapPin } from 'lucide-react';
+import React, { type ReactNode, useEffect, useState, useMemo } from 'react';
+import { Search, X, ChevronLeft, ChevronRight, Calendar, List, User, Briefcase, Phone, Trash2, Lock, AlertTriangle, Video, MapPin } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────
 export interface AgendaInterview {
@@ -18,13 +18,25 @@ export interface AgendaInterview {
 interface BlockForm {
   date: string;
   date_end: string;
-  interviewer_name: string;
+  all_day: boolean;
+  start_time: string;
+  end_time: string;
+  reason: string;
+}
+const EMPTY_BLOCK: BlockForm = { date: '', date_end: '', all_day: true, start_time: '09:00', end_time: '18:00', reason: '' };
+
+interface BlockedSlot {
+  id: string;
+  date: string;
+  all_day: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  reason: string | null;
 }
 
 interface Props {
   interviews: AgendaInterview[];
   userId?: string;
-  onOpenAvailableSlots: () => void;
   onRefresh?: () => void;
 }
 
@@ -197,7 +209,7 @@ function RangeCalendar({ start, end, onChange }: { start: string; end: string; o
 // fontes e botões) adaptado ao modelo de entrevistas de recrutamento.
 // Diferença pedida: os cards/modais têm espaço pro link da sala do
 // Google Meet, já que o agente cria a sala automaticamente.
-export const AgendaTab: React.FC<Props> = ({ interviews, userId, onOpenAvailableSlots, onRefresh }) => {
+export const AgendaTab: React.FC<Props> = ({ interviews, userId, onRefresh }) => {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [startDate, setStartDate] = useState<Date>(() => weekStart(new Date()));
@@ -205,24 +217,25 @@ export const AgendaTab: React.FC<Props> = ({ interviews, userId, onOpenAvailable
   const [detailInterview, setDetailInterview] = useState<AgendaInterview | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
-  // Block modal ("Bloquear Agenda" → remove horários disponíveis no período)
+  // Block modal ("Bloquear Horários" — único ponto de escrita da Agenda)
   const [showBlockModal, setShowBlockModal] = useState(false);
-  const [blockForm, setBlockForm] = useState<BlockForm>({ date: '', date_end: '', interviewer_name: '' });
+  const [blockForm, setBlockForm] = useState<BlockForm>(EMPTY_BLOCK);
   const [savingBlock, setSavingBlock] = useState(false);
   const [blockError, setBlockError] = useState('');
-  const [blockSuccess, setBlockSuccess] = useState('');
+  const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
+  const [loadingBlocks, setLoadingBlocks] = useState(false);
 
-  // Dropdown "Novo"
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
+  async function fetchBlockedSlots() {
+    if (!userId) return;
+    setLoadingBlocks(true);
+    try {
+      const res = await fetch(`/api/blocked-slots?user_id=${userId}`);
+      const json = await res.json();
+      setBlockedSlots(json.blocks || []);
+    } finally {
+      setLoadingBlocks(false);
     }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, []);
+  }
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(startDate, i)), [startDate]);
 
@@ -264,37 +277,48 @@ export const AgendaTab: React.FC<Props> = ({ interviews, userId, onOpenAvailable
   function goToday() { setStartDate(weekStart(new Date())); }
 
   function openBlockModal() {
-    setBlockForm({ date: '', date_end: '', interviewer_name: '' });
-    setBlockError(''); setBlockSuccess('');
-    setShowBlockModal(true); setShowMenu(false);
+    setBlockForm(EMPTY_BLOCK);
+    setBlockError('');
+    setShowBlockModal(true);
+    fetchBlockedSlots();
   }
 
   async function handleSaveBlock() {
     if (!userId) return;
     if (!blockForm.date) { setBlockError('Selecione uma data.'); return; }
-    setSavingBlock(true); setBlockError(''); setBlockSuccess('');
+    if (!blockForm.all_day && (!blockForm.start_time || !blockForm.end_time)) {
+      setBlockError('Informe horário de início e fim.'); return;
+    }
+    setSavingBlock(true); setBlockError('');
     try {
-      const res = await fetch('/api/slots/range', {
-        method: 'DELETE',
+      const res = await fetch('/api/blocked-slots', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userId,
-          start_date: blockForm.date,
-          end_date: blockForm.date_end || blockForm.date,
-          interviewer_name: blockForm.interviewer_name.trim() || undefined,
+          date: blockForm.date,
+          date_end: blockForm.date_end || blockForm.date,
+          all_day: blockForm.all_day,
+          start_time: blockForm.all_day ? null : blockForm.start_time,
+          end_time: blockForm.all_day ? null : blockForm.end_time,
+          reason: blockForm.reason.trim() || null,
         }),
       });
       const json = await res.json();
-      if (!json.ok) { setBlockError(json.error || 'Erro ao bloquear a agenda.'); return; }
-      setBlockSuccess(json.removed > 0
-        ? `${json.removed} horário${json.removed !== 1 ? 's' : ''} removido${json.removed !== 1 ? 's' : ''} do período.`
-        : 'Nenhum horário disponível encontrado nesse período.');
+      if (!json.ok) { setBlockError(json.error || 'Erro ao bloquear horários.'); return; }
+      setBlockForm(f => ({ ...EMPTY_BLOCK, all_day: f.all_day, start_time: f.start_time, end_time: f.end_time }));
+      await fetchBlockedSlots();
       onRefresh?.();
     } catch {
-      setBlockError('Erro ao bloquear a agenda.');
+      setBlockError('Erro ao bloquear horários.');
     } finally {
       setSavingBlock(false);
     }
+  }
+
+  async function handleDeleteBlock(id: string) {
+    await fetch(`/api/blocked-slots/${id}`, { method: 'DELETE' });
+    setBlockedSlots(prev => prev.filter(b => b.id !== id));
   }
 
   async function handleCancelInterview() {
@@ -376,34 +400,16 @@ export const AgendaTab: React.FC<Props> = ({ interviews, userId, onOpenAvailable
           </div>
         )}
 
-        {/* Novo dropdown */}
-        <div className="ml-auto relative" ref={menuRef}>
-          <button onClick={() => setShowMenu(v => !v)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold text-white shadow-[0_4px_14px_rgba(101,163,13,0.30)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.42)] hover:-translate-y-[1px] transition-all duration-200"
-            style={{ background: 'linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%)' }}
-          >
-            <Plus className="w-4 h-4" />
-            Novo
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${showMenu ? 'rotate-180' : ''}`} />
-          </button>
-          {showMenu && (
-            <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden min-w-[220px]">
-              <button onClick={() => { onOpenAvailableSlots(); setShowMenu(false); }} className="flex items-center gap-3 w-full px-4 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors text-left">
-                <div className="w-7 h-7 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-                  <Calendar className="w-3.5 h-3.5 text-emerald-500" />
-                </div>
-                Adicionar Horários
-              </button>
-              <div className="mx-4 h-px bg-slate-100" />
-              <button onClick={openBlockModal} className="flex items-center gap-3 w-full px-4 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors text-left">
-                <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-                  <Lock className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-                Bloquear Agenda
-              </button>
-            </div>
-          )}
-        </div>
+        {/* Bloquear Horários — única ação de escrita na Agenda, já que a
+            agenda é sempre aberta (Seg-Sex, horário de funcionamento) e só
+            precisa de bloqueio manual quando o recrutador não pode atender. */}
+        <button onClick={openBlockModal}
+          className="ml-auto flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold text-white shadow-[0_4px_14px_rgba(101,163,13,0.30)] hover:shadow-[0_6px_20px_rgba(101,163,13,0.42)] hover:-translate-y-[1px] transition-all duration-200"
+          style={{ background: 'linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%)' }}
+        >
+          <Lock className="w-4 h-4" />
+          Bloquear Horários
+        </button>
       </div>
 
       {/* ── Calendar ─────────────────────────────────────────────── */}
@@ -520,18 +526,18 @@ export const AgendaTab: React.FC<Props> = ({ interviews, userId, onOpenAvailable
         </div>
       )}
 
-      {/* ── Bloquear Agenda Modal ────────────────────────────────── */}
+      {/* ── Bloquear Horários Modal ──────────────────────────────── */}
       {showBlockModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setShowBlockModal(false)} />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg">
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
             <div className="flex items-center justify-between px-6 py-5 rounded-t-3xl" style={{ background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)' }}>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center border border-white/20">
                   <Lock className="w-4 h-4 text-white" />
                 </div>
-                <h2 className="text-base font-bold text-white">Bloquear Agenda</h2>
+                <h2 className="text-base font-bold text-white">Bloquear Horários</h2>
               </div>
               <button onClick={() => setShowBlockModal(false)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
                 <X className="w-4 h-4 text-white" />
@@ -540,26 +546,47 @@ export const AgendaTab: React.FC<Props> = ({ interviews, userId, onOpenAvailable
 
             <div className="p-6 space-y-4">
               <p className="text-[12px] text-slate-500 -mt-1">
-                Remove os horários disponíveis (ainda não reservados) do período selecionado — os candidatos deixam de poder marcar entrevista nesses dias.
+                A agenda fica sempre aberta em horário comercial — use isso pra bloquear dias ou horários específicos em que você não pode atender.
               </p>
+
+              {/* Tipo: dia inteiro / horário específico */}
+              <div className="flex gap-2">
+                {[{ v: true, l: 'Dia inteiro' }, { v: false, l: 'Horário específico' }].map(opt => (
+                  <button key={String(opt.v)} type="button"
+                    onClick={() => setBlockForm(f => ({ ...f, all_day: opt.v }))}
+                    className={`flex-1 py-2.5 rounded-xl text-[13px] font-semibold border-2 transition-all ${blockForm.all_day === opt.v ? 'border-emerald-400 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white'}`}>
+                    {opt.l}
+                  </button>
+                ))}
+              </div>
 
               <RangeCalendar start={blockForm.date} end={blockForm.date_end} onChange={(s, e) => setBlockForm(f => ({ ...f, date: s, date_end: e }))} />
 
-              <FormField label="Entrevistador (opcional)">
-                <input placeholder="Deixe em branco pra bloquear todos"
-                  value={blockForm.interviewer_name}
-                  onChange={e => setBlockForm(f => ({ ...f, interviewer_name: e.target.value }))}
+              {!blockForm.all_day && (
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Início" required>
+                    <input type="time" value={blockForm.start_time}
+                      onChange={e => setBlockForm(f => ({ ...f, start_time: e.target.value }))}
+                      className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent" />
+                  </FormField>
+                  <FormField label="Fim" required>
+                    <input type="time" value={blockForm.end_time}
+                      onChange={e => setBlockForm(f => ({ ...f, end_time: e.target.value }))}
+                      className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent" />
+                  </FormField>
+                </div>
+              )}
+
+              <FormField label="Motivo (opcional)">
+                <input placeholder="Ex: Férias, compromisso pessoal..."
+                  value={blockForm.reason}
+                  onChange={e => setBlockForm(f => ({ ...f, reason: e.target.value }))}
                   className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent" />
               </FormField>
 
               {blockError && (
                 <div className="flex items-center gap-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                   <AlertTriangle className="w-4 h-4 shrink-0" />{blockError}
-                </div>
-              )}
-              {blockSuccess && (
-                <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-                  {blockSuccess}
                 </div>
               )}
 
@@ -571,9 +598,41 @@ export const AgendaTab: React.FC<Props> = ({ interviews, userId, onOpenAvailable
                 <button type="button" onClick={handleSaveBlock} disabled={savingBlock || !blockForm.date}
                   className="flex-1 py-2.5 rounded-2xl text-sm font-bold text-white disabled:opacity-40 transition-all hover:-translate-y-[1px]"
                   style={{ background: 'linear-gradient(135deg, #334155, #1e293b)' }}>
-                  {savingBlock ? 'Bloqueando...' : 'Bloquear período'}
+                  {savingBlock ? 'Bloqueando...' : 'Bloquear'}
                 </button>
               </div>
+
+              {/* Bloqueios já salvos */}
+              {(loadingBlocks || blockedSlots.length > 0) && (
+                <div className="pt-2">
+                  <div className="h-px bg-slate-100 mb-4" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Bloqueios ativos</p>
+                  {loadingBlocks ? (
+                    <div className="flex justify-center py-4">
+                      <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {blockedSlots.map(b => (
+                        <div key={b.id} className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                          <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <p className="flex-1 text-[12px] font-medium text-slate-700">
+                            {fmtBlockDate(b.date)}
+                            <span className="text-slate-400 ml-1.5">
+                              {b.all_day ? '· Dia inteiro' : `· ${String(b.start_time).slice(0, 5)} – ${String(b.end_time).slice(0, 5)}`}
+                              {b.reason ? ` · ${b.reason}` : ''}
+                            </span>
+                          </p>
+                          <button onClick={() => handleDeleteBlock(b.id)}
+                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
