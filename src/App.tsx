@@ -5,7 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { JobCard } from './components/JobCard';
 import { AnalysisResultCard } from './components/AnalysisResultCard';
 import { LoginScreen } from './components/LoginScreen';
-import { AdminDashboard } from './components/AdminDashboard';
+import { AgentSettingsPanel } from './components/AgentSettingsPanel';
 import { PublicUploadScreen } from './components/PublicUploadScreen';
 import { PublicSchedulingScreen } from './components/PublicSchedulingScreen';
 import { PublicAdmissionScreen } from './components/PublicAdmissionScreen';
@@ -23,7 +23,7 @@ import { PublicPortalScreen } from './components/PublicPortalScreen';
 import { 
   Plus, LogOut, Settings, LayoutDashboard, User as UserIcon,
   ArrowLeft, Pencil, FileCheck, Upload, Play, Trash2, CheckCircle2, X, Timer, CloudUpload, Loader2,
-  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, Shield, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, AlertTriangle, CalendarPlus, Send
+  Briefcase, CreditCard, Star, Zap, ArrowUpRight, Save, Key, Lock, Database, FileText, ShieldCheck, ExternalLink, RefreshCcw, Clock, Sparkles, Check, Calendar, Bot, UserCheck, AlertTriangle, CalendarPlus, Send
 } from 'lucide-react';
 
 const CHATWOOT_BASE_URL = (import.meta.env.VITE_CHATWOOT_URL || 'https://bot-chatwoot.5mljrq.easypanel.host').replace(/\/$/, '');
@@ -2214,109 +2214,62 @@ const App: React.FC = () => {
              </div>
          </div>
 
-         <div className="grid grid-cols-1 md:grid-cols-2 items-start gap-8">
-             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
-                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><UserIcon className="w-5 h-5 text-slate-400"/> Dados Pessoais</h3>
-                 <div className="space-y-4">
-                     <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nome Completo</label>
-                         <input 
-                           type="text" 
-                           value={user?.name || ''} 
-                           onChange={(e) => setUser(user ? {...user, name: e.target.value} : null)} 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
-                         />
-                     </div>
-                     <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Email de Acesso</label>
-                         <input 
-                           type="email" 
-                           value={user?.email || ''} 
-                           disabled
-                           className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-500 cursor-not-allowed shadow-sm"
-                         />
-                     </div>
-                     <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Telefone / WhatsApp</label>
-                         <input 
-                           type="text" 
-                           value={user?.phone || ''} 
-                           onChange={(e) => setUser(user ? {...user, phone: e.target.value} : null)} 
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
-                         />
-                     </div>
-                     <div className="pt-4">
-                        <button onClick={handleUpdateProfile} disabled={changingPassword} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm">
-                            {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#65a30d]" />} Salvar Alterações
-                        </button>
-                     </div>
+         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+             <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><UserIcon className="w-5 h-5 text-slate-400"/> Dados Pessoais</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Nome Completo</label>
+                     <input
+                       type="text"
+                       value={user?.name || ''}
+                       onChange={(e) => setUser(user ? {...user, name: e.target.value} : null)}
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
+                     />
+                 </div>
+                 <div>
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Email de Acesso</label>
+                     <input
+                       type="email"
+                       value={user?.email || ''}
+                       disabled
+                       className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-500 cursor-not-allowed shadow-sm"
+                     />
+                 </div>
+                 <div>
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Telefone / WhatsApp</label>
+                     <input
+                       type="text"
+                       value={user?.phone || ''}
+                       onChange={(e) => setUser(user ? {...user, phone: e.target.value} : null)}
+                       placeholder="Ex: 5551999990000"
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
+                     />
+                     <p className="text-[10px] text-slate-400 ml-1 mt-1">Usado pelo assistente IA pra identificar você como responsável. Formato: DDI + DDD + número (ex: 5551999990000)</p>
                  </div>
              </div>
-
-         {/* Agente de Recrutamento */}
-         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
-             <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter">
-                 <Bot className="w-5 h-5 text-slate-400"/> Agente de Recrutamento
-             </h3>
-             {isGhostAccount ? (
-                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                     <div className="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0"/>
-                     <p className="text-sm text-slate-400 font-medium">Nenhum agente configurado para esta conta.</p>
-                 </div>
-             ) : (
-                 <>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Instância</label>
-                         <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700 flex items-center gap-2">
-                             <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"/>
-                             {user?.evolution_instance || user?.instancia_evolution || '—'}
-                         </div>
-                     </div>
-                     <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">WhatsApp do Agente</label>
-                         <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm text-slate-700 flex items-center gap-2">
-                             {(user as any)?.telefone_agente || (user as any)?.whatsapp_number
-                               ? <><span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"/>+{((user as any)?.telefone_agente || (user as any)?.whatsapp_number)}</>
-                               : <span className="text-slate-400">Número do agente não configurado</span>}
-                         </div>
-                         <p className="text-[10px] text-slate-400 ml-1 mt-1">Número WhatsApp do seu assistente de recrutamento</p>
-                     </div>
-                 </div>
-                 <div className="grid grid-cols-1 gap-4 mt-4">
-                     <div>
-                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Seu WhatsApp Pessoal</label>
-                         <input
-                           type="text"
-                           value={user?.phone || ''}
-                           onChange={(e) => setUser(user ? {...user, phone: e.target.value} : null)}
-                           placeholder="Ex: 5551999990000"
-                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-medium text-sm focus:border-[#65a30d] focus:ring-1 focus:ring-[#65a30d] outline-none transition-all shadow-sm"
-                         />
-                         <p className="text-[10px] text-slate-400 ml-1 mt-1">Usado pelo assistente IA para identificar você como responsável. Formato: DDI + DDD + número (ex: 5551999990000)</p>
-                     </div>
-                 </div>
-                 <div className="pt-4">
-                     <button onClick={handleUpdateProfile} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all flex items-center gap-2 shadow-sm">
-                         <Save className="w-4 h-4 text-[#65a30d]" /> Salvar Número
-                     </button>
-                 </div>
-                 </>
-             )}
+             <div className="pt-6">
+                <button onClick={handleUpdateProfile} disabled={changingPassword} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm">
+                    {changingPassword ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4 text-[#65a30d]" />} Salvar Alterações
+                </button>
+             </div>
          </div>
 
-         </div>{/* fim grid 2 colunas */}
-
-         {/* Exibe apenas para ADMIN */}
-         {user?.role === 'ADMIN' && (
-             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
-                 <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><Database className="w-5 h-5 text-slate-400"/> Banco de Dados</h3>
-                 <p className="text-sm text-slate-500 font-medium mb-6">Se estiver com problemas de upload ou permissão, use o script de correção.</p>
-                 <button onClick={() => setShowSqlModal(true)} className="bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-sm">
-                     <Settings className="w-4 h-4 text-slate-400" /> Abrir Script V27
-                 </button>
-             </div>
+         {/* Infraestrutura do agente — WhatsApp, Chatwoot, personalidade */}
+         {!isGhostAccount && (
+             <AgentSettingsPanel
+                 userId={(user as any)?.id}
+                 evolutionInstance={user?.evolution_instance || user?.instancia_evolution}
+                 chatwootAccountId={user?.chatwoot_account_id}
+             />
          )}
+
+         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)]">
+             <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2 tracking-tighter"><Database className="w-5 h-5 text-slate-400"/> Banco de Dados</h3>
+             <p className="text-sm text-slate-500 font-medium mb-6">Se estiver com problemas de upload ou permissão, use o script de correção.</p>
+             <button onClick={() => setShowSqlModal(true)} className="bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-sm">
+                 <Settings className="w-4 h-4 text-slate-400" /> Abrir Script V27
+             </button>
+         </div>
     </div>
   );
 
@@ -2391,11 +2344,6 @@ const App: React.FC = () => {
   // Auth — acesso simplificado: só senha (sem e-mail visível)
   if (!user) {
       return <LoginScreen onLogin={handleSimpleLogin} />;
-  }
-
-  // Admin — acessado via botão "Admin" na conta normal, não é mais automático
-  if (view === 'ADMIN') {
-      return <AdminDashboard onExit={() => setView('DASHBOARD')} />;
   }
 
   // Main App Helpers
@@ -2476,15 +2424,6 @@ const App: React.FC = () => {
                 <Settings className="w-6 h-6 lg:mr-3" />
                 <span className="hidden lg:block font-bold text-sm">Configurações</span>
             </button>
-            {user.role === 'ADMIN' && (
-                <button
-                    onClick={() => setView('ADMIN')}
-                    className="w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group text-white bg-[#65a30d] hover:bg-[#568a0b] shadow-md mt-2"
-                >
-                    <Shield className="w-6 h-6 lg:mr-3" />
-                    <span className="hidden lg:block font-bold text-sm">Admin</span>
-                </button>
-            )}
         </nav>
         
         <div className="p-4 border-t border-slate-100">

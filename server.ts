@@ -100,8 +100,10 @@ async function requireAdmin(req: express.Request, res: express.Response, next: e
     );
     const { data: { user }, error } = await adminClient.auth.getUser(token);
     if (error || !user) return res.status(401).json({ error: 'Token inválido' });
-    const { data: profile } = await adminClient.from('profiles').select('plan').eq('id', user.id).maybeSingle();
-    if (profile?.plan !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado' });
+    // Aceita tanto plan='ADMIN' (mecanismo legado) quanto role='ADMIN' (usado hoje pelo
+    // login do app pra reconhecer a conta dona) — evita depender de qual coluna foi setada.
+    const { data: profile } = await adminClient.from('profiles').select('plan, role').eq('id', user.id).maybeSingle();
+    if (profile?.plan !== 'ADMIN' && profile?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado' });
     next();
   } catch {
     res.status(500).json({ error: 'Erro na autenticação' });
