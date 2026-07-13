@@ -2525,7 +2525,7 @@ const App: React.FC = () => {
             <div className="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar">
                {currentTab === 'OVERVIEW' && renderOverview()}
                {currentTab === 'SETTINGS' && renderSettings()}
-               {currentTab === 'AGENDA' && <AgendaTab interviews={interviews as any} onOpenAvailableSlots={() => setShowAvailableSlots(true)} />}
+               {currentTab === 'AGENDA' && <AgendaTab interviews={interviews as any} userId={(user as any)?.id} onOpenAvailableSlots={() => setShowAvailableSlots(true)} onRefresh={() => { if ((user as any)?.id) fetchInterviews((user as any).id); }} />}
                {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} onOpenAvailableSlots={() => setShowAvailableSlots(true)} />}
                {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} interviews={interviews} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} chatwootAccountId={(user as any)?.chatwoot_account_id} userId={(user as any)?.id} />}
                {currentTab === 'JOBS' && (

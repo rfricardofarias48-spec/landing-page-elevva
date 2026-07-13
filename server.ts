@@ -2583,6 +2583,30 @@ app.delete('/api/slots/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/slots/range — "Bloquear Agenda": remove horários disponíveis
+// ainda não reservados dentro de um período (equivalente a bloquear a
+// agenda no app de atendimento, adaptado ao modelo desta app onde a
+// disponibilidade é opt-in em vez de bloqueio de agenda sempre aberta).
+app.delete('/api/slots/range', async (req, res) => {
+  try {
+    const { user_id, start_date, end_date, interviewer_name } = req.body as {
+      user_id?: string; start_date?: string; end_date?: string; interviewer_name?: string;
+    };
+    if (!user_id || !start_date) return res.status(400).json({ ok: false, error: 'user_id e start_date obrigatórios' });
+
+    let query = supabaseAdmin.from('availability_slots').delete({ count: 'exact' })
+      .eq('user_id', user_id).eq('is_booked', false)
+      .gte('slot_date', start_date).lte('slot_date', end_date || start_date);
+    if (interviewer_name) query = query.eq('interviewer_name', interviewer_name);
+
+    const { error, count } = await query;
+    if (error) return res.status(500).json({ ok: false, error: error.message });
+    return res.json({ ok: true, removed: count ?? 0 });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Erro interno' });
+  }
+});
+
 // GET /api/slots/for-job/:jobId — unbooked non-expired slots for a job (ScheduleInterviewsModal)
 app.get('/api/slots/for-job/:jobId', async (req, res) => {
   try {
