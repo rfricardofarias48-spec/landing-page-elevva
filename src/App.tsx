@@ -50,7 +50,7 @@ async function analyzeResumeFast(filePath: string, jobTitle: string, criteria: s
   return res.json() as Promise<AnalysisResult>;
 }
 
-type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'APROVADOS' | 'BILLING' | 'SETTINGS';
+type UserTab = 'OVERVIEW' | 'JOBS' | 'ENTREVISTAS' | 'APROVADOS' | 'SETTINGS';
 
 // Helper function moved outside to be accessible by effects
 const extractAnalysisResult = (rawResult: unknown): AnalysisResult | undefined => {
@@ -217,31 +217,6 @@ const App: React.FC = () => {
   const [slotCardSaving, setSlotCardSaving] = useState(false);
 
   // Billing Period
-  const [isAnnual, setIsAnnual] = useState(false);
-  const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
-  const [upgradeError, setUpgradeError] = useState('');
-
-  const handleUpgradeLink = async (plan: string) => {
-    if (!user?.id) return;
-    setUpgradingPlan(plan);
-    setUpgradeError('');
-    try {
-      const billing = isAnnual ? 'anual' : 'mensal';
-      const planKey = isAnnual ? `${plan}_ANUAL` : plan;
-      const res = await fetch('/api/subscription/upgrade-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, plan: planKey, billing }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao gerar link');
-      window.open(data.paymentLink, '_blank');
-    } catch (err: any) {
-      setUpgradeError(err.message);
-    } finally {
-      setUpgradingPlan(null);
-    }
-  };
 
   // UI Controls
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -2157,7 +2132,7 @@ const App: React.FC = () => {
               </div>
 
               {/* AGENTE EM AÇÃO */}
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between relative overflow-hidden lg:col-span-1">
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-[0px_4px_20px_rgba(0,0,0,0.02)] flex flex-col justify-between relative overflow-hidden lg:col-span-2">
                   <div className="relative z-10">
                       <div className="flex items-center gap-2 mb-4">
                           <div className="relative flex h-3 w-3">
@@ -2185,28 +2160,6 @@ const App: React.FC = () => {
                       )}
                   </div>
                   <div className="absolute right-0 bottom-0 w-48 h-48 bg-emerald-50 rounded-full blur-[60px] opacity-60 -mr-10 -mb-10 pointer-events-none"></div>
-              </div>
-
-              {/* PLANO ATUAL */}
-              <div className="bg-[#0a0a0a] p-6 rounded-[2rem] relative overflow-hidden flex flex-col justify-between shadow-xl lg:col-span-1">
-                  <div className="relative z-10">
-                      <p className="text-[11px] font-black text-zinc-500 uppercase tracking-widest mb-3">PLANO ATUAL</p>
-                      <h3 className="text-4xl font-black text-white mb-2 tracking-tighter">{normalizedPlan}</h3>
-                      <p className="text-zinc-400 text-sm font-medium">
-                        {normalizedPlan === 'ULTRA' ? 'Até 50 vagas — plano Agência Ultra.' :
-                         normalizedPlan === 'MAX' ? 'Até 25 vagas — plano Agência Max.' :
-                         normalizedPlan === 'ENTERPRISE' ? 'Vagas personalizadas — Enterprise.' :
-                         normalizedPlan === 'PRO' ? 'Até 10 vagas e currículos ilimitados.' :
-                         normalizedPlan === 'ESSENCIAL' ? 'Até 3 vagas e currículos ilimitados.' :
-                         'Faça upgrade para liberar recursos.'}
-                      </p>
-                  </div>
-                  {normalizedPlan !== 'ENTERPRISE' && (
-                  <button onClick={() => setCurrentTab('BILLING')} className="mt-8 w-full bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-black py-3.5 rounded-xl text-sm uppercase tracking-widest transition-transform active:scale-95 relative z-10">
-                      VER PLANOS
-                  </button>
-                  )}
-                  <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-zinc-800 rounded-full blur-[50px] opacity-50 pointer-events-none"></div>
               </div>
           </div>
 
@@ -2247,291 +2200,6 @@ const App: React.FC = () => {
       </div>
   );
   };
-
-  const renderBilling = () => (
-      <div className="flex flex-col h-full gap-5 animate-fade-in font-sans">
-          <div className="flex items-center gap-4 shrink-0">
-              <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0">
-                  <CreditCard className="w-7 h-7 text-[#65a30d]" />
-              </div>
-              <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Minha Assinatura</h2>
-                  <p className="text-slate-500 font-medium text-sm">Gerencie seu plano e limites de uso.</p>
-              </div>
-          </div>
-
-          {/* Current Plan Card - Black */}
-          <div className={`rounded-2xl p-6 relative overflow-hidden text-white shadow-xl shrink-0 ${isGhostAccount ? 'bg-slate-800' : 'bg-[#0a0a0a]'}`}>
-              <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                          <span className={`font-black text-xs uppercase tracking-widest ${isGhostAccount ? 'text-slate-400' : 'text-[#65a30d]'}`}>
-                            {isGhostAccount ? 'Sem Plano' : 'Plano Ativo'}
-                          </span>
-                          {!isGhostAccount && normalizedPlan !== 'ESSENCIAL' && (
-                              <span className="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs font-bold tracking-wider">
-                                  Renova em: {user?.current_period_end && !isNaN(new Date(user.current_period_end).getTime()) ? new Date(user.current_period_end).toLocaleDateString('pt-BR') : '--/--/----'}
-                              </span>
-                          )}
-                      </div>
-                      <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center border border-zinc-800">
-                          <Zap className={`w-4 h-4 ${isGhostAccount ? 'text-slate-600' : 'text-zinc-500'}`} />
-                      </div>
-                  </div>
-
-                  <div className="flex items-end justify-between mb-3">
-                      <div>
-                          <h3 className="text-4xl font-black tracking-tighter text-white">{isGhostAccount ? 'Desativado' : normalizedPlan}</h3>
-                          {(() => {
-                              if (isGhostAccount) return <span className="text-xl font-black text-slate-500">—</span>;
-                              const stdPrice = normalizedPlan === 'ESSENCIAL' ? 399.00 : normalizedPlan === 'PRO' ? 749.00 : null;
-                              const activePrice = user?.plan_price && user.plan_price > 0 ? user.plan_price : stdPrice;
-                              if (!activePrice) return null;
-                              const isEnterprise = normalizedPlan === 'ENTERPRISE';
-                              const isNegotiated = !isEnterprise && stdPrice !== null && user?.plan_price != null && user.plan_price !== stdPrice;
-                              return (
-                                  <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-xl font-black text-white">
-                                          R$ {activePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}<span className="text-sm font-bold text-zinc-400">/mês</span>
-                                      </span>
-                                      {isEnterprise && (
-                                          <span className="text-[10px] font-black bg-purple-600 text-white px-2 py-0.5 rounded-md uppercase tracking-widest">Personalizado</span>
-                                      )}
-                                      {isNegotiated && (
-                                          <span className="text-[10px] font-black bg-[#65a30d] text-white px-2 py-0.5 rounded-md uppercase tracking-widest">Negociado</span>
-                                      )}
-                                  </div>
-                              );
-                          })()}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-zinc-500">
-                          <span>Vagas Ativas</span>
-                          {(() => {
-                              const limit = user?.job_limit ?? 3;
-                              const isUnlimited = limit >= 9999 || normalizedPlan === 'ENTERPRISE';
-                              return (
-                                  <span className="text-white text-sm">
-                                      {isUnlimited ? `${jobs.length} / ∞` : `${jobs.length} / ${limit}`}
-                                  </span>
-                              );
-                          })()}
-                      </div>
-                  </div>
-
-                  <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
-                      {normalizedPlan !== 'ENTERPRISE' && (user?.job_limit ?? 0) < 9999 ? (
-                          <div className="bg-[#65a30d] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / (user?.job_limit || 1)) * 100)}%` }}></div>
-                      ) : (
-                          <div className="bg-[#65a30d] h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (jobs.length / 10) * 100)}%` }}></div>
-                      )}
-                  </div>
-              </div>
-              <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-zinc-800 rounded-full blur-[80px] opacity-30 pointer-events-none"></div>
-          </div>
-
-          {/* Upgrade Options */}
-          {(() => {
-              const planRank: Record<string, number> = { ESSENCIAL: 1, PRO: 2, MAX: 3, ULTRA: 4, ENTERPRISE: 5, ADMIN: 99 };
-              const currentRank = planRank[normalizedPlan] ?? 0;
-              const PlanCheck = ({ dark }: { dark?: boolean }) => (
-                <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${dark ? 'bg-[#65a30d]/20' : 'bg-[#65a30d]/15'}`}>
-                  <svg className="w-2.5 h-2.5 text-[#65a30d]" fill="none" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </span>
-              );
-              return (
-              <div className="flex flex-col gap-6">
-
-                  {/* Título + Toggle pill — igual à landing page */}
-                  <div className="flex flex-col items-center gap-5">
-                      <h3 className="text-base font-black text-slate-900 tracking-tighter flex items-center gap-2 self-start">
-                          <ArrowUpRight className="w-4 h-4" /> Planos Disponíveis
-                      </h3>
-                      <div className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
-                          <button
-                              onClick={() => setIsAnnual(false)}
-                              className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all duration-200 ${!isAnnual ? 'bg-black text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                          >
-                              Mensal
-                          </button>
-                          <button
-                              onClick={() => setIsAnnual(true)}
-                              className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all duration-200 flex items-center gap-2 ${isAnnual ? 'bg-black text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                          >
-                              Anual
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isAnnual ? 'bg-[#65a30d] text-white' : 'bg-[#65a30d]/15 text-[#65a30d]'}`}>-20%</span>
-                          </button>
-                      </div>
-                  </div>
-
-                  {/* Cards — 4 colunas no desktop, 2 no tablet, 1 no mobile */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 items-stretch pb-2">
-
-                      {/* ESSENCIAL */}
-                      <div className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-7 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_8px_32px_rgba(0,0,0,0.08)] transition-shadow flex flex-col">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Essencial</p>
-                          {normalizedPlan === 'ESSENCIAL' && user?.plan_price != null && user.plan_price !== 399.00 ? (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-slate-900 tracking-tighter leading-none">R$ {user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-sm text-slate-400 font-medium mb-1">/mês</span>
-                                  </div>
-                                  <span className="text-xs font-black bg-[#65a30d]/10 text-[#65a30d] px-2 py-0.5 rounded-full mb-3 self-start">Preço negociado</span>
-                              </>
-                          ) : (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-slate-900 tracking-tighter leading-none">R$ {isAnnual ? '319,20' : '399,00'}</span>
-                                      <span className="text-sm text-slate-400 font-medium mb-1">/mês</span>
-                                  </div>
-                                  {isAnnual && <p className="text-xs text-[#65a30d] font-bold mb-3">Cobrado como R$ 3.830,40/ano</p>}
-                              </>
-                          )}
-                          <p className="text-sm text-slate-500 font-medium mt-3 mb-6 leading-relaxed">Para equipes enxutas e recrutamento ágil.</p>
-                          <ul className="space-y-2.5 flex-1 mb-6">
-                              {['Até 3 vagas em simultâneo', 'Triagem e ranking', 'Relatórios automáticos', 'Agendamento autônomo', 'Google Calendar e Meet'].map(f => (
-                                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600"><PlanCheck />{f}</li>
-                              ))}
-                          </ul>
-                          {!isGhostAccount && normalizedPlan === 'ESSENCIAL' ? (
-                              <button disabled className="w-full border-2 border-slate-100 text-slate-400 font-bold py-3.5 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
-                          ) : (
-                              <button onClick={() => handleUpgradeLink('ESSENCIAL')} disabled={upgradingPlan === 'ESSENCIAL'}
-                                  className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 font-bold py-3.5 rounded-2xl text-sm transition-all duration-200 disabled:opacity-60">
-                                  {upgradingPlan === 'ESSENCIAL' ? <span className="animate-spin">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar Essencial' : currentRank > 1 ? 'Fazer Downgrade' : 'Assinar Essencial'}
-                              </button>
-                          )}
-                      </div>
-
-                      {/* PRO — destaque (igual à landing) */}
-                      <div className="relative bg-black rounded-[2rem] border border-black p-6 md:p-7 shadow-[0px_16px_48px_rgba(0,0,0,0.16)] hover:shadow-[0px_20px_60px_rgba(0,0,0,0.24)] transition-shadow flex flex-col overflow-hidden md:scale-[1.02]">
-                          <div className="flex items-center justify-between mb-2">
-                              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Pro</p>
-                              <span className="text-[10px] font-black bg-[#65a30d] text-white px-3 py-1 rounded-full uppercase tracking-widest">Mais popular</span>
-                          </div>
-                          {normalizedPlan === 'PRO' && user?.plan_price != null && user.plan_price !== 749.00 ? (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-white tracking-tighter leading-none">R$ {user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-sm text-slate-500 font-medium mb-1">/mês</span>
-                                  </div>
-                                  <span className="text-xs font-black bg-[#65a30d]/20 text-[#65a30d] px-2 py-0.5 rounded-full mb-3 self-start">Preço negociado</span>
-                              </>
-                          ) : (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-white tracking-tighter leading-none">R$ {isAnnual ? '599,20' : '749,00'}</span>
-                                      <span className="text-sm text-slate-500 font-medium mb-1">/mês</span>
-                                  </div>
-                                  {isAnnual && <p className="text-xs text-[#65a30d] font-bold mb-3">Cobrado como R$ 7.190,40/ano</p>}
-                              </>
-                          )}
-                          <p className="text-sm text-slate-400 font-medium mt-3 mb-6 leading-relaxed">Tração total para seu RH com mais vagas.</p>
-                          <ul className="space-y-2.5 flex-1 mb-6">
-                              {['Até 10 vagas em simultâneo', 'Todas as funções do Essencial', 'Portal de Admissão', 'Conformidade LGPD'].map(f => (
-                                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300"><PlanCheck dark />{f}</li>
-                              ))}
-                          </ul>
-                          {!isGhostAccount && normalizedPlan === 'PRO' ? (
-                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-3.5 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
-                          ) : (
-                              <button onClick={() => handleUpgradeLink('PRO')} disabled={upgradingPlan === 'PRO'}
-                                  className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-3.5 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(101,163,13,0.4)] disabled:opacity-60">
-                                  {upgradingPlan === 'PRO' ? <span className="animate-spin">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar Pro' : currentRank > 2 ? 'Fazer Downgrade' : currentRank === 1 ? 'Assinar Pro' : 'Fazer Upgrade'}
-                              </button>
-                          )}
-                      </div>
-
-                      {/* MAX */}
-                      <div className="relative bg-white rounded-[2rem] border border-slate-100 p-6 md:p-7 shadow-[0px_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0px_8px_32px_rgba(0,0,0,0.08)] transition-shadow flex flex-col">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Max · Agência</p>
-                          {normalizedPlan === 'MAX' && user?.plan_price != null && user.plan_price !== 1699 ? (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-slate-900 tracking-tighter leading-none">R$ {user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-sm text-slate-400 font-medium mb-1">/mês</span>
-                                  </div>
-                                  <span className="text-xs font-black bg-[#65a30d]/10 text-[#65a30d] px-2 py-0.5 rounded-full mb-3 self-start">Preço negociado</span>
-                              </>
-                          ) : (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-slate-900 tracking-tighter leading-none">R$ {isAnnual ? '1.189,30' : '1.699,00'}</span>
-                                      <span className="text-sm text-slate-400 font-medium mb-1">/mês</span>
-                                  </div>
-                                  {isAnnual && <p className="text-xs text-[#65a30d] font-bold mb-3">Cobrado como R$ 14.271,60/ano</p>}
-                              </>
-                          )}
-                          <p className="text-sm text-slate-500 font-medium mt-3 mb-6 leading-relaxed">Para agências em crescimento com múltiplos clientes.</p>
-                          <ul className="space-y-2.5 flex-1 mb-6">
-                              {['Até 25 vagas simultâneas', 'Todas as funções do Pro', 'Múltiplos clientes', 'Relatórios avançados'].map(f => (
-                                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600"><PlanCheck />{f}</li>
-                              ))}
-                          </ul>
-                          {!isGhostAccount && normalizedPlan === 'MAX' ? (
-                              <button disabled className="w-full border-2 border-slate-100 text-slate-400 font-bold py-3.5 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
-                          ) : (
-                              <button onClick={() => handleUpgradeLink('MAX')} disabled={upgradingPlan === 'MAX'}
-                                  className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-slate-900 text-slate-700 hover:text-slate-900 font-bold py-3.5 rounded-2xl text-sm transition-all duration-200 disabled:opacity-60">
-                                  {upgradingPlan === 'MAX' ? <span className="animate-spin">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar Max' : currentRank > 3 ? 'Fazer Downgrade' : currentRank < 3 ? 'Assinar Max' : 'Fazer Upgrade'}
-                              </button>
-                          )}
-                      </div>
-
-                      {/* ULTRA */}
-                      <div className="relative bg-black rounded-[2rem] border border-black p-6 md:p-7 shadow-[0px_16px_48px_rgba(0,0,0,0.16)] hover:shadow-[0px_20px_60px_rgba(0,0,0,0.24)] transition-shadow flex flex-col overflow-hidden">
-                          <div className="flex items-center justify-between mb-2">
-                              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Ultra · Agência</p>
-                              <span className="text-[10px] font-black bg-[#65a30d] text-white px-3 py-1 rounded-full uppercase tracking-widest">⚡ Máxima</span>
-                          </div>
-                          {normalizedPlan === 'ULTRA' && user?.plan_price != null && user.plan_price !== 2999 ? (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-white tracking-tighter leading-none">R$ {user.plan_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                      <span className="text-sm text-slate-500 font-medium mb-1">/mês</span>
-                                  </div>
-                                  <span className="text-xs font-black bg-[#65a30d]/20 text-[#65a30d] px-2 py-0.5 rounded-full mb-3 self-start">Preço negociado</span>
-                              </>
-                          ) : (
-                              <>
-                                  <div className="flex items-end gap-1 mb-1">
-                                      <span className="text-3xl font-black text-white tracking-tighter leading-none">R$ {isAnnual ? '2.099,30' : '2.999,00'}</span>
-                                      <span className="text-sm text-slate-500 font-medium mb-1">/mês</span>
-                                  </div>
-                                  {isAnnual && <p className="text-xs text-[#65a30d] font-bold mb-3">Cobrado como R$ 25.191,60/ano</p>}
-                              </>
-                          )}
-                          <p className="text-sm text-slate-400 font-medium mt-3 mb-6 leading-relaxed">Para grandes agências com alta demanda de vagas.</p>
-                          <ul className="space-y-2.5 flex-1 mb-6">
-                              {['Até 50 vagas simultâneas', 'Todas as funções do Max', 'Suporte prioritário', 'SLA garantido'].map(f => (
-                                  <li key={f} className="flex items-start gap-2.5 text-sm text-slate-300"><PlanCheck dark />{f}</li>
-                              ))}
-                          </ul>
-                          {!isGhostAccount && normalizedPlan === 'ULTRA' ? (
-                              <button disabled className="w-full bg-zinc-800 text-zinc-500 font-bold py-3.5 rounded-2xl text-sm cursor-not-allowed">Plano Atual</button>
-                          ) : (
-                              <button onClick={() => handleUpgradeLink('ULTRA')} disabled={upgradingPlan === 'ULTRA'}
-                                  className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0f] text-white font-bold py-3.5 rounded-2xl text-sm transition-all duration-200 shadow-[0_4px_20px_rgba(101,163,13,0.4)] disabled:opacity-60">
-                                  {upgradingPlan === 'ULTRA' ? <span className="animate-spin">⏳</span> : null}
-                                  {isGhostAccount ? 'Assinar Ultra' : 'Assinar Ultra'}
-                              </button>
-                          )}
-                      </div>
-
-                  </div>
-              </div>
-              );
-          })()}
-              {upgradeError && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600 font-medium flex items-center justify-between">
-                      <span>{upgradeError}</span>
-                      <button onClick={() => setUpgradeError('')} className="text-red-400 hover:text-red-600 ml-4">✕</button>
-                  </div>
-              )}
-          </div>
-  );
 
   const renderSettings = () => (
     <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
@@ -2796,13 +2464,6 @@ const App: React.FC = () => {
                 <span className="hidden lg:block font-bold text-sm">Aprovados</span>
             </button>
             <button
-                onClick={() => { setCurrentTab('BILLING'); setView('DASHBOARD'); }}
-                className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'BILLING' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
-            >
-                <CreditCard className="w-6 h-6 lg:mr-3" />
-                <span className="hidden lg:block font-bold text-sm">Minha Assinatura</span>
-            </button>
-            <button
                 onClick={() => { setCurrentTab('SETTINGS'); setView('DASHBOARD'); }}
                 className={`w-full flex items-center justify-center lg:justify-start p-3 rounded-xl transition-all group ${currentTab === 'SETTINGS' ? 'bg-black text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50 hover:text-black'}`}
             >
@@ -2840,50 +2501,6 @@ const App: React.FC = () => {
       {/* MAIN CONTENT Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50/50 relative">
 
-        {/* ── Banner conta desativada ── */}
-        {isGhostAccount && (
-          <div className="fixed bottom-6 right-6 z-[200] w-[340px] bg-slate-900 text-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] p-5 border border-slate-700/80 animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse shrink-0"/>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Conta sem plano ativo</p>
-            </div>
-
-            {/* Headline */}
-            <p className="font-black text-base text-white leading-tight mb-4 tracking-tight">
-              Assine agora e seu agente<br/>estará pronto em segundos.
-            </p>
-
-            {/* Steps */}
-            <div className="space-y-2 mb-4">
-              {[
-                { icon: '💳', label: 'Pagamento confirmado' },
-                { icon: '🤖', label: 'Agente configurado automaticamente' },
-                { icon: '📲', label: 'WhatsApp ativo e recrutando' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] shrink-0">{item.icon}</div>
-                  <span className="text-xs font-medium text-slate-300">{item.label}</span>
-                  {i < 2 && <div className="ml-auto w-1 h-1 rounded-full bg-slate-700"/>}
-                </div>
-              ))}
-            </div>
-
-            {/* Tempo */}
-            <div className="bg-[#65a30d]/10 border border-[#65a30d]/20 rounded-xl px-3 py-2 mb-4 flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5 text-[#65a30d] shrink-0" />
-              <p className="text-xs font-bold text-[#84cc16]">Todo o processo leva menos de 60 segundos</p>
-            </div>
-
-            <button
-              onClick={() => setCurrentTab('BILLING')}
-              className="w-full flex items-center justify-center gap-2 bg-[#65a30d] hover:bg-[#4d7c0a] text-white font-black text-sm py-3 rounded-xl transition-all duration-200 shadow-lg shadow-[#65a30d]/20"
-            >
-              <Zap className="w-3.5 h-3.5" /> Ver planos e assinar
-            </button>
-          </div>
-        )}
-
         {/* Modal Horários Disponíveis */}
         {showAvailableSlots && (user as any)?.id && (
           <AvailableSlotsModal
@@ -2897,9 +2514,8 @@ const App: React.FC = () => {
 
         {/* VIEW: DASHBOARD (Includes TABS) */}
         {view === 'DASHBOARD' && (
-            <div className={`flex-1 p-4 md:p-6 ${currentTab === 'BILLING' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
+            <div className="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar">
                {currentTab === 'OVERVIEW' && renderOverview()}
-               {currentTab === 'BILLING' && renderBilling()}
                {currentTab === 'SETTINGS' && renderSettings()}
                {currentTab === 'ENTREVISTAS' && <InterviewsTab interviews={interviews} initialSelectedInterview={initialSelectedInterview} onClearInitialSelectedInterview={() => setInitialSelectedInterview(null)} onOpenChat={(id, name) => setActiveChat({ interviewId: id, candidateName: name })} onRefresh={() => { if ((user as any)?.id) { fetchInterviews((user as any).id); fetchJobs((user as any).id); fetchAdmissions((user as any).id); }}} approvedCandidateIds={new Set(jobs.flatMap(j => j.candidates.filter(c => c.status === CandidateStatus.APROVADO).map(c => c.id)))} userId={(user as any)?.id} onOpenAvailableSlots={() => setShowAvailableSlots(true)} />}
                {currentTab === 'APROVADOS' && <AprovadosTab admissions={admissions} jobs={jobs} interviews={interviews} onRefresh={() => { if ((user as any)?.id) fetchAdmissions((user as any).id); }} chatwootAccountId={(user as any)?.chatwoot_account_id} userId={(user as any)?.id} />}
